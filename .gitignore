@@ -150,6 +150,11 @@ activemq-data/
 # Environments
 .env
 .envrc
+.playwright-cli/
+data/
+*.sqlite
+*.sqlite3
+*.db
 .venv
 env/
 venv/
