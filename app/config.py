@@ -30,7 +30,11 @@ class Settings:
     db_schema: str = os.getenv("DB_SCHEMA", "fast_shop")
     auto_create_schema: bool = _bool("FASTSHOP_AUTO_CREATE_SCHEMA", True)
     admin_email: str = os.getenv("FASTSHOP_ADMIN_EMAIL", "admin@fastshop.example").lower()
-    admin_password: str = os.getenv("FASTSHOP_ADMIN_PASSWORD", "FastShop2026$")
+    admin_password: str = os.getenv("FASTSHOP_ADMIN_PASSWORD") or (
+        "FastShop2026$"
+        if os.getenv("FASTSHOP_ENV", "development").lower() != "production"
+        else ""
+    )
     google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
     google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
     google_redirect_uri: str = os.getenv(

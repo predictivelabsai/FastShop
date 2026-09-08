@@ -81,9 +81,7 @@ def exchange_code(code: str, verifier: str) -> dict[str, str] | None:
 
 
 def local_login_allowed() -> bool:
-    return not settings.is_production or bool(
-        settings.admin_email and settings.admin_password and "example" not in settings.admin_email
-    )
+    return not settings.is_production and bool(settings.admin_email and settings.admin_password)
 
 
 def valid_local_credentials(email: str, password: str) -> bool:

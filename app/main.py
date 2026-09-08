@@ -317,7 +317,12 @@ def get(session, error: str = "", next: str = ""):
         return RedirectResponse(destination or "/account", status_code=303)
     return (
         *ui.document_head("Sign in"),
-        ui.login_page(csrf_token(session), error, auth.google_enabled()),
+        ui.login_page(
+            csrf_token(session),
+            error,
+            auth.google_enabled(),
+            auth.local_login_allowed(),
+        ),
     )
 
 
