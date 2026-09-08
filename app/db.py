@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
@@ -18,18 +18,13 @@ if IS_POSTGRES and not settings.db_schema.replace("_", "").isalnum():
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
-    connect_args={} if IS_POSTGRES else {"check_same_thread": False},
+    connect_args=(
+        {"options": f"-csearch_path={settings.db_schema}"}
+        if IS_POSTGRES
+        else {"check_same_thread": False}
+    ),
 )
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
-
-
-if IS_POSTGRES:
-
-    @event.listens_for(engine, "connect")
-    def set_postgres_search_path(dbapi_connection, _connection_record) -> None:
-        """Keep pooled application connections inside FastShop's schema."""
-        with dbapi_connection.cursor() as cursor:
-            cursor.execute(f'SET search_path TO "{settings.db_schema}"')
 
 
 def prepare_schema() -> None:
@@ -54,4 +49,8 @@ def session_scope() -> Iterator[Session]:
 def health() -> dict[str, str]:
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
-    return {"status": "ok", "database": "postgresql" if IS_POSTGRES else "sqlite"}
+    return {
+        "status": "ok",
+        "database": "postgresql" if IS_POSTGRES else "sqlite",
+        "schema": settings.db_schema if IS_POSTGRES else "main",
+    }
