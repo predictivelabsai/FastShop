@@ -1,6 +1,6 @@
 # FastShop migration and delivery plan
 
-Status: Phase 1 vertical slice deployed  
+Status: Phase 1 vertical slice deployed
 Date: 2026-09-08  
 Target repository: `predictivelabsai/FastShop`  
 Target production URL: `https://shop.fastsme.com`
