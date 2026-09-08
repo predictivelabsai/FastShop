@@ -1,9 +1,17 @@
 # FastShop migration and delivery plan
 
-Status: discovery and architecture proposal  
+Status: Phase 1 vertical slice deployed  
 Date: 2026-09-08  
 Target repository: `predictivelabsai/FastShop`  
 Target production URL: `https://shop.fastsme.com`
+
+## Delivery update
+
+The Phase 1 vertical slice is live. It includes the storefront purchase flow,
+merchant workspace, Google SSO, per-page AI surfaces, isolated PostgreSQL
+schema, Coolify deployment, and token-gated FastERP ingress described below.
+The remaining parity items in later phases deepen these foundations rather than
+requiring a framework rewrite.
 
 ## Outcome
 
@@ -468,4 +476,3 @@ requests, page title, URL, target Git commit, and viewport.
    (recommended with strict read-only public tools), or authenticated users only.
 5. FastERP authority: recommended split ownership above, or make FastERP the
    authoritative catalog/stock master from day one.
-

@@ -8,6 +8,14 @@ Saleor's domain boundaries.
 Production target: <https://shop.fastsme.com>
 Repository: <https://github.com/predictivelabsai/FastShop>
 
+[![Live shop](https://img.shields.io/badge/live-shop.fastsme.com-087f5b)](https://shop.fastsme.com)
+[![CI](https://github.com/predictivelabsai/FastShop/actions/workflows/ci.yml/badge.svg)](https://github.com/predictivelabsai/FastShop/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/license-MIT-161714)](LICENSE)
+
+[![FastShop storefront, checkout, AI assistant, and merchant copilot walkthrough](docs/demo/fastshop-walkthrough.gif)](https://shop.fastsme.com)
+
+**[Open the live shop →](https://shop.fastsme.com)**
+
 ## Included vertical slice
 
 - responsive storefront, categories, search, variants, live stock, reviews,
