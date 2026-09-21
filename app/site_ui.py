@@ -154,30 +154,55 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
                  P("We'll use your details to answer this message. This does not sign you up for marketing emails. ", A("Privacy policy", href=url(base, "/pages/privacy-policy"))),
                  Button("Send message ↗", type="submit", cls="h-button"), method="post", action=base + "/contact", cls="h-contact-form"), cls="h-section h-container h-contact")
     if kind == "product":
+        from app.commerce import settings_for
+        commerce_config = settings_for(db, site)
+        checkout_enabled = bool(commerce_config and commerce_config.mode == "sandbox" and not preview)
         product = catalog_product(db, site, page.product_id) if page.product_id else None
         variants = list(db.scalars(select(ProductVariant).where(ProductVariant.product_id == product.id, ProductVariant.tenant_id == site.tenant_id).order_by(ProductVariant.sort_order))) if product else []
         listing = db.scalar(select(VariantChannelListing).where(VariantChannelListing.channel_id == site.channel_id, VariantChannelListing.variant_id == variants[0].id)) if variants else None
         tablets = section.get("subscription_preview", False)
+        subscription_enabled = bool(checkout_enabled and product and product.id in commerce_config.subscription_product_ids_json)
         gallery = [section.get("image", ""), *section.get("gallery", [])]
         return Section(Figure(Div(image(section.get("image"), "Placeholder product mock-up", eager=True), data_gallery_main=""),
             Div(*[Button(image(src, f"Placeholder gallery image {i + 1}"), type="button", data_gallery_src=src, aria_label=f"View gallery image {i + 1}") for i, src in enumerate(gallery) if src], cls="h-gallery-thumbs"),
             Figcaption("PLACEHOLDER PRODUCT IMAGES")),
             Div(Small(product.name if product else "PRODUCT", cls="h-eyebrow"), H1(heading), *paragraphs(section.get("body")),
-                P(money(listing.price_minor, listing.currency) + " / box" if listing else "US price to be confirmed", cls="h-price"),
+                P(money(listing.price_minor, listing.currency) + (" / box · one-time price" if subscription_enabled else " / box") if listing else "US price to be confirmed", cls="h-price"),
                 Small("PLACEHOLDER PRICE · final price and pack size pending"),
-                Label("Choose your option", Select(*[Option(v.name, value=v.id) for v in variants], aria_label="Choose your option")) if len(variants) > 1 else None,
+                Form(Input(type="hidden", name="csrf_token", value=csrf),
+                    Label("Choose your option", Select(*[Option(v.name, value=v.id) for v in variants if v.is_active], name="variant_id", aria_label="Choose your option", required=True)),
+                    Label("Quantity", Input(type="number", name="quantity", value=1, min=1, max=25, required=True)),
+                    Label("Purchase option", Select(Option("One-time purchase", value="off", selected=True),
+                        Option("Subscribe and save 10% · monthly", value="on"), name="subscription")) if subscription_enabled else None,
+                    P("USD · Sandbox checkout. Shipping and state-specific sales tax are calculated before payment."),
+                    P("Monthly delivery at 10% off merchandise. Skip, pause or cancel future deliveries in My account.") if subscription_enabled else None,
+                    Button("Add to bag", cls="h-button"), method="post", action=base + "/cart/add", cls="h-contact-form") if checkout_enabled and listing else None,
+                Label("Choose your option", Select(*[Option(v.name, value=v.id) for v in variants], aria_label="Choose your option")) if len(variants) > 1 and not checkout_enabled else None,
                 Div(Label(Input(type="radio", name="purchase", checked=True), " One-time purchase"),
-                    Label(Input(type="radio", name="purchase"), " Subscribe and save 10% · monthly"), cls="h-purchase") if tablets else None,
-                Button("Add to cart — coming in Phase 2", disabled=True, cls="h-button"),
-                P("Design preview. Orders and subscriptions are not open yet.", cls="h-muted"), cls="h-product-copy"), cls="h-product-detail h-container")
+                    Label(Input(type="radio", name="purchase"), " Subscribe and save 10% · monthly"), cls="h-purchase") if tablets and not checkout_enabled else None,
+                Button("Add to cart — coming in Phase 2", disabled=True, cls="h-button") if not checkout_enabled else None,
+                P("Sandbox only. No live payments." if checkout_enabled else "Design preview. Orders and subscriptions are not open yet.", cls="h-muted"), cls="h-product-copy"), cls="h-product-detail h-container")
     return Section(intro, cta(section, base), cls="h-section h-container h-editorial")
 
 
 def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=""):
+    from app.commerce import settings_for
+    from app.customer_services import consent_text
+    from app.site_analytics import measurement_id
+    from app.site_theme import theme_style
+    analytics_id = measurement_id(site, preview=preview)
+    commerce_config = settings_for(db, site)
+    customer_services_enabled = bool(commerce_config and commerce_config.mode == "sandbox")
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
     document = page.draft_json if preview else page.published_json
     home = page.path == "/"
+    def section_view(section, index):
+        rendered = render_section(db, site, page, config, section, base, csrf, preview, index == 0)
+        if preview and rendered is not None:
+            rendered.attrs["data-builder-section"] = section["id"]
+            rendered.attrs["data-builder-label"] = (section.get("heading") or section["type"])[:100]
+        return rendered
     def brand(light=False):
         return image(config.get("logo_light" if light else "logo"), config.get("name", site.name), eager=True) or Span(config.get("name", site.name))
     return (
@@ -186,17 +211,23 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         Meta(property="og:title", content=document["title"]), Meta(property="og:description", content=document.get("description", "")),
         Meta(property="og:url", content=canonical), Link(rel="canonical", href=canonical),
         Link(rel="icon", href="/static/favicon.svg", type="image/svg+xml"), Link(rel="stylesheet", href="/static/site-builder.css"), Script(src="/static/site-builder.js", defer=True),
+        Script(src="/static/site-analytics.js", defer=True) if analytics_id else None,
+        Link(rel="stylesheet", href="/static/site-theme.css"),
+        Script(src="/static/site-preview.js", defer=True) if preview else None,
+        Link(rel="stylesheet", href="/static/site-preview.css") if preview else None,
+        Link(rel="stylesheet", href="/static/cart-drawer.css") if customer_services_enabled and not preview else None,
+        Script(src="/static/cart-drawer.js", defer=True) if customer_services_enabled and not preview else None,
         Div(
             A("Skip to content", href="#content", cls="h-skip"),
-            Div("PHASE 1 PREVIEW · Design & content · Purchasing opens after review", cls="h-preview-note") if site.status != "published" or preview else None,
+            Div("SANDBOX · Test purchases only" if customer_services_enabled and not preview else "PHASE 1 PREVIEW · Design & content · Purchasing opens after review", cls="h-preview-note") if site.status != "published" or preview or customer_services_enabled else None,
             Div(config.get("announcement", ""), cls="h-announcement"),
             Header(A(brand(), href=base + "/", cls="h-brand h-brand-dark"), A(brand(True), href=base + "/", cls="h-brand h-brand-light"),
                 Button("Menu", type="button", data_menu_toggle="", aria_expanded="false", aria_controls="site-navigation", cls="h-menu-toggle"),
                 Nav(*[Details(Summary("Shop"), Div(A("All products", href=url(base, "/shop")), *[A(category["label"], href=url(base, category["path"])) for category in config.get("collections", [])], cls="h-dropdown"), cls="h-shop-menu") if item["label"] == "Shop" and config.get("collections") else A(item["label"], href=url(base, item["path"])) for item in config.get("navigation", [])], id="site-navigation", cls="h-nav"),
-                Div(Button("Account", type="button", data_commerce_notice="", aria_label="My account — Phase 2"), Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items — Phase 2"), cls="h-header-actions"), cls="h-header"),
+                Div(A("Account", href=base + "/account", aria_label="My account") if customer_services_enabled else Button("Account", type="button", data_commerce_notice="", aria_label="My account — Phase 2"), A("Bag", href=base + "/cart", data_cart_open="") if customer_services_enabled else Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items — Phase 2"), cls="h-header-actions"), cls="h-header"),
             Div(message, role="status", cls="h-message") if message else None,
             Main(Div(Small(document.get("category", "LEARN"), cls="h-eyebrow"), H1(document["title"]), P(f"By {site.name} team · Draft for editorial review"), image(document.get("image")), cls="h-article-heading h-container") if page.kind == "article" else None,
-                *[render_section(db, site, page, config, s, base, csrf, preview, i == 0) for i, s in enumerate(document.get("sections", [])) if not s.get("hidden")], id="content"),
+                *[section_view(s, i) for i, s in enumerate(document.get("sections", [])) if not s.get("hidden")], id="content"),
             Section(Div(Small("A LITTLE SOMETHING TO LOOK FORWARD TO", cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P("Our first-order offer is coming when the shop opens.")),
                     Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer"),
             Footer(Div(Div(A(brand(), href=base + "/", cls="h-brand"), P(config.get("tagline", ""))),
@@ -210,11 +241,20 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                 Div(Button("Accept all", data_consent="all"), Button("Decline", data_consent="none"), Button("Save preferences", data_consent="custom")),
                 A("Privacy policy", href=url(base, "/pages/privacy-policy")), id="h-cookie", cls="h-cookie", role="region", aria_label="Cookie preferences", hidden=True),
             Div(Button("Close ×", type="button", data_offer_close=""), H2(config.get("offer", "Stay curious.")),
-                P("Design preview: email signup and discount delivery open in Phase 2. No email is collected here."),
-                Label("Email address", Input(type="email", placeholder="you@example.com", disabled=True)),
-                Label(Input(type="checkbox", disabled=True), f" I agree to receive marketing emails from {site.name}. Unsubscribe anytime."),
+                Form(Input(type="hidden", name="csrf_token", value=csrf),
+                    P("Confirm your email to receive a personal first-order code. Checkout is still in sandbox setup."),
+                    Label("Email address", Input(name="email", type="email", required=True, maxlength=320, autocomplete="email")),
+                    Label(Input(name="marketing_consent", type="checkbox", required=True), " " + consent_text(site)),
+                    Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
+                    Button("Email my confirmation link", type="submit", cls="h-button"), method="post", action=base + "/newsletter") if customer_services_enabled else Div(
+                    P("Design preview: email signup and discount delivery open in Phase 2. No email is collected here."),
+                    Label("Email address", Input(type="email", placeholder="you@example.com", disabled=True)),
+                    Label(Input(type="checkbox", disabled=True), " " + consent_text(site))),
                 A("Privacy policy", href=url(base, "/pages/privacy-policy")), id="h-offer-panel", cls="h-offer-panel", hidden=True),
             Div(id="h-toast", role="status", cls="h-toast", hidden=True),
             cls="h-site " + ("h-home" if home else "h-inner"), data_site=site.id,
+            data_ga4=analytics_id, data_analytics_path=base or "/",
+            style=theme_style(config), data_themed="true" if theme_style(config) else "false",
+            data_builder_page=page.id if preview else "",
         ),
     )

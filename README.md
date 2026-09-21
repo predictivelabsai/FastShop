@@ -39,13 +39,34 @@ Repository: <https://github.com/predictivelabsai/FastShop>
 The H2 4 You design/content preview lives at `/sites/h24you/`. Authorized merchants
 can create their own sites at `/admin/sites`, edit sections and shared settings,
 upload media, manage product presentation, preview drafts and publish revisions.
-The new storefronts do not activate the legacy demo checkout: purchasing,
-subscriptions, customer accounts and marketing capture await Phase 2 approval.
+The new storefronts do not activate the legacy demo checkout. Phase 2 commerce
+is implemented locally in sandbox-only mode; real-provider acceptance and release
+remain separate gates. Do not assume the production target runs the local worktree.
 
 - [Phase 1 delivery and placeholder register](docs/H24YOU_PHASE1_DELIVERY.md)
 - [Merchant editing guide](docs/PHASE1_MERCHANT_GUIDE.md)
 - [Phase 2 commerce implementation roadmap](docs/PHASE2_COMMERCE_ROADMAP.md)
 - [Browser verification evidence](output/playwright/h24you-phase1/verification.json)
+
+## Dual-flow builder and private commerce demo
+
+Build a site with classical forms or a guided chat beside the same draft preview.
+Use shared design controls, section targeting and undo without publishing changes.
+The configured model enables natural-language editing; without a key, the UI
+explicitly offers a guided preset wizard.
+
+The merchant-only simulator exercises synthetic checkout, subscriptions, account
+confirmation, tracking and a local inbox without payment/email credentials. Its
+sample products and orders are isolated from real catalog and commerce records.
+
+![FastShop dual-flow builder and simulated commerce](static/productdemo.gif)
+
+- [Screenshot-led user guide](docs/USER_GUIDE.md)
+- [Implementation status and provider acceptance limits](docs/DUAL_FLOW_IMPLEMENTATION_STATUS.md)
+- [Dual-flow architecture and acceptance plan](docs/DUAL_FLOW_SITE_BUILDER_PLAN.md)
+
+These screenshots and the GIF demonstrate local fixtures, not real payments or
+proof of deployment. See the implementation status for checks and provider limits.
 
 ## Run locally
 
@@ -64,7 +85,10 @@ been prepared:
 
 ```bash
 DB_URL= FASTSHOP_ENV=development FASTSHOP_AUTO_CREATE_SCHEMA=1 uv run ruff check .
-DB_URL= FASTSHOP_ENV=development FASTSHOP_AUTO_CREATE_SCHEMA=1 uv run pytest -q
+DB_URL= FASTSHOP_ENV=development FASTSHOP_AUTO_CREATE_SCHEMA=1 \
+  FASTSHOP_DATA_DIR="$(mktemp -d /tmp/fastshop-tests-XXXXXX)" \
+  XAI_API_KEY= POSTMARK_API_TOKEN= POSTMARK_SERVER_TOKEN= \
+  STRIPE_SECRET_KEY= STRIPE_WEBHOOK_SECRET= uv run python -m pytest -q
 ```
 
 ## Production configuration

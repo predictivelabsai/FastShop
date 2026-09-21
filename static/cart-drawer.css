@@ -1,0 +1,11 @@
+/* Isolated FastShop drawer chrome; the embedded cart uses the shared platform shell. */
+.fs-cart-dialog{position:fixed;inset:0 0 0 auto;margin:0;width:min(100%,540px);max-width:100%;height:100dvh;max-height:100dvh;padding:0;border:0;background:#f5f6f0;color:#18221c;box-shadow:-12px 0 40px #0002}
+.fs-cart-dialog::backdrop{background:#0006}
+.fs-cart-dialog[open]{display:flex;flex-direction:column;animation:fs-cart-in .18s ease-out}
+.fs-cart-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:white;border-bottom:1px solid #dfe3da;font:600 16px/1.5 system-ui,sans-serif}
+.fs-cart-dialog button{background:#087f5b;color:white;border:0;border-radius:3px;padding:10px 16px;font:inherit;cursor:pointer}
+.fs-cart-dialog button:focus-visible{outline:3px solid #18221c;outline-offset:3px}
+.fs-cart-dialog iframe{border:0;width:100%;flex:1;min-height:0;background:#f5f6f0}
+.fs-cart-dialog [role=status]{padding:0 20px;font:16px/1.5 system-ui,sans-serif}
+@keyframes fs-cart-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.fs-cart-dialog[open]{animation:none}}

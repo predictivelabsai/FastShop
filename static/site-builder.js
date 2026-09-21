@@ -29,13 +29,14 @@
   }
   const read = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
   const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Consent still applies in memory. */ } };
-  let consent = read(consentKey) || {analytics: false, marketing: false};
-  cookie.hidden = Boolean(read(consentKey));
+  const savedConsent = read(consentKey);
+  const validConsent = savedConsent && savedConsent.version === 1 && typeof savedConsent.analytics === 'boolean' && typeof savedConsent.marketing === 'boolean';
+  let consent = validConsent ? savedConsent : {analytics: false, marketing: false};
+  cookie.hidden = Boolean(validConsent);
   document.querySelector('#consent-analytics').checked = Boolean(consent.analytics);
   document.querySelector('#consent-marketing').checked = Boolean(consent.marketing);
   window.fastshopConsent = consent;
-  // Phase 1 has no analytics or marketing adapters. Future adapters must observe
-  // this event and stop collection on withdrawal, not merely hide their UI.
+  // Adapters must observe this event and stop collection on withdrawal.
   document.querySelectorAll('[data-consent]').forEach(button => button.addEventListener('click', () => {
     const mode = button.dataset.consent;
     consent = {essential: true, analytics: mode === 'all' || (mode === 'custom' && document.querySelector('#consent-analytics').checked),

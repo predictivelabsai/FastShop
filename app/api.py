@@ -86,6 +86,10 @@ api.add_middleware(
     allow_headers=["Accept", "Content-Type", "Authorization"],
 )
 
+from app.commerce_webhooks import register_commerce_webhooks  # noqa: E402
+
+register_commerce_webhooks(api)
+
 
 @api.get("/", tags=["System"])
 def index() -> dict:
@@ -187,4 +191,3 @@ def propose_stock_update(payload: StockUpdate, session: Session = Depends(get_se
         "current_available": available_stock(session, variant.id),
         "proposed_quantity": payload.quantity,
     }
-

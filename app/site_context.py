@@ -4,7 +4,7 @@ from sqlalchemy import select
 from starlette.responses import Response
 
 from app.db import SessionLocal
-from app.models import Site
+from app.models import Site, SiteCommerceSettings
 
 
 class SiteHostMiddleware:
@@ -20,9 +20,16 @@ class SiteHostMiddleware:
         shared = ("/static/", "/site-media/", "/admin", "/login", "/logout", "/auth/", "/healthz", "/readyz")
         if not path.startswith(shared):
             with SessionLocal() as db:
-                site = db.scalar(select(Site).where(Site.hostname == host, Site.status.in_(["preview", "published"])))
+                query = select(Site).where(Site.hostname == host)
+                site = db.scalar(query)
                 if site:
-                    if path.startswith(("/api", "/cart", "/checkout", "/account", "/sites/")):
+                    if site.status not in ("preview", "published") and not path.startswith(("/unsubscribe/", "/account")):
+                        return await Response("This store is not open.", status_code=404)(scope, receive, send)
+                    commerce = db.scalar(select(SiteCommerceSettings).where(SiteCommerceSettings.site_id == site.id,
+                        SiteCommerceSettings.tenant_id == site.tenant_id))
+                    if (path.startswith(("/api", "/sites/")) or
+                            (path.startswith("/account") and not commerce) or
+                            (path.startswith(("/cart", "/checkout")) and (not commerce or commerce.mode != "sandbox"))):
                         return await Response("Commerce is not open on this preview site.", status_code=404)(scope, receive, send)
                     scope = dict(scope)
                     scope["site_base"] = ""

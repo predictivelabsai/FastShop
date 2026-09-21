@@ -10,7 +10,6 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 from fasthtml.common import (
-    H1,
     H2,
     H3,
     A,
@@ -21,21 +20,19 @@ from fasthtml.common import (
     Iframe,
     Input,
     Label,
-    Link,
     Option,
     P,
-    Script,
     Select,
     Small,
     Summary,
     Textarea,
-    Title,
 )
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
 from starlette.responses import RedirectResponse, Response
 
 from app import content, site_ui
+from app import site_builder_services as builder
 from app.config import settings
 from app.db import SessionLocal
 from app.integrations.contact_email import deliver
@@ -70,16 +67,27 @@ def register_site_routes(rt):
             raise CommerceError("Your session expired. Reload and try again.")
 
     def shell(title, *children):
-        from fasthtml.common import Meta
-        return (Title(title + " — FastShop Sites"), Meta(name="viewport", content="width=device-width, initial-scale=1"), Link(rel="icon", href="/static/favicon.svg"), Link(rel="stylesheet", href="/static/site-editor.css"),
-                Script(src="/static/site-editor.js", defer=True),
-                Div(A("← FastShop", href="/admin"), A("My sites", href="/admin/sites"), cls="e-top"),
-                Div(H1(title), *children, cls="e-main"))
+        from app.platform_ui import platform_page
+        return platform_page(title, *children)
 
     def error(exc):
         return Response(str(exc), status_code=400, media_type="text/plain")
 
     register_catalog_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_builder_routes import register_builder_routes
+    register_builder_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_sample_routes import register_sample_routes
+    register_sample_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.demo_routes import register_demo_routes
+    register_demo_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.commerce_routes import register_commerce_routes
+    register_commerce_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.customer_routes import register_customer_routes
+    register_customer_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.store_checkout_routes import register_store_checkout_routes
+    register_store_checkout_routes(rt, csrf, check_csrf, error)
+    from app.subscription_routes import register_subscription_routes
+    register_subscription_routes(rt, csrf, check_csrf)
 
     @rt("/admin/sites", methods=["GET"])
     def get(session):
@@ -95,6 +103,8 @@ def register_site_routes(rt):
                     H2("Create a website"), Form(csrf(session), Label("Site name", Input(name="name", required=True, maxlength=160)),
                         Label("Site address", Input(name="slug", required=True, pattern="[a-z][a-z0-9-]{2,60}", placeholder="your-brand")),
                         P("Start with the editorial commerce theme. Your site stays private until you publish."),
+                        Label("Build your way", Select(Option("Classical editor", value="classical"), Option("Build with AI / guided presets", value="chat"), name="flow")),
+                        Label(Input(type="checkbox", name="samples"), " Start with clearly labelled sample merchant details"),
                         Button("Create site", cls="e-button"), method="post", action="/admin/sites", cls="e-form"))
         except CommerceError as exc:
             return error(exc)
@@ -107,8 +117,11 @@ def register_site_routes(rt):
             user_id = actor(session)
             with SessionLocal() as db:
                 site = content.create_site(db, user_id, str(form.get("name", "")), str(form.get("slug", "")))
+                if form.get("samples") == "on":
+                    from app.site_samples import seed_samples
+                    seed_samples(db, site, user_id)
                 db.commit()
-                return RedirectResponse(f"/admin/sites/{site.id}", status_code=303)
+                return RedirectResponse(f"/admin/sites/{site.id}" + ("/build" if form.get("flow") == "chat" else ""), status_code=303)
         except CommerceError as exc:
             return error(exc)
 
@@ -120,9 +133,14 @@ def register_site_routes(rt):
                 site = content.owned_site(db, site_id, user_id)
                 pages = content.site_pages(db, site)
                 config = site.settings_json
+                from app.site_samples import pending_reviews
+                pending = pending_reviews(config)
                 return shell(site.name,
-                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Media library", href=f"/admin/sites/{site.id}/media"), cls="e-actions"),
-                    P("Phase 1: pages, branding and content. Commerce stays closed for this review."),
+                    Div(A("Build with AI →", href=f"/admin/sites/{site.id}/build"), A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"), A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"), A("Try commerce demo", href=f"/admin/sites/{site.id}/demo"), cls="e-actions"),
+                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Media library", href=f"/admin/sites/{site.id}/media"), cls="e-actions"),
+                    P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),
+                    P("Before publication, review merchant fields: " + ", ".join(pending) + ". Publication does not confirm these details or enable payments.", cls="e-note") if pending else None,
+                    A("Customers, tracking & email", href=f"/admin/sites/{site.id}/customers"),
                     Div(Div(H2("Pages"), *[Div(A(p.title, href=f"/admin/sites/{site.id}/pages/{p.id}"), Small(p.path),
                         Small("Published" if p.published_json else "Draft"), cls="e-page-row") for p in pages],
                         Details(Summary("Add a page"), Form(csrf(session), Label("Title", Input(name="title", required=True)),
@@ -136,6 +154,8 @@ def register_site_routes(rt):
                                 ("offer", "First-order banner"), ("logo", "Logo URL"), ("logo_light", "Light logo URL"),
                                 ("science_date", "Research figures checked as of")]],
                             Label("Footer disclaimer", Textarea(config.get("footer", ""), name="footer", rows=4)),
+                            H3("Analytics"), Label("GA4 measurement ID (optional)", Input(name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""), placeholder="G-ABC1234567", maxlength=22)),
+                            P("Disabled when empty. Published public pages load Google Analytics only after analytics consent. Account and checkout pages are excluded; no Meta pixel is installed. Publish shared settings to apply changes."),
                             H3("Menu links"), *[Div(Input(name=f"nav_label_{i}", value=item["label"], aria_label="Menu label"),
                                 Input(name=f"nav_path_{i}", value=item["path"], aria_label="Menu path"), cls="e-pair") for i, item in enumerate(config.get("navigation", []))],
                             Div(Input(name="new_nav_label", placeholder="New menu label", aria_label="New menu label"), Input(name="new_nav_path", placeholder="/pages/new-page", aria_label="New menu path"), cls="e-pair"),
@@ -161,7 +181,11 @@ def register_site_routes(rt):
                 site = db.scalar(select(Site).where(Site.id == site.id, Site.tenant_id == site.tenant_id).with_for_update().execution_options(populate_existing=True))
                 if str(site.version) != str(form.get("version")):
                     raise CommerceError("Settings changed in another window. Reload before saving.")
+                site = builder.lock_site(db, site.id, user_id, site.version)
+                before = builder.snapshot(db, site)
                 config = copy.deepcopy(site.settings_json)
+                from app.site_analytics import validate_measurement_id
+                config["ga4_measurement_id"] = validate_measurement_id(form.get("ga4_measurement_id", config.get("ga4_measurement_id", "")))
                 for key in ("name", "tagline", "email", "company", "address", "announcement", "offer", "logo", "logo_light", "science_date", "footer"):
                     config[key] = str(form.get(key, ""))[:2000]
                 for key in ("logo", "logo_light"):
@@ -184,10 +208,14 @@ def register_site_routes(rt):
                     item["approved"] = form.get(f"claim_approved_{i}") == "on"
                     item["reviewed_by"] = user_id
                     item["reviewed_at"] = datetime.now(UTC).isoformat()
+                from app.site_samples import invalidate_reviews
+                config = invalidate_reviews(config, site.settings_json, config)
                 site.settings_json = config
                 site.version += 1
                 if form.get("action") == "publish":
                     site.published_settings_json = copy.deepcopy(config)
+                db.flush()
+                builder.record_change(db, site, user_id, before, "classical", "Brand and shared content")
                 db.commit()
             return RedirectResponse(f"/admin/sites/{site_id}", status_code=303)
         except CommerceError as exc:
@@ -199,8 +227,14 @@ def register_site_routes(rt):
         try:
             check_csrf(session, form)
             with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session))
+                user_id = actor(session)
+                site = content.owned_site(db, site_id, user_id)
+                site = builder.lock_site(db, site.id, user_id, site.version)
+                before = builder.snapshot(db, site)
                 page = content.create_page(db, site, str(form.get("title", "")), str(form.get("path", "")), str(form.get("kind", "content")))
+                site.version += 1
+                db.flush()
+                builder.record_change(db, site, user_id, before, "classical", "Created page: " + page.title)
                 db.commit()
                 return RedirectResponse(f"/admin/sites/{site.id}/pages/{page.id}", status_code=303)
         except CommerceError as exc:
@@ -261,6 +295,8 @@ def register_site_routes(rt):
             with SessionLocal() as db:
                 user_id = actor(session)
                 site = content.owned_site(db, site_id, user_id)
+                site = builder.lock_site(db, site.id, user_id, site.version)
+                before = builder.snapshot(db, site)
                 page = content.site_page(db, site, page_id)
                 document = copy.deepcopy(page.draft_json)
                 document["title"] = str(form.get("title", ""))
@@ -290,6 +326,9 @@ def register_site_routes(rt):
                 if action not in {"draft", "publish", "unpublish"}:
                     raise CommerceError("Unknown publication action.")
                 content.save_page(db, site, page.id, user_id, document, int(form.get("version", 0)), action)
+                site.version += 1
+                db.flush()
+                builder.record_change(db, site, user_id, before, "classical", "Page: " + page.title)
                 if action == "publish" and site.status == "draft":
                     site.status = "preview"
                 db.commit()
@@ -305,7 +344,12 @@ def register_site_routes(rt):
             with SessionLocal() as db:
                 user_id = actor(session)
                 site = content.owned_site(db, site_id, user_id)
+                site = builder.lock_site(db, site.id, user_id, site.version)
+                before = builder.snapshot(db, site)
                 content.restore_page(db, site, page_id, str(form.get("revision", "")), user_id, int(form.get("version", 0)))
+                site.version += 1
+                db.flush()
+                builder.record_change(db, site, user_id, before, "classical", "Restored page draft")
                 db.commit()
             return RedirectResponse(f"/admin/sites/{site_id}/pages/{page_id}", status_code=303)
         except (CommerceError, ValueError) as exc:

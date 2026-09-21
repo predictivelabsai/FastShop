@@ -1,0 +1,12 @@
+/* Opt-in tokens are isolated from FastShop's platform shell. */
+.h-site[data-themed="true"] {background:var(--store-background);color:var(--store-text);font-family:var(--store-font)}
+.h-site[data-themed="true"] :is(h1,h2,h3) {font-family:var(--store-headings)}
+.h-site[data-themed="true"] .h-container {max-width:var(--store-width)}
+.h-site[data-themed="true"] .h-section {padding-top:var(--store-spacing);padding-bottom:var(--store-spacing)}
+.h-site[data-themed="true"] :is(.h-header,.h-footer,.h-dropdown) {background:var(--store-background);color:var(--store-text)}
+.h-site[data-themed="true"] :is(.h-announcement,.h-split,.h-offer,.h-reviews) {background:var(--store-surface)}
+.h-site[data-themed="true"] .h-button {background:var(--store-accent);border-color:var(--store-accent);color:white;border-radius:var(--store-radius)}
+.h-site[data-themed="true"] .h-hero-media {background:var(--store-accent)}
+.h-site[data-themed="true"] .h-hero-copy {text-align:var(--store-hero)}
+.h-site[data-themed="true"] .h-facts strong {color:var(--store-accent)}
+@media(max-width:700px){.h-site[data-themed="true"] .h-section{padding-top:min(var(--store-spacing),60px);padding-bottom:min(var(--store-spacing),60px)}}

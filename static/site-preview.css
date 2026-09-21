@@ -1,0 +1,2 @@
+.b-select-mode [data-builder-section]{cursor:crosshair}
+.b-select-mode [data-builder-section]:hover,.b-select-mode [data-builder-section]:focus,.b-selected-section{outline:3px solid #078560;outline-offset:-4px}

@@ -399,6 +399,55 @@ class SiteRevision(TimestampMixin, Base):
     action: Mapped[str] = mapped_column(String(40), default="draft")
 
 
+class SiteBuilderTurn(TimestampMixin, Base):
+    __tablename__ = "site_builder_turns"
+    __table_args__ = (UniqueConstraint("site_id", "command_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    command_id: Mapped[str] = mapped_column(String(64))
+    prompt: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(24), default="pending")
+    provider: Mapped[str] = mapped_column(String(24), default="guided")
+    context_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    response_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class SiteChangeSet(TimestampMixin, Base):
+    __tablename__ = "site_change_sets"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    source: Mapped[str] = mapped_column(String(24))
+    summary: Mapped[str] = mapped_column(String(400))
+    before_json: Mapped[dict] = mapped_column(JSON)
+    after_json: Mapped[dict] = mapped_column(JSON)
+
+
+class DemoWorkspace(TimestampMixin, Base):
+    __tablename__ = "demo_workspaces"
+    __table_args__ = (UniqueConstraint("site_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    state_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class DemoCommand(TimestampMixin, Base):
+    __tablename__ = "demo_commands"
+    __table_args__ = (UniqueConstraint("workspace_id", "command_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("demo_workspaces.id"), index=True)
+    command_id: Mapped[str] = mapped_column(String(64))
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    result_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class SiteMedia(TimestampMixin, Base):
     __tablename__ = "site_media"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
@@ -424,3 +473,255 @@ class SiteContact(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(32), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     client_hash: Mapped[str] = mapped_column(String(64), default="", index=True)
+
+
+class SiteCommerceSettings(TimestampMixin, Base):
+    __tablename__ = "site_commerce_settings"
+    __table_args__ = (
+        UniqueConstraint("site_id"),
+        CheckConstraint("shipping_minor IS NULL OR shipping_minor >= 0"),
+        CheckConstraint("free_shipping_threshold_minor >= 0"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    mode: Mapped[str] = mapped_column(String(20), default="disabled")
+    origin_json: Mapped[dict] = mapped_column(JSON, default=lambda: {"country": "EE"})
+    shipping_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    free_shipping_threshold_minor: Mapped[int] = mapped_column(Integer, default=7500)
+    allowed_states_json: Mapped[list] = mapped_column(JSON, default=list)
+    product_tax_codes_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    subscription_product_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    tax_registration_reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class CommerceQuote(TimestampMixin, Base):
+    __tablename__ = "commerce_quotes"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    provider_id: Mapped[str] = mapped_column(String(100))
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    subtotal_minor: Mapped[int] = mapped_column(Integer)
+    discount_minor: Mapped[int] = mapped_column(Integer)
+    shipping_minor: Mapped[int] = mapped_column(Integer)
+    tax_minor: Mapped[int] = mapped_column(Integer)
+    total_minor: Mapped[int] = mapped_column(Integer)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    snapshot_json: Mapped[dict] = mapped_column(JSON)
+
+
+class ShopCustomer(TimestampMixin, Base):
+    __tablename__ = "shop_customers"
+    __table_args__ = (UniqueConstraint("site_id", "email"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    name: Mapped[str] = mapped_column(String(160), default="")
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stripe_customer_id: Mapped[str] = mapped_column(String(100), default="")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class CustomerChallenge(TimestampMixin, Base):
+    __tablename__ = "customer_challenges"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String(40))
+    token_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    client_hash: Mapped[str] = mapped_column(String(64), index=True)
+    consent_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class MarketingConsent(TimestampMixin, Base):
+    __tablename__ = "marketing_consents"
+    __table_args__ = (UniqueConstraint("site_id", "customer_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    status: Mapped[str] = mapped_column(String(24), default="pending")
+    consent_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    unsubscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CustomerOffer(TimestampMixin, Base):
+    __tablename__ = "customer_offers"
+    __table_args__ = (UniqueConstraint("site_id", "customer_id"), UniqueConstraint("site_id", "code"))
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    code: Mapped[str] = mapped_column(String(40))
+    percent: Mapped[int] = mapped_column(Integer, default=10)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    redeemed_order_id: Mapped[str | None] = mapped_column(ForeignKey("orders.id"), nullable=True)
+
+
+class CommerceMail(TimestampMixin, Base):
+    __tablename__ = "commerce_mail"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    challenge_id: Mapped[str | None] = mapped_column(ForeignKey("customer_challenges.id"), nullable=True)
+    reference_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    kind: Mapped[str] = mapped_column(String(40))
+    dedupe_key: Mapped[str] = mapped_column(String(160), unique=True)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    provider_id: Mapped[str] = mapped_column(String(100), default="")
+
+
+class SiteOrder(TimestampMixin, Base):
+    __tablename__ = "site_orders"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    order_id: Mapped[str] = mapped_column(ForeignKey("orders.id"), unique=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    quote_id: Mapped[str | None] = mapped_column(ForeignKey("commerce_quotes.id"), nullable=True)
+    stripe_checkout_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
+    stripe_invoice_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
+
+
+class ShipmentEvent(TimestampMixin, Base):
+    __tablename__ = "shipment_events"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    site_order_id: Mapped[str] = mapped_column(ForeignKey("site_orders.id"), index=True)
+    carrier: Mapped[str] = mapped_column(String(100), default="")
+    tracking_number: Mapped[str] = mapped_column(String(100), default="")
+    tracking_url: Mapped[str] = mapped_column(String(500), default="")
+    status: Mapped[str] = mapped_column(String(32))
+    note: Mapped[str] = mapped_column(String(500), default="")
+    author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+class CheckoutAttempt(TimestampMixin, Base):
+    __tablename__ = "checkout_attempts"
+    __table_args__ = (UniqueConstraint("site_id", "request_key"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    quote_id: Mapped[str] = mapped_column(ForeignKey("commerce_quotes.id"), unique=True)
+    offer_id: Mapped[str | None] = mapped_column(ForeignKey("customer_offers.id"), nullable=True)
+    request_key: Mapped[str] = mapped_column(String(64))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    provider_payload_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    provider_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    state: Mapped[str] = mapped_column(String(24), default="prepared", index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    stripe_session_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    order_id: Mapped[str | None] = mapped_column(ForeignKey("orders.id"), nullable=True)
+
+
+class InventoryReservation(TimestampMixin, Base):
+    __tablename__ = "inventory_reservations"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "stock_id"),
+        CheckConstraint("quantity > 0", name="ck_reservation_quantity_positive"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    attempt_id: Mapped[str] = mapped_column(ForeignKey("checkout_attempts.id"), index=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), index=True)
+    quantity: Mapped[int] = mapped_column(Integer)
+    state: Mapped[str] = mapped_column(String(24), default="held")
+
+
+class SiteCart(TimestampMixin, Base):
+    __tablename__ = "site_carts"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    lines_json: Mapped[list] = mapped_column(JSON, default=list)
+    discount_code: Mapped[str] = mapped_column(String(40), default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    request_key: Mapped[str] = mapped_column(String(64), default=new_id)
+    checkout_id: Mapped[str | None] = mapped_column(ForeignKey("checkout_attempts.id"), nullable=True)
+
+
+class SubscriptionContract(TimestampMixin, Base):
+    __tablename__ = "subscription_contracts"
+    __table_args__ = (CheckConstraint("interval_months >= 1 AND interval_months <= 12"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    initial_attempt_id: Mapped[str] = mapped_column(ForeignKey("checkout_attempts.id"), unique=True)
+    stripe_customer_id: Mapped[str] = mapped_column(String(100))
+    payment_method_id: Mapped[str] = mapped_column(String(100))
+    state: Mapped[str] = mapped_column(String(24), default="active", index=True)
+    interval_months: Mapped[int] = mapped_column(Integer, default=1)
+    anchor_day: Mapped[int] = mapped_column(Integer)
+    next_due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    lines_json: Mapped[list] = mapped_column(JSON)
+    destination_json: Mapped[dict] = mapped_column(JSON)
+    recipient_name: Mapped[str] = mapped_column(String(160))
+    consent_json: Mapped[dict] = mapped_column(JSON)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class SubscriptionCycle(TimestampMixin, Base):
+    __tablename__ = "subscription_cycles"
+    __table_args__ = (UniqueConstraint("contract_id", "due_at"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    contract_id: Mapped[str] = mapped_column(ForeignKey("subscription_contracts.id"), index=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    state: Mapped[str] = mapped_column(String(24), default="prepared", index=True)
+    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("checkout_attempts.id"), nullable=True, unique=True)
+    payment_intent_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    provider_payload_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    tax_transaction_id: Mapped[str] = mapped_column(String(100), default="")
+
+
+class SubscriptionRecovery(TimestampMixin, Base):
+    __tablename__ = "subscription_recoveries"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    cycle_id: Mapped[str] = mapped_column(ForeignKey("subscription_cycles.id"), index=True)
+    attempt_id: Mapped[str] = mapped_column(ForeignKey("checkout_attempts.id"), unique=True)
+
+
+class SubscriptionEvent(TimestampMixin, Base):
+    __tablename__ = "subscription_events"
+    __table_args__ = (UniqueConstraint("contract_id", "request_key"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    contract_id: Mapped[str] = mapped_column(ForeignKey("subscription_contracts.id"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"))
+    request_key: Mapped[str] = mapped_column(String(64))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(30))
+    details_json: Mapped[dict] = mapped_column(JSON)
+
+
+class SubscriptionPaymentSetup(TimestampMixin, Base):
+    __tablename__ = "subscription_payment_setups"
+    __table_args__ = (UniqueConstraint("contract_id", "request_key"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    contract_id: Mapped[str] = mapped_column(ForeignKey("subscription_contracts.id"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    request_key: Mapped[str] = mapped_column(String(64))
+    state: Mapped[str] = mapped_column(String(24), default="pending")
+    session_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    command_json: Mapped[dict] = mapped_column(JSON)

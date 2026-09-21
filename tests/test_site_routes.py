@@ -129,3 +129,23 @@ def test_unpublished_upload_is_private_even_on_public_preview_site():
     response = merchant.get(url)
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
+
+
+def test_commerce_settings_keep_fastshop_brand_and_require_csrf():
+    site, _ = h24()
+    client, token = signed_in()
+    path = f"/admin/sites/{site.id}/commerce"
+    response = client.get(path)
+    assert response.status_code == 200
+    assert "US commerce — FastShop" in response.text
+    assert 'class="brand-mark"' in response.text
+    assert 'href="/static/site.css"' in response.text
+    assert TestClient(app).get(path).status_code == 400
+    form = {"csrf_token": token, "version": "1", "mode": "disabled", "origin_country": "EE",
+        "shipping_minor": "", "free_shipping_threshold_minor": "7500", "states": ["CA", "NY"]}
+    assert client.post(path, data=form | {"csrf_token": "bad"}).status_code == 400
+    assert client.post(path, data=form | {"mode": "live"}).status_code == 400
+    assert client.post(path, data=form).status_code == 200
+    response = client.post(path, data=form)
+    assert response.status_code == 400
+    assert "Settings changed" in response.text

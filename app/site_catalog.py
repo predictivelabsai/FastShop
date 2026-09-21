@@ -6,7 +6,7 @@ from fasthtml.common import H2, A, Button, Div, Form, Input, Label, P
 from sqlalchemy import select
 from starlette.responses import RedirectResponse
 
-from app import content
+from app import content, site_builder_services
 from app.db import SessionLocal
 from app.models import Category, Product, ProductType, ProductVariant, VariantChannelListing
 from app.services import CommerceError
@@ -55,6 +55,7 @@ def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
             check_csrf(session, form)
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
+                site = site_builder_services.lock_site(db, site.id, actor(session), site.version)
                 name = str(form.get("name", "")).strip()
                 if not name or len(name) > 220:
                     raise CommerceError("Enter a product name under 220 characters.")
@@ -108,6 +109,7 @@ def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
                             db.add(VariantChannelListing(variant_id=variant.id, channel_id=site.channel_id, currency="USD", price_minor=price_minor(form["price"])))
                     page = content.create_page(db, site, name, "/products/" + slug, "product", {"title": name, "sections": [{"type": "product", "heading": name, "image": image_url, "body": "Tell your product's story."}]})
                     page.product_id = product.id
+                site.version += 1
                 db.commit()
             return RedirectResponse(f"/admin/sites/{site_id}/products", status_code=303)
         except (CommerceError, ValueError) as exc:
