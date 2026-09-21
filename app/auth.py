@@ -5,6 +5,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
+import threading
+import time
+from collections import deque
 from urllib.parse import urlencode
 
 import httpx
@@ -80,13 +83,56 @@ def exchange_code(code: str, verifier: str) -> dict[str, str] | None:
     return {"email": email, "name": str(identity.get("name") or email.split("@", 1)[0])}
 
 
+def hash_admin_password(password: str) -> str:
+    if not 24 <= len(password) <= 1024:
+        raise ValueError("Use an admin password between 24 and 1024 characters.")
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 600_000)
+    return "pbkdf2_sha256:600000:" + salt.hex() + ":" + digest.hex()
+
+
+def verify_admin_password(password: str, encoded: str) -> bool:
+    if not 24 <= len(password) <= 1024:
+        return False
+    try:
+        scheme, rounds, salt, expected = encoded.split(":")
+        if scheme != "pbkdf2_sha256" or rounds != "600000" or len(salt) != 32 or len(expected) != 64:
+            return False
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), 600_000)
+        return secrets.compare_digest(actual, bytes.fromhex(expected))
+    except (ValueError, TypeError):
+        return False
+
+
 def local_login_allowed() -> bool:
-    return not settings.is_production and bool(settings.admin_email and settings.admin_password)
+    if settings.is_production:
+        return bool(settings.allow_password_login and settings.admin_password_hash
+                    and settings.admin_email and not settings.admin_email.endswith(".example"))
+    return bool(settings.admin_email and settings.admin_password)
+
+
+_password_attempts = deque()
+_password_lock = threading.Lock()
+
+
+def password_attempt_allowed() -> bool:
+    """Bound expensive password checks globally per worker; no spoofable IP headers."""
+    if not settings.is_production:
+        return True
+    now = time.monotonic()
+    with _password_lock:
+        while _password_attempts and _password_attempts[0] <= now - 60:
+            _password_attempts.popleft()
+        if len(_password_attempts) >= 10:
+            return False
+        _password_attempts.append(now)
+        return True
 
 
 def valid_local_credentials(email: str, password: str) -> bool:
     return (
         local_login_allowed()
-        and secrets.compare_digest(email.strip().lower(), settings.admin_email)
-        and secrets.compare_digest(password, settings.admin_password)
+        and secrets.compare_digest(email.strip().lower().encode(), settings.admin_email.encode())
+        and (verify_admin_password(password, settings.admin_password_hash) if settings.is_production
+             else secrets.compare_digest(password.encode(), settings.admin_password.encode()))
     )

@@ -1,6 +1,7 @@
 .git
 .github
 .env
+creds
 .env.*
 !.env.sample
 !.env.coolify.sample

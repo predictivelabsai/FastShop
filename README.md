@@ -62,6 +62,7 @@ sample products and orders are isolated from real catalog and commerce records.
 ![FastShop dual-flow builder and simulated commerce](static/productdemo.gif)
 
 - [Screenshot-led user guide](docs/USER_GUIDE.md)
+- [H24YOU guide — PDF](docs/fastshop_user_guide_2026-09-21.pdf) · [PowerPoint](docs/fastshop_user_guide_2026-09-21.pptx)
 - [Implementation status and provider acceptance limits](docs/DUAL_FLOW_IMPLEMENTATION_STATUS.md)
 - [Dual-flow architecture and acceptance plan](docs/DUAL_FLOW_SITE_BUILDER_PLAN.md)
 
@@ -92,6 +93,16 @@ DB_URL= FASTSHOP_ENV=development FASTSHOP_AUTO_CREATE_SCHEMA=1 \
 ```
 
 ## Production configuration
+
+Google SSO remains available. An optional admin-only password login requires
+`FASTSHOP_ALLOW_PASSWORD_LOGIN=true`, `FASTSHOP_ADMIN_EMAIL` and a salted
+`FASTSHOP_ADMIN_PASSWORD_HASH`; plaintext development passwords remain disabled
+in production. The configured password endpoint is limited to ten attempts per
+minute per worker (use edge/distributed limits if scaling to multiple workers).
+`scripts/provision_admin_password.py` creates a strong password in ignored
+`creds/fastshop-admin.json` with mode 0600 and can configure only its hash in
+Coolify. Never add `creds/` to Git or the Docker context. Disable the explicit
+flag and redeploy to remove this alternate sign-in method.
 
 FastShop shares the FastSME PostgreSQL server but owns only the `fast_shop`
 schema. The Docker entrypoint applies Alembic migrations before starting the

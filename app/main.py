@@ -341,6 +341,9 @@ def post(session, email: str, password: str, csrf_token: str = ""):
         require_csrf(session, csrf_token)
     except CommerceError:
         return RedirectResponse("/login?error=Session+expired", status_code=303)
+    if not auth.password_attempt_allowed():
+        return PlainTextResponse("Too many sign-in attempts. Try again in a minute.", status_code=429,
+                                 headers={"Retry-After": "60"})
     if not auth.valid_local_credentials(email, password):
         return RedirectResponse("/login?error=Invalid+email+or+password", status_code=303)
     with SessionLocal() as db:

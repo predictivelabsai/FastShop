@@ -30,6 +30,8 @@ class Settings:
     db_schema: str = os.getenv("DB_SCHEMA", "fast_shop")
     auto_create_schema: bool = _bool("FASTSHOP_AUTO_CREATE_SCHEMA", True)
     admin_email: str = os.getenv("FASTSHOP_ADMIN_EMAIL", "admin@fastshop.example").lower()
+    allow_password_login: bool = _bool("FASTSHOP_ALLOW_PASSWORD_LOGIN", False)
+    admin_password_hash: str = os.getenv("FASTSHOP_ADMIN_PASSWORD_HASH", "")
     admin_password: str = os.getenv("FASTSHOP_ADMIN_PASSWORD") or (
         "FastShop2026$"
         if os.getenv("FASTSHOP_ENV", "development").lower() != "production"
