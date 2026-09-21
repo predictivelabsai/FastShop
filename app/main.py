@@ -39,10 +39,12 @@ from app.services import (
     toggle_wishlist,
     update_cart_line,
 )
+from app.site_seed import seed_h24you
 
 prepare_schema()
 with SessionLocal() as bootstrap_session:
     seed(bootstrap_session, settings.admin_email)
+    seed_h24you(bootstrap_session, settings.admin_email)
     bootstrap_session.commit()
 
 app, rt = fast_app(
@@ -51,6 +53,7 @@ app, rt = fast_app(
     secret_key=settings.session_secret,
     sess_https_only=settings.is_production,
     same_site="lax",
+    canonical=False,
 )
 # FastHTML's catch-all file route would otherwise shadow `/robots.txt`,
 # `/sitemap.xml`, and `/swagger.json`; assets are served by the explicit mount.
@@ -59,6 +62,12 @@ app.routes[:] = [
 ]
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/api", api)
+
+from app.site_context import SiteHostMiddleware  # noqa: E402
+from app.site_routes import register_site_routes  # noqa: E402
+
+register_site_routes(rt)
+app.add_middleware(SiteHostMiddleware)
 
 
 def csrf_token(session: dict) -> str:
@@ -566,8 +575,7 @@ def get(session):
     user, redirect = admin_guard(session)
     if redirect:
         return redirect
-    content = ui.panel("Content and navigation", ui.Div(ui.P("Store pages, menus, SEO records, and translations share the channel publication model."), ui.Ul(ui.Li("About"), ui.Li("Delivery & returns"), ui.Li("Privacy")), style="padding:20px"))
-    return ui.merchant_page("Content & menus", "content", content, user=user, csrf=csrf_token(session), route="/admin/content")
+    return RedirectResponse("/admin/sites", status_code=303)
 
 
 @rt("/developers")

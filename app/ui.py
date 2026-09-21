@@ -436,7 +436,7 @@ def login_page(
 MERCHANT_NAV = (
     ("Overview", (("dashboard", "Dashboard", "/admin"), ("assistant", "AI Assistant", "/admin/assistant"))),
     ("Commerce", (("products", "Products", "/admin/products"), ("orders", "Orders", "/admin/orders"), ("customers", "Customers", "/admin/customers"), ("promotions", "Promotions", "/admin/promotions"))),
-    ("Operations", (("inventory", "Inventory", "/admin/inventory"), ("channels", "Channels", "/admin/channels"), ("content", "Content & menus", "/admin/content"), ("integrations", "FastERP integration", "/admin/integrations/fasterp"))),
+    ("Operations", (("inventory", "Inventory", "/admin/inventory"), ("channels", "Channels", "/admin/channels"), ("content", "Sites & content", "/admin/sites"), ("integrations", "FastERP integration", "/admin/integrations/fasterp"))),
     ("Build", (("developers", "Developers", "/developers"), ("store", "View storefront", "/"))),
 )
 

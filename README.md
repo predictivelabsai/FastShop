@@ -34,6 +34,19 @@ Repository: <https://github.com/predictivelabsai/FastShop>
 - idempotent confirmed-order delivery to FastERP through a transactional outbox
   and a dedicated connector token—never by cross-schema writes.
 
+## Editable websites — Phase 1
+
+The H2 4 You design/content preview lives at `/sites/h24you/`. Authorized merchants
+can create their own sites at `/admin/sites`, edit sections and shared settings,
+upload media, manage product presentation, preview drafts and publish revisions.
+The new storefronts do not activate the legacy demo checkout: purchasing,
+subscriptions, customer accounts and marketing capture await Phase 2 approval.
+
+- [Phase 1 delivery and placeholder register](docs/H24YOU_PHASE1_DELIVERY.md)
+- [Merchant editing guide](docs/PHASE1_MERCHANT_GUIDE.md)
+- [Phase 2 commerce implementation roadmap](docs/PHASE2_COMMERCE_ROADMAP.md)
+- [Browser verification evidence](output/playwright/h24you-phase1/verification.json)
+
 ## Run locally
 
 ```bash

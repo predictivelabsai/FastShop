@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -355,3 +356,71 @@ class ChatMessage(TimestampMixin, Base):
     role: Mapped[str] = mapped_column(String(20))
     content: Mapped[str] = mapped_column(Text)
     route_context: Mapped[str] = mapped_column(String(240), default="")
+
+
+class Site(TimestampMixin, Base):
+    __tablename__ = "sites"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    channel_id: Mapped[str] = mapped_column(ForeignKey("channels.id"))
+    slug: Mapped[str] = mapped_column(String(80), unique=True)
+    name: Mapped[str] = mapped_column(String(160))
+    hostname: Mapped[str | None] = mapped_column(String(253), unique=True, nullable=True)
+    theme: Mapped[str] = mapped_column(String(80), default="editorial-commerce")
+    settings_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    published_settings_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(24), default="draft")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class SitePage(TimestampMixin, Base):
+    __tablename__ = "site_pages"
+    __table_args__ = (UniqueConstraint("site_id", "path"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    path: Mapped[str] = mapped_column(String(240))
+    title: Mapped[str] = mapped_column(String(240))
+    kind: Mapped[str] = mapped_column(String(40), default="content")
+    product_id: Mapped[str | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    draft_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    published_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class SiteRevision(TimestampMixin, Base):
+    __tablename__ = "site_revisions"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    page_id: Mapped[str] = mapped_column(ForeignKey("site_pages.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    content_json: Mapped[dict] = mapped_column(JSON)
+    action: Mapped[str] = mapped_column(String(40), default="draft")
+
+
+class SiteMedia(TimestampMixin, Base):
+    __tablename__ = "site_media"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    alt: Mapped[str] = mapped_column(String(400))
+    content_type: Mapped[str] = mapped_column(String(80))
+    storage_key: Mapped[str] = mapped_column(String(240))
+    is_placeholder: Mapped[bool] = mapped_column(Boolean, default=False)
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+
+
+class SiteContact(TimestampMixin, Base):
+    __tablename__ = "site_contacts"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    email: Mapped[str] = mapped_column(String(320))
+    message: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    client_hash: Mapped[str] = mapped_column(String(64), default="", index=True)
