@@ -17,6 +17,7 @@ Usage: python scripts/build_guide_pptx.py <input.md> <output.pptx> [deck title]
 # ruff: noqa: E701, E702, E741
 from __future__ import annotations
 
+import math
 import os
 import re
 import sys
@@ -290,8 +291,9 @@ def build(md_path: str, out_path: str, deck_title: str) -> None:
         if tables:
             cur = top
             if texts:
-                _add_text(slide, texts, Inches(0.55), cur, SW - Inches(1.1), Inches(0.8))
-                cur = cur + Inches(0.7)
+                text_height = Inches(max(0.7, sum(math.ceil(len(_plain(val)) / 120) * 0.24 + 0.09 for _, val in texts)))
+                _add_text(slide, texts, Inches(0.55), cur, SW - Inches(1.1), text_height)
+                cur = cur + text_height + Inches(0.12)
             avail = SH - cur - Inches(0.55)
             per = avail / len(tables) - Inches(0.12) if len(tables) > 1 else avail
             for _, rows in tables:

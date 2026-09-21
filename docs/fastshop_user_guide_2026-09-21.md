@@ -28,6 +28,10 @@ The PDF and PowerPoint use the same page/slide sequence, following FastClinic's
 sectioned guide pattern. Screenshots show a local H24YOU fixture—not a live-site
 audit, an actual customer, a payment-provider test or regulatory approval.
 
+Production workflows were checked on 21 September 2026. See the
+[production verification report](PRODUCTION_GUIDE_VERIFICATION.md) for coverage
+and exclusions; the guide screenshots remain local examples.
+
 ---
 
 ::: divider

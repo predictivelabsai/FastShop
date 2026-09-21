@@ -1,0 +1,307 @@
+{
+  "checked_at": "2026-09-21T19:28:45.767741+00:00",
+  "base": "https://shop.fastsme.com",
+  "public_routes": [
+    {
+      "device": "desktop",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/shop",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/collections/hydrogen-tablets",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/collections/hydrogen-water-bottles",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/products/hydrogen-tablets",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/products/hydroxy-go",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/science",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn/what-is-molecular-hydrogen",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn/timing-and-consistency",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn/how-to-read-hydrogen-research",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/about-us",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/contact",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/terms-and-conditions",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/privacy-policy",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/faq",
+      "status": 200
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/returns-and-refunds",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/shop",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/collections/hydrogen-tablets",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/collections/hydrogen-water-bottles",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/products/hydrogen-tablets",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/products/hydroxy-go",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/pages/science",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/blogs/learn",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/blogs/learn/what-is-molecular-hydrogen",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/blogs/learn/timing-and-consistency",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/blogs/learn/how-to-read-hydrogen-research",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/pages/about-us",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/pages/contact",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/pages/terms-and-conditions",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/pages/privacy-policy",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/pages/faq",
+      "status": 200
+    },
+    {
+      "device": "tablet",
+      "path": "/pages/returns-and-refunds",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/shop",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/collections/hydrogen-tablets",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/collections/hydrogen-water-bottles",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/products/hydrogen-tablets",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/products/hydroxy-go",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/science",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn/what-is-molecular-hydrogen",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn/timing-and-consistency",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn/how-to-read-hydrogen-research",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/about-us",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/contact",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/terms-and-conditions",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/privacy-policy",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/faq",
+      "status": 200
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/returns-and-refunds",
+      "status": 200
+    }
+  ],
+  "admin_routes": [
+    {
+      "path": "",
+      "status": 200
+    },
+    {
+      "path": "/build",
+      "status": 200
+    },
+    {
+      "path": "/build?view=design",
+      "status": 200
+    },
+    {
+      "path": "/products",
+      "status": 200
+    },
+    {
+      "path": "/commerce",
+      "status": 200
+    },
+    {
+      "path": "/samples",
+      "status": 200
+    }
+  ],
+  "checks": [
+    "/: 200",
+    "/healthz: 200",
+    "/readyz: 200",
+    "/static/site-workspace.js: 200",
+    "/static/site-preview.js: 200",
+    "/static/site-theme.css: 200",
+    "Admin password login succeeded; Google option retained",
+    "Private fixture: classical design save and undo",
+    "Configured production LLM: requested tagline persisted in private draft",
+    "Private simulator: newsletter confirmation/offer, checkout, account, skip/pause/resume/cancel, tracking and local inbox",
+    "Private test site remains inaccessible at public storefront URL"
+  ],
+  "errors": [],
+  "private_fixture": {
+    "slug": "prod-check-b08a783b92",
+    "editor": "https://shop.fastsme.com/admin/sites/7a361d3ca6a14c0a8ea2e2bc59709dd5",
+    "published": false
+  },
+  "status": "passed"
+}
