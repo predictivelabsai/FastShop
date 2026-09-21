@@ -190,6 +190,30 @@ def validate_media_ownership(db, site, document):
     visit(document)
 
 
+def media_is_public(db, site, media_id):
+    """An upload is public only when a published page/settings references it."""
+    if site.status not in {"preview", "published"}:
+        return False
+    target = f"/site-media/{site.id}/{media_id}"
+
+    def references(value):
+        if isinstance(value, dict):
+            return any(references(item) for item in value.values())
+        if isinstance(value, list):
+            return any(references(item) for item in value)
+        return value == target
+
+    if references(site.published_settings_json):
+        return True
+    pages = [page for page in site_pages(db, site) if page.published_json]
+    if any(references(page.published_json) for page in pages):
+        return True
+    product_ids = [page.product_id for page in pages if page.product_id]
+    return bool(product_ids and db.scalar(select(Product.id).where(
+        Product.tenant_id == site.tenant_id, Product.id.in_(product_ids),
+        Product.is_published.is_(True), Product.image_url == target)))
+
+
 def restore_page(db: Session, site: Site, page_id: str, revision_id: str, user_id: str, version: int):
     revision = db.scalar(select(SiteRevision).where(
         SiteRevision.id == revision_id, SiteRevision.site_id == site.id,

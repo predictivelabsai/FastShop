@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.content import (
     create_site,
+    media_is_public,
     owned_site,
     restore_page,
     safe_url,
@@ -119,3 +120,12 @@ def test_owned_media_alt_text_and_cross_tenant_rejection(workspace):
     with pytest.raises(CommerceError, match="belonging to this site"):
         validate_media_ownership(db, other, {"gallery": [url]})
     assert owned_image(db, site, url).attrs["alt"] == "Ripples in a clear glass"
+    site.status = "preview"
+    assert not media_is_public(db, site, media.id)
+    page = site_pages(db, site)[0]
+    page.draft_json = {**page.draft_json, "image": url}
+    assert not media_is_public(db, site, media.id)
+    page.published_json = copy.deepcopy(page.draft_json)
+    assert media_is_public(db, site, media.id)
+    page.published_json = None
+    assert not media_is_public(db, site, media.id)

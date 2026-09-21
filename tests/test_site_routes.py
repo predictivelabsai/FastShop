@@ -112,3 +112,20 @@ def test_custom_domain_resolves_only_its_site_and_blocks_demo_commerce():
         with SessionLocal() as db:
             db.get(Site, site.id).hostname = None
             db.commit()
+
+
+def test_unpublished_upload_is_private_even_on_public_preview_site():
+    from app.models import SiteMedia
+    site, _ = h24()
+    with SessionLocal() as db:
+        media = SiteMedia(tenant_id=site.tenant_id, site_id=site.id, title="Private draft",
+            alt="Private draft", content_type="image/webp", storage_key="private.webp", size=3, data=b"abc")
+        db.add(media)
+        db.commit()
+        media_id = media.id
+    url = f"/site-media/{site.id}/{media_id}"
+    assert TestClient(app).get(url).status_code == 404
+    merchant, _ = signed_in()
+    response = merchant.get(url)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"

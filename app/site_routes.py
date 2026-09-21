@@ -389,7 +389,7 @@ def register_site_routes(rt):
             site = db.get(Site, site_id)
             if not site:
                 return Response("Not found", status_code=404)
-            if site.status == "draft":
+            if not content.media_is_public(db, site, media_id):
                 try:
                     content.owned_site(db, site.id, actor(session))
                 except CommerceError:
@@ -398,7 +398,7 @@ def register_site_routes(rt):
             if not media or not media.data:
                 return Response("Not found", status_code=404)
             return Response(media.data, media_type=media.content_type,
-                            headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
+                            headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
     @rt("/sites/{slug}/contact", methods=["POST"])
     async def post(session, request, slug: str):
