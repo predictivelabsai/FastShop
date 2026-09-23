@@ -64,6 +64,7 @@ sample products and orders are isolated from real catalog and commerce records.
 - [Screenshot-led user guide](docs/USER_GUIDE.md)
 - [H24YOU guide — PDF](docs/fastshop_user_guide_2026-09-21.pdf) · [PowerPoint](docs/fastshop_user_guide_2026-09-21.pptx)
 - [Production guide verification](docs/PRODUCTION_GUIDE_VERIFICATION.md)
+- [WooCommerce API stubs and Stripe key/setup checklist](docs/WOOCOMMERCE_STRIPE_INTEGRATION.md)
 - [Implementation status and provider acceptance limits](docs/DUAL_FLOW_IMPLEMENTATION_STATUS.md)
 - [Dual-flow architecture and acceptance plan](docs/DUAL_FLOW_SITE_BUILDER_PLAN.md)
 

@@ -69,6 +69,11 @@ from app.site_routes import register_site_routes  # noqa: E402
 register_site_routes(rt)
 app.add_middleware(SiteHostMiddleware)
 
+from app.scheduler import start_scheduler  # noqa: E402
+
+# Off unless FASTSHOP_ENABLE_SCHEDULER is set; a no-op otherwise.
+start_scheduler()
+
 
 def csrf_token(session: dict) -> str:
     if "csrf_token" not in session:

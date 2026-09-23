@@ -59,7 +59,33 @@
     script.async = true;
     script.referrerPolicy = 'no-referrer';
     document.head.append(script);
+    flush();
+    const item = readItem();
+    if (item) fastshopTrack('view_item', {currency: item.currency, value: item.price, items: [item]});
   };
+  const queue = [];
+  const readItem = () => {
+    try {
+      const el = document.getElementById('h-ga4-item');
+      return el ? JSON.parse(el.textContent) : null;
+    } catch (_) { return null; }
+  };
+  const fastshopTrack = (name, params) => {
+    if (!name) return;
+    if (started && allowed()) window.dataLayer.push(['event', name, Object.assign({send_to: id}, params || {})]);
+    else queue.push([name, params]);
+  };
+  const flush = () => { while (started && allowed() && queue.length) { const [n, p] = queue.shift(); fastshopTrack(n, p); } };
+  window.fastshopTrack = fastshopTrack;
+  // Ecommerce events fire only on storefront pages (consent-gated). Checkout and
+  // account pages deliberately load no analytics, so no cart/purchase events there.
+  document.addEventListener('submit', event => {
+    const form = event.target;
+    if (form && form.matches && form.matches('form[action$="/cart/add"]')) {
+      const item = readItem();
+      if (item) fastshopTrack('add_to_cart', {currency: item.currency, value: item.price, items: [item]});
+    }
+  }, true);
   window.addEventListener('fastshop:consent', event => { consent = event.detail; rememberWithdrawal(consent); apply(); });
   window.addEventListener('storage', event => {
     if (event.key !== key && event.key !== null) return;

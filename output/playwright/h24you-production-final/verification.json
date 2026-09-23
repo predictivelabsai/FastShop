@@ -1,0 +1,312 @@
+{
+  "base": "https://shop.fastsme.com",
+  "checks": [
+    {
+      "device": "desktop",
+      "path": "/",
+      "status": 200,
+      "title": "A little wonder. In every glass. \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/shop",
+      "status": 200,
+      "title": "Find your everyday. \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/collections/hydrogen-tablets",
+      "status": 200,
+      "title": "Just add water. \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/collections/hydrogen-water-bottles",
+      "status": 200,
+      "title": "Take your ritual with you. \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/products/hydrogen-tablets",
+      "status": 200,
+      "title": "Hydrogen tablets \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/products/hydroxy-go",
+      "status": 200,
+      "title": "Hydroxy Go bottle \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/science",
+      "status": 200,
+      "title": "Follow the questions. \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn",
+      "status": 200,
+      "title": "Curiosity looks good on you. \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn/what-is-molecular-hydrogen",
+      "status": 200,
+      "title": "What is molecular hydrogen? A plain-language introduction \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn/timing-and-consistency",
+      "status": 200,
+      "title": "Timing and consistency: how hydrogen water is used in studies \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn/how-to-read-hydrogen-research",
+      "status": 200,
+      "title": "How to read hydrogen research: what is studied and what is still unknown \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/about-us",
+      "status": 200,
+      "title": "Curious by nature. \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/contact",
+      "status": 200,
+      "title": "Let's talk. \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/terms-and-conditions",
+      "status": 200,
+      "title": "Terms and Conditions \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/privacy-policy",
+      "status": 200,
+      "title": "Privacy Policy \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/faq",
+      "status": 200,
+      "title": "Good questions. \u2014 H2 4 You"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/returns-and-refunds",
+      "status": 200,
+      "title": "Returns and Refunds \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/",
+      "status": 200,
+      "title": "A little wonder. In every glass. \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/shop",
+      "status": 200,
+      "title": "Find your everyday. \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/collections/hydrogen-tablets",
+      "status": 200,
+      "title": "Just add water. \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/collections/hydrogen-water-bottles",
+      "status": 200,
+      "title": "Take your ritual with you. \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/products/hydrogen-tablets",
+      "status": 200,
+      "title": "Hydrogen tablets \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/products/hydroxy-go",
+      "status": 200,
+      "title": "Hydroxy Go bottle \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/science",
+      "status": 200,
+      "title": "Follow the questions. \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/blogs/learn",
+      "status": 200,
+      "title": "Curiosity looks good on you. \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/blogs/learn/what-is-molecular-hydrogen",
+      "status": 200,
+      "title": "What is molecular hydrogen? A plain-language introduction \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/blogs/learn/timing-and-consistency",
+      "status": 200,
+      "title": "Timing and consistency: how hydrogen water is used in studies \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/blogs/learn/how-to-read-hydrogen-research",
+      "status": 200,
+      "title": "How to read hydrogen research: what is studied and what is still unknown \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/about-us",
+      "status": 200,
+      "title": "Curious by nature. \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/contact",
+      "status": 200,
+      "title": "Let's talk. \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/terms-and-conditions",
+      "status": 200,
+      "title": "Terms and Conditions \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/privacy-policy",
+      "status": 200,
+      "title": "Privacy Policy \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/faq",
+      "status": 200,
+      "title": "Good questions. \u2014 H2 4 You"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/returns-and-refunds",
+      "status": 200,
+      "title": "Returns and Refunds \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/",
+      "status": 200,
+      "title": "A little wonder. In every glass. \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/shop",
+      "status": 200,
+      "title": "Find your everyday. \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/collections/hydrogen-tablets",
+      "status": 200,
+      "title": "Just add water. \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/collections/hydrogen-water-bottles",
+      "status": 200,
+      "title": "Take your ritual with you. \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/products/hydrogen-tablets",
+      "status": 200,
+      "title": "Hydrogen tablets \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/products/hydroxy-go",
+      "status": 200,
+      "title": "Hydroxy Go bottle \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/science",
+      "status": 200,
+      "title": "Follow the questions. \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn",
+      "status": 200,
+      "title": "Curiosity looks good on you. \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn/what-is-molecular-hydrogen",
+      "status": 200,
+      "title": "What is molecular hydrogen? A plain-language introduction \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn/timing-and-consistency",
+      "status": 200,
+      "title": "Timing and consistency: how hydrogen water is used in studies \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn/how-to-read-hydrogen-research",
+      "status": 200,
+      "title": "How to read hydrogen research: what is studied and what is still unknown \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/about-us",
+      "status": 200,
+      "title": "Curious by nature. \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/contact",
+      "status": 200,
+      "title": "Let's talk. \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/terms-and-conditions",
+      "status": 200,
+      "title": "Terms and Conditions \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/privacy-policy",
+      "status": 200,
+      "title": "Privacy Policy \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/faq",
+      "status": 200,
+      "title": "Good questions. \u2014 H2 4 You"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/returns-and-refunds",
+      "status": 200,
+      "title": "Returns and Refunds \u2014 H2 4 You"
+    }
+  ],
+  "failures": []
+}

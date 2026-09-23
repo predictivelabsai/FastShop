@@ -61,13 +61,26 @@ class StripeGateway:
             raise CommerceError("Configure a Stripe sandbox key for this site. Live keys are not enabled.")
 
     def request(self, method, path, payload=None, *, idempotency_key=None):
+        if method not in {"GET", "POST"} or not re.fullmatch(r"/[A-Za-z0-9_/]+", path) or path.startswith("//"):
+            raise CommerceError("Invalid Stripe operation.")
+        if method == "POST" and (not isinstance(idempotency_key, str) or not 1 <= len(idempotency_key) <= 255):
+            raise CommerceError("Stripe writes require a stable idempotency key.")
         headers = {"Authorization": f"Bearer {self.key}", "Stripe-Version": API_VERSION}
         if idempotency_key:
             headers["Idempotency-Key"] = idempotency_key
         try:
             with httpx.Client(base_url="https://api.stripe.com/v1", timeout=20,
-                              transport=self.transport) as client:
-                response = client.request(method, path, data=encode_form(payload or {}), headers=headers)
+                              transport=self.transport, follow_redirects=False) as client:
+                # Only replay transport failures, with the identical durable command/key.
+                # HTTP errors (including 402/429/500) need caller reconciliation, not
+                # a fresh payment or a retry storm. Bound network retries to one.
+                for retry in range(2):
+                    try:
+                        response = client.request(method, path, data=encode_form(payload or {}), headers=headers)
+                        break
+                    except httpx.TransportError:
+                        if retry:
+                            raise
                 response.raise_for_status()
                 result = response.json()
                 if not isinstance(result, dict):
@@ -75,9 +88,23 @@ class StripeGateway:
                 if result.get("livemode") is True:
                     raise CommerceError("A live Stripe response was rejected by sandbox commerce.")
                 return result
-        except (httpx.HTTPError, ValueError) as exc:
+        except CommerceError:
+            raise
+        except (httpx.HTTPError, ValueError):
             # Stripe errors can include customer/address data or account details.
-            raise CommerceError("Stripe could not complete this request. Check configuration or try again; no payment is assumed.") from exc
+            raise CommerceError("Stripe could not complete this request. Check configuration or try again; no payment is assumed.") from None
+
+    def connection_status(self):
+        """Read-only provider check, returning no account identifiers or secret values."""
+        account = self.request("GET", "/account")
+        tax = self.request("GET", "/tax/settings")
+        if not str(account.get("id", "")).startswith("acct_") or tax.get("object") != "tax.settings" or tax.get("livemode") is not False:
+            raise CommerceError("Stripe returned an invalid sandbox readiness response.")
+        return {"connected": True, "mode": "sandbox",
+            "charges_enabled": account.get("charges_enabled") is True,
+            "tax_settings_active": tax.get("status") == "active",
+            "webhook_secret_configured": bool(self.webhook_secret),
+            "provider_acceptance_complete": False}
 
     def calculate_tax(self, lines, destination, origin, shipping_minor, *, idempotency_key):
         result = self.request("POST", "/tax/calculations", {

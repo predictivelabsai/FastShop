@@ -1,5 +1,11 @@
 # Dual-flow implementation status
 
+> **Reconciliation note (2026-09-23):** the counts below (205/206 tests) are historical.
+> As of this date the Alembic head is `20260923_0015` and the full suite reports **259
+> passing**. See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md) for current per-capability
+> state and [PHASE2_ACCEPTANCE_STATUS.md](PHASE2_ACCEPTANCE_STATUS.md) for the reconciled
+> acceptance record.
+
 Implemented locally on 2026-09-21. This records local acceptance, not a production
 deployment or real-payment certification.
 

@@ -1,5 +1,11 @@
 # Phase 2 acceptance status
 
+> **Reconciliation note (2026-09-23):** the figures below are historical. As of this
+> date the Alembic head is `20260921_0014` and the full suite reports **242 passing**
+> tests. Intermediate counts recorded elsewhere (156 here, 205/206 in the dual-flow
+> status, 212 in the production report) reflect earlier states and are superseded by
+> this line, not silently rewritten. The sandbox-only limits below still stand.
+
 Audit date: 2026-09-21. **Not complete and not deployed.** The current code is
 sandbox-only. No real payment, wallet, carrier or email-provider acceptance is
 established by local fixture tests.

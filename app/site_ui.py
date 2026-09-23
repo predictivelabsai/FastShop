@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from functools import partial
 
 from fasthtml.common import (
@@ -25,6 +26,7 @@ from fasthtml.common import (
     Main,
     Meta,
     Nav,
+    NotStr,
     Option,
     P,
     Script,
@@ -70,6 +72,44 @@ def url(base, path):
 def cta(section, base):
     return A(section.get("button", "Explore"), Span("↗", aria_hidden="true"),
              href=url(base, section["link"]), cls="h-button") if section.get("link") else None
+
+
+# Recognisable payment-method chips (brief §4.3). Brand-neutral SVG badges carrying the
+# label, so they read as icons rather than a run-on line of text.
+_PAYMENT_METHODS = ["Visa", "Mastercard", "PayPal", "Apple Pay", "Google Pay"]
+
+_SOCIAL_GLYPHS = {
+    "instagram": '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2"/>',
+    "facebook": '<path d="M13.5 21v-8h2.5l.4-3h-2.9V8.2c0-.9.3-1.5 1.6-1.5H16.5V4.1C16.1 4 15.1 4 14 4c-2.3 0-3.9 1.4-3.9 4v2H7.5v3h2.6v8z"/>',
+}
+
+
+def _payment_chip(label):
+    return Span(label, cls="h-pay-chip", role="img", aria_label=label + " accepted")
+
+
+def payment_methods():
+    return Div(*[_payment_chip(label) for label in _PAYMENT_METHODS], cls="h-pay-methods",
+               aria_label="Accepted payment methods (planned)")
+
+
+def stars(rating):
+    full = int(round(rating))
+    return Span("★" * full + "☆" * (5 - full), cls="h-stars", aria_label=f"{rating} out of 5")
+
+
+def review_card(review):
+    return Div(stars(review.rating), H3(review.title), *paragraphs(review.body),
+               Span(f"— {review.author_name}", cls="h-review-meta"), cls="h-review-card")
+
+
+def social_link(social):
+    glyph = _SOCIAL_GLYPHS.get(str(social.get("label", "")).lower())
+    icon = NotStr(f'<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6">{glyph}</svg>') if glyph else Span(social["label"][:1])
+    return A(icon, Span(social["label"], cls="h-visually-hidden"),
+             href=social.get("url") or "#", cls="h-social-icon",
+             aria_label=social["label"] + (" — placeholder link" if not social.get("url") else ""),
+             **({"target": "_blank", "rel": "noopener noreferrer"} if social.get("url") else {}))
 
 
 def product_cards(db, site, base, category=""):
@@ -125,6 +165,14 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
         return Section(intro, *[P(item["text"]) for item in approved],
                        P(config.get("footer", ""), cls="h-disclaimer") if approved else P("Our benefit statements are awaiting review. Explore the original research on our Science page."), cls="h-section h-container")
     if kind == "reviews":
+        from app.site_reviews import approved_reviews, review_summary
+        product_id = page.product_id if page.kind == "product" else None
+        reviews = approved_reviews(db, site, product_id)
+        if reviews:
+            count, average = review_summary(db, site, product_id)
+            return Section(Small("WHAT PEOPLE ARE SAYING", cls="h-eyebrow"), H2(heading),
+                P(f"{average} average from {count} approved review" + ("s" if count != 1 else "")),
+                Div(*[review_card(r) for r in reviews], cls="h-reviews-list"), cls="h-section h-reviews")
         return Section(Small("ROOM FOR YOUR EXPERIENCE", cls="h-eyebrow"), H2(heading),
             *paragraphs(section.get("body")), Span("SAMPLE SECTION · NO CUSTOMER TESTIMONIALS", cls="h-tag"), cls="h-section h-reviews")
     if kind == "articles":
@@ -193,6 +241,16 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
     analytics_id = measurement_id(site, preview=preview)
     commerce_config = settings_for(db, site)
     customer_services_enabled = bool(commerce_config and commerce_config.mode == "sandbox")
+    ga4_item = None
+    if analytics_id and page.kind == "product" and page.product_id:
+        ga4_product = catalog_product(db, site, page.product_id)
+        if ga4_product:
+            ga4_listing = db.scalar(select(VariantChannelListing).join(ProductVariant).where(
+                ProductVariant.product_id == ga4_product.id, ProductVariant.tenant_id == site.tenant_id,
+                VariantChannelListing.channel_id == site.channel_id).order_by(ProductVariant.sort_order))
+            ga4_item = {"item_id": ga4_product.slug, "item_name": ga4_product.name,
+                        "currency": ga4_listing.currency if ga4_listing else "USD",
+                        "price": round(ga4_listing.price_minor / 100, 2) if ga4_listing else 0}
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
     document = page.draft_json if preview else page.published_json
@@ -212,6 +270,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         Meta(property="og:url", content=canonical), Link(rel="canonical", href=canonical),
         Link(rel="icon", href="/static/favicon.svg", type="image/svg+xml"), Link(rel="stylesheet", href="/static/site-builder.css"), Script(src="/static/site-builder.js", defer=True),
         Script(src="/static/site-analytics.js", defer=True) if analytics_id else None,
+        Script(NotStr(json.dumps(ga4_item)), type="application/json", id="h-ga4-item") if ga4_item else None,
         Link(rel="stylesheet", href="/static/site-theme.css"),
         Script(src="/static/site-preview.js", defer=True) if preview else None,
         Link(rel="stylesheet", href="/static/site-preview.css") if preview else None,
@@ -234,8 +293,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                 Div(H3("Explore"), *[A(item["label"], href=url(base, item["path"])) for item in config.get("navigation", [])]),
                 Div(H3("Here to help"), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", "Terms and Conditions"), ("privacy-policy", "Privacy Policy"), ("faq", "FAQ"), ("returns-and-refunds", "Returns and Refunds")]]),
                 Div(H3(config.get("company", site.name)), P(config.get("address", "")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
-                    *[A(s["label"], href=s.get("url") or "#", aria_label=s["label"] + (" — placeholder link" if not s.get("url") else "")) for s in config.get("socials", [])]), cls="h-footer-grid"),
-                P(config.get("footer", ""), cls="h-disclaimer"), Div(Span("© 2026 " + config.get("company", site.name)), Span("Visa · Mastercard · PayPal · Apple Pay · Google Pay — planned"), Button("Cookie preferences", type="button", data_cookie_open=""), cls="h-footer-bottom"), cls="h-footer"),
+                    Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
+                P(config.get("footer", ""), cls="h-disclaimer"), Div(Span("© 2026 " + config.get("company", site.name)), payment_methods(), Button("Cookie preferences", type="button", data_cookie_open=""), cls="h-footer-bottom"), cls="h-footer"),
             Div(H2("Your privacy, your choice."), P("Essential storage keeps this site working. Analytics and marketing are off unless you choose them."),
                 Details(Summary("Preferences"), Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"), Label(Input(type="checkbox", id="consent-analytics"), " Analytics"), Label(Input(type="checkbox", id="consent-marketing"), " Marketing")),
                 Div(Button("Accept all", data_consent="all"), Button("Decline", data_consent="none"), Button("Save preferences", data_consent="custom")),

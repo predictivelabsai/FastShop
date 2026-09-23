@@ -13,6 +13,22 @@ from app.integrations.stripe_commerce import StripeGateway
 from app.models import CommerceQuote, ShopCustomer, Site, SubscriptionCycle
 from app.services import CommerceError
 
+# Card is always available; wallets (Apple/Google Pay) are presented automatically by
+# Stripe hosted Checkout once the store domain is registered, so no extra type is needed
+# for them. PayPal is opt-in per store and only for one-time orders — recurring orders
+# stay card-only so the saved card can drive off-session renewals.
+ALLOWED_PAYMENT_METHODS = {"card", "paypal"}
+
+
+def payment_methods_for(site, recurring: bool) -> list[str]:
+    if recurring:
+        return ["card"]
+    chosen = site.settings_json.get("payment_methods") if isinstance(site.settings_json, dict) else None
+    methods = [m for m in (chosen or ["card"]) if m in ALLOWED_PAYMENT_METHODS]
+    if "card" not in methods:
+        methods.insert(0, "card")
+    return methods
+
 
 def payment_command(site, attempt, quote, customer):
     recovery = bool(quote.snapshot_json.get("recovery_cycle_id"))
@@ -43,7 +59,7 @@ def payment_command(site, attempt, quote, customer):
         "customer": {"email": customer.email, "name": recipient,
             "shipping": {"name": recipient, "address": quote.snapshot_json["destination"]},
             "metadata": metadata},
-        "session": {"mode": "payment", "payment_method_types": ["card"], "currency": "usd",
+        "session": {"mode": "payment", "payment_method_types": payment_methods_for(site, recurring), "currency": "usd",
             "automatic_tax": {"enabled": True}, "line_items": lines,
             "customer_update": {"address": "never", "shipping": "never", "name": "never"},
             "client_reference_id": attempt.id, "metadata": metadata,

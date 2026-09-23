@@ -1,5 +1,11 @@
 # Production verification — H24YOU guide
 
+> **Reconciliation note (2026-09-23):** the "212 tests" figure recorded for the
+> 21 September deployment is historical. The current worktree is at Alembic head
+> `20260923_0015` with **259 passing** tests. This document describes the earlier
+> deployed commit; it is not a claim about the current worktree. See
+> [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md).
+
 Verified on **21 September 2026** at **https://shop.fastsme.com**.
 
 ## Release and deployment

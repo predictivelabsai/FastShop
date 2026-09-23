@@ -156,6 +156,9 @@ def save_page(db: Session, site: Site, page_id: str, user_id: str, document: dic
         raise CommerceError("Someone updated this page. Reload before saving your changes.")
     document = validate_document(document)
     validate_media_ownership(db, site, document)
+    if action == "publish":
+        from app.compliance import assert_document_compliant
+        assert_document_compliant(document)
     page.draft_json = document
     page.title = document["title"]
     page.version += 1
