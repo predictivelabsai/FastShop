@@ -532,6 +532,42 @@ def get(session):
     return ui.merchant_page("Channels", "channels", content, user=user, csrf=csrf_token(session), route="/admin/channels")
 
 
+@rt("/admin/integrations")
+def get(session):
+    user, redirect = admin_guard(session)
+    if redirect:
+        return redirect
+    with SessionLocal() as db:
+        content = ui.integrations_hub(db)
+    return ui.merchant_page("Integrations", "integrations", *content, user=user, csrf=csrf_token(session), route="/admin/integrations")
+
+
+@rt("/admin/integrations/stripe")
+def get(session):
+    user, redirect = admin_guard(session)
+    if redirect:
+        return redirect
+    return ui.merchant_page("Stripe setup", "integrations", *ui.stripe_guide(), user=user, csrf=csrf_token(session), route="/admin/integrations/stripe")
+
+
+@rt("/admin/integrations/woocommerce")
+def get(session):
+    user, redirect = admin_guard(session)
+    if redirect:
+        return redirect
+    return ui.merchant_page("WooCommerce setup", "integrations", *ui.woocommerce_guide(), user=user, csrf=csrf_token(session), route="/admin/integrations/woocommerce")
+
+
+@rt("/admin/integrations/paypal")
+def get(session):
+    user, redirect = admin_guard(session)
+    if redirect:
+        return redirect
+    with SessionLocal() as db:
+        content = ui.paypal_guide(db)
+    return ui.merchant_page("PayPal setup & keys", "integrations", *content, user=user, csrf=csrf_token(session), route="/admin/integrations/paypal")
+
+
 @rt("/admin/integrations/fasterp")
 def get(session, message: str = ""):
     user, redirect = admin_guard(session)

@@ -1,0 +1,129 @@
+{
+  "suite": "site_builder_chat",
+  "generated_at": "2026-09-23T23:53:47+00:00",
+  "mode": "guided",
+  "model": "guided-presets",
+  "total": 6,
+  "passed": 6,
+  "failed": 0,
+  "cases": [
+    {
+      "name": "design_preset_warm",
+      "intent": "Apply a design language from a one-word request",
+      "prompt": "warm",
+      "provider": "guided",
+      "expected_ops": [
+        "brief",
+        "theme"
+      ],
+      "produced_ops": [
+        "brief",
+        "theme"
+      ],
+      "expected_proposals": [],
+      "produced_proposals": [],
+      "ops_ok": true,
+      "proposals_ok": true,
+      "effect_ok": true,
+      "mode_ok": true,
+      "answer": "Applied the warm preset to your draft.",
+      "passed": true
+    },
+    {
+      "name": "onboarding_business",
+      "intent": "Record the business brief from a conversational answer",
+      "prompt": "business: Organic loose-leaf tea",
+      "provider": "guided",
+      "expected_ops": [
+        "brief"
+      ],
+      "produced_ops": [
+        "brief"
+      ],
+      "expected_proposals": [],
+      "produced_proposals": [],
+      "ops_ok": true,
+      "proposals_ok": true,
+      "effect_ok": true,
+      "mode_ok": true,
+      "answer": "Saved your business answer. This preset wizard records your brief; use the AI provider or classical editor to compose pages.",
+      "passed": true
+    },
+    {
+      "name": "onboarding_audience",
+      "intent": "Record the audience brief",
+      "prompt": "audience: Home tea drinkers",
+      "provider": "guided",
+      "expected_ops": [
+        "brief"
+      ],
+      "produced_ops": [
+        "brief"
+      ],
+      "expected_proposals": [],
+      "produced_proposals": [],
+      "ops_ok": true,
+      "proposals_ok": true,
+      "effect_ok": true,
+      "mode_ok": true,
+      "answer": "Saved your audience answer. This preset wizard records your brief; use the AI provider or classical editor to compose pages.",
+      "passed": true
+    },
+    {
+      "name": "edit_hero_headline",
+      "intent": "Edit the selected hero heading from chat",
+      "prompt": "Headline: A calmer cup, every morning",
+      "provider": "guided",
+      "expected_ops": [
+        "section"
+      ],
+      "produced_ops": [
+        "section"
+      ],
+      "expected_proposals": [],
+      "produced_proposals": [],
+      "ops_ok": true,
+      "proposals_ok": true,
+      "effect_ok": true,
+      "mode_ok": true,
+      "answer": "Updated the selected heading.",
+      "passed": true
+    },
+    {
+      "name": "shipping_needs_approval",
+      "intent": "A commerce change is a proposal, never auto-applied",
+      "prompt": "shipping: 1000",
+      "provider": "guided",
+      "expected_ops": [],
+      "produced_ops": [],
+      "expected_proposals": [
+        "merchant"
+      ],
+      "produced_proposals": [
+        "merchant"
+      ],
+      "ops_ok": true,
+      "proposals_ok": true,
+      "effect_ok": true,
+      "mode_ok": true,
+      "answer": "Review this shipping proposal in USD cents. It has not been applied.",
+      "passed": true
+    },
+    {
+      "name": "discussion_no_change",
+      "intent": "A question produces no draft change",
+      "prompt": "hello",
+      "provider": "guided",
+      "expected_ops": [],
+      "produced_ops": [],
+      "expected_proposals": [],
+      "produced_proposals": [],
+      "ops_ok": true,
+      "proposals_ok": true,
+      "effect_ok": true,
+      "mode_ok": true,
+      "answer": "Guided preset mode: an AI provider is not configured. Choose Warm, Minimal, Bold or Original; use Headline: followed by your text to edit a hero.",
+      "passed": true
+    }
+  ]
+}

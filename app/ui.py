@@ -18,10 +18,12 @@ from fasthtml.common import (
     Img,
     Input,
     Label,
+    Li,
     Link,
     Main,
     Meta,
     Nav,
+    Ol,
     Option,
     P,
     Script,
@@ -51,6 +53,7 @@ from app.models import (
     Product,
     ProductVariant,
     Review,
+    Site,
     Stock,
     VariantChannelListing,
     Voucher,
@@ -436,7 +439,7 @@ def login_page(
 MERCHANT_NAV = (
     ("Overview", (("dashboard", "Dashboard", "/admin"), ("assistant", "AI Assistant", "/admin/assistant"))),
     ("Commerce", (("products", "Products", "/admin/products"), ("orders", "Orders", "/admin/orders"), ("customers", "Customers", "/admin/customers"), ("promotions", "Promotions", "/admin/promotions"))),
-    ("Operations", (("inventory", "Inventory", "/admin/inventory"), ("channels", "Channels", "/admin/channels"), ("content", "Sites & content", "/admin/sites"), ("integrations", "FastERP integration", "/admin/integrations/fasterp"))),
+    ("Operations", (("inventory", "Inventory", "/admin/inventory"), ("channels", "Channels", "/admin/channels"), ("content", "Sites & content", "/admin/sites"), ("integrations", "Integrations", "/admin/integrations"))),
     ("Build", (("developers", "Developers", "/developers"), ("store", "View storefront", "/"))),
 )
 
@@ -507,6 +510,126 @@ def integration_page(session: Session, message: str = ""):
         Div(message, cls="notice") if message else None,
         panel("FastERP connection", Div(Div(H3("erp.fastsme.com"), P(state.message), Small("FastShop sends confirmed orders through a signed, idempotent API boundary; it never writes into FastERP tables.")), Span("Reachable" if state.reachable else "Unavailable", cls="pill green" if state.reachable else "pill amber"), cls="integration-state")),
         Div(Div(Small("Pending events"), Strong(str(pending)), cls="kpi"), Div(Small("Failed events"), Strong(str(failed)), cls="kpi"), Div(Small("Connector token"), Strong("Ready" if state.configured else "Not set", style="font-size:18px"), cls="kpi"), cls="kpis"),
+    )
+
+
+def integrations_hub(session: Session):
+    state = fasterp.status()
+
+    def card(name, desc, label, ok, href, cta="Setup guide"):
+        return Div(Div(H3(name), Span(label, cls="pill green" if ok else "pill amber"), cls="panel-head"),
+                   P(desc), A(cta + " →", href=href, cls="button secondary small"), cls="developer-card")
+
+    return (
+        Div(Span("Connect FastShop", cls="eyebrow"), H2("Integrations"),
+            P("Payments, storefront sync and back-office. Provider secrets are set as deployment "
+              "environment variables through Coolify/FastDevOps — never stored in this application."),
+            cls="page-head"),
+        Div(
+            card("Stripe", "Card payments, Apple Pay / Google Pay and US sales tax for sandbox checkout.",
+                 "Sandbox-gated", True, "/admin/integrations/stripe"),
+            card("PayPal", "Offer PayPal at checkout. Setup guide and where to add PayPal API keys, with readiness.",
+                 "Guide & keys", True, "/admin/integrations/paypal", "Open guide & keys"),
+            card("WooCommerce", "Read-only catalog bridge to a WordPress / WooCommerce store.",
+                 "Optional", True, "/admin/integrations/woocommerce"),
+            card("FastERP", state.message, "Reachable" if state.reachable else "Unavailable",
+                 state.reachable, "/admin/integrations/fasterp", "Open"),
+            cls="developer-grid"),
+    )
+
+
+def _env_var(name, example=""):
+    return Li(Code(name), Small(" " + example) if example else None)
+
+
+def _guide(eyebrow, title, lead, steps, env_title, env_items, *extra, docs=None):
+    return (
+        Div(Span(eyebrow, cls="eyebrow"), H2(title), P(lead),
+            A("← All integrations", href="/admin/integrations"), cls="page-head"),
+        panel("Setup steps", Ol(*[Li(step) for step in steps])),
+        panel(env_title, Div(P("Set these as environment variables in Coolify (never commit them). "
+                               "Replace {SITE_ID} with the store's id shown on its admin page."),
+                             Ol(*env_items))),
+        *extra,
+        panel("Documentation", P(A(docs[0], href=docs[1])) if docs else P("See docs/ for the full checklist.")),
+    )
+
+
+def stripe_guide():
+    return _guide(
+        "Payments", "Stripe setup",
+        "Stripe powers sandbox card payments, Apple Pay / Google Pay and US sales tax. Live keys are "
+        "rejected by design; complete provider acceptance before any live release.",
+        ["Create (or open) your Stripe account for the US selling entity.",
+         "In the Stripe Dashboard, switch to Test mode and copy the test secret key (sk_test_…).",
+         "Add a webhook endpoint for your store and copy its signing secret (whsec_…).",
+         "Register your store domain in Stripe so Apple Pay / Google Pay appear automatically.",
+         "Set the environment variables below in Coolify, then redeploy.",
+         "In the store's Commerce settings, set mode to Sandbox and complete the tax-registration review.",
+         "Verify with scripts/check_commerce_providers.py --provider stripe."],
+        "Environment variables (per store)",
+        [_env_var("FASTSHOP_STRIPE_{SITE_ID}_SECRET_KEY", "= sk_test_…  (sandbox only)"),
+         _env_var("FASTSHOP_STRIPE_{SITE_ID}_WEBHOOK_SECRET", "= whsec_…"),
+         _env_var("STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET", "= globals used only by the primary store")],
+        panel("Notes", Div(P("Only test keys (sk_test_ / rk_test_) are accepted; live responses are rejected."),
+                           P("Enable PayPal at checkout from the ", A("PayPal guide", href="/admin/integrations/paypal"), "."))),
+        docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
+    )
+
+
+def woocommerce_guide():
+    return _guide(
+        "Storefront", "WooCommerce setup",
+        "Bridge a WordPress / WooCommerce store read-only. WordPress keeps its native checkout and "
+        "plugins; FastShop never writes to it and never uses a shopper-supplied URL.",
+        ["In WordPress, open WooCommerce → Settings → Advanced → REST API.",
+         "Create an API key with Read permission and copy the consumer key and secret.",
+         "Set the environment variables below in Coolify, using your store's public HTTPS URL.",
+         "Set …_ENABLED=true to turn the bridge on, then redeploy.",
+         "Verify with scripts/check_commerce_providers.py --provider woocommerce."],
+        "Environment variables (per store)",
+        [_env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_ENABLED", "= true"),
+         _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_URL", "= https://yourstore.com"),
+         _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CONSUMER_KEY", "= ck_…"),
+         _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CONSUMER_SECRET", "= cs_…")],
+        docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
+    )
+
+
+def paypal_guide(session: Session):
+    from app.integrations import paypal
+    sites = list(session.scalars(select(Site).order_by(Site.slug)))
+    rows = []
+    for site in sites:
+        state = paypal.readiness(site)
+        rows.append(Tr(Td(site.slug), Td(site.id), Td(state.mode),
+            Td(Span("Set" if state.client_id_set else "Missing", cls="pill green" if state.client_id_set else "pill amber")),
+            Td(Span("Set" if state.secret_set else "Missing", cls="pill green" if state.secret_set else "pill amber")),
+            Td(Span("Ready" if state.configured else "Not configured", cls="pill green" if state.configured else "pill amber"))))
+    table = Div(Table(Thead(Tr(Th("Store"), Th("Site id"), Th("Mode"), Th("Client ID"), Th("Secret"), Th("Status"))),
+                      Tbody(*rows)), cls="table-scroll") if rows else P("No stores yet.")
+    return _guide(
+        "Payments", "PayPal setup & keys",
+        "Two ways to offer PayPal. Path 1 (recommended today) runs through Stripe Checkout with no "
+        "separate keys. Path 2 stores direct PayPal REST credentials as environment variables for a "
+        "direct integration (a provider-gated seam).",
+        ["Path 1 — via Stripe: enable PayPal on your Stripe account, then turn on "
+         "\"Offer PayPal at one-time checkout\" in the store's Commerce/shared settings. No PayPal keys are stored here.",
+         "Path 2 — direct PayPal: in the PayPal Developer Dashboard, create a REST app (start in Sandbox).",
+         "Copy the app's Client ID and Secret.",
+         "Set the environment variables below in Coolify (use MODE=sandbox until acceptance), then redeploy.",
+         "Return here to confirm the readiness table shows the store as Ready."],
+        "Environment variables — where to add PayPal keys (per store)",
+        [_env_var("FASTSHOP_PAYPAL_{SITE_ID}_CLIENT_ID", "= your PayPal REST client id"),
+         _env_var("FASTSHOP_PAYPAL_{SITE_ID}_SECRET", "= your PayPal REST secret"),
+         _env_var("FASTSHOP_PAYPAL_{SITE_ID}_MODE", "= sandbox | live"),
+         _env_var("PAYPAL_CLIENT_ID / PAYPAL_SECRET / PAYPAL_MODE", "= globals used only by the primary store")],
+        panel("PayPal readiness by store", table),
+        panel("Notes", Div(
+            P("Keys are read from the environment and never stored in this application's database; "
+              "this page only reports whether each value is present, never the value itself."),
+            P("Subscriptions stay card-only so saved-card renewals work; PayPal applies to one-time orders."))),
+        docs=("PayPal integration", "https://github.com/predictivelabsai/FastShop/blob/main/docs/PAYPAL_INTEGRATION.md"),
     )
 
 
