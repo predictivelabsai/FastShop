@@ -349,6 +349,23 @@ def post(session, email: str, password: str, csrf_token: str = ""):
     if not auth.password_attempt_allowed():
         return PlainTextResponse("Too many sign-in attempts. Try again in a minute.", status_code=429,
                                  headers={"Retry-After": "60"})
+    email_norm = email.strip().lower()
+    with SessionLocal() as db:
+        user = db.scalar(select(User).where(User.email == email_norm))
+        if (
+            user
+            and user.is_active
+            and user.password_hash
+            and auth.verify_admin_password(password, user.password_hash)
+        ):
+            membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
+            role = membership.role if membership else "customer"
+            establish_session(session, user, role)
+            db.commit()
+            default = "/admin" if role in {"admin", "merchant"} else "/account"
+            return RedirectResponse(
+                safe_next_path(session.pop("login_next", ""), default), status_code=303
+            )
     if not auth.valid_local_credentials(email, password):
         return RedirectResponse("/login?error=Invalid+email+or+password", status_code=303)
     with SessionLocal() as db:

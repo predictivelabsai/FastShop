@@ -51,6 +51,10 @@ class User(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(160), default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Personal password login (pbkdf2 encoding from auth.hash_admin_password);
+    # NULL for OIDC-only users. The single FASTSHOP_ADMIN_EMAIL env account is
+    # separate and still governed by FASTSHOP_ALLOW_PASSWORD_LOGIN.
+    password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
 class Membership(TimestampMixin, Base):
