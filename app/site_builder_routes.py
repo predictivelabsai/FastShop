@@ -49,7 +49,8 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                 turns = list(db.scalars(select(SiteBuilderTurn).where(SiteBuilderTurn.site_id == site.id,
                     SiteBuilderTurn.tenant_id == site.tenant_id).order_by(SiteBuilderTurn.created_at.desc(), SiteBuilderTurn.id.desc()).limit(20)))
                 changes = list(db.scalars(select(SiteChangeSet).where(SiteChangeSet.site_id == site.id,
-                    SiteChangeSet.tenant_id == site.tenant_id).order_by(SiteChangeSet.after_json["version"].as_integer().desc()).limit(50)))
+                    SiteChangeSet.tenant_id == site.tenant_id,
+                    SiteChangeSet.source != "golive").order_by(SiteChangeSet.after_json["version"].as_integer().desc()).limit(50)))
                 change = changes[0] if changes else None
                 from app.site_samples import pending_reviews
                 pending = pending_reviews(site.settings_json)

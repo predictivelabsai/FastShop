@@ -105,6 +105,8 @@ def register_site_routes(rt):
     register_store_checkout_routes(rt, csrf, check_csrf, error)
     from app.subscription_routes import register_subscription_routes
     register_subscription_routes(rt, csrf, check_csrf)
+    from app.site_golive_routes import register_golive_routes
+    register_golive_routes(rt, actor, csrf, check_csrf, shell, error)
 
     @rt("/admin/sites", methods=["GET"])
     def get(session, notice: str = ""):
@@ -200,7 +202,7 @@ def register_site_routes(rt):
             return error(exc)
 
     @rt("/admin/sites/{site_id}", methods=["GET"])
-    def get(session, site_id: str):
+    def get(session, site_id: str, notice: str = ""):
         try:
             user_id = actor(session)
             with SessionLocal() as db:
@@ -209,10 +211,19 @@ def register_site_routes(rt):
                 config = site.settings_json
                 from app.site_samples import pending_reviews
                 pending = pending_reviews(config)
+                from app import site_golive
+                publish_report = site_golive.assess(db, site)
+                passed = len(publish_report.checks) - len(publish_report.failures)
                 return shell(site.name,
                     Div(A("Build with AI →", href=f"/admin/sites/{site.id}/build"), A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"), A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"), A("Try commerce demo", href=f"/admin/sites/{site.id}/demo"), cls="e-actions"),
-                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Integrations", href=f"/admin/sites/{site.id}/integrations"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
+                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Go-live review", href=f"/admin/sites/{site.id}/golive"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Integrations", href=f"/admin/sites/{site.id}/integrations"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
                     P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),
+                    P(notice[:300], role="status", cls="e-note") if notice else None,
+                    Div(H2("Go-live checklist"),
+                        P(f"{passed} of {len(publish_report.checks)} publication checks pass. Site status: {site.status}."),
+                        P("The checklist is derived from pages, menus, compliance, domain and commerce state; it is never stored as editable flags."),
+                        A("Review checklist and actions →", href=f"/admin/sites/{site.id}/golive"),
+                        cls="e-card g-overview"),
                     P("Before publication, review merchant fields: " + ", ".join(pending) + ". Publication does not confirm these details or enable payments.", cls="e-note") if pending else None,
                     A("Customers, tracking & email", href=f"/admin/sites/{site.id}/customers"),
                     Div(Div(H2("Pages"), *[Div(A(p.title, href=f"/admin/sites/{site.id}/pages/{p.id}"), Small(p.path),

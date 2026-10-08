@@ -3,10 +3,11 @@ import re
 from sqlalchemy import select
 from starlette.testclient import TestClient
 
+from app import content
 from app.config import settings
 from app.db import SessionLocal
 from app.main import app
-from app.models import Site, SitePage
+from app.models import Site, SiteChangeSet, SitePage, User
 from app.site_articles import ARTICLES
 
 
@@ -97,10 +98,16 @@ def test_no_phase2_purchase_or_marketing_submission_in_preview():
 def test_custom_domain_resolves_only_its_site_and_blocks_demo_commerce():
     site, _ = h24()
     with SessionLocal() as db:
-        db.get(Site, site.id).hostname = "h24-preview.example.test"
+        saved = db.get(Site, site.id)
+        previous_status = saved.status
+        saved.hostname = "h24-preview.example.test"
         db.commit()
     try:
         client = TestClient(app, base_url="https://h24-preview.example.test")
+        assert client.get("/pages/science").status_code == 404
+        with SessionLocal() as db:
+            db.get(Site, site.id).status = "published"
+            db.commit()
         page = client.get("/pages/science")
         assert page.status_code == 200
         assert 'href="https://h24-preview.example.test/pages/science"' in page.text
@@ -110,7 +117,9 @@ def test_custom_domain_resolves_only_its_site_and_blocks_demo_commerce():
         assert client.get("/healthz").status_code == 200
     finally:
         with SessionLocal() as db:
-            db.get(Site, site.id).hostname = None
+            saved = db.get(Site, site.id)
+            saved.hostname = None
+            saved.status = previous_status
             db.commit()
 
 
@@ -142,10 +151,52 @@ def test_commerce_settings_keep_fastshop_brand_and_require_csrf():
     assert 'href="/static/site.css"' in response.text
     assert TestClient(app).get(path).status_code == 400
     form = {"csrf_token": token, "version": "1", "mode": "disabled", "origin_country": "EE",
-        "shipping_minor": "", "free_shipping_threshold_minor": "7500", "states": ["CA", "NY"]}
+        "site_version": str(site.version), "shipping_minor": "",
+        "free_shipping_threshold_minor": "7500", "states": ["CA", "NY"]}
     assert client.post(path, data=form | {"csrf_token": "bad"}).status_code == 400
     assert client.post(path, data=form | {"mode": "live"}).status_code == 400
     assert client.post(path, data=form).status_code == 200
     response = client.post(path, data=form)
     assert response.status_code == 400
-    assert "Settings changed" in response.text
+    assert "changed" in response.text
+
+
+def test_golive_actions_use_csrf_prg_and_record_blocked_review():
+    from uuid import uuid4
+
+    client, token = signed_in()
+    with SessionLocal() as db:
+        owner = db.scalar(select(User).where(User.email == settings.admin_email))
+        site = content.create_site(db, owner.id, "Go-live route", "golive-route-" + uuid4().hex[:8])
+        db.commit()
+        site_id, version = site.id, site.version
+    page = client.get(f"/admin/sites/{site_id}/golive")
+    assert page.status_code == 200
+    assert "Go-live review" in page.text and "Publish site" in page.text
+
+    form = {
+        "csrf_token": token,
+        "version": str(version),
+        "reason": "The merchant reviewed the current public snapshots.",
+        "confirmed": "on",
+    }
+    rejected = client.post(
+        f"/admin/sites/{site_id}/golive/publish",
+        data=form | {"csrf_token": "wrong"},
+        follow_redirects=False,
+    )
+    assert rejected.status_code == 303 and "/golive?" in rejected.headers["location"]
+    blocked = client.post(
+        f"/admin/sites/{site_id}/golive/publish",
+        data=form,
+        follow_redirects=False,
+    )
+    assert blocked.status_code == 303
+    with SessionLocal() as db:
+        saved = db.get(Site, site_id)
+        audit = db.scalar(select(SiteChangeSet).where(
+            SiteChangeSet.site_id == site_id,
+            SiteChangeSet.source == "golive",
+        ))
+        assert saved.status == "draft"
+        assert audit.after_json["audit"]["decision"] == "blocked"

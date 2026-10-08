@@ -39,11 +39,12 @@ def main():
     parser.add_argument("--shopify", action="store_true", help="Include Phase 3b fixture-backed Shopify migration")
     parser.add_argument("--wordpress", action="store_true", help="Include Phase 3c fixture-backed WordPress migration")
     parser.add_argument("--csv-merchant-feed", action="store_true", help="Include Phase 3d CSV import and Merchant Center feed")
+    parser.add_argument("--golive", action="store_true", help="Include Phase 4a publish, domain and sandbox-commerce gates")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
     if sum((args.woocommerce, args.shopify, args.wordpress, args.csv_merchant_feed)) > 1:
         raise RuntimeError("Run one fixture-backed connector browser flow at a time.")
-    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed) and not (args.merchant or args.merchant_only):
+    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed or args.golive) and not (args.merchant or args.merchant_only):
         raise RuntimeError("Generation, refinement and connector checks require --merchant against an isolated local database.")
     if args.woocommerce and not os.getenv("FASTSHOP_WOOCOMMERCE_FIXTURE_PATH"):
         raise RuntimeError("WooCommerce browser verification requires FASTSHOP_WOOCOMMERCE_FIXTURE_PATH.")
@@ -140,6 +141,123 @@ def main():
             page.get_by_role("button", name="Sign in", exact=True).click()
             page.wait_for_url("**/admin/sites")
             page.screenshot(path=str(out / "merchant-sites.png"), full_page=True)
+            if args.golive:
+                from sqlalchemy import select
+
+                from app import commerce
+                from app.db import SessionLocal
+                from app.models import (
+                    Product,
+                    ProductVariant,
+                    Site,
+                    SitePage,
+                    VariantChannelListing,
+                )
+
+                blocked_slug = "golive-blocked-" + uuid4().hex[:8]
+                page.locator('input[name="name"]').fill("Blocked go-live review")
+                page.locator('input[name="slug"]').fill(blocked_slug)
+                page.get_by_role("button", name="Create site", exact=True).click()
+                page.wait_for_url("**/admin/sites/*")
+                page.get_by_role("link", name="Go-live review", exact=True).click()
+                assert page.get_by_role("heading", name="Go-live review", exact=True).is_visible()
+                assert page.locator(".g-check-fail").count() >= 1
+                page.get_by_label("Review reason", exact=True).fill(
+                    "Browser review confirms this incomplete site must remain private."
+                )
+                page.get_by_label("I reviewed the checklist and the public snapshots.", exact=True).check()
+                page.get_by_role("button", name="Publish site", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("status").inner_text().startswith("Publication blocked")
+                page.screenshot(path=str(out / "desktop-golive-publish-blocked.png"), full_page=True)
+
+                with SessionLocal() as db:
+                    h24 = db.scalar(select(Site).where(Site.slug == "h24you"))
+                    if not h24:
+                        raise RuntimeError("The H2 4 You fixture site is unavailable.")
+                    h24_id = h24.id
+                page.goto(args.base + f"/admin/sites/{h24_id}/golive")
+                assert page.locator("#publish").is_visible()
+                assert page.locator(".g-check-fail").count() >= 1  # commerce remains intentionally incomplete
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-golive-checklist.png"), full_page=True)
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.get_by_label("Review reason", exact=True).fill(
+                    "All publication snapshots, menus and compliance results were reviewed in the browser flow."
+                )
+                page.get_by_label("I reviewed the checklist and the public snapshots.", exact=True).check()
+                page.get_by_role("button", name="Publish site", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("status").inner_text() == "Site published after readiness review."
+                domain = "browser-golive-" + uuid4().hex[:8] + ".example.test"
+                page.get_by_label("Custom hostname", exact=True).fill(domain)
+                page.get_by_role("button", name="Save custom domain", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert domain in page.get_by_role("status").inner_text()
+
+                with SessionLocal() as db:
+                    h24 = db.get(Site, h24_id)
+                    for path in ("/pages/privacy-policy", "/pages/terms-and-conditions", "/pages/returns-and-refunds"):
+                        policy = db.scalar(select(SitePage).where(
+                            SitePage.site_id == h24.id,
+                            SitePage.tenant_id == h24.tenant_id,
+                            SitePage.path == path,
+                        ))
+                        document = dict(policy.draft_json)
+                        document["blocks"] = [dict(block) for block in policy.draft_json["blocks"]]
+                        document["blocks"][0]["body"] = "Reviewed browser-verification policy for this sandbox storefront."
+                        policy.draft_json = document
+                        policy.published_json = dict(document)
+                    products = list(db.scalars(select(Product).where(
+                        Product.tenant_id == h24.tenant_id,
+                        Product.is_published.is_(True),
+                    )))
+                    variants = list(db.scalars(select(ProductVariant).where(
+                        ProductVariant.tenant_id == h24.tenant_id,
+                        ProductVariant.product_id.in_([product.id for product in products]),
+                        ProductVariant.is_active.is_(True),
+                    )))
+                    priced = set(db.scalars(select(VariantChannelListing.variant_id).where(
+                        VariantChannelListing.channel_id == h24.channel_id,
+                    )))
+                    for variant in variants:
+                        if variant.id not in priced:
+                            db.add(VariantChannelListing(
+                                variant_id=variant.id,
+                                channel_id=h24.channel_id,
+                                currency="USD",
+                                price_minor=2500,
+                            ))
+                    config = commerce.settings_for(db, h24, create=True)
+                    config.mode = "disabled"
+                    config.origin_json = {"country": "EE", "line1": "Browser warehouse", "city": "Tallinn", "postal_code": "10111"}
+                    config.shipping_minor = 900
+                    config.allowed_states_json = ["CA", "NY"]
+                    config.tax_registration_reviewed = True
+                    config.product_tax_codes_json = {product.id: "txcd_00000000" for product in products}
+                    config.version += 1
+                    h24.version += 1
+                    db.commit()
+                page.reload()
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("button", name="Enable sandbox commerce", exact=True).is_enabled()
+                page.get_by_role("button", name="Enable sandbox commerce", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("status").inner_text() == "Sandbox commerce enabled. Live payments remain unavailable."
+                assert page.get_by_role("button", name="Disable sandbox commerce", exact=True).is_visible()
+                assert page.get_by_text("sandbox-commerce-enable · approved", exact=False).is_visible()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-golive-commerce-enabled.png"), full_page=True)
+                checks.append({
+                    "merchant": "go-live checklist blocks an incomplete publish, approves a ready publish, binds a domain and enables sandbox commerce",
+                    "status": "passed",
+                })
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.goto(args.base + "/admin/sites")
             if args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed:
                 from sqlalchemy import select
 
