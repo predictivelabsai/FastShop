@@ -1,0 +1,18 @@
+{
+  "base": "http://127.0.0.1:51435",
+  "checks": [
+    {
+      "merchant": "guided brief form creates a private draft and opens generated blocks in the editor",
+      "status": "passed"
+    },
+    {
+      "merchant": "menu anchor add, reorder, publish, public target and desktop/mobile editor",
+      "status": "passed"
+    },
+    {
+      "merchant": "media upload, browse, pick and save alt desktop/mobile; referenced deletion refused",
+      "status": "passed"
+    }
+  ],
+  "failures": []
+}
