@@ -46,8 +46,12 @@ def _redirect(site_id, notice, *, plan_id=""):
 
 def _count_table(report):
     rows = []
-    for name in ("categories", "products", "customers", "orders"):
-        values = report.get("counts", {}).get(name, {})
+    counts = report.get("counts", {})
+    preferred = ("categories", "collections", "products", "customers", "orders")
+    names = [name for name in preferred if name in counts]
+    names.extend(name for name in counts if name not in names)
+    for name in names:
+        values = counts.get(name, {})
         rows.append(Tr(Th(name.title(), scope="row"), Td(str(values.get("fetched", 0))),
             Td(str(values.get("create", 0))), Td(str(values.get("update", 0))),
             Td(str(values.get("skip", 0)))))
@@ -57,6 +61,7 @@ def _count_table(report):
 
 def _plan_view(plan, csrf):
     report = plan.report_json
+    provider_label = connectors.connector_for(plan.platform).label
     warnings = report.get("warnings", [])
     unmapped = report.get("unmapped_items", [])
     samples = report.get("samples", [])
@@ -82,9 +87,10 @@ def _plan_view(plan, csrf):
                 " I reviewed these counts, samples, and warnings."),
             Button("Apply this reviewed plan", cls="e-button",
                    disabled=plan.status != "pending"),
-            P("Applying creates or updates only mapped data in this site. It does not contact WooCommerce again.",
+            P(f"Applying creates or updates only mapped data in this site. It does not contact "
+              f"{provider_label} again.",
               cls="i-help"),
-            method="post", action=f"/admin/sites/{plan.site_id}/integrations/woocommerce/apply",
+            method="post", action=f"/admin/sites/{plan.site_id}/integrations/{plan.platform}/apply",
             cls="e-form i-confirm") if plan.status == "pending" else None,
         cls="e-card i-plan",
     )
@@ -101,13 +107,14 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                 for connector in connectors.listed_connectors():
                     state = connector.credential_state(site)
                     capabilities = connector.capabilities
+                    export_label = ", ".join(capabilities.exports) if capabilities.exports else "not included"
                     rows.append(Div(
                         Div(H2(connector.label), Span("Ready" if state.configured else "Needs operator setup",
                             cls="i-state " + ("i-state-ready" if state.configured else "i-state-missing")),
                             cls="i-heading"),
                         P(state.message, role="status"),
                         P("Import: " + ", ".join(capabilities.imports) + ". Export: " +
-                          ", ".join(capabilities.exports) + "."),
+                          export_label + "."),
                         P(f"Bounded to {capabilities.max_pages} pages per resource, "
                           f"{capabilities.max_items} items, and {capabilities.timeout_seconds}-second requests.",
                           cls="i-help"),
@@ -116,7 +123,8 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                             action=f"/admin/sites/{site.id}/integrations/{connector.platform}/dry-run",
                             cls="e-form") if state.configured else None,
                         A("Download review-only export JSON", cls="i-export",
-                          href=f"/admin/sites/{site.id}/integrations/{connector.platform}/export.json"),
+                          href=f"/admin/sites/{site.id}/integrations/{connector.platform}/export.json")
+                        if capabilities.exports else None,
                         cls="e-card i-connector"))
                 selected = None
                 if plan:

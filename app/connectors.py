@@ -70,8 +70,10 @@ def _load_builtins() -> None:
     global _BUILTINS_LOADED
     if _BUILTINS_LOADED:
         return
+    from app.integrations.shopify import ShopifyConnector
     from app.integrations.woocommerce import WooCommerceConnector
 
+    register_connector(ShopifyConnector())
     register_connector(WooCommerceConnector())
     _BUILTINS_LOADED = True
 
