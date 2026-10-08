@@ -7,13 +7,14 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select, update
 
-from app import content
+from app import content, site_menus
 from app.models import Site, SiteBuilderTurn, SiteChangeSet, SiteRevision
 from app.services import CommerceError
 from app.site_blocks import (
     add_block,
     default_locale,
     get_block,
+    merge_localized,
     normalize_document,
     patch_block,
     reorder_blocks,
@@ -37,7 +38,7 @@ def validate_section_text(values):
 
 
 def snapshot(db, site):
-    return {"version": site.version, "settings": copy.deepcopy(site.settings_json), "pages": {
+    return {"version": site.version, "settings": copy.deepcopy(site.settings_json), "menus": site_menus.snapshot(db, site), "pages": {
         p.id: {"version": p.version, "path": p.path, "kind": p.kind, "document": normalize_document(p.draft_json)}
         for p in content.site_pages(db, site)}}
 
@@ -48,6 +49,13 @@ def normalize_snapshot(state):
     for page in result["pages"].values():
         page["document"] = normalize_document(page["document"])
     return result
+
+
+def snapshot_matches(current, previous):
+    current = copy.deepcopy(current)
+    if "menus" not in previous:
+        current.pop("menus", None)
+    return current == normalize_snapshot(previous)
 
 
 def lock_site(db, site_id, user_id, version):
@@ -86,7 +94,7 @@ def validate_response(response):
 def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
     validate_response({"operations": operations})
     site = lock_site(db, site_id, user_id, expected["version"])
-    if snapshot(db, site) != normalize_snapshot(expected):
+    if not snapshot_matches(snapshot(db, site), expected):
         raise CommerceError("Draft changed while the builder was working. Send your request again.")
     before = snapshot(db, site)
     config = copy.deepcopy(site.settings_json)
@@ -110,7 +118,17 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
                 if not isinstance(item, dict) or set(item) != {"label", "path"} or not isinstance(item["label"], str) or not 1 <= len(item["label"].strip()) <= 80 or not isinstance(item["path"], str):
                     raise CommerceError("Each navigation link needs a label and safe URL.")
                 validated.append({"label": item["label"].strip(), "path": content.safe_url(item["path"])})
-            config["navigation"] = validated
+            items = site_menus.items_from_settings({"navigation": validated})
+            old_menu = site_menus.get_menu(db, site, "header")
+            remaining = copy.deepcopy(old_menu.items_json) if old_menu else []
+            for item in items:
+                previous = next((old for old in remaining if all(old.get(key) == item.get(key)
+                    for key in ("kind", "path", "block_id", "url"))), None)
+                if previous:
+                    item["id"] = previous["id"]
+                    item["label"] = merge_localized(previous["label"], item["label"], default_locale(site))
+                    remaining.remove(previous)
+            site_menus.put_menu(db, site, "header", items)
             summaries.append("Navigation")
         elif kind == "theme" and set(operation) == {"op", "values"}:
             config["design"] = validate_theme(config.get("design", {}) | operation["values"])
@@ -166,7 +184,7 @@ def undo_change(db, site_id, user_id, change_id, version):
     site = lock_site(db, site_id, user_id, version)
     change = db.scalar(select(SiteChangeSet).where(SiteChangeSet.id == change_id,
         SiteChangeSet.site_id == site.id, SiteChangeSet.tenant_id == site.tenant_id))
-    if not change or snapshot(db, site) != normalize_snapshot(change.after_json):
+    if not change or not snapshot_matches(snapshot(db, site), change.after_json):
         raise CommerceError("Only the current unchanged draft revision can be undone.")
     before = snapshot(db, site)
     target = normalize_snapshot(change.before_json)
@@ -181,6 +199,14 @@ def undo_change(db, site_id, user_id, change_id, version):
             doc = target["pages"][page.id]["document"]
             if doc != normalize_document(page.draft_json):
                 content.save_page(db, site, page.id, user_id, doc, page.version, "restore")
+    if "menus" in target:
+        for menu in site_menus.menus_for(db, site):
+            if menu.name not in target["menus"]:
+                if menu.published_items_json is not None:
+                    raise CommerceError("A published menu cannot be removed by draft undo.")
+                db.delete(menu)
+        for name, items in target["menus"].items():
+            site_menus.put_menu(db, site, name, items)
     site.settings_json = copy.deepcopy(target["settings"])
     site.version += 1
     db.flush()

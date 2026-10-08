@@ -83,6 +83,8 @@ def register_site_routes(rt):
     def error(exc):
         return Response(str(exc), status_code=400, media_type="text/plain")
 
+    from app.site_menu_routes import register_menu_routes
+    register_menu_routes(rt, actor, csrf, check_csrf, shell, error)
     register_catalog_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_builder_routes import register_builder_routes
     register_builder_routes(rt, actor, csrf, check_csrf, shell, error)
@@ -147,7 +149,7 @@ def register_site_routes(rt):
                 pending = pending_reviews(config)
                 return shell(site.name,
                     Div(A("Build with AI →", href=f"/admin/sites/{site.id}/build"), A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"), A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"), A("Try commerce demo", href=f"/admin/sites/{site.id}/demo"), cls="e-actions"),
-                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
+                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
                     P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),
                     P("Before publication, review merchant fields: " + ", ".join(pending) + ". Publication does not confirm these details or enable payments.", cls="e-note") if pending else None,
                     A("Customers, tracking & email", href=f"/admin/sites/{site.id}/customers"),
@@ -169,9 +171,7 @@ def register_site_routes(rt):
                             H3("Checkout payment methods"),
                             Label(Input(type="checkbox", name="offer_paypal", checked="paypal" in config.get("payment_methods", ["card"])), " Offer PayPal at one-time checkout (requires PayPal enabled on your Stripe account)"),
                             P("Card is always available. Apple Pay and Google Pay appear automatically once your store domain is registered with Stripe. Subscriptions stay card-only so renewals can charge the saved card.", cls="e-note"),
-                            H3("Menu links"), *[Div(Input(name=f"nav_label_{i}", value=item["label"], aria_label="Menu label"),
-                                Input(name=f"nav_path_{i}", value=item["path"], aria_label="Menu path"), cls="e-pair") for i, item in enumerate(config.get("navigation", []))],
-                            Div(Input(name="new_nav_label", placeholder="New menu label", aria_label="New menu label"), Input(name="new_nav_path", placeholder="/pages/new-page", aria_label="New menu path"), cls="e-pair"),
+                            H3("Navigation"), A("Edit menus", href=f"/admin/sites/{site.id}/menus"),
                             H3("Research figures"), *[Div(Label("Value", Input(name=f"fact_value_{i}", value=item["value"])), Label("Label", Input(name=f"fact_label_{i}", value=item["label"]))) for i, item in enumerate(config.get("facts", []))],
                             H3("Social links"), *[Label(item["label"], Input(name=f"social_url_{i}", value=item.get("url", ""), placeholder="https://…")) for i, item in enumerate(config.get("socials", []))],
                             H3("Benefit statements"), P("Only approved statements appear. Unchecking one removes it everywhere after publishing settings. Clear a statement's text to delete it, or add new ones below (brief §8 reserved slots)."),
@@ -209,12 +209,6 @@ def register_site_routes(rt):
                     if config.get(key):
                         config[key] = content.safe_url(config[key], media=True)
                 content.validate_media_ownership(db, site, config)
-                for i, item in enumerate(config.get("navigation", [])):
-                    item["label"] = str(form.get(f"nav_label_{i}", item["label"]))[:80]
-                    item["path"] = content.safe_url(str(form.get(f"nav_path_{i}", item["path"])))
-                config["navigation"] = [item for item in config.get("navigation", []) if item["label"] and item["path"]]
-                if form.get("new_nav_label") and form.get("new_nav_path"):
-                    config["navigation"].append({"label": str(form["new_nav_label"])[:80], "path": content.safe_url(str(form["new_nav_path"]))})
                 for i, item in enumerate(config.get("facts", [])):
                     item["value"] = str(form.get(f"fact_value_{i}", item["value"]))[:20]
                     item["label"] = str(form.get(f"fact_label_{i}", item["label"]))[:200]

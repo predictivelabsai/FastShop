@@ -41,6 +41,8 @@ def section(kind, heading="", body="", **kwargs):
 def seed_h24you(db, admin_email):
     existing = db.scalar(select(Site).where(Site.slug == "h24you"))
     if existing:
+        from app.site_menus import adapt_navigation
+        adapt_navigation(db, existing)
         return existing
     tenant = Tenant(slug="h24you", name="H2 4 You Ltd")
     db.add(tenant)
@@ -171,5 +173,7 @@ def seed_h24you(db, admin_email):
         {"heading": "What is hydrogen water?", "body": "Water with dissolved molecular hydrogen (H₂). Visit Learn for an introduction and references."},
         {"heading": "Can I order now?", "body": "This is the Phase 1 design and content preview. Checkout will follow after the site has been reviewed."},
         {"heading": "Which tablet flavours are planned?", "body": "Unflavoured, Raspberry and Pineapple. Final ingredients and pack details are pending confirmation."}])])
+    from app.site_menus import adapt_navigation
+    adapt_navigation(db, site)
     db.flush()
     return site

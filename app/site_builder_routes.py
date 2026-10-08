@@ -126,7 +126,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                         method="post", action=base + "/build/message", cls="e-form", data_builder_form="", data_site=site.id))
                 return shell("Build " + site.name,
                     Link(rel="stylesheet", href="/static/site-workspace.css"), Script(src="/static/site-workspace.js", defer=True),
-                    Div(A("Classical editor", href=base), A("Chat", href=base + "/build?page=" + selected.id),
+                    Div(A("Menus", href=base + "/menus"), A("Classical editor", href=base), A("Chat", href=base + "/build?page=" + selected.id),
                         A("Design controls", href=base + "/build?view=design&page=" + selected.id),
                         A("Products", href=base + "/products"), A("Commerce", href=base + "/commerce"), cls="e-actions"),
                     A("Merchant details & samples", href=base + "/samples"),
