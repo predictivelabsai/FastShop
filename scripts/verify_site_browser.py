@@ -42,11 +42,12 @@ def main():
     parser.add_argument("--golive", action="store_true", help="Include Phase 4a publish, domain and sandbox-commerce gates")
     parser.add_argument("--live-credentials", action="store_true", help="Include Phase 4b operator live-credential acceptance")
     parser.add_argument("--order-management", action="store_true", help="Include Phase 4c real order operations and revenue reporting")
+    parser.add_argument("--webhook-reliability", action="store_true", help="Include Phase 4d provider re-sync and delivery recovery")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
     if sum((args.woocommerce, args.shopify, args.wordpress, args.csv_merchant_feed)) > 1:
         raise RuntimeError("Run one fixture-backed connector browser flow at a time.")
-    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed or args.golive or args.live_credentials or args.order_management) and not (args.merchant or args.merchant_only):
+    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed or args.golive or args.live_credentials or args.order_management or args.webhook_reliability) and not (args.merchant or args.merchant_only):
         raise RuntimeError("Generation, refinement and connector checks require --merchant against an isolated local database.")
     if args.live_credentials and not args.golive:
         raise RuntimeError("Live-credential browser verification also requires --golive to prepare the reviewed fixture site.")
@@ -72,6 +73,8 @@ def main():
             db.commit()
     if args.order_management and args.output == "output/playwright/h24you-phase1":
         args.output = "output/playwright/phase4c-order-management"
+    if args.webhook_reliability and args.output == "output/playwright/h24you-phase1":
+        args.output = "output/playwright/phase4d-webhook-reliability"
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
     paths = ["/", "/shop", "/collections/hydrogen-tablets", "/collections/hydrogen-water-bottles",
@@ -474,6 +477,122 @@ def main():
                     page.screenshot(path=str(out / f"{device}-revenue-report.png"), full_page=True)
                 checks.append({
                     "merchant": "real order list, legal fulfillment transition, exact refund confirmation, and server-rendered revenue reporting",
+                    "status": "passed",
+                })
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.goto(args.base + "/admin/sites")
+            if args.webhook_reliability:
+                from datetime import UTC, datetime
+
+                from sqlalchemy import select
+
+                from app.db import SessionLocal
+                from app.models import (
+                    Order,
+                    OutboxEvent,
+                    PaymentTransaction,
+                    ShopCustomer,
+                    Site,
+                    SiteOrder,
+                )
+
+                with SessionLocal() as db:
+                    reliability_site = db.scalar(select(Site).where(Site.slug == "h24you"))
+                    if not reliability_site:
+                        raise RuntimeError("The H2 4 You reliability fixture site is unavailable.")
+                    customer = ShopCustomer(
+                        tenant_id=reliability_site.tenant_id,
+                        site_id=reliability_site.id,
+                        email="browser-reliability@example.test",
+                        name="Webhook recovery customer",
+                        verified_at=datetime.now(UTC),
+                    )
+                    db.add(customer)
+                    db.flush()
+                    order = Order(
+                        tenant_id=reliability_site.tenant_id,
+                        channel_id=reliability_site.channel_id,
+                        number="FS-BROWSER-4D-" + uuid4().hex[:6].upper(),
+                        idempotency_key="browser-reliability-" + uuid4().hex,
+                        email=customer.email,
+                        currency="USD",
+                        subtotal_minor=6200,
+                        shipping_minor=800,
+                        tax_minor=560,
+                        total_minor=7560,
+                        payment_status="pending",
+                        shipping_address_json={
+                            "name": customer.name,
+                            "line1": "89 Recovery Lane",
+                            "city": "Austin",
+                            "state": "TX",
+                            "postal_code": "78701",
+                            "country": "US",
+                        },
+                    )
+                    db.add(order)
+                    db.flush()
+                    link = SiteOrder(
+                        tenant_id=reliability_site.tenant_id,
+                        site_id=reliability_site.id,
+                        order_id=order.id,
+                        customer_id=customer.id,
+                        stripe_checkout_id="cs_test_browser4d",
+                    )
+                    db.add(link)
+                    db.flush()
+                    db.add_all([
+                        PaymentTransaction(
+                            order_id=order.id,
+                            provider="stripe:" + reliability_site.id,
+                            external_id="pi_browser4d_" + uuid4().hex[:8],
+                            kind="charge",
+                            status="pending",
+                            currency="USD",
+                            amount_minor=7560,
+                        ),
+                        OutboxEvent(
+                            tenant_id=reliability_site.tenant_id,
+                            topic="order.confirmed",
+                            aggregate_id=order.id,
+                            payload_json={"order_id": order.id, "site_id": reliability_site.id},
+                            status="dead",
+                            attempts=8,
+                            last_error="FastERP did not accept the order after bounded retries.",
+                        ),
+                        OutboxEvent(
+                            tenant_id=reliability_site.tenant_id,
+                            topic="order.refunded",
+                            aggregate_id=order.id,
+                            payload_json={"order_id": order.id, "site_id": reliability_site.id},
+                            status="failed",
+                            attempts=3,
+                            last_error="Legacy delivery failure awaiting operator review.",
+                        ),
+                    ])
+                    reliability_site_id = reliability_site.id
+                    reliability_link_id = link.id
+                    db.commit()
+
+                detail_url = args.base + f"/admin/sites/{reliability_site_id}/orders/{reliability_link_id}"
+                page.goto(detail_url)
+                assert page.get_by_role("heading", name="Re-sync provider status", exact=True).is_visible()
+                assert page.get_by_role("button", name="Re-pull Stripe status", exact=True).is_visible()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-provider-resync.png"), full_page=True)
+
+                page.goto(args.base + f"/admin/sites/{reliability_site_id}/deliveries")
+                assert page.get_by_role("heading", name="Delivery issues", exact=True).is_visible()
+                assert page.get_by_text("FastERP did not accept", exact=False).is_visible()
+                assert page.get_by_role("button", name="Requeue", exact=True).count() == 2
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-delivery-issues.png"), full_page=True)
+                checks.append({
+                    "merchant": "one-order Stripe re-sync and tenant-scoped dead-letter recovery are visible without exposing provider secrets",
                     "status": "passed",
                 })
                 page.set_viewport_size({"width": 1440, "height": 1000})

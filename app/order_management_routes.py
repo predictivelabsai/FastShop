@@ -42,11 +42,15 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
     def order_url(site_id, site_order_id=""):
         return f"/admin/sites/{site_id}/orders" + (f"/{site_order_id}" if site_order_id else "")
 
+    def delivery_url(site_id):
+        return f"/admin/sites/{site_id}/deliveries"
+
     def redirect_notice(url, notice):
         return RedirectResponse(url + "?" + urlencode({"notice": str(notice)[:300]}), status_code=303)
 
     def status(value):
         tone = " o-state-positive" if value in {"fulfilled", "delivered", "paid", "refunded", "succeeded"} else ""
+        tone = " o-state-negative" if value in {"dead", "failed", "cancelled"} else tone
         return Span(value.replace("_", " ").title(), cls="o-state" + tone)
 
     def metrics(report):
@@ -75,7 +79,12 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                 ) for link, order, _ in rows]
                 return shell(
                     "Orders",
-                    Div(A("← Site", href=f"/admin/sites/{site.id}"), A("Revenue report", href=f"/admin/sites/{site.id}/revenue"), cls="e-actions"),
+                    Div(
+                        A("← Site", href=f"/admin/sites/{site.id}"),
+                        A("Revenue report", href=f"/admin/sites/{site.id}/revenue"),
+                        A("Delivery issues", href=delivery_url(site.id)),
+                        cls="e-actions",
+                    ),
                     P(f"{site.name} · Real site orders only. Demo-commerce simulations never appear here.", cls="o-intro"),
                     P(notice, role="status", cls="e-note") if notice else None,
                     Form(
@@ -143,6 +152,22 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                     ) if available else P("No captured amount remains available for another refund."),
                     cls="e-card",
                 ) if captured else Div(H2("Refund payment"), P("No supported captured Stripe payment is attached to this order."), cls="e-card")
+                resync_card = Div(
+                    H2("Re-sync provider status"),
+                    P("Fetch Stripe's current checkout and payment state for this order. This does not create a payment or refund."),
+                    Form(
+                        csrf(session),
+                        Button("Re-pull Stripe status", cls="e-button"),
+                        method="post",
+                        action=action + "/resync",
+                        cls="e-form o-inline-form",
+                    ),
+                    cls="e-card",
+                ) if link.stripe_checkout_id or captured else Div(
+                    H2("Re-sync provider status"),
+                    P("No Stripe checkout or payment reference is attached to this order."),
+                    cls="e-card",
+                )
                 timeline_rows = []
                 for event in events:
                     retry = None
@@ -188,6 +213,7 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                         cls="e-card o-summary",
                     ),
                     Div(fulfillment, refund_card, cls="e-grid"),
+                    resync_card,
                     Div(H2("Order timeline"), *timeline_rows, cls="e-card o-timeline"),
                 )
         except CommerceError as exc:
@@ -217,6 +243,85 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                 db.commit()
             return redirect_notice(target_url, "Fulfillment status updated.")
         except (CommerceError, ValueError) as exc:
+            return redirect_notice(target_url, exc)
+
+    @rt("/admin/sites/{site_id}/orders/{site_order_id}/resync", methods=["POST"])
+    async def post(session, request, site_id: str, site_order_id: str):
+        target_url = order_url(site_id, site_order_id)
+        try:
+            form = await request.form()
+            check_csrf(session, form)
+            payment_status = await run_in_threadpool(
+                orders.resync_order,
+                site_id,
+                actor(session),
+                site_order_id,
+            )
+            return redirect_notice(
+                target_url,
+                "Stripe status re-synced. Order payment status: " + payment_status.replace("_", " ") + ".",
+            )
+        except CommerceError as exc:
+            return redirect_notice(target_url, exc)
+
+    @rt("/admin/sites/{site_id}/deliveries", methods=["GET"])
+    def get(session, site_id: str, notice: str = ""):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session), publish=True)
+                failures = orders.delivery_failures(db, site)
+                rows = [Tr(
+                    Td(event.topic),
+                    Td(status(event.status)),
+                    Td(str(event.attempts), cls="o-money"),
+                    Td(orders.safe_delivery_error(event), cls="o-error-detail"),
+                    Td(Form(
+                        csrf(session),
+                        Button("Requeue", cls="e-button"),
+                        method="post",
+                        action=delivery_url(site.id) + f"/{event.id}/requeue",
+                        cls="o-compact-action",
+                    )),
+                ) for event in failures]
+                return shell(
+                    "Delivery issues",
+                    Div(
+                        A("← Orders", href=order_url(site.id)),
+                        A("Revenue report", href=f"/admin/sites/{site.id}/revenue"),
+                        cls="e-actions",
+                    ),
+                    P(
+                        f"{site.name} · Terminal and legacy failed deliveries only. "
+                        "Requeue resets the bounded retry schedule for one event.",
+                        cls="o-intro",
+                    ),
+                    P(notice, role="status", cls="e-note") if notice else None,
+                    Div(Table(
+                        Thead(Tr(Th("Topic"), Th("State"), Th("Attempts"), Th("Last error"), Th("Action"))),
+                        Tbody(*rows),
+                    ), cls="o-table-wrap") if rows else Div(
+                        H2("No delivery issues"),
+                        P("No dead-letter or legacy failed events need attention for this site."),
+                        cls="e-card o-empty",
+                    ),
+                )
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/deliveries/{event_id}/requeue", methods=["POST"])
+    async def post(session, request, site_id: str, event_id: str):
+        target_url = delivery_url(site_id)
+        try:
+            form = await request.form()
+            check_csrf(session, form)
+            with SessionLocal() as db:
+                user_id = actor(session)
+                site = content.owned_site(db, site_id, user_id, publish=True)
+                event = orders.requeue_delivery(db, site, user_id, event_id)
+                topic = event.topic
+                db.commit()
+            return redirect_notice(target_url, topic + " delivery requeued for an immediate bounded retry.")
+        except CommerceError as exc:
             return redirect_notice(target_url, exc)
 
     @rt("/admin/sites/{site_id}/orders/{site_order_id}/refund", methods=["GET"])
@@ -351,7 +456,11 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                     ))
                 return shell(
                     "Per-site revenue",
-                    A("← Sites", href="/admin/sites"),
+                    Div(
+                        A("← Sites", href="/admin/sites"),
+                        A("Platform delivery issues", href="/admin/platform/deliveries"),
+                        cls="e-actions",
+                    ),
                     P("Operator totals remain separated by site and channel currency. Only tenants where this operator has an admin membership are visible."),
                     Form(
                         Label("Start date", Input(name="start", type="date", value=start_date.isoformat(), required=True)),
@@ -361,6 +470,52 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                         cls="e-form o-date-filter",
                     ),
                     Div(Table(Thead(Tr(Th("Site"), Th("Currency"), Th("Gross"), Th("Refunds"), Th("Net"), Th("Orders"))), Tbody(*rows)), cls="o-table-wrap") if rows else Div(H2("No operator sites"), P("No tenant-scoped admin memberships are available."), cls="e-card o-empty"),
+                )
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/platform/deliveries", methods=["GET"])
+    def get(session, notice: str = ""):
+        try:
+            with SessionLocal() as db:
+                user_id = actor(session)
+                user = db.get(User, user_id)
+                if not user or user.email.lower() != settings.admin_email:
+                    raise CommerceError("Platform operator access is required.")
+                sites = list(db.scalars(select(Site)
+                    .join(Membership, Membership.tenant_id == Site.tenant_id)
+                    .where(Membership.user_id == user_id, Membership.role == "admin")
+                    .order_by(Site.name, Site.id)))
+                rows = []
+                for site in sites:
+                    for event in orders.delivery_failures(db, site):
+                        rows.append(Tr(
+                            Td(A(site.name, href=delivery_url(site.id))),
+                            Td(event.topic),
+                            Td(status(event.status)),
+                            Td(str(event.attempts), cls="o-money"),
+                            Td(orders.safe_delivery_error(event), cls="o-error-detail"),
+                        ))
+                return shell(
+                    "Platform delivery issues",
+                    Div(
+                        A("← Sites", href="/admin/sites"),
+                        A("Per-site revenue", href="/admin/platform/revenue"),
+                        cls="e-actions",
+                    ),
+                    P(
+                        "Only sites where this operator holds an explicit admin membership are included.",
+                        cls="o-intro",
+                    ),
+                    P(notice, role="status", cls="e-note") if notice else None,
+                    Div(Table(
+                        Thead(Tr(Th("Site"), Th("Topic"), Th("State"), Th("Attempts"), Th("Last error"))),
+                        Tbody(*rows),
+                    ), cls="o-table-wrap") if rows else Div(
+                        H2("No platform delivery issues"),
+                        P("No explicitly administered site has a dead-letter or legacy failed event."),
+                        cls="e-card o-empty",
+                    ),
                 )
         except CommerceError as exc:
             return error(exc)

@@ -323,7 +323,10 @@ class WishlistItem(TimestampMixin, Base):
 
 class OutboxEvent(TimestampMixin, Base):
     __tablename__ = "outbox_events"
-    __table_args__ = (Index("ix_outbox_status_created", "status", "created_at"),)
+    __table_args__ = (
+        Index("ix_outbox_status_created", "status", "created_at"),
+        Index("ix_outbox_status_due_created", "status", "next_attempt_at", "created_at"),
+    )
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
     topic: Mapped[str] = mapped_column(String(100))
@@ -332,6 +335,25 @@ class OutboxEvent(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str] = mapped_column(Text, default="")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class StripeWebhookEvent(TimestampMixin, Base):
+    """Payload-free record of a Stripe event successfully handled for one site."""
+
+    __tablename__ = "stripe_webhook_events"
+    __table_args__ = (
+        UniqueConstraint("site_id", "event_id", name="uq_stripe_webhook_site_event"),
+        Index("ix_stripe_webhook_tenant_site_processed", "tenant_id", "site_id", "processed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    event_id: Mapped[str] = mapped_column(String(180))
+    event_type: Mapped[str] = mapped_column(String(120))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ExternalMapping(TimestampMixin, Base):
