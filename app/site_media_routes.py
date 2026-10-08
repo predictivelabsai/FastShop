@@ -1,9 +1,7 @@
 """Merchant library and the existing blob upload/serving boundary."""
-import io
 from urllib.parse import urlencode
 
 from fasthtml.common import H2, A, Button, Div, Form, Input, Label, P, Small
-from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
 from starlette.responses import RedirectResponse, Response
 
@@ -12,7 +10,16 @@ from app.db import SessionLocal
 from app.models import Site, SiteMedia, new_id
 from app.services import CommerceError
 from app.site_blocks import default_locale, merge_localized, resolve_text
-from app.site_media import delete_media, media_for, media_url, owned_media, references
+from app.site_media import (
+    MAX_IMAGE_BYTES,
+    delete_media,
+    generated_direction,
+    media_for,
+    media_url,
+    owned_media,
+    prepare_image_bytes,
+    references,
+)
 
 
 def register_media_routes(rt, actor, csrf, check_csrf, shell, error):
@@ -47,26 +54,19 @@ def register_media_routes(rt, actor, csrf, check_csrf, shell, error):
                 upload = form.get("image")
                 if not upload or not hasattr(upload, "read"):
                     raise CommerceError("Select an image.")
-                data = await upload.read(8 * 1024 * 1024 + 1)
-                if len(data) > 8 * 1024 * 1024:
-                    raise CommerceError("Images must be smaller than 8 MB.")
-                with Image.open(io.BytesIO(data)) as original:
-                    if original.format not in {"JPEG", "PNG", "WEBP"} or original.width * original.height > 25_000_000:
-                        raise CommerceError("Choose a JPEG, PNG or WebP image smaller than 25 megapixels.")
-                    original.thumbnail((1800, 1800))
-                    output = io.BytesIO()
-                    original.convert("RGB").save(output, format="WEBP", quality=85)
+                data = await upload.read(MAX_IMAGE_BYTES + 1)
                 title, alt = str(form.get("title", "")).strip(), str(form.get("alt", "")).strip()
                 if not alt:
                     raise CommerceError("Provide useful alt text.")
-                data = output.getvalue()
+                data = prepare_image_bytes(data)
                 db.add(SiteMedia(tenant_id=site.tenant_id, site_id=site.id, title=title[:200], alt=alt[:400],
                     storage_key=new_id() + ".webp", content_type="image/webp", size=len(data), data=data,
                     is_placeholder=form.get("placeholder") == "on"))
                 db.commit()
             return RedirectResponse(f"/admin/sites/{site_id}/media", status_code=303)
-        except (CommerceError, UnidentifiedImageError, Image.DecompressionBombError, OSError) as exc:
-            return redirect(site_id, str(exc) if isinstance(exc, CommerceError) else "Invalid image upload.")
+        except CommerceError as exc:
+            message = "Invalid image upload." if str(exc) == "Invalid image data." else str(exc)
+            return redirect(site_id, message)
 
     @rt("/site-media/{site_id}/{media_id}", methods=["GET"])
     def get(session, site_id: str, media_id: str):
@@ -89,8 +89,10 @@ def register_media_routes(rt, actor, csrf, check_csrf, shell, error):
         url = media_url(media)
         alt = resolve_text(media.localized_alt if media.localized_alt is not None else media.alt, default_locale(site))
         used = references(db, site, media)
+        direction = generated_direction(site, url)
         return Div(H2(media.title or "Untitled image"),
             site_ui.image(url, alt) if media.content_type.startswith("image/") else P(media.content_type),
+            P(Small("Image direction: " + direction), cls="e-note") if direction else None,
             P(A("Preview asset", href=url, target="_blank", rel="noopener")),
             Label("Image URL — use in a section", Input(value=url, readonly=True)),
             Button("Copy URL", type="button", onclick="navigator.clipboard.writeText(this.previousElementSibling.querySelector('input').value).then(()=>this.textContent='Copied').catch(()=>this.textContent='Select and copy the URL above')"),

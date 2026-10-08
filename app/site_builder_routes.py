@@ -140,6 +140,24 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
 
                 def hidden():
                     return (csrf(session), Input(type="hidden", name="version", value=site.version), Input(type="hidden", name="page_id", value=selected.id))
+                generation = site.settings_json.get("site_generation", {})
+                imagery = generation.get("imagery", []) if isinstance(generation, dict) else []
+                imagery_panel = Div(
+                    H2("Generated imagery"),
+                    P(
+                        f"{len(imagery)} visual direction{'s' if len(imagery) != 1 else ''} "
+                        "are attached to this draft. Resolve missing images with the configured image source; existing merchant selections stay in place."
+                    ),
+                    Form(
+                        *hidden(),
+                        Button("Resolve imagery", cls="e-button"),
+                        method="post",
+                        action=base + "/build/imagery",
+                        cls="e-form",
+                    ),
+                    P(A("Review resolved images in the media library", href=base + "/media")),
+                    cls="b-imagery",
+                ) if imagery else None
                 design = Form(*hidden(), H2("Design settings"),
                     *[Label(k.title(), Input(name=k, type="color", value=theme[k])) for k in ("accent", "background", "surface", "text")],
                     *[Label(k.title(), Select(*[Option(v.title(), value=v, selected=theme[k] == v) for v in values], name=k)) for k, values in CHOICES.items()],
@@ -169,7 +187,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                         method="post", action=base + "/build/message", cls="e-form", data_builder_form="", data_site=site.id))
                 return shell("Build " + site.name,
                     Link(rel="stylesheet", href="/static/site-workspace.css"), Script(src="/static/site-workspace.js", defer=True),
-                    Div(A("Menus", href=base + "/menus"), A("Snippets", href=base + "/snippets"), A("Classical editor", href=base), A("Chat", href=base + "/build?page=" + selected.id),
+                    Div(A("Menus", href=base + "/menus"), A("Media library", href=base + "/media"), A("Snippets", href=base + "/snippets"), A("Classical editor", href=base), A("Chat", href=base + "/build?page=" + selected.id),
                         A("Design controls", href=base + "/build?view=design&page=" + selected.id),
                         A("Products", href=base + "/products"), A("Commerce", href=base + "/commerce"), cls="e-actions"),
                     Div(A("Merchant details & samples", href=base + "/samples"),
@@ -178,7 +196,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     P("Changes save to a private draft. Review and publish through the classical editor."),
                     P(notice[:200], role="status") if notice else None,
                     Div(Button("Editor", type="button", data_workspace_tab="editor"), Button("Preview", type="button", data_workspace_tab="preview"), cls="b-tabs"),
-                    Div(Div(design if view == "design" else chat,
+                    Div(Div(imagery_panel, design if view == "design" else chat,
                         Form(*hidden(), Input(type="hidden", name="change_id", value=change.id),
                             Button("Undo latest change", cls="e-button"), Small(change.summary),
                             method="post", action=base + "/build/undo", cls="e-form") if change else None,
@@ -285,6 +303,37 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                 db.commit()
             action = "accepted" if str(form.get("decision")) == "accept" else "rejected"
             notice = f"{count} block edit{'s' if count != 1 else ''} {action}. Preview {status}."
+            return redirect(site_id, str(form.get("page_id", "")), notice)
+        except (CommerceError, ValueError) as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/build/imagery", methods=["POST"])
+    async def post(session, request, site_id: str):
+        form = await request.form()
+        try:
+            check_csrf(session, form)
+            with SessionLocal() as db:
+                user_id = actor(session)
+                site = builder.lock_site(db, site_id, user_id, int(form.get("version", 0)))
+                before = builder.snapshot(db, site)
+                from app.site_images import resolve_site_imagery
+
+                result = resolve_site_imagery(db, site, user_id)
+                site.version += 1
+                builder.record_change(
+                    db,
+                    site,
+                    user_id,
+                    before,
+                    "imagery",
+                    f"Resolved imagery: {result.resolved} new, {result.reused} reused, "
+                    f"{result.preserved} merchant-selected",
+                )
+                db.commit()
+            notice = (
+                f"Imagery resolved: {result.resolved} new, {result.reused} reused; "
+                f"{result.preserved} merchant-selected image{'s' if result.preserved != 1 else ''} preserved."
+            )
             return redirect(site_id, str(form.get("page_id", "")), notice)
         except (CommerceError, ValueError) as exc:
             return error(exc)

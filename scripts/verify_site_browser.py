@@ -151,8 +151,41 @@ def main():
                     page.set_viewport_size({"width": width, "height": height})
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
                     page.screenshot(path=str(out / f"{device}-generated-site-editor.png"), full_page=True)
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.get_by_role("button", name="Resolve imagery", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert "Imagery resolved:" in page.get_by_role("status").first.inner_text()
+                preview_url = page.locator("iframe.b-preview").get_attribute("src")
+                generated_home = context.new_page()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    generated_home.set_viewport_size({"width": width, "height": height})
+                    generated_home.goto(args.base + preview_url)
+                    load_page_media(generated_home)
+                    generated_images = generated_home.locator("main img")
+                    assert generated_images.count() >= 2
+                    assert generated_images.evaluate_all(
+                        "images => images.every(image => image.src.includes('/site-media/'))"
+                    )
+                    assert generated_home.evaluate(
+                        "document.documentElement.scrollWidth <= innerWidth + 1"
+                    )
+                    generated_home.screenshot(
+                        path=str(out / f"{device}-generated-home.png"), full_page=True
+                    )
+                generated_home.close()
+                page.get_by_role("link", name="Media library", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_text("Image direction:", exact=False).count() >= 2
+                assert page.locator(".e-card img").count() >= 2
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(
+                        path=str(out / f"{device}-generated-media-library.png"),
+                        full_page=True,
+                    )
                 checks.append({
-                    "merchant": "guided brief form creates a private draft and opens generated blocks in the editor",
+                    "merchant": "guided brief creates a private draft, resolves owned placeholder images, exposes them in the media library and reruns resolution idempotently",
                     "status": "passed",
                 })
                 page.goto(args.base + "/admin/sites")

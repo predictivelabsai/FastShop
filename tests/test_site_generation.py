@@ -12,7 +12,7 @@ from app.compliance import scan_document
 from app.config import settings
 from app.db import SessionLocal
 from app.main import app
-from app.models import Base, Product, Site, SiteMenu, SitePage, User
+from app.models import Base, Product, Site, SiteMedia, SiteMenu, SitePage, User
 from app.services import CommerceError
 from app.site_blocks import normalize_document
 from app.site_generation import (
@@ -202,8 +202,26 @@ def test_generation_route_creates_draft_and_lands_in_builder(monkeypatch):
         site = db.scalar(select(Site).where(Site.name == name))
         assert site is not None and site.status == "draft"
         assert site.settings_json["site_generation"]["source"] == "guided"
-        assert len(content.site_pages(db, site)) == 4
+        pages = content.site_pages(db, site)
+        assert len(pages) == 4
         assert not list(db.scalars(select(Product).where(Product.tenant_id == site.tenant_id)))
+        media_count = db.scalar(select(func.count()).select_from(SiteMedia).where(
+            SiteMedia.tenant_id == site.tenant_id, SiteMedia.site_id == site.id
+        ))
+        site_id, version, page_id = site.id, site.version, pages[0].id
+    action = f"/admin/sites/{site_id}/build/imagery"
+    rejected = client.post(action, data={"version": version, "page_id": page_id})
+    assert rejected.status_code == 400
+    assert "session expired" in rejected.text.lower()
+    response = client.post(action, data={
+        "csrf_token": token, "version": version, "page_id": page_id,
+    })
+    assert response.status_code == 200
+    assert "Imagery resolved:" in response.text
+    with SessionLocal() as db:
+        assert db.scalar(select(func.count()).select_from(SiteMedia).where(
+            SiteMedia.site_id == site_id
+        )) == media_count
 
 
 def test_generation_route_surfaces_invalid_brief_as_notice():
