@@ -36,12 +36,17 @@ def main():
     parser.add_argument("--generation", action="store_true", help="Include Phase 2a brief-to-draft generation")
     parser.add_argument("--refinement", action="store_true", help="Include Phase 2b block-diff review workflow")
     parser.add_argument("--woocommerce", action="store_true", help="Include Phase 3a fixture-backed WooCommerce migration")
+    parser.add_argument("--shopify", action="store_true", help="Include Phase 3b fixture-backed Shopify migration")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
-    if (args.generation or args.refinement or args.woocommerce) and not (args.merchant or args.merchant_only):
+    if args.woocommerce and args.shopify:
+        raise RuntimeError("Run one fixture-backed connector browser flow at a time.")
+    if (args.generation or args.refinement or args.woocommerce or args.shopify) and not (args.merchant or args.merchant_only):
         raise RuntimeError("Generation, refinement and connector checks require --merchant against an isolated local database.")
     if args.woocommerce and not os.getenv("FASTSHOP_WOOCOMMERCE_FIXTURE_PATH"):
         raise RuntimeError("WooCommerce browser verification requires FASTSHOP_WOOCOMMERCE_FIXTURE_PATH.")
+    if args.shopify and not os.getenv("FASTSHOP_SHOPIFY_FIXTURE_PATH"):
+        raise RuntimeError("Shopify browser verification requires FASTSHOP_SHOPIFY_FIXTURE_PATH.")
     if args.embeds:
         if not (args.merchant or args.merchant_only) or not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
             raise RuntimeError("Embed/snippet checks require --merchant against an isolated local database.")
@@ -125,7 +130,7 @@ def main():
             page.get_by_role("button", name="Sign in", exact=True).click()
             page.wait_for_url("**/admin/sites")
             page.screenshot(path=str(out / "merchant-sites.png"), full_page=True)
-            if args.woocommerce:
+            if args.woocommerce or args.shopify:
                 from sqlalchemy import select
 
                 from app.db import SessionLocal
@@ -136,14 +141,16 @@ def main():
                     if connector_site is None:
                         raise RuntimeError("The H2 4 You fixture site is unavailable.")
                     connector_site_id = connector_site.id
+                connector_name = "shopify" if args.shopify else "woocommerce"
+                connector_label = "Shopify" if args.shopify else "WooCommerce"
                 page.goto(args.base + f"/admin/sites/{connector_site_id}/integrations")
                 page.wait_for_load_state("networkidle")
-                assert page.get_by_role("heading", name="WooCommerce", exact=True).is_visible()
+                assert page.get_by_role("heading", name=connector_label, exact=True).is_visible()
                 assert page.get_by_text("Development fixture store ready.", exact=True).is_visible()
                 for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
                     page.set_viewport_size({"width": width, "height": height})
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
-                    page.screenshot(path=str(out / f"{device}-woocommerce-integrations.png"), full_page=True)
+                    page.screenshot(path=str(out / f"{device}-{connector_name}-integrations.png"), full_page=True)
                 page.set_viewport_size({"width": 1440, "height": 1000})
                 page.get_by_role("button", name="Run import dry run", exact=True).click()
                 page.wait_for_url("**/integrations?**plan=**")
@@ -157,14 +164,14 @@ def main():
                 for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
                     page.set_viewport_size({"width": width, "height": height})
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
-                    page.screenshot(path=str(out / f"{device}-woocommerce-dry-run.png"), full_page=True)
+                    page.screenshot(path=str(out / f"{device}-{connector_name}-dry-run.png"), full_page=True)
                 page.get_by_label("I reviewed these counts, samples, and warnings.", exact=True).check()
                 page.get_by_role("button", name="Apply this reviewed plan", exact=True).click()
                 page.wait_for_load_state("networkidle")
                 assert page.get_by_text("Applied reviewed plan successfully:", exact=False).is_visible()
                 assert page.locator(".i-state-applied").is_visible()
                 checks.append({
-                    "merchant": "WooCommerce fixture dry run renders and the exact reviewed plan applies once",
+                    "merchant": f"{connector_label} fixture dry run renders and the exact reviewed plan applies once",
                     "status": "passed",
                 })
                 page.goto(args.base + "/admin/sites")
