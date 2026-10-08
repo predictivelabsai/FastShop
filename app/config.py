@@ -23,7 +23,6 @@ class Settings:
     host: str = os.getenv("FASTSHOP_HOST", "0.0.0.0")
     port: int = int(os.getenv("FASTSHOP_PORT", "5025"))
     public_url: str = os.getenv("FASTSHOP_PUBLIC_URL", "http://localhost:5025").rstrip("/")
-    landing_root: bool = _bool("FASTSHOP_LANDING_ROOT", False)
     signup_open: bool = _bool("FASTSHOP_SIGNUP_OPEN", False)
     session_secret: str = os.getenv("FASTSHOP_SESSION_SECRET") or secrets.token_hex(32)
     encryption_key: str = os.getenv("FASTSHOP_ENCRYPTION_KEY", "")

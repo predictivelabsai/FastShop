@@ -22,16 +22,16 @@ class SiteHostMiddleware:
         host = headers.get(b"host", b"").decode("latin-1").split(":", 1)[0].lower().rstrip(".")
         path = scope.get("path", "/")
         platform_host = (urlsplit(settings.public_url).hostname or "").lower().rstrip(".")
-        landing_root = (
-            path == "/"
-            and settings.landing_root
-            and settings.environment.lower() != "development"
-            and host == platform_host
-        )
-        if landing_root:
+        if host == platform_host and path == "/":
             scope = dict(scope)
             scope["path"] = "/marketing/"
             scope["raw_path"] = b"/marketing/"
+            return await self.app(scope, receive, send)
+        if host == platform_host and (path == "/demo" or path.startswith("/demo/")):
+            demo_path = path.removeprefix("/demo") or "/"
+            scope = dict(scope)
+            scope["path"] = demo_path
+            scope["raw_path"] = demo_path.encode()
             return await self.app(scope, receive, send)
         shared = (
             "/static/", "/site-media/", "/admin", "/login", "/logout", "/auth/",

@@ -24,41 +24,42 @@ Routes:
 | Route | Method | Behavior |
 | --- | --- | --- |
 | `/marketing/` | GET | Always renders the public landing on the platform host. |
-| `/signup` | GET | Renders the Phase 5b placeholder; it collects no data and has no form. |
-| `/` | GET | Remains the legacy `fastshop-demo` storefront unless the platform-root gate below is active. |
+| `/signup` | GET | Renders the Phase 5b signup surface; the closed state collects no data and has no form. |
+| `/` | GET | Renders the public landing when the request host matches `FASTSHOP_PUBLIC_URL`; other hosts retain their existing behavior. |
+| `/demo`, `/demo/...` | Any existing storefront method | Maps to the legacy `fastshop-demo` routes on the platform host. |
 
-There are no state-changing marketing routes, so this slice needs no new CSRF
-flow. All existing state-changing routes retain their current CSRF and
-Post/Redirect/Get behavior.
+The landing itself is state-changing-free (static GET). Signup, verification, and
+resend are Phase 5b state-changing routes and carry their own CSRF and
+Post/Redirect/Get flows. All pre-existing state-changing routes retain their
 
 ## Platform-root gate
 
-`Settings.landing_root` is a frozen boolean read from
-`FASTSHOP_LANDING_ROOT`, defaulting to `0`.
-
-`SiteHostMiddleware` receives one minimal routing hook:
+`SiteHostMiddleware` applies two internal rewrites when the normalized request
+host exactly matches the hostname in `FASTSHOP_PUBLIC_URL`:
 
 1. `/marketing/` and `/signup` are shared platform paths. They bypass tenant
    hostname lookup, so rendering them never opens a database session.
-2. A request for `/` is internally rewritten to `/marketing/` only when all of
-   the following are true:
-   - `FASTSHOP_LANDING_ROOT=1`;
-   - `FASTSHOP_ENV` is not `development`; and
-   - the normalized request host exactly matches the hostname in
-     `FASTSHOP_PUBLIC_URL`.
-3. In development, the legacy demo wins even if the flag is set. With the flag
-   off, the legacy demo wins in every environment. Requests for `/` on a bound
-   tenant hostname continue through the existing tenant-host lookup and rewrite.
+2. `/` is internally rewritten to `/marketing/` in every environment, including
+   development.
+3. `/demo` is internally rewritten to `/`, while `/demo/...` has the leading
+   `/demo` segment removed. For example, `/demo/products` maps to `/products`.
+
+There is no landing-root feature flag or development exception. Requests for
+`/` on other hosts retain their existing behavior, including the legacy demo on
+an unbound host and the existing tenant-host lookup and rewrite on a bound
+tenant hostname. The `/demo` mapping is likewise limited to the platform host;
+`/demos` and `/demofoo` do not match it.
 
 The legacy `/` handler is not changed. `/products`, `/cart`, `/checkout`, every
 `/admin/*` route, and authentication retain their current routes and semantics.
 The hook neither creates nor matches a tenant and does not change the published
-site or commerce gates.
+site or commerce gates. On the platform host, the legacy demo storefront is
+reachable at `/demo` and its existing subpaths can be reached below `/demo/...`.
 
-For review, operators use `/marketing/` on the normal development server. For a
-production or preview platform hostname, setting `FASTSHOP_PUBLIC_URL` to that
-origin and `FASTSHOP_LANDING_ROOT=1` promotes the same page to `/`. The final
-public hostname remains an operator launch decision.
+For review, operators can still use `/marketing/` directly. No environment flag
+is needed for launch: the production setting
+`FASTSHOP_PUBLIC_URL=https://shop.fastsme.com` makes the landing live at that
+root on the next deploy.
 
 ## Content structure
 
