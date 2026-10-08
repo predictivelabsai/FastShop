@@ -95,6 +95,53 @@ def verify_landing(base: str, output: str):
         raise SystemExit(1)
 
 
+def verify_platform_root(base: str, output: str):
+    """Capture the platform-root landing and prefixed legacy demo routes."""
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
+    failures = []
+    checks = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(channel="chrome", headless=True)
+        for device, width, height in (("desktop", 1440, 1000), ("mobile", 390, 844)):
+            context = browser.new_context(
+                viewport={"width": width, "height": height},
+                reduced_motion="reduce",
+            )
+            page = context.new_page()
+            page.on("pageerror", lambda error: failures.append(str(error)))
+            for name, path, stylesheet in (
+                ("landing-root", "/", "/static/marketing.css"),
+                ("demo-root", "/demo", "/static/site.css"),
+                ("demo-products", "/demo/products", "/static/site.css"),
+            ):
+                response = page.goto(base.rstrip("/") + path)
+                assert response.status == 200
+                page.wait_for_load_state("networkidle")
+                assert page.locator("h1").count() == 1
+                assert page.locator(f'link[href="{stylesheet}"]').count() == 1
+                load_page_media(page)
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                page.screenshot(path=str(out / f"{device}-{name}.png"), full_page=True)
+                checks.append(
+                    {
+                        "device": device,
+                        "width": width,
+                        "path": path,
+                        "status": response.status,
+                        "stylesheet": stylesheet,
+                        "overflow": False,
+                    }
+                )
+            context.close()
+        browser.close()
+    report = {"base": base, "checks": checks, "failures": failures}
+    (out / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps({"checks": len(checks), "failures": failures, "output": str(out)}))
+    if failures:
+        raise SystemExit(1)
+
+
 def _available_port():
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
@@ -263,6 +310,11 @@ def main():
     parser.add_argument("--order-management", action="store_true", help="Include Phase 4c real order operations and revenue reporting")
     parser.add_argument("--webhook-reliability", action="store_true", help="Include Phase 4d provider re-sync and delivery recovery")
     parser.add_argument("--landing", action="store_true", help="Capture the static Phase 5a marketing landing")
+    parser.add_argument(
+        "--platform-root",
+        action="store_true",
+        help="Capture the platform-root landing and /demo mapping",
+    )
     parser.add_argument("--signup", action="store_true", help="Capture closed and open Phase 5b signup states")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
@@ -275,6 +327,11 @@ def main():
         if args.output == "output/playwright/h24you-phase1":
             args.output = "output/playwright/phase5a-landing"
         verify_landing(args.base, args.output)
+        return
+    if args.platform_root:
+        if args.output == "output/playwright/h24you-phase1":
+            args.output = "output/playwright/phase-landing-root"
+        verify_platform_root(args.base, args.output)
         return
     if sum((args.woocommerce, args.shopify, args.wordpress, args.csv_merchant_feed)) > 1:
         raise RuntimeError("Run one fixture-backed connector browser flow at a time.")
