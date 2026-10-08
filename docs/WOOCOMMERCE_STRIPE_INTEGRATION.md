@@ -1,4 +1,9 @@
-# WooCommerce API scaffolding and Stripe setup
+# WooCommerce migration connector and Stripe setup
+
+> Phase 3A supersedes the historical WooCommerce-stub status recorded below.
+> The current connector imports products, categories, customers and orders only
+> after a reviewed dry run, and exports a review-only catalog JSON bundle. See
+> [PHASE3A_WOOCOMMERCE_CONNECTOR.md](PHASE3A_WOOCOMMERCE_CONNECTOR.md).
 
 ## Scope and architecture
 

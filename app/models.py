@@ -336,14 +336,45 @@ class OutboxEvent(TimestampMixin, Base):
 
 class ExternalMapping(TimestampMixin, Base):
     __tablename__ = "external_mappings"
-    __table_args__ = (UniqueConstraint("tenant_id", "system", "resource_type", "local_id"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "system", "resource_type", "local_id"),
+        UniqueConstraint(
+            "tenant_id", "site_id", "system", "resource_type", "external_id",
+            name="uq_external_mapping_site_external",
+        ),
+    )
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    # Nullable only for compatibility with mappings created before connectors became
+    # site-scoped. New connector mappings always set it and never read legacy rows.
+    site_id: Mapped[str | None] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     system: Mapped[str] = mapped_column(String(50))
     resource_type: Mapped[str] = mapped_column(String(80))
     local_id: Mapped[str] = mapped_column(String(64))
     external_id: Mapped[str] = mapped_column(String(140))
     version: Mapped[str] = mapped_column(String(80), default="")
+
+
+class IntegrationPlan(TimestampMixin, Base):
+    """Immutable connector preview claimed exactly once before applying writes."""
+
+    __tablename__ = "integration_plans"
+    __table_args__ = (Index("ix_integration_plan_site_status", "site_id", "status"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    platform: Mapped[str] = mapped_column(String(50))
+    operation: Mapped[str] = mapped_column(String(30), default="import")
+    schema_version: Mapped[int] = mapped_column(Integer, default=1)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    report_json: Mapped[dict] = mapped_column(JSON)
+    payload_json: Mapped[dict] = mapped_column(JSON)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ChatThread(TimestampMixin, Base):

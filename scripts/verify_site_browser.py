@@ -35,10 +35,13 @@ def main():
     parser.add_argument("--embeds", action="store_true", help="Include Phase 1c embed and snippet publication evidence")
     parser.add_argument("--generation", action="store_true", help="Include Phase 2a brief-to-draft generation")
     parser.add_argument("--refinement", action="store_true", help="Include Phase 2b block-diff review workflow")
+    parser.add_argument("--woocommerce", action="store_true", help="Include Phase 3a fixture-backed WooCommerce migration")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
-    if (args.generation or args.refinement) and not (args.merchant or args.merchant_only):
-        raise RuntimeError("Site generation and refinement checks require --merchant against an isolated local database.")
+    if (args.generation or args.refinement or args.woocommerce) and not (args.merchant or args.merchant_only):
+        raise RuntimeError("Generation, refinement and connector checks require --merchant against an isolated local database.")
+    if args.woocommerce and not os.getenv("FASTSHOP_WOOCOMMERCE_FIXTURE_PATH"):
+        raise RuntimeError("WooCommerce browser verification requires FASTSHOP_WOOCOMMERCE_FIXTURE_PATH.")
     if args.embeds:
         if not (args.merchant or args.merchant_only) or not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
             raise RuntimeError("Embed/snippet checks require --merchant against an isolated local database.")
@@ -122,6 +125,50 @@ def main():
             page.get_by_role("button", name="Sign in", exact=True).click()
             page.wait_for_url("**/admin/sites")
             page.screenshot(path=str(out / "merchant-sites.png"), full_page=True)
+            if args.woocommerce:
+                from sqlalchemy import select
+
+                from app.db import SessionLocal
+                from app.models import Site
+
+                with SessionLocal() as db:
+                    connector_site = db.scalar(select(Site).where(Site.slug == "h24you"))
+                    if connector_site is None:
+                        raise RuntimeError("The H2 4 You fixture site is unavailable.")
+                    connector_site_id = connector_site.id
+                page.goto(args.base + f"/admin/sites/{connector_site_id}/integrations")
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("heading", name="WooCommerce", exact=True).is_visible()
+                assert page.get_by_text("Development fixture store ready.", exact=True).is_visible()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-woocommerce-integrations.png"), full_page=True)
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.get_by_role("button", name="Run import dry run", exact=True).click()
+                page.wait_for_url("**/integrations?**plan=**")
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("heading", name="Reviewed import plan", exact=True).is_visible()
+                product_row = page.locator(".i-counts tbody tr").filter(has_text="Products")
+                assert product_row.is_visible()
+                assert product_row.locator("td").all_inner_texts() == ["2", "2", "0", "0"]
+                page.get_by_text("Warnings and unmapped items", exact=False).click()
+                assert page.get_by_text("Archived gift wrap", exact=False).is_visible()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-woocommerce-dry-run.png"), full_page=True)
+                page.get_by_label("I reviewed these counts, samples, and warnings.", exact=True).check()
+                page.get_by_role("button", name="Apply this reviewed plan", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_text("Applied reviewed plan successfully:", exact=False).is_visible()
+                assert page.locator(".i-state-applied").is_visible()
+                checks.append({
+                    "merchant": "WooCommerce fixture dry run renders and the exact reviewed plan applies once",
+                    "status": "passed",
+                })
+                page.goto(args.base + "/admin/sites")
+                page.set_viewport_size({"width": 1440, "height": 1000})
             if args.generation:
                 page.set_viewport_size({"width": 1440, "height": 1000})
                 page.get_by_role("heading", name="Generate a site from a brief", exact=True).scroll_into_view_if_needed()
