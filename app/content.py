@@ -228,6 +228,8 @@ def create_site(db: Session, user_id: str, name: str, slug: str) -> Site:
     for slug, title in [("terms-and-conditions", "Terms and Conditions"), ("privacy-policy", "Privacy Policy"), ("returns-and-refunds", "Returns and Refunds"), ("faq", "FAQ")]:
         create_page(db, site, title, "/pages/" + slug, "legal", {"title": title, "sections": [
             {"type": "text", "heading": title, "body": "PLACEHOLDER — add your company's reviewed policy before launch."}]})
+    from app.site_menus import adapt_navigation
+    adapt_navigation(db, site)
     return site
 
 

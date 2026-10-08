@@ -38,9 +38,11 @@ def test_theme_rejects_css_injection_and_preserves_legacy():
 def test_navigation_uses_safe_shared_draft_and_undo(workspace):
     db, owner, _, site, _ = workspace
     expected = builder.snapshot(db, site)
-    links = [{"label": "Home", "path": "/"}, {"label": "Our story", "path": "/pages/about"}]
+    links = [{"label": "Home", "path": "/"}, {"label": "Our story", "path": "/pages/about-us"}]
     change = builder.apply_operations(db, site.id, owner.id, expected, [{"op": "navigation", "items": links}])
-    assert site.settings_json["navigation"] == links
+    assert [{"label": item["label"], "path": item["path"]}
+            for item in builder.snapshot(db, site)["menus"]["header"]] == links
+    assert site.settings_json["navigation"] == expected["settings"]["navigation"]
     assert site.published_settings_json.get("navigation") != links
     builder.undo_change(db, site.id, owner.id, change.id, site.version)
     assert site.settings_json == expected["settings"]

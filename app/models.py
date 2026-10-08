@@ -386,6 +386,22 @@ class Site(TimestampMixin, Base):
         return value
 
 
+class SiteMenu(TimestampMixin, Base):
+    __tablename__ = "site_menus"
+    __table_args__ = (UniqueConstraint("site_id", "name"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(40))
+    items_json: Mapped[list] = mapped_column(JSON, default=list)
+    published_items_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    @validates("items_json", "published_items_json")
+    def validate_items(self, key, value):
+        from app.site_menus import validate_items
+        return validate_items(value) if value is not None else None
+
+
 class SitePage(TimestampMixin, Base):
     __tablename__ = "site_pages"
     __table_args__ = (UniqueConstraint("site_id", "path"),)

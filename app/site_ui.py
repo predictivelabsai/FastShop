@@ -255,9 +255,16 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
     document = resolve_document(page.draft_json if preview else page.published_json, default_locale(site, preview=preview))
+    from app.site_menus import rendered_navigation
+    header_navigation = rendered_navigation(db, site, "header", preview=preview)
+    footer_navigation = rendered_navigation(db, site, "footer", preview=preview)
+    anchor_ids = {item["block_id"] for item in header_navigation + footer_navigation
+                  if item.get("kind") == "anchor" and item["path"].split("#")[0] == page.path}
     home = page.path == "/"
     def section_view(section, index):
         rendered = render_section(db, site, page, config, section, base, csrf, preview, index == 0)
+        if rendered is not None and section["id"] in anchor_ids:
+            rendered.attrs["id"] = "block-" + section["id"]
         if preview and rendered is not None:
             rendered.attrs["data-builder-section"] = section["id"]
             rendered.attrs["data-builder-label"] = (section.get("heading") or section["type"])[:100]
@@ -283,7 +290,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
             Div(config.get("announcement", ""), cls="h-announcement"),
             Header(A(brand(), href=base + "/", cls="h-brand h-brand-dark"), A(brand(True), href=base + "/", cls="h-brand h-brand-light"),
                 Button("Menu", type="button", data_menu_toggle="", aria_expanded="false", aria_controls="site-navigation", cls="h-menu-toggle"),
-                Nav(*[Details(Summary("Shop"), Div(A("All products", href=url(base, "/shop")), *[A(category["label"], href=url(base, category["path"])) for category in config.get("collections", [])], cls="h-dropdown"), cls="h-shop-menu") if item["label"] == "Shop" and config.get("collections") else A(item["label"], href=url(base, item["path"])) for item in config.get("navigation", [])], id="site-navigation", cls="h-nav"),
+                Nav(*[Details(Summary("Shop"), Div(A("All products", href=url(base, "/shop")), *[A(category["label"], href=url(base, category["path"])) for category in config.get("collections", [])], cls="h-dropdown"), cls="h-shop-menu") if item["label"] == "Shop" and item["path"] == "/shop" and config.get("collections") else A(item["label"], href=url(base, item["path"])) for item in header_navigation], id="site-navigation", cls="h-nav"),
                 Div(A("Account", href=base + "/account", aria_label="My account") if customer_services_enabled else Button("Account", type="button", data_commerce_notice="", aria_label="My account — Phase 2"), A("Bag", href=base + "/cart", data_cart_open="") if customer_services_enabled else Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items — Phase 2"), cls="h-header-actions"), cls="h-header"),
             Div(message, role="status", cls="h-message") if message else None,
             Main(Div(Small(document.get("category", "LEARN"), cls="h-eyebrow"), H1(document["title"]), P(f"By {site.name} team · Draft for editorial review"), image(document.get("image")), cls="h-article-heading h-container") if page.kind == "article" else None,
@@ -291,7 +298,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
             Section(Div(Small("A LITTLE SOMETHING TO LOOK FORWARD TO", cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P("Our first-order offer is coming when the shop opens.")),
                     Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer"),
             Footer(Div(Div(A(brand(), href=base + "/", cls="h-brand"), P(config.get("tagline", ""))),
-                Div(H3("Explore"), *[A(item["label"], href=url(base, item["path"])) for item in config.get("navigation", [])]),
+                Div(H3("Explore"), *[A(item["label"], href=url(base, item["path"])) for item in footer_navigation]),
                 Div(H3("Here to help"), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", "Terms and Conditions"), ("privacy-policy", "Privacy Policy"), ("faq", "FAQ"), ("returns-and-refunds", "Returns and Refunds")]]),
                 Div(H3(config.get("company", site.name)), P(config.get("address", "")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
