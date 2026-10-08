@@ -181,3 +181,20 @@ def cancel(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_f
         attempt = checkout.reconcile(db, site, attempt_id, gateway)
         db.commit()
         return attempt.state
+
+
+def refund(site_id, user_id, site_order_id, amount_minor, reason, request_key, *,
+           sessions=SessionLocal, gateway_factory=StripeGateway):
+    """Use the durable provider-command path for an exact merchant refund."""
+    from app.order_management import refund as execute_refund
+
+    return execute_refund(
+        site_id,
+        user_id,
+        site_order_id,
+        amount_minor,
+        reason,
+        request_key,
+        sessions=sessions,
+        gateway_factory=gateway_factory,
+    )

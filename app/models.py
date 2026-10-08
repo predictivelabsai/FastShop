@@ -728,6 +728,32 @@ class SiteOrder(TimestampMixin, Base):
     stripe_invoice_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
 
 
+class RefundCommand(TimestampMixin, Base):
+    """Durable, replay-safe provider command for one exact refund amount."""
+
+    __tablename__ = "refund_commands"
+    __table_args__ = (
+        UniqueConstraint("site_id", "request_key"),
+        CheckConstraint("amount_minor > 0", name="ck_refund_command_amount_positive"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    site_order_id: Mapped[str] = mapped_column(ForeignKey("site_orders.id"), index=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    request_key: Mapped[str] = mapped_column(String(64))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    amount_minor: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3))
+    reason: Mapped[str] = mapped_column(String(500))
+    state: Mapped[str] = mapped_column(String(32), default="creating", index=True)
+    provider_payment_id: Mapped[str] = mapped_column(String(180))
+    provider_refund_id: Mapped[str | None] = mapped_column(String(180), nullable=True, unique=True)
+    command_json: Mapped[dict] = mapped_column(JSON)
+    result_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class ShipmentEvent(TimestampMixin, Base):
     __tablename__ = "shipment_events"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
