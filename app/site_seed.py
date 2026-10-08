@@ -43,6 +43,8 @@ def seed_h24you(db, admin_email):
     if existing:
         from app.site_menus import adapt_navigation
         adapt_navigation(db, existing)
+        from app.site_media import backfill_media
+        backfill_media(db, existing)
         return existing
     tenant = Tenant(slug="h24you", name="H2 4 You Ltd")
     db.add(tenant)
@@ -175,5 +177,7 @@ def seed_h24you(db, admin_email):
         {"heading": "Which tablet flavours are planned?", "body": "Unflavoured, Raspberry and Pineapple. Final ingredients and pack details are pending confirmation."}])])
     from app.site_menus import adapt_navigation
     adapt_navigation(db, site)
+    from app.site_media import backfill_media
+    backfill_media(db, site)
     db.flush()
     return site

@@ -484,16 +484,26 @@ class DemoCommand(TimestampMixin, Base):
 
 class SiteMedia(TimestampMixin, Base):
     __tablename__ = "site_media"
+    __table_args__ = (UniqueConstraint("site_id", "public_url", name="uq_site_media_site_url"),)
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
-    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(200))
     alt: Mapped[str] = mapped_column(String(400))
+    public_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    localized_alt: Mapped[dict | str | None] = mapped_column(JSON, nullable=True)
     content_type: Mapped[str] = mapped_column(String(80))
     storage_key: Mapped[str] = mapped_column(String(240))
     is_placeholder: Mapped[bool] = mapped_column(Boolean, default=False)
     size: Mapped[int] = mapped_column(Integer, default=0)
     data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+
+    @validates("localized_alt")
+    def validate_localized_alt(self, key, value):
+        if value is not None:
+            from app.site_blocks import _text
+            _text(value, "alt", limit=400)
+        return value
 
 
 class SiteContact(TimestampMixin, Base):

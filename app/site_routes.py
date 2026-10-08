@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import io
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -27,7 +26,6 @@ from fasthtml.common import (
     Summary,
     Textarea,
 )
-from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
 from starlette.responses import RedirectResponse, Response
 
@@ -40,7 +38,6 @@ from app.models import (
     Membership,
     Site,
     SiteContact,
-    SiteMedia,
     SitePage,
     SiteRevision,
     User,
@@ -56,6 +53,7 @@ from app.site_blocks import (
     remove_block,
     reorder_blocks,
     resolve_document,
+    resolve_text,
 )
 from app.site_catalog import register_catalog_routes
 
@@ -83,6 +81,8 @@ def register_site_routes(rt):
     def error(exc):
         return Response(str(exc), status_code=400, media_type="text/plain")
 
+    from app.site_media_routes import register_media_routes
+    register_media_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_menu_routes import register_menu_routes
     register_menu_routes(rt, actor, csrf, check_csrf, shell, error)
     register_catalog_routes(rt, actor, csrf, check_csrf, shell, error)
@@ -323,18 +323,29 @@ def register_site_routes(rt):
         except CommerceError as exc:
             return error(exc)
 
-    def section_editor(section, index):
+    def media_picker(target, key, library, alt_target):
+        return Label("Pick from library: " + key, Select(
+            Option("Choose an image…", value=""),
+            *[Option(title, value=url, data_alt=alt) for url, title, alt in library],
+            data_media_pick=target, data_alt_target=alt_target, aria_label="Pick from library: " + key,
+            onchange="const f=this.form,t=f.elements[this.dataset.mediaPick],a=f.elements[this.dataset.altTarget];if(this.value){t.value=this.dataset.mediaPick.endsWith('_gallery')?[t.value,this.value].filter(Boolean).join('\\n'):this.value;if(a&&!a.value)a.value=this.selectedOptions[0].dataset.alt;}this.value='';"))
+
+    def section_editor(section, index, library):
         fields = []
         for key, label in [("eyebrow", "Eyebrow"), ("heading", "Heading"), ("body", "Text"), ("image", "Image URL"),
-                           ("video", "Video URL"), ("mobile_video", "Mobile video URL"), ("link", "Link"), ("button", "Button label")]:
+                           ("poster", "Poster URL"), ("alt", "Alt text"), ("video", "Video URL"), ("mobile_video", "Mobile video URL"), ("link", "Link"), ("button", "Button label")]:
             value = section.get(key, "")
             fields.append(Label(label, Textarea(value, name=f"section_{index}_{key}", rows=5 if key == "body" else 2) if key in {"body", "heading"} else Input(name=f"section_{index}_{key}", value=value)))
+        for key in ("image", "poster", "gallery"):
+            if key == "gallery" and section["type"] != "product":
+                continue
+            fields.append(media_picker(f"section_{index}_{key}", key, library, f"section_{index}_alt"))
         for j, item in enumerate(section.get("items", [])):
-            fields.append(Div(H3(f"Entry {j + 1}"), *[Label(key.title(), Textarea(str(item.get(key, "")), name=f"section_{index}_item_{j}_{key}", rows=3 if key == "body" else 1)) for key in ("heading", "body", "url", "theme", "image")], Label(Input(type="checkbox", name=f"section_{index}_item_{j}_remove"), " Remove entry"), cls="e-entry"))
+            fields.append(Div(H3(f"Entry {j + 1}"), *[Label(key.title(), Textarea(str(item.get(key, "")), name=f"section_{index}_item_{j}_{key}", rows=3 if key == "body" else 1)) for key in ("heading", "body", "url", "theme", "image", "alt")], media_picker(f"section_{index}_item_{j}_image", "entry image", library, f"section_{index}_item_{j}_alt"), Label(Input(type="checkbox", name=f"section_{index}_item_{j}_remove"), " Remove entry"), cls="e-entry"))
         if section["type"] in {"faq", "team", "research", "references"}:
             fields.append(Label(Input(type="checkbox", name=f"section_{index}_add_item"), " Add a new entry on save"))
         if section["type"] == "product":
-            fields.append(Label("Gallery image URLs (one per line)", Textarea("\n".join(section.get("gallery", [])), name=f"section_{index}_gallery", rows=4)))
+            fields.append(Label("Gallery image URLs (one per line)", Textarea("\n".join(section.get("gallery", [])), name=f"section_{index}_gallery", rows=4, aria_label="Gallery image URLs (one per line)")))
         return Details(Summary(content.SECTION_TYPES[section["type"]] + (" · " + section.get("heading", "")[:45] if section.get("heading") else "")),
                        Input(type="hidden", name="section_order", value=section["id"]),
                        Div(Button("Move up", type="button", data_move="up"), Button("Move down", type="button", data_move="down"),
@@ -349,15 +360,19 @@ def register_site_routes(rt):
                 site = content.owned_site(db, site_id, actor(session))
                 page = content.site_page(db, site, page_id)
                 document = resolve_document(page.draft_json, default_locale(site))
+                from app.site_media import media_for, media_url
+                library = [(media_url(m), m.title or "Untitled image", resolve_text(m.localized_alt if m.localized_alt is not None else m.alt, default_locale(site))) for m in media_for(db, site) if m.content_type.startswith("image/")]
+
                 revisions = list(db.scalars(select(SiteRevision).where(SiteRevision.page_id == page.id,
                     SiteRevision.site_id == site.id, SiteRevision.tenant_id == site.tenant_id).order_by(SiteRevision.created_at.desc()).limit(20)))
-                return shell(document["title"], A("← All pages and settings", href=f"/admin/sites/{site.id}"),
+                return shell(document["title"], Div(A("← All pages and settings", href=f"/admin/sites/{site.id}"),
+                    A("Browse media library", href=f"/admin/sites/{site.id}/media", target="_blank"), cls="e-actions"),
                     Div(Form(csrf(session), Input(type="hidden", name="version", value=page.version),
                         Label("Page title", Input(name="title", value=document["title"], required=True, maxlength=240)),
                         Label("SEO description", Textarea(document.get("description", ""), name="description", rows=3, maxlength=320)),
                         Div(Label("Article image URL", Input(name="article_image", value=document.get("image", ""))),
                             Label("Article category", Input(name="article_category", value=document.get("category", "LEARN")))) if page.kind == "article" else None,
-                        Div(*[section_editor(s, i) for i, s in enumerate(document["blocks"])], id="e-sections"),
+                        Div(*[section_editor(s, i, library) for i, s in enumerate(document["blocks"])], id="e-sections"),
                         Label("Add a section", Select(Option("Choose a section…", value=""), *[Option(label, value=key) for key, label in content.SECTION_TYPES.items()], name="new_section")),
                         Div(Button("Save draft", name="action", value="draft", cls="e-button"), Button("Publish page", name="action", value="publish", cls="e-button"),
                             Button("Unpublish", name="action", value="unpublish"), cls="e-actions e-save"),
@@ -390,7 +405,9 @@ def register_site_routes(rt):
                     document["category"] = merge_localized(document.get("category", "LEARN"), str(form.get("article_category", "LEARN"))[:100], locale)
                 for i, section in enumerate(document["blocks"]):
                     values = {}
-                    for key in ("eyebrow", "heading", "body", "image", "video", "mobile_video", "link", "button"):
+                    for key in ("eyebrow", "heading", "body", "image", "poster", "alt", "video", "mobile_video", "link", "button"):
+                        if key in {"alt", "poster"} and f"section_{i}_{key}" not in form:
+                            continue
                         values[key] = merge_localized(section.get(key, ""), str(form.get(f"section_{i}_{key}", ""))[:30000], locale)
                     values["hidden"] = form.get(f"section_{i}_hidden") == "on"
                     if "items" in section:
@@ -399,7 +416,7 @@ def register_site_routes(rt):
                             if form.get(f"section_{i}_item_{j}_remove") == "on":
                                 continue
                             item = copy.deepcopy(original)
-                            for key in ("heading", "body", "url", "theme", "image"):
+                            for key in ("heading", "body", "url", "theme", "image", "alt"):
                                 field = f"section_{i}_item_{j}_{key}"
                                 if field in form:
                                     item[key] = merge_localized(original.get(key, ""), str(form[field])[:5000], locale)
@@ -472,73 +489,6 @@ def register_site_routes(rt):
                 return shell("Contact inbox", A("← Site", href=f"/admin/sites/{site.id}"), *[Div(H2(row.name), P(row.email), P(row.message), Small("Delivery: " + row.status), cls="e-card") for row in rows])
         except CommerceError as exc:
             return error(exc)
-
-    @rt("/admin/sites/{site_id}/media", methods=["GET"])
-    def get(session, site_id: str):
-        try:
-            with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session))
-                media = list(db.scalars(select(SiteMedia).where(SiteMedia.site_id == site.id, SiteMedia.tenant_id == site.tenant_id).order_by(SiteMedia.created_at.desc())))
-                return shell("Media library", A("← Site", href=f"/admin/sites/{site.id}"),
-                    P("Upload photographs with descriptive alt text. Images are optimized to WebP and stored with this site."),
-                    Form(csrf(session), Label("Title", Input(name="title", required=True, maxlength=200)),
-                        Label("Alt text", Input(name="alt", required=True, maxlength=400)),
-                        Label("Image (JPEG, PNG or WebP, up to 8 MB)", Input(type="file", name="image", accept="image/jpeg,image/png,image/webp", required=True)),
-                        Label(Input(type="checkbox", name="placeholder"), " Placeholder image"),
-                        Button("Upload image", cls="e-button"), method="post", enctype="multipart/form-data", cls="e-form"),
-                    Div(*[Div(H2(m.title), site_ui.image(f"/site-media/{site.id}/{m.id}", m.alt),
-                        Label("Image URL — use in a section", Input(value=f"/site-media/{site.id}/{m.id}", readonly=True)),
-                        P(m.alt), Small("PLACEHOLDER" if m.is_placeholder else "Uploaded asset"), cls="e-card") for m in media], cls="e-grid"))
-        except CommerceError as exc:
-            return error(exc)
-
-    @rt("/admin/sites/{site_id}/media", methods=["POST"])
-    async def post(session, request, site_id: str):
-        form = await request.form()
-        try:
-            check_csrf(session, form)
-            with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session))
-                upload = form.get("image")
-                if not upload or not hasattr(upload, "read"):
-                    raise CommerceError("Select an image.")
-                data = await upload.read(8 * 1024 * 1024 + 1)
-                if len(data) > 8 * 1024 * 1024:
-                    raise CommerceError("Images must be smaller than 8 MB.")
-                with Image.open(io.BytesIO(data)) as original:
-                    if original.format not in {"JPEG", "PNG", "WEBP"} or original.width * original.height > 25_000_000:
-                        raise CommerceError("Choose a JPEG, PNG or WebP image smaller than 25 megapixels.")
-                    original.thumbnail((1800, 1800))
-                    output = io.BytesIO()
-                    original.convert("RGB").save(output, format="WEBP", quality=85)
-                title, alt = str(form.get("title", "")).strip(), str(form.get("alt", "")).strip()
-                if not title or not alt:
-                    raise CommerceError("Provide a title and useful alt text.")
-                data = output.getvalue()
-                db.add(SiteMedia(tenant_id=site.tenant_id, site_id=site.id, title=title[:200], alt=alt[:400],
-                    storage_key=new_id() + ".webp", content_type="image/webp", size=len(data), data=data,
-                    is_placeholder=form.get("placeholder") == "on"))
-                db.commit()
-            return RedirectResponse(f"/admin/sites/{site_id}/media", status_code=303)
-        except (CommerceError, UnidentifiedImageError, Image.DecompressionBombError, OSError) as exc:
-            return error(CommerceError("Invalid image upload.") if not isinstance(exc, CommerceError) else exc)
-
-    @rt("/site-media/{site_id}/{media_id}", methods=["GET"])
-    def get(session, site_id: str, media_id: str):
-        with SessionLocal() as db:
-            site = db.get(Site, site_id)
-            if not site:
-                return Response("Not found", status_code=404)
-            if not content.media_is_public(db, site, media_id):
-                try:
-                    content.owned_site(db, site.id, actor(session))
-                except CommerceError:
-                    return Response("Not found", status_code=404)
-            media = db.scalar(select(SiteMedia).where(SiteMedia.id == media_id, SiteMedia.site_id == site.id, SiteMedia.tenant_id == site.tenant_id))
-            if not media or not media.data:
-                return Response("Not found", status_code=404)
-            return Response(media.data, media_type=media.content_type,
-                            headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
     @rt("/sites/{slug}/contact", methods=["POST"])
     async def post(session, request, slug: str):
