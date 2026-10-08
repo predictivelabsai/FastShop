@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.content import site_pages
 from app.models import Product, ProductVariant, VariantChannelListing
+from app.site_blocks import default_locale, resolve_document
 from app.site_samples import pending_reviews
 
 _MARKER = "placeholder"
@@ -46,8 +47,8 @@ def placeholder_inventory(db, site) -> list[dict]:
         add("Merchant", "Sample review", f"{label} not yet reviewed", "pending")
 
     for page in site_pages(db, site):
-        document = page.draft_json or {}
-        for section in document.get("sections", []):
+        document = resolve_document(page.draft_json or {}, default_locale(site))
+        for section in document.get("blocks", []):
             if not isinstance(section, dict):
                 continue
             location = f"{page.path} · {section.get('type')}"

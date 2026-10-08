@@ -56,10 +56,10 @@ def test_design_and_copy_share_draft_and_undo(workspace):
     published = copy.deepcopy(site.published_settings_json)
     change = builder.apply_operations(db, site.id, owner.id, expected, [
         {"op": "theme", "values": PRESETS["warm"]},
-        {"op": "section", "page_id": page.id, "section_id": page.draft_json["sections"][0]["id"], "values": {"heading": "A quieter everyday"}}])
+        {"op": "section", "page_id": page.id, "section_id": page.draft_json["blocks"][0]["id"], "values": {"heading": "A quieter everyday"}}])
     db.commit()
     assert site.settings_json["design"]["accent"] == "#26543d"
-    assert page.draft_json["sections"][0]["heading"] == "A quieter everyday"
+    assert page.draft_json["blocks"][0]["heading"] == "A quieter everyday"
     assert site.published_settings_json == published and page.published_json is None
     builder.undo_change(db, site.id, owner.id, change.id, site.version)
     assert site.settings_json == expected["settings"]
@@ -73,7 +73,7 @@ def test_cross_tenant_commands_and_undo_denied(workspace):
     other_page = content.site_pages(db, other)[0]
     with pytest.raises(CommerceError):
         builder.apply_operations(db, site.id, owner.id, builder.snapshot(db, site), [
-            {"op": "section", "page_id": other_page.id, "section_id": other_page.draft_json["sections"][0]["id"], "values": {"heading": "Intrusion"}}])
+            {"op": "section", "page_id": other_page.id, "section_id": other_page.draft_json["blocks"][0]["id"], "values": {"heading": "Intrusion"}}])
     db.rollback()
     assert "Intrusion" not in str(other_page.draft_json)
 
@@ -142,15 +142,15 @@ def test_no_change_request_cannot_hide_version_conflict(workspace):
 def test_selected_section_is_owned_and_guided_edit_targets_it(workspace):
     db, owner, _, site, other = workspace
     page = content.site_pages(db, site)[0]
-    foreign = content.site_pages(db, other)[0].draft_json["sections"][0]["id"]
+    foreign = content.site_pages(db, other)[0].draft_json["blocks"][0]["id"]
     with pytest.raises(CommerceError, match="belonging"):
         builder.begin_turn(db, site.id, owner.id, uuid4().hex, "Headline: New", page.id, site.version, foreign)
-    section = page.draft_json["sections"][0]["id"]
+    section = page.draft_json["blocks"][0]["id"]
     turn, _ = builder.begin_turn(db, site.id, owner.id, uuid4().hex, "Headline: New", page.id, site.version, section)
     reply = guided(turn.prompt, turn.context_json)
     assert reply["operations"][0]["section_id"] == section
     builder.finish_turn(db, site.id, owner.id, turn.id, reply, "guided")
-    assert page.draft_json["sections"][0]["heading"] == "New"
+    assert page.draft_json["blocks"][0]["heading"] == "New"
 
 
 def test_cancelled_turn_cannot_apply_a_late_response(workspace):
@@ -188,4 +188,4 @@ def test_replay_cannot_change_the_target(workspace):
     turn, _ = builder.begin_turn(db, site.id, owner.id, uuid4().hex, "Warm", page.id, site.version)
     db.commit()
     with pytest.raises(CommerceError, match="already in use"):
-        builder.begin_turn(db, site.id, owner.id, turn.command_id, "Warm", page.id, site.version, page.draft_json["sections"][0]["id"])
+        builder.begin_turn(db, site.id, owner.id, turn.command_id, "Warm", page.id, site.version, page.draft_json["blocks"][0]["id"])

@@ -33,6 +33,7 @@ from app.db import SessionLocal
 from app.integrations.site_builder_llm import next_question, respond
 from app.models import Membership, SiteBuilderTurn, SiteChangeSet
 from app.services import CommerceError, money
+from app.site_blocks import default_locale, resolve_document
 from app.site_theme import CHOICES, DEFAULTS, PRESETS, validate_theme
 
 
@@ -116,7 +117,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                         cls="b-turn") for turn in reversed(turns)], cls="b-history", aria_live="polite"),
                     Form(*hidden(), Input(type="hidden", name="command_id", value=uuid4().hex),
                         Label("Target section (optional)", Select(Option("Whole page / design", value=""),
-                            *[Option((s.get("heading") or s["type"])[:100], value=s["id"]) for s in selected.draft_json.get("sections", [])], name="section_id")),
+                            *[Option((s.get("heading") or s["type"])[:100], value=s["id"]) for s in resolve_document(selected.draft_json, default_locale(site))["blocks"]], name="section_id")),
                         Label("Describe your site or a change", Textarea(name="prompt", rows=4, required=True, maxlength=4000,
                             placeholder="Warm cream and green, editorial headings, less whitespace…")),
                         Small("Draft edits only. Do not enter passwords, API keys or customer information."),

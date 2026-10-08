@@ -19,7 +19,9 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, validates
+
+from app.site_block_storage import BlockDocumentJSON
 
 
 def new_id() -> str:
@@ -376,6 +378,13 @@ class Site(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(24), default="draft")
     version: Mapped[int] = mapped_column(Integer, default=1)
 
+    @validates("settings_json", "published_settings_json")
+    def validate_content_settings(self, key, value):
+        from app.site_blocks import validate_locale
+        if value and "default_locale" in value:
+            validate_locale(value["default_locale"])
+        return value
+
 
 class SitePage(TimestampMixin, Base):
     __tablename__ = "site_pages"
@@ -387,9 +396,14 @@ class SitePage(TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(240))
     kind: Mapped[str] = mapped_column(String(40), default="content")
     product_id: Mapped[str | None] = mapped_column(ForeignKey("products.id"), nullable=True)
-    draft_json: Mapped[dict] = mapped_column(JSON, default=dict)
-    published_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    draft_json: Mapped[dict] = mapped_column(BlockDocumentJSON, default=dict)
+    published_json: Mapped[dict | None] = mapped_column(BlockDocumentJSON, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
+
+    @validates("draft_json", "published_json")
+    def normalize_content(self, key, value):
+        from app.site_blocks import normalize_document
+        return normalize_document(value) if value is not None else None
 
 
 class SiteRevision(TimestampMixin, Base):

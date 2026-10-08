@@ -63,7 +63,7 @@ def scan_document(document: dict) -> dict[str, list[str]]:
     banned: list[str] = []
     diseases: list[str] = []
     hype: list[str] = []
-    for section in document.get("sections", []) if isinstance(document, dict) else []:
+    for section in document.get("blocks", document.get("sections", [])) if isinstance(document, dict) else []:
         if not isinstance(section, dict):
             continue
         check_disease = section.get("type") not in _RESEARCH_SECTIONS

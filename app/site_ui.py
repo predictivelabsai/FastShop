@@ -46,6 +46,7 @@ from sqlalchemy import select
 from app.content import catalog_product, site_pages
 from app.models import Category, Product, ProductVariant, SiteMedia, VariantChannelListing
 from app.services import money
+from app.site_blocks import default_locale, resolve_document
 
 
 def paragraphs(value):
@@ -178,9 +179,9 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
     if kind == "articles":
         articles = [p for p in site_pages(db, site) if p.kind == "article" and (preview or p.published_json)]
         articles.sort(key=lambda p: ((p.published_json or {}).get("published_at") or p.created_at.isoformat(), p.id), reverse=True)
-        return Section(intro, Div(*[Article(A(image((p.draft_json if preview else p.published_json).get("image")),
-            Small((p.draft_json if preview else p.published_json).get("category", "LEARN"), cls="h-eyebrow"),
-            H3((p.draft_json if preview else p.published_json)["title"]), Span("Read the story ↗"), href=url(base, p.path))) for p in articles[:3]], cls="h-articles"), cls="h-section h-container")
+        return Section(intro, Div(*[Article(A(image(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview)).get("image")),
+            Small(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview)).get("category", "LEARN"), cls="h-eyebrow"),
+            H3(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview))["title"]), Span("Read the story ↗"), href=url(base, p.path))) for p in articles[:3]], cls="h-articles"), cls="h-section h-container")
     if kind in {"research", "references"}:
         return Section(intro, Div(*[Button(label, type="button", data_research_filter=label, cls="h-filter", aria_pressed=str(label == "All").lower()) for label in ["All", "Exercise", "Reviews", "Meta-analyses"]], cls="h-filters") if kind == "research" else None,
             Div(*[Article(Small(item.get("theme", "SOURCE"), cls="h-eyebrow"), H3(item.get("heading", "Study")),
@@ -253,7 +254,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                         "price": round(ga4_listing.price_minor / 100, 2) if ga4_listing else 0}
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
-    document = page.draft_json if preview else page.published_json
+    document = resolve_document(page.draft_json if preview else page.published_json, default_locale(site, preview=preview))
     home = page.path == "/"
     def section_view(section, index):
         rendered = render_section(db, site, page, config, section, base, csrf, preview, index == 0)
@@ -286,7 +287,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                 Div(A("Account", href=base + "/account", aria_label="My account") if customer_services_enabled else Button("Account", type="button", data_commerce_notice="", aria_label="My account — Phase 2"), A("Bag", href=base + "/cart", data_cart_open="") if customer_services_enabled else Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items — Phase 2"), cls="h-header-actions"), cls="h-header"),
             Div(message, role="status", cls="h-message") if message else None,
             Main(Div(Small(document.get("category", "LEARN"), cls="h-eyebrow"), H1(document["title"]), P(f"By {site.name} team · Draft for editorial review"), image(document.get("image")), cls="h-article-heading h-container") if page.kind == "article" else None,
-                *[section_view(s, i) for i, s in enumerate(document.get("sections", [])) if not s.get("hidden")], id="content"),
+                *[section_view(s, i) for i, s in enumerate(document.get("blocks", [])) if not s.get("hidden")], id="content"),
             Section(Div(Small("A LITTLE SOMETHING TO LOOK FORWARD TO", cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P("Our first-order offer is coming when the shop opens.")),
                     Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer"),
             Footer(Div(Div(A(brand(), href=base + "/", cls="h-brand"), P(config.get("tagline", ""))),
