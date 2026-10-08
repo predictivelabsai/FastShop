@@ -10,16 +10,44 @@ from sqlalchemy import delete, select, update
 from app import content
 from app.models import Site, SiteBuilderTurn, SiteChangeSet, SiteRevision
 from app.services import CommerceError
+from app.site_blocks import (
+    add_block,
+    default_locale,
+    get_block,
+    normalize_document,
+    patch_block,
+    reorder_blocks,
+)
 from app.site_theme import validate_theme
 
 BRAND_FIELDS = {"name", "tagline", "announcement", "footer"}
-SECTION_FIELDS = {"heading", "eyebrow", "body", "image", "button", "link", "hidden"}
+SECTION_FIELDS = {"heading", "eyebrow", "body", "image", "button", "link", "hidden", "items", "gallery", "video", "mobile_video", "poster", "role", "layout"}
+
+
+def validate_section_text(values):
+    """Keep the chat copy budget bounded, including every translation."""
+    if isinstance(values, str) and len(values) > 8000:
+        raise CommerceError("Section text is invalid or too long.")
+    if isinstance(values, dict):
+        for value in values.values():
+            validate_section_text(value)
+    elif isinstance(values, list):
+        for value in values:
+            validate_section_text(value)
 
 
 def snapshot(db, site):
     return {"version": site.version, "settings": copy.deepcopy(site.settings_json), "pages": {
-        p.id: {"version": p.version, "path": p.path, "kind": p.kind, "document": copy.deepcopy(p.draft_json)}
+        p.id: {"version": p.version, "path": p.path, "kind": p.kind, "document": normalize_document(p.draft_json)}
         for p in content.site_pages(db, site)}}
+
+
+def normalize_snapshot(state):
+    """Compare older section-based history with the canonical read adapter."""
+    result = copy.deepcopy(state)
+    for page in result["pages"].values():
+        page["document"] = normalize_document(page["document"])
+    return result
 
 
 def lock_site(db, site_id, user_id, version):
@@ -58,7 +86,7 @@ def validate_response(response):
 def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
     validate_response({"operations": operations})
     site = lock_site(db, site_id, user_id, expected["version"])
-    if snapshot(db, site) != expected:
+    if snapshot(db, site) != normalize_snapshot(expected):
         raise CommerceError("Draft changed while the builder was working. Send your request again.")
     before = snapshot(db, site)
     config = copy.deepcopy(site.settings_json)
@@ -99,34 +127,24 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
             if set(operation) != allowed:
                 raise CommerceError("Invalid section command.")
             page = content.site_page(db, site, operation["page_id"])
-            doc = copy.deepcopy(page.draft_json)
+            doc = normalize_document(page.draft_json)
             if kind == "section":
-                section = next((s for s in doc["sections"] if s["id"] == operation["section_id"]), None)
                 values = operation["values"]
-                if section is None or not isinstance(values, dict) or set(values) - SECTION_FIELDS:
+                if not isinstance(values, dict) or set(values) - SECTION_FIELDS:
                     raise CommerceError("Select an existing section and supported fields.")
-                for key, value in values.items():
-                    if key == "hidden":
-                        if not isinstance(value, bool):
-                            raise CommerceError("Visibility must be true or false.")
-                    elif not isinstance(value, str) or len(value) > 8000:
-                        raise CommerceError("Section text is invalid or too long.")
-                section.update(values)
+                validate_section_text(values)
+                get_block(doc, operation["section_id"])
+                doc = patch_block(doc, operation["section_id"], values, locale=default_locale(site))
             elif kind == "add_section":
                 section = operation["section"]
                 if not isinstance(section, dict) or set(section) - (SECTION_FIELDS | {"type"}):
                     raise CommerceError("Choose a supported section.")
                 if section.get("type") not in {"hero", "text", "split", "products", "articles"}:
                     raise CommerceError("This section needs manual configuration.")
-                if any(not isinstance(v, str) or len(v) > 8000 for k, v in section.items() if k != "hidden"):
-                    raise CommerceError("Invalid section text.")
-                doc["sections"].append(section)
+                validate_section_text(section)
+                doc = add_block(doc, section)
             else:
-                ids = operation["ids"]
-                if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids) or sorted(ids) != sorted(s["id"] for s in doc["sections"]):
-                    raise CommerceError("Reorder must retain each section exactly once.")
-                by_id = {s["id"]: s for s in doc["sections"]}
-                doc["sections"] = [by_id[i] for i in ids]
+                doc = reorder_blocks(doc, operation["ids"])
             content.save_page(db, site, page.id, user_id, doc, page.version)
             summaries.append("Page: " + page.title)
         elif kind == "create_page" and set(operation) == {"op", "title", "path"}:
@@ -148,10 +166,10 @@ def undo_change(db, site_id, user_id, change_id, version):
     site = lock_site(db, site_id, user_id, version)
     change = db.scalar(select(SiteChangeSet).where(SiteChangeSet.id == change_id,
         SiteChangeSet.site_id == site.id, SiteChangeSet.tenant_id == site.tenant_id))
-    if not change or snapshot(db, site) != change.after_json:
+    if not change or snapshot(db, site) != normalize_snapshot(change.after_json):
         raise CommerceError("Only the current unchanged draft revision can be undone.")
     before = snapshot(db, site)
-    target = change.before_json
+    target = normalize_snapshot(change.before_json)
     for page in content.site_pages(db, site):
         if page.id not in target["pages"]:
             if page.published_json:
@@ -161,7 +179,7 @@ def undo_change(db, site_id, user_id, change_id, version):
             db.delete(page)
         else:
             doc = target["pages"][page.id]["document"]
-            if doc != page.draft_json:
+            if doc != normalize_document(page.draft_json):
                 content.save_page(db, site, page.id, user_id, doc, page.version, "restore")
     site.settings_json = copy.deepcopy(target["settings"])
     site.version += 1
@@ -182,7 +200,7 @@ def begin_turn(db, site_id, user_id, command_id, prompt, page_id, version, secti
     site = lock_site(db, site.id, user_id, version)
     from app.site_builder_reviews import review_context
     page = content.site_page(db, site, page_id)
-    if section_id and section_id not in {s["id"] for s in page.draft_json.get("sections", [])}:
+    if section_id and section_id not in {s["id"] for s in normalize_document(page.draft_json)["blocks"]}:
         raise CommerceError("Choose a section belonging to the selected page.")
     recent = list(db.scalars(select(SiteBuilderTurn).where(SiteBuilderTurn.site_id == site.id,
         SiteBuilderTurn.tenant_id == site.tenant_id,

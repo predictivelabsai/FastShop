@@ -47,6 +47,16 @@ from app.models import (
     new_id,
 )
 from app.services import CommerceError
+from app.site_blocks import (
+    add_block,
+    default_locale,
+    merge_localized,
+    normalize_document,
+    patch_block,
+    remove_block,
+    reorder_blocks,
+    resolve_document,
+)
 from app.site_catalog import register_catalog_routes
 
 
@@ -344,7 +354,7 @@ def register_site_routes(rt):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
                 page = content.site_page(db, site, page_id)
-                document = page.draft_json
+                document = resolve_document(page.draft_json, default_locale(site))
                 revisions = list(db.scalars(select(SiteRevision).where(SiteRevision.page_id == page.id,
                     SiteRevision.site_id == site.id, SiteRevision.tenant_id == site.tenant_id).order_by(SiteRevision.created_at.desc()).limit(20)))
                 return shell(document["title"], A("← All pages and settings", href=f"/admin/sites/{site.id}"),
@@ -353,7 +363,7 @@ def register_site_routes(rt):
                         Label("SEO description", Textarea(document.get("description", ""), name="description", rows=3, maxlength=320)),
                         Div(Label("Article image URL", Input(name="article_image", value=document.get("image", ""))),
                             Label("Article category", Input(name="article_category", value=document.get("category", "LEARN")))) if page.kind == "article" else None,
-                        Div(*[section_editor(s, i) for i, s in enumerate(document.get("sections", []))], id="e-sections"),
+                        Div(*[section_editor(s, i) for i, s in enumerate(document["blocks"])], id="e-sections"),
                         Label("Add a section", Select(Option("Choose a section…", value=""), *[Option(label, value=key) for key, label in content.SECTION_TYPES.items()], name="new_section")),
                         Div(Button("Save draft", name="action", value="draft", cls="e-button"), Button("Publish page", name="action", value="publish", cls="e-button"),
                             Button("Unpublish", name="action", value="unpublish"), cls="e-actions e-save"),
@@ -377,30 +387,43 @@ def register_site_routes(rt):
                 site = builder.lock_site(db, site.id, user_id, site.version)
                 before = builder.snapshot(db, site)
                 page = content.site_page(db, site, page_id)
-                document = copy.deepcopy(page.draft_json)
-                document["title"] = str(form.get("title", ""))
-                document["description"] = str(form.get("description", ""))[:320]
+                document = normalize_document(page.draft_json)
+                locale = default_locale(site)
+                document["title"] = merge_localized(document.get("title", ""), str(form.get("title", "")), locale)
+                document["description"] = merge_localized(document.get("description", ""), str(form.get("description", ""))[:320], locale)
                 if page.kind == "article":
-                    document["image"] = str(form.get("article_image", ""))
-                    document["category"] = str(form.get("article_category", "LEARN"))[:100]
-                sections = {}
-                for i, section in enumerate(document.get("sections", [])):
+                    document["image"] = merge_localized(document.get("image", ""), str(form.get("article_image", "")), locale)
+                    document["category"] = merge_localized(document.get("category", "LEARN"), str(form.get("article_category", "LEARN"))[:100], locale)
+                for i, section in enumerate(document["blocks"]):
+                    values = {}
                     for key in ("eyebrow", "heading", "body", "image", "video", "mobile_video", "link", "button"):
-                        section[key] = str(form.get(f"section_{i}_{key}", ""))[:30000]
-                    section["hidden"] = form.get(f"section_{i}_hidden") == "on"
-                    for j, item in enumerate(section.get("items", [])):
-                        for key in ("heading", "body", "url", "theme", "image"):
-                            item[key] = str(form.get(f"section_{i}_item_{j}_{key}", item.get(key, "")))[:5000]
+                        values[key] = merge_localized(section.get(key, ""), str(form.get(f"section_{i}_{key}", ""))[:30000], locale)
+                    values["hidden"] = form.get(f"section_{i}_hidden") == "on"
                     if "items" in section:
-                        section["items"] = [item for j, item in enumerate(section["items"]) if form.get(f"section_{i}_item_{j}_remove") != "on"]
+                        items = []
+                        for j, original in enumerate(section["items"]):
+                            if form.get(f"section_{i}_item_{j}_remove") == "on":
+                                continue
+                            item = copy.deepcopy(original)
+                            for key in ("heading", "body", "url", "theme", "image"):
+                                field = f"section_{i}_item_{j}_{key}"
+                                if field in form:
+                                    item[key] = merge_localized(original.get(key, ""), str(form[field])[:5000], locale)
+                            items.append(item)
+                        values["items"] = items
                     if section["type"] in {"faq", "team", "research", "references"} and form.get(f"section_{i}_add_item") == "on":
-                        section.setdefault("items", []).append({"heading": "New entry", "body": "Add your text", "url": ""})
+                        values.setdefault("items", []).append({"heading": "New entry", "body": "Add your text", "url": ""})
                     if section["type"] == "product":
-                        section["gallery"] = [line.strip() for line in str(form.get(f"section_{i}_gallery", "")).splitlines() if line.strip()]
-                    sections[section["id"]] = section
-                document["sections"] = [sections[key] for key in form.getlist("section_order") if key in sections]
+                        gallery = [line.strip() for line in str(form.get(f"section_{i}_gallery", "")).splitlines() if line.strip()]
+                        values["gallery"] = merge_localized(section.get("gallery", []), gallery, locale)
+                    document = patch_block(document, section["id"], values)
+                order = form.getlist("section_order")
+                for section in document["blocks"]:
+                    if section["id"] not in order:
+                        document = remove_block(document, section["id"])
+                document = reorder_blocks(document, order)
                 if form.get("new_section") in content.SECTION_TYPES:
-                    document["sections"].append({"type": form["new_section"], "heading": "New section", "body": "Add your story here."})
+                    document = add_block(document, {"type": form["new_section"], "heading": "New section", "body": "Add your story here."})
                 action = str(form.get("action", "draft"))
                 if action not in {"draft", "publish", "unpublish"}:
                     raise CommerceError("Unknown publication action.")

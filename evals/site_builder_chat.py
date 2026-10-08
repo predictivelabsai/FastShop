@@ -56,7 +56,7 @@ CASES: list[Case] = [
          lambda s, d: s.get("builder_brief", {}).get("audience") == "Home tea drinkers"),
     Case("edit_hero_headline", "Edit the selected hero heading from chat",
          f"Headline: {HERO_HEADLINE}", ["section"], [],
-         lambda s, d: any(sec.get("heading") == HERO_HEADLINE for sec in d["sections"] if sec["type"] == "hero"),
+         lambda s, d: any(sec.get("heading") == HERO_HEADLINE for sec in d["blocks"] if sec["type"] == "hero"),
          select_hero=True),
     Case("shipping_needs_approval", "A commerce change is a proposal, never auto-applied",
          "shipping: 1000", [], ["merchant"],
@@ -74,7 +74,7 @@ def _run_case(db: Session, owner: User, case: Case, live: bool) -> dict:
     home = next(p for p in content.site_pages(db, site) if p.path == "/")
     section_id = ""
     if case.select_hero:
-        section_id = next(s["id"] for s in home.draft_json["sections"] if s["type"] == "hero")
+        section_id = next(s["id"] for s in home.draft_json["blocks"] if s["type"] == "hero")
     db.refresh(site)
     command_id = uuid4().hex
     turn, _ = builder.begin_turn(db, site.id, owner.id, command_id, case.prompt, home.id, site.version, section_id)
@@ -129,7 +129,7 @@ def run(*, live: bool = False) -> dict:
 def write_results(summary: dict, out_dir: str = "output/evals") -> Path:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "site_builder_chat_results.json").write_text(json.dumps(summary, indent=2))
+    (out / "site_builder_chat_results.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     lines = [
         f"# Site builder chat evals — {summary['mode']}",
         "",
@@ -145,7 +145,7 @@ def write_results(summary: dict, out_dir: str = "output/evals") -> Path:
             f"{r['produced_ops']} | {r['produced_proposals'] or '—'} | "
             f"{'ok' if r['effect_ok'] else 'FAIL'} | {'✅' if r['passed'] else '❌'} |"
         )
-    (out / "site_builder_chat_results.md").write_text("\n".join(lines) + "\n")
+    (out / "site_builder_chat_results.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out
 
 

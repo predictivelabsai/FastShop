@@ -52,6 +52,7 @@ def seed_h24you(db, admin_email):
     db.add(channel)
     db.flush()
     config = {
+        "default_locale": "en",
         "name": "H2 | 4 YOU", "tagline": "A little wonder. In every glass.",
         "logo": ASSETS + "logo-dark.svg", "logo_light": ASSETS + "logo-light.svg",
         "accent": "#1554cc", "email": "info@h24you.com", "company": "H2 4 You Ltd",
