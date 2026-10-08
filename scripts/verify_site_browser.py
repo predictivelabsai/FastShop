@@ -41,11 +41,12 @@ def main():
     parser.add_argument("--csv-merchant-feed", action="store_true", help="Include Phase 3d CSV import and Merchant Center feed")
     parser.add_argument("--golive", action="store_true", help="Include Phase 4a publish, domain and sandbox-commerce gates")
     parser.add_argument("--live-credentials", action="store_true", help="Include Phase 4b operator live-credential acceptance")
+    parser.add_argument("--order-management", action="store_true", help="Include Phase 4c real order operations and revenue reporting")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
     if sum((args.woocommerce, args.shopify, args.wordpress, args.csv_merchant_feed)) > 1:
         raise RuntimeError("Run one fixture-backed connector browser flow at a time.")
-    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed or args.golive or args.live_credentials) and not (args.merchant or args.merchant_only):
+    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed or args.golive or args.live_credentials or args.order_management) and not (args.merchant or args.merchant_only):
         raise RuntimeError("Generation, refinement and connector checks require --merchant against an isolated local database.")
     if args.live_credentials and not args.golive:
         raise RuntimeError("Live-credential browser verification also requires --golive to prepare the reviewed fixture site.")
@@ -69,6 +70,8 @@ def main():
                 raise RuntimeError("The H2 4 You fixture is not available.")
             site.status = "published"
             db.commit()
+    if args.order_management and args.output == "output/playwright/h24you-phase1":
+        args.output = "output/playwright/phase4c-order-management"
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
     paths = ["/", "/shop", "/collections/hydrogen-tablets", "/collections/hydrogen-water-bottles",
@@ -321,6 +324,156 @@ def main():
                 assert secret_key not in page.content() and webhook_secret not in page.content()
                 checks.append({
                     "operator": "live credentials are stored without echo, masked, explicitly accepted, and reduced to an approval badge on merchant integrations",
+                    "status": "passed",
+                })
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.goto(args.base + "/admin/sites")
+            if args.order_management:
+                from datetime import UTC, datetime
+
+                from sqlalchemy import select
+
+                from app.db import SessionLocal
+                from app.models import (
+                    Order,
+                    OrderLine,
+                    OutboxEvent,
+                    PaymentTransaction,
+                    ShopCustomer,
+                    Site,
+                    SiteOrder,
+                )
+
+                with SessionLocal() as db:
+                    order_site = db.scalar(select(Site).where(Site.slug == "h24you"))
+                    if not order_site:
+                        raise RuntimeError("The H2 4 You order fixture site is unavailable.")
+                    customer = ShopCustomer(
+                        tenant_id=order_site.tenant_id,
+                        site_id=order_site.id,
+                        email="browser-order@example.test",
+                        name="Browser order customer",
+                        verified_at=datetime.now(UTC),
+                    )
+                    db.add(customer)
+                    db.flush()
+                    order = Order(
+                        tenant_id=order_site.tenant_id,
+                        channel_id=order_site.channel_id,
+                        number="FS-BROWSER-4C-" + uuid4().hex[:6].upper(),
+                        idempotency_key="browser-order-" + uuid4().hex,
+                        email=customer.email,
+                        currency="USD",
+                        subtotal_minor=7400,
+                        discount_minor=400,
+                        shipping_minor=900,
+                        tax_minor=610,
+                        total_minor=8510,
+                        payment_status="partially_refunded",
+                        shipping_address_json={
+                            "name": customer.name,
+                            "line1": "801 Commerce Street",
+                            "city": "Dallas",
+                            "state": "TX",
+                            "postal_code": "75202",
+                            "country": "US",
+                        },
+                    )
+                    db.add(order)
+                    db.flush()
+                    db.add(OrderLine(
+                        order_id=order.id,
+                        sku="BROWSER-4C",
+                        product_name="Hydrogen tablet bundle",
+                        variant_name="Raspberry",
+                        quantity=2,
+                        unit_price_minor=3700,
+                        total_minor=7400,
+                    ))
+                    link = SiteOrder(
+                        tenant_id=order_site.tenant_id,
+                        site_id=order_site.id,
+                        order_id=order.id,
+                        customer_id=customer.id,
+                        stripe_checkout_id="cs_test_browser4c",
+                    )
+                    db.add(link)
+                    db.flush()
+                    db.add_all([
+                        PaymentTransaction(
+                            order_id=order.id,
+                            provider="stripe:" + order_site.id,
+                            external_id="pi_browser4c_" + uuid4().hex[:8],
+                            kind="charge",
+                            status="succeeded",
+                            currency="USD",
+                            amount_minor=8510,
+                        ),
+                        PaymentTransaction(
+                            order_id=order.id,
+                            provider="stripe:" + order_site.id,
+                            external_id="re_browser4c_" + uuid4().hex[:8],
+                            kind="refund",
+                            status="succeeded",
+                            currency="USD",
+                            amount_minor=1200,
+                        ),
+                        OutboxEvent(
+                            tenant_id=order_site.tenant_id,
+                            topic="order.confirmed",
+                            aggregate_id=order.id,
+                            payload_json={"order_id": order.id, "site_id": order_site.id},
+                        ),
+                    ])
+                    order_site_id, order_number = order_site.id, order.number
+                    db.commit()
+
+                orders_url = args.base + f"/admin/sites/{order_site_id}/orders"
+                page.goto(orders_url)
+                assert page.get_by_role("heading", name="Orders", exact=True).is_visible()
+                assert page.get_by_role("link", name=order_number, exact=True).is_visible()
+                assert "demo" not in page.locator(".o-table-wrap").inner_text().lower()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-orders-list.png"), full_page=True)
+
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.get_by_role("link", name=order_number, exact=True).click()
+                page.locator('select[name="target"]').select_option("fulfilled")
+                page.locator('input[name="carrier"]').fill("UPS")
+                page.locator('input[name="tracking_number"]').fill("1ZBROWSER4C")
+                page.locator('input[name="tracking_url"]').fill("https://www.ups.com/track?loc=en_US")
+                page.locator('input[name="note"]').fill("Packed and handed to the carrier.")
+                page.get_by_role("button", name="Save fulfillment update", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("status").inner_text() == "Fulfillment status updated."
+                assert page.get_by_text("Fulfilled", exact=True).count() >= 1
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-order-detail.png"), full_page=True)
+
+                page.locator('input[name="amount_minor"]').fill("500")
+                page.locator('input[name="reason"]').fill("Browser verification exact partial refund.")
+                page.get_by_role("button", name="Review refund", exact=True).click()
+                assert page.get_by_role("heading", name="Confirm refund", exact=True).is_visible()
+                assert page.get_by_text("Refund $5.00", exact=False).is_visible()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-refund-confirm.png"), full_page=True)
+
+                page.goto(args.base + f"/admin/sites/{order_site_id}/revenue")
+                assert page.get_by_role("heading", name="Revenue report", exact=True).is_visible()
+                assert page.get_by_text("−$12.00", exact=True).is_visible()
+                assert page.locator('script[src*="google"],script[src*="analytics"]').count() == 0
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-revenue-report.png"), full_page=True)
+                checks.append({
+                    "merchant": "real order list, legal fulfillment transition, exact refund confirmation, and server-rendered revenue reporting",
                     "status": "passed",
                 })
                 page.set_viewport_size({"width": 1440, "height": 1000})

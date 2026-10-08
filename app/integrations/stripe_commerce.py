@@ -190,6 +190,11 @@ class StripeGateway:
         return self.request("POST", "/checkout/sessions/" + session_id + "/expire",
             idempotency_key="fastshop-expire-" + session_id)
 
+    def create_refund(self, command_id, payload):
+        """Replay one persisted refund command with a stable provider key."""
+        return self.request("POST", "/refunds", payload,
+            idempotency_key="fastshop-refund-" + command_id)
+
     def payment_intent_status(self, payment_intent_id):
         if not re.fullmatch(r"pi_[A-Za-z0-9_]+", payment_intent_id):
             raise CommerceError("Invalid payment reference.")

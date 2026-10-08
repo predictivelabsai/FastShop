@@ -99,6 +99,8 @@ def register_site_routes(rt):
     register_demo_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.commerce_routes import register_commerce_routes
     register_commerce_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.order_management_routes import register_order_management_routes
+    register_order_management_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.customer_routes import register_customer_routes
     register_customer_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.store_checkout_routes import register_store_checkout_routes
@@ -218,7 +220,7 @@ def register_site_routes(rt):
                 passed = len(publish_report.checks) - len(publish_report.failures)
                 return shell(site.name,
                     Div(A("Build with AI →", href=f"/admin/sites/{site.id}/build"), A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"), A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"), A("Try commerce demo", href=f"/admin/sites/{site.id}/demo"), cls="e-actions"),
-                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Go-live review", href=f"/admin/sites/{site.id}/golive"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Integrations", href=f"/admin/sites/{site.id}/integrations"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
+                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Go-live review", href=f"/admin/sites/{site.id}/golive"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Orders", href=f"/admin/sites/{site.id}/orders"), A("Revenue", href=f"/admin/sites/{site.id}/revenue"), A("Integrations", href=f"/admin/sites/{site.id}/integrations"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
                     P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
                     Div(H2("Go-live checklist"),
