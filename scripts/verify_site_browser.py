@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--base", default="http://127.0.0.1:5033")
     parser.add_argument("--merchant", action="store_true")
     parser.add_argument("--merchant-only", action="store_true", help="Rerun merchant flows after storefront verification")
+    parser.add_argument("--blog", action="store_true", help="Include blog taxonomy and editorial workflow evidence")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
     out = Path(args.output)
@@ -41,6 +42,8 @@ def main():
              "/blogs/learn/how-to-read-hydrogen-research", "/pages/about-us", "/pages/contact",
              "/pages/terms-and-conditions", "/pages/privacy-policy", "/pages/faq", "/pages/returns-and-refunds"]
     failures, checks = [], []
+    if args.blog:
+        paths.extend(["/blog", "/blog/category/the-basics"])
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel="chrome", headless=True)
         for device, width, height in ([] if args.merchant_only else [("desktop", 1440, 1000), ("ipad", 834, 1112), ("mobile", 390, 844)]):
@@ -58,6 +61,11 @@ def main():
                 page.wait_for_load_state("networkidle")
                 assert page.locator("h1").count() == 1, path
                 assert page.locator('link[rel="canonical"]').count() == 1
+                if args.blog and path == "/blog/category/the-basics":
+                    assert page.locator(".h-articles article").count() == 1
+                    assert page.get_by_role("navigation", name="Article categories").get_by_role("link", name="THE BASICS", exact=True).get_attribute("aria-current") == "page"
+                    assert page.locator('link[rel="canonical"]').get_attribute("href").endswith(path)
+                    assert page.locator(".h-blog-byline").inner_text() == "By H2 4 You team"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (device, path)
                 assert page.locator("img").evaluate_all("images => images.every(i => i.hasAttribute('alt') && i.getAttribute('alt').length)")
                 load_page_media(page)

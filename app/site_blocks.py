@@ -158,6 +158,9 @@ def normalize_document(document: dict | list) -> dict:
         ids.add(block['id'])
         normalized.append(block)
     result.update(version=CONTENT_VERSION, blocks=normalized)
+    if 'blog' in result:
+        from app.site_blog import validate_blog
+        result['blog'] = validate_blog(result['blog'])
     for key in {'title', 'description', 'image', 'category'} & result.keys():
         _text(result[key], key, 240 if key == 'title' else 30000)
     return result

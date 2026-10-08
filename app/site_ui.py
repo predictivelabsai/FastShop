@@ -135,7 +135,7 @@ def product_cards(db, site, base, category=""):
     return Div(*result, cls="h-products") if result else P("Your collection is coming soon.")
 
 
-def render_section(db, site, page, config, section, base, csrf, preview=False, first=False):
+def render_section(db, site, page, config, section, base, csrf, preview=False, first=False, *, blog_articles=None):
     image = partial(owned_image, db, site)
     kind = section["type"]
     heading = section.get("heading", "")
@@ -177,11 +177,16 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
         return Section(Small("ROOM FOR YOUR EXPERIENCE", cls="h-eyebrow"), H2(heading),
             *paragraphs(section.get("body")), Span("SAMPLE SECTION · NO CUSTOMER TESTIMONIALS", cls="h-tag"), cls="h-section h-reviews")
     if kind == "articles":
-        articles = [p for p in site_pages(db, site) if p.kind == "article" and (preview or p.published_json)]
-        articles.sort(key=lambda p: ((p.published_json or {}).get("published_at") or p.created_at.isoformat(), p.id), reverse=True)
-        return Section(intro, Div(*[Article(A(image(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview)).get("image")),
+        from app.site_blog import articles_for, metadata
+        articles = articles_for(db, site, preview=preview)[:3] if blog_articles is None else blog_articles
+        cards = []
+        for p in articles:
+            card = Article(A(image(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview)).get("image")),
             Small(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview)).get("category", "LEARN"), cls="h-eyebrow"),
-            H3(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview))["title"]), Span("Read the story ↗"), href=url(base, p.path))) for p in articles[:3]], cls="h-articles"), cls="h-section h-container")
+            H3(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview))["title"]), Span("Read the story ↗"), href=url(base, p.path)))
+            author = metadata(p.draft_json if preview else p.published_json)["author_name"] or f"{site.name} team"
+            cards.append(Div(card, P("By " + author, cls="h-blog-byline")) if blog_articles is not None else card)
+        return Section(intro, Div(*cards, cls="h-articles"), cls="h-section h-container")
     if kind in {"research", "references"}:
         return Section(intro, Div(*[Button(label, type="button", data_research_filter=label, cls="h-filter", aria_pressed=str(label == "All").lower()) for label in ["All", "Exercise", "Reviews", "Meta-analyses"]], cls="h-filters") if kind == "research" else None,
             Div(*[Article(Small(item.get("theme", "SOURCE"), cls="h-eyebrow"), H3(item.get("heading", "Study")),
@@ -234,7 +239,7 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
     return Section(intro, cta(section, base), cls="h-section h-container h-editorial")
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=""):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, message="", blog_listing=False, blog_category="", blog_tag=""):
     from app.commerce import settings_for
     from app.customer_services import consent_text
     from app.site_analytics import measurement_id
@@ -255,6 +260,27 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
     document = resolve_document(page.draft_json if preview else page.published_json, default_locale(site, preview=preview))
+    from app.site_blog import articles_for, categories_for, category_slug, metadata
+    blog = metadata(document)
+    listing_articles = articles_for(db, site, preview=preview, category=blog_category, tag=blog_tag) if blog_listing else None
+    blog_filters = None
+    if blog_listing:
+        available = articles_for(db, site, preview=preview)
+        category_slugs = {category_slug(p.draft_json if preview else p.published_json, site, preview=preview) for p in available}
+        categories = [c for c in categories_for(db, site) if c.slug in category_slugs]
+        tags = sorted({t for p in available for t in metadata(p.draft_json if preview else p.published_json)["tags"]})
+        active = next((c.name for c in categories if c.slug == blog_category), blog_category) or blog_tag
+        blog_filters = Div(
+            Nav(A("All articles", href=url(base, "/blog"), aria_current="page" if not active else None),
+                *[A(c.name, href=url(base, "/blog/category/" + c.slug), aria_current="page" if c.slug == blog_category else None) for c in categories],
+                aria_label="Article categories", cls="h-blog-filters"),
+            Nav(*[A(t, href=url(base, "/blog/tag/" + t), aria_current="page" if t == blog_tag else None) for t in tags],
+                aria_label="Article tags", cls="h-blog-filters") if tags else None,
+            P((active + " · " if active else "") + f"{len(listing_articles)} article" + ("" if len(listing_articles) == 1 else "s"), role="status"),
+            P("No published articles in this category yet. Browse all articles above.") if not listing_articles else None,
+            cls="h-container h-blog-tools")
+        if active:
+            document["title"] += " — " + active
     from app.site_menus import rendered_navigation
     header_navigation = rendered_navigation(db, site, "header", preview=preview)
     footer_navigation = rendered_navigation(db, site, "footer", preview=preview)
@@ -262,24 +288,25 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                   if item.get("kind") == "anchor" and item["path"].split("#")[0] == page.path}
     home = page.path == "/"
     def section_view(section, index):
-        rendered = render_section(db, site, page, config, section, base, csrf, preview, index == 0)
+        rendered = render_section(db, site, page, config, section, base, csrf, preview, index == 0, blog_articles=listing_articles)
         if rendered is not None and section["id"] in anchor_ids:
             rendered.attrs["id"] = "block-" + section["id"]
         if preview and rendered is not None:
             rendered.attrs["data-builder-section"] = section["id"]
             rendered.attrs["data-builder-label"] = (section.get("heading") or section["type"])[:100]
-        return rendered
+        return Div(blog_filters, rendered) if blog_listing and section["type"] == "articles" else rendered
     def brand(light=False):
         return image(config.get("logo_light" if light else "logo"), config.get("name", site.name), eager=True) or Span(config.get("name", site.name))
     return (
         Title(f"{document['title']} — {site.name}"), Meta(name="viewport", content="width=device-width, initial-scale=1"),
-        Meta(name="description", content=document.get("description", "")), Meta(name="robots", content="noindex,nofollow" if site.status != "published" or preview else "index,follow"),
+        Meta(name="description", content=document.get("description", "")), Meta(name="robots", content="noindex,nofollow" if site.status != "published" or preview else "noindex,follow" if blog_listing and (blog_tag or not listing_articles) else "index,follow"),
         Meta(property="og:title", content=document["title"]), Meta(property="og:description", content=document.get("description", "")),
         Meta(property="og:url", content=canonical), Link(rel="canonical", href=canonical),
         Link(rel="icon", href="/static/favicon.svg", type="image/svg+xml"), Link(rel="stylesheet", href="/static/site-builder.css"), Script(src="/static/site-builder.js", defer=True),
         Script(src="/static/site-analytics.js", defer=True) if analytics_id else None,
         Script(NotStr(json.dumps(ga4_item)), type="application/json", id="h-ga4-item") if ga4_item else None,
         Link(rel="stylesheet", href="/static/site-theme.css"),
+        Link(rel="stylesheet", href="/static/site-blog.css") if blog_listing else None,
         Script(src="/static/site-preview.js", defer=True) if preview else None,
         Link(rel="stylesheet", href="/static/site-preview.css") if preview else None,
         Link(rel="stylesheet", href="/static/cart-drawer.css") if customer_services_enabled and not preview else None,
@@ -293,7 +320,10 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                 Nav(*[Details(Summary("Shop"), Div(A("All products", href=url(base, "/shop")), *[A(category["label"], href=url(base, category["path"])) for category in config.get("collections", [])], cls="h-dropdown"), cls="h-shop-menu") if item["label"] == "Shop" and item["path"] == "/shop" and config.get("collections") else A(item["label"], href=url(base, item["path"])) for item in header_navigation], id="site-navigation", cls="h-nav"),
                 Div(A("Account", href=base + "/account", aria_label="My account") if customer_services_enabled else Button("Account", type="button", data_commerce_notice="", aria_label="My account — Phase 2"), A("Bag", href=base + "/cart", data_cart_open="") if customer_services_enabled else Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items — Phase 2"), cls="h-header-actions"), cls="h-header"),
             Div(message, role="status", cls="h-message") if message else None,
-            Main(Div(Small(document.get("category", "LEARN"), cls="h-eyebrow"), H1(document["title"]), P(f"By {site.name} team · Draft for editorial review"), image(document.get("image")), cls="h-article-heading h-container") if page.kind == "article" else None,
+            Main(Div(Small(document.get("category", "LEARN"), cls="h-eyebrow"), H1(document["title"]),
+                P("By " + blog["author_name"] if blog["author_name"] else f"By {site.name} team · Draft for editorial review"),
+                P(blog["author_bio"]) if blog["author_bio"] else None,
+                image(document.get("image")), cls="h-article-heading h-container") if page.kind == "article" else None,
                 *[section_view(s, i) for i, s in enumerate(document.get("blocks", [])) if not s.get("hidden")], id="content"),
             Section(Div(Small("A LITTLE SOMETHING TO LOOK FORWARD TO", cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P("Our first-order offer is coming when the shop opens.")),
                     Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer"),

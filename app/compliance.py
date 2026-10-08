@@ -63,6 +63,17 @@ def scan_document(document: dict) -> dict[str, list[str]]:
     banned: list[str] = []
     diseases: list[str] = []
     hype: list[str] = []
+    if isinstance(document, dict) and "blog" in document:
+        blog = document["blog"]
+        values = [blog.get("author_name", ""), blog.get("author_bio", ""),
+                  blog.get("category_slug", ""), *blog.get("tags", [])]
+        category = document.get("category", "")
+        values.extend(category.values() if isinstance(category, dict) else [category])
+        for value in values:
+            found = scan_text(value)
+            banned += [t for t in found["banned"] if t not in banned]
+            diseases += [t for t in found["diseases"] if t not in diseases]
+            hype += [t for t in found["hype"] if t not in hype]
     for section in document.get("blocks", document.get("sections", [])) if isinstance(document, dict) else []:
         if not isinstance(section, dict):
             continue
