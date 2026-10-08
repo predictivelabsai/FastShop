@@ -63,10 +63,12 @@ app.routes[:] = [
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/api", api)
 
+from app.marketing_routes import register_marketing_routes  # noqa: E402
 from app.site_context import SiteHostMiddleware  # noqa: E402
 from app.site_routes import register_site_routes  # noqa: E402
 
 register_site_routes(rt)
+register_marketing_routes(rt)
 app.add_middleware(SiteHostMiddleware)
 
 from app.scheduler import start_scheduler  # noqa: E402

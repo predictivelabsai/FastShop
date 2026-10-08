@@ -1,9 +1,12 @@
 """Resolve a configured hostname to a tenant-owned site before route dispatch."""
 
+from urllib.parse import urlsplit
+
 from sqlalchemy import select
 from starlette.responses import Response
 
 from app import commerce as commerce_service
+from app.config import settings
 from app.db import SessionLocal
 from app.models import Site, SiteCommerceSettings
 
@@ -18,7 +21,22 @@ class SiteHostMiddleware:
         headers = dict(scope.get("headers", []))
         host = headers.get(b"host", b"").decode("latin-1").split(":", 1)[0].lower().rstrip(".")
         path = scope.get("path", "/")
-        shared = ("/static/", "/site-media/", "/admin", "/login", "/logout", "/auth/", "/healthz", "/readyz")
+        platform_host = (urlsplit(settings.public_url).hostname or "").lower().rstrip(".")
+        landing_root = (
+            path == "/"
+            and settings.landing_root
+            and settings.environment.lower() != "development"
+            and host == platform_host
+        )
+        if landing_root:
+            scope = dict(scope)
+            scope["path"] = "/marketing/"
+            scope["raw_path"] = b"/marketing/"
+            return await self.app(scope, receive, send)
+        shared = (
+            "/static/", "/site-media/", "/admin", "/login", "/logout", "/auth/",
+            "/healthz", "/readyz", "/marketing/", "/signup",
+        )
         if not path.startswith(shared):
             with SessionLocal() as db:
                 query = select(Site).where(Site.hostname == host)
