@@ -1,0 +1,18 @@
+{
+  "base": "http://127.0.0.1:5033",
+  "checks": [
+    {
+      "merchant": "one-order Stripe re-sync and tenant-scoped dead-letter recovery are visible without exposing provider secrets",
+      "status": "passed"
+    },
+    {
+      "merchant": "menu anchor add, reorder, publish, public target and desktop/mobile editor",
+      "status": "passed"
+    },
+    {
+      "merchant": "media upload, browse, pick and save alt desktop/mobile; referenced deletion refused",
+      "status": "passed"
+    }
+  ],
+  "failures": []
+}

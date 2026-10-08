@@ -1,6 +1,7 @@
 """Stripe callback boundary. No browser cookies, card payload storage or demo payments."""
 
 import re
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
 from sqlalchemy import select
@@ -15,7 +16,7 @@ from app.integrations.stripe_commerce import (
     make_gateway,
     verify_webhook,
 )
-from app.models import Site, SiteCommerceSettings
+from app.models import Site, SiteCommerceSettings, StripeWebhookEvent
 from app.services import CommerceError
 
 CHECKOUT_EVENTS = {
@@ -94,6 +95,32 @@ def process_event(db, site, event, gateway):
     return "processed"
 
 
+def process_verified_event(db, site, event, gateway):
+    """Handle one verified event once; the ledger and commerce writes commit together."""
+    event_id, event_type = event.get("id"), event.get("type")
+    if not isinstance(event_id, str) or not event_id.startswith("evt_"):
+        raise CommerceError("Invalid webhook event.")
+    if not isinstance(event_type, str) or not event_type or len(event_type) > 120:
+        raise CommerceError("Invalid webhook event.")
+    previous = db.scalar(select(StripeWebhookEvent).where(
+        StripeWebhookEvent.tenant_id == site.tenant_id,
+        StripeWebhookEvent.site_id == site.id,
+        StripeWebhookEvent.event_id == event_id,
+    ))
+    if previous:
+        return "processed (duplicate)"
+    result = process_event(db, site, event, gateway)
+    db.add(StripeWebhookEvent(
+        tenant_id=site.tenant_id,
+        site_id=site.id,
+        event_id=event_id,
+        event_type=event_type,
+        processed_at=datetime.now(UTC),
+    ))
+    db.flush()
+    return result
+
+
 def register_commerce_webhooks(api):
     @api.post("/v1/commerce/{site_id}/stripe-webhook", tags=["Commerce"])
     async def stripe_webhook(site_id: str, request: Request):
@@ -120,7 +147,9 @@ def register_commerce_webhooks(api):
                 except CommerceError as exc:
                     raise HTTPException(400, "Invalid webhook signature or body") from exc
                 try:
-                    result = process_event(db, site, event, make_gateway(StripeGateway, site, db))
+                    result = process_verified_event(
+                        db, site, event, make_gateway(StripeGateway, site, db)
+                    )
                     db.commit()
                     return {"status": result}
                 except CommerceError as exc:

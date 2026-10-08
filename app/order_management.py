@@ -25,6 +25,7 @@ from app.models import (
     ShipmentEvent,
     ShopCustomer,
     Site,
+    SiteChangeSet,
     SiteOrder,
 )
 from app.services import CommerceError
@@ -253,6 +254,184 @@ def _manager_site(db, site_id: str, user_id: str) -> Site:
     if not site:
         raise CommerceError("Site not found or access denied.")
     return site
+
+
+def delivery_failures(db, site: Site) -> list[OutboxEvent]:
+    """Return recoverable delivery failures that explicitly belong to this site."""
+    events = list(db.scalars(select(OutboxEvent).where(
+        OutboxEvent.tenant_id == site.tenant_id,
+        OutboxEvent.status.in_(("dead", "failed")),
+    ).order_by(OutboxEvent.created_at, OutboxEvent.id)))
+    return [event for event in events if (event.payload_json or {}).get("site_id") == site.id]
+
+
+def safe_delivery_error(event: OutboxEvent) -> str:
+    message = " ".join((event.last_error or "No error detail recorded.").split())
+    message = re.sub(r"(?i)\bbearer\s+\S+", "Bearer [redacted]", message)
+    message = re.sub(
+        r"(?i)\b(authorization|api[_ -]?token|token|secret|api[_ -]?key)\b\s*[:=]\s*\S+",
+        r"\1=[redacted]",
+        message,
+    )
+    return message[:300]
+
+
+def requeue_delivery(db, site: Site, user_id: str, event_id: str) -> OutboxEvent:
+    _manager_site(db, site.id, user_id)
+    event = db.scalar(select(OutboxEvent).where(
+        OutboxEvent.id == event_id,
+        OutboxEvent.tenant_id == site.tenant_id,
+        OutboxEvent.status.in_(("dead", "failed")),
+    ).with_for_update().execution_options(populate_existing=True))
+    if not event or (event.payload_json or {}).get("site_id") != site.id:
+        raise CommerceError("Delivery failure not found.")
+    before = {"status": event.status, "attempts": event.attempts, "topic": event.topic}
+    event.status = "pending"
+    event.attempts = 0
+    event.last_error = ""
+    event.next_attempt_at = None
+    db.add(SiteChangeSet(
+        tenant_id=site.tenant_id,
+        site_id=site.id,
+        user_id=user_id,
+        source="delivery-requeue",
+        summary=f"Requeued {event.topic} delivery {event.id}.",
+        before_json=before,
+        after_json={"status": "pending", "attempts": 0, "topic": event.topic},
+    ))
+    db.flush()
+    return event
+
+
+def _payment_state(intent_status: str) -> str:
+    if intent_status == "succeeded":
+        return "succeeded"
+    if intent_status in {"processing", "requires_action", "requires_confirmation"}:
+        return "pending"
+    if intent_status in {"canceled", "requires_payment_method"}:
+        return "failed"
+    raise CommerceError("Stripe returned an unsupported payment state.")
+
+
+def _order_payment_state(db, site: Site, order: Order, charge_status: str) -> str:
+    if charge_status != "succeeded":
+        return "pending" if charge_status == "pending" else "failed"
+    refunded = db.scalar(select(func.coalesce(func.sum(PaymentTransaction.amount_minor), 0))
+        .join(Order, Order.id == PaymentTransaction.order_id)
+        .where(
+            PaymentTransaction.order_id == order.id,
+            PaymentTransaction.provider == "stripe:" + site.id,
+            PaymentTransaction.kind == "refund",
+            PaymentTransaction.status == "succeeded",
+            PaymentTransaction.currency == order.currency,
+            Order.tenant_id == site.tenant_id,
+        )) or 0
+    if refunded >= order.total_minor:
+        return "refunded"
+    return "partially_refunded" if refunded else "paid"
+
+
+def resync_order(
+    site_id: str,
+    user_id: str,
+    site_order_id: str,
+    *,
+    sessions=SessionLocal,
+    gateway_factory=StripeGateway,
+) -> str:
+    """Re-pull Stripe truth for exactly one persisted real order."""
+    with sessions() as db:
+        site = _manager_site(db, site_id, user_id)
+        link, order, _ = owned_order(db, site, site_order_id, lock=True)
+        before = {"payment_status": order.payment_status}
+        provider = "stripe:" + site.id
+        charge = db.scalar(select(PaymentTransaction)
+            .join(Order, Order.id == PaymentTransaction.order_id)
+            .where(
+                PaymentTransaction.order_id == order.id,
+                PaymentTransaction.provider == provider,
+                PaymentTransaction.kind == "charge",
+                Order.tenant_id == site.tenant_id,
+            )
+            .order_by(PaymentTransaction.created_at.desc()))
+        gateway = make_gateway(gateway_factory, site, db)
+        live_mode = commerce.payment_mode(db, site) == "live"
+        payment_intent_id = charge.external_id if charge else ""
+        if link.stripe_checkout_id:
+            checkout_result = gateway.checkout_status(link.stripe_checkout_id)
+            metadata = checkout_result.get("metadata") or {}
+            if (
+                checkout_result.get("id") != link.stripe_checkout_id
+                or checkout_result.get("livemode") is not live_mode
+                or metadata.get("site_id") != site.id
+                or checkout_result.get("currency") != order.currency.lower()
+                or type(checkout_result.get("amount_total")) is not int
+                or checkout_result["amount_total"] != order.total_minor
+            ):
+                raise CommerceError("Stripe checkout details do not match this order.")
+            session_intent = checkout_result.get("payment_intent")
+            if session_intent:
+                if payment_intent_id and payment_intent_id != session_intent:
+                    raise CommerceError("Stripe payment references do not match this order.")
+                payment_intent_id = session_intent
+        if not isinstance(payment_intent_id, str) or not re.fullmatch(r"pi_[A-Za-z0-9_]+", payment_intent_id):
+            raise CommerceError("This order has no Stripe payment reference to resync.")
+        intent = gateway.payment_intent_status(payment_intent_id)
+        metadata = intent.get("metadata") or {}
+        amount = intent.get("amount_received") if intent.get("status") == "succeeded" else intent.get("amount")
+        if (
+            intent.get("id") != payment_intent_id
+            or intent.get("livemode") is not live_mode
+            or metadata.get("site_id") != site.id
+            or intent.get("currency") != order.currency.lower()
+            or type(amount) is not int
+            or amount != order.total_minor
+        ):
+            raise CommerceError("Stripe payment details do not match this order.")
+        charge_status = _payment_state(str(intent.get("status", "")))
+        existing = db.scalar(select(PaymentTransaction)
+            .join(Order, Order.id == PaymentTransaction.order_id)
+            .where(
+                PaymentTransaction.provider == provider,
+                PaymentTransaction.external_id == payment_intent_id,
+                Order.tenant_id == site.tenant_id,
+            ))
+        if existing and existing.order_id != order.id:
+            raise CommerceError("Stripe payment is already linked to another order.")
+        if existing:
+            if existing.kind != "charge" or existing.currency != order.currency or existing.amount_minor != order.total_minor:
+                raise CommerceError("The recorded Stripe charge does not match this order.")
+            existing.status = charge_status
+            charge = existing
+        else:
+            charge = PaymentTransaction(
+                order_id=order.id,
+                provider=provider,
+                external_id=payment_intent_id,
+                kind="charge",
+                status=charge_status,
+                currency=order.currency,
+                amount_minor=order.total_minor,
+            )
+            db.add(charge)
+        order.payment_status = _order_payment_state(db, site, order, charge_status)
+        db.flush()
+        after = {
+            "payment_status": order.payment_status,
+            "charge_status": charge_status,
+            "payment_transaction_id": charge.id,
+        }
+        db.add(SiteChangeSet(
+            tenant_id=site.tenant_id,
+            site_id=site.id,
+            user_id=user_id,
+            source="stripe-resync",
+            summary=f"Re-synced Stripe payment state for order {order.number}.",
+            before_json=before,
+            after_json=after,
+        ))
+        db.commit()
+        return order.payment_status
 
 
 def _refund_fingerprint(site_order_id: str, amount_minor: int, reason: str) -> str:
