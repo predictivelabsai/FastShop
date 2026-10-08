@@ -5,8 +5,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+from contextlib import contextmanager
 from pathlib import Path
+from urllib.error import URLError
 from urllib.parse import urlsplit
+from urllib.request import urlopen
 from uuid import uuid4
 
 from playwright.sync_api import sync_playwright
@@ -61,7 +70,7 @@ def verify_landing(base: str, output: str):
             page.wait_for_load_state("networkidle")
             assert page.locator("h1").count() == 1
             assert "short description" in page.locator("h1").inner_text().lower()
-            assert page.get_by_role("link", name="Check signup status", exact=True).first.get_attribute("href") == "/signup"
+            assert page.get_by_role("link", name="Create your workspace", exact=True).first.get_attribute("href") == "/signup"
             assert page.locator("script").count() == 0
             assert page.locator("iframe").count() == 0
             assert page.locator('[src*="analytics"], [href*="analytics"]').count() == 0
@@ -86,6 +95,156 @@ def verify_landing(base: str, output: str):
         raise SystemExit(1)
 
 
+def _available_port():
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return listener.getsockname()[1]
+
+
+@contextmanager
+def signup_server(signup_open: bool):
+    """Run one isolated app process because frozen settings cannot change in-process."""
+    port = _available_port()
+    data_dir = tempfile.mkdtemp(prefix="fastshop-signup-browser-")
+    try:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "DB_URL": "",
+                "FASTSHOP_ENV": "development",
+                "FASTSHOP_AUTO_CREATE_SCHEMA": "1",
+                "FASTSHOP_DATA_DIR": data_dir,
+                "FASTSHOP_SIGNUP_OPEN": "1" if signup_open else "0",
+                "XAI_API_KEY": "",
+                "POSTMARK_API_TOKEN": "",
+                "POSTMARK_SERVER_TOKEN": "",
+                "STRIPE_SECRET_KEY": "",
+                "STRIPE_WEBHOOK_SECRET": "",
+            }
+        )
+        environment.pop("FASTSHOP_ADMIN_EMAIL", None)
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                "web_app:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+                "--log-level",
+                "warning",
+            ],
+            cwd=Path(__file__).resolve().parents[1],
+            env=environment,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        base = f"http://127.0.0.1:{port}"
+        try:
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    detail = process.stderr.read() if process.stderr else ""
+                    raise RuntimeError("Signup browser server stopped early: " + detail)
+                try:
+                    with urlopen(base + "/healthz", timeout=1) as response:
+                        if response.status == 200:
+                            break
+                except (OSError, URLError):
+                    time.sleep(0.1)
+            else:
+                raise RuntimeError("Timed out starting the signup browser server.")
+            yield base
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+    finally:
+        for attempt in range(10):
+            try:
+                shutil.rmtree(data_dir)
+                break
+            except PermissionError:
+                if attempt == 9:
+                    raise
+                time.sleep(0.2)
+
+
+def verify_signup(output: str):
+    """Capture both frozen kill-switch states in isolated local app processes."""
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
+    failures = []
+    checks = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(channel="chrome", headless=True)
+        for state, is_open in (("closed", False), ("form", True)):
+            with signup_server(is_open) as base:
+                allowed_origin = (urlsplit(base).scheme, urlsplit(base).netloc)
+                for device, width, height in (("desktop", 1440, 1000), ("mobile", 390, 844)):
+                    context = browser.new_context(
+                        viewport={"width": width, "height": height},
+                        reduced_motion="reduce",
+                    )
+                    page = context.new_page()
+                    page.on("pageerror", lambda error: failures.append(str(error)))
+                    page.on(
+                        "response",
+                        lambda response: failures.append(f"HTTP {response.status}: {response.url}")
+                        if response.status >= 400
+                        else None,
+                    )
+                    outbound = []
+                    page.on(
+                        "request",
+                        lambda request, outbound=outbound, allowed_origin=allowed_origin: outbound.append(request.url)
+                        if (urlsplit(request.url).scheme, urlsplit(request.url).netloc)
+                        != allowed_origin
+                        else None,
+                    )
+                    response = page.goto(base + "/signup")
+                    assert response.status == 200
+                    page.wait_for_load_state("networkidle")
+                    assert page.locator("h1").count() == 1
+                    if is_open:
+                        assert "create your fastshop workspace" in page.locator("h1").inner_text().lower()
+                        assert page.locator('form[action="/signup"]').count() == 1
+                        assert page.locator('input[name="csrf_token"]').get_attribute("value")
+                    else:
+                        assert "public signup is currently closed" in page.locator("h1").inner_text().lower()
+                        assert page.locator('form[action="/signup"]').count() == 0
+                    assert page.locator("script").count() == 0
+                    assert page.locator("iframe").count() == 0
+                    assert page.locator('[src*="analytics"], [href*="analytics"]').count() == 0
+                    assert not outbound, outbound
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-{state}.png"), full_page=True)
+                    checks.append(
+                        {
+                            "state": state,
+                            "device": device,
+                            "width": width,
+                            "status": response.status,
+                            "overflow": False,
+                            "outbound_requests": 0,
+                            "scripts": 0,
+                        }
+                    )
+                    context.close()
+        browser.close()
+    report = {"checks": checks, "failures": failures}
+    (out / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps({"checks": len(checks), "failures": failures, "output": str(out)}))
+    if failures:
+        raise SystemExit(1)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:5033")
@@ -104,8 +263,14 @@ def main():
     parser.add_argument("--order-management", action="store_true", help="Include Phase 4c real order operations and revenue reporting")
     parser.add_argument("--webhook-reliability", action="store_true", help="Include Phase 4d provider re-sync and delivery recovery")
     parser.add_argument("--landing", action="store_true", help="Capture the static Phase 5a marketing landing")
+    parser.add_argument("--signup", action="store_true", help="Capture closed and open Phase 5b signup states")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
+    if args.signup:
+        if args.output == "output/playwright/h24you-phase1":
+            args.output = "output/playwright/phase5b-signup"
+        verify_signup(args.output)
+        return
     if args.landing:
         if args.output == "output/playwright/h24you-phase1":
             args.output = "output/playwright/phase5a-landing"

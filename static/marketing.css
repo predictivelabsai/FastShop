@@ -27,7 +27,7 @@ body {
   text-rendering: optimizeLegibility;
 }
 body, a { cursor: default; }
-a, summary { cursor: pointer; }
+a, button, summary { cursor: pointer; }
 ::selection { background: var(--green); color: #fff; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }
 a { color: inherit; text-underline-offset: 0.2em; }
@@ -95,6 +95,7 @@ p { text-wrap: pretty; }
   background: var(--green);
   color: #fff;
   font-size: 0.92rem;
+  font-family: inherit;
   font-weight: 750;
   text-decoration: none;
   transition: background-color 180ms ease-out, transform 180ms ease-out;
@@ -327,15 +328,32 @@ h1 {
 .m-footer nav a { color: #f7f4eb; font-size: 0.86rem; }
 .m-footer-base { margin-top: 68px; padding-top: 20px; display: flex; justify-content: space-between; gap: 24px; border-top: 1px solid #4a5751; color: #bbc7c0; }
 
-.m-signup { min-height: 670px; padding-block: clamp(84px, 11vw, 160px); display: grid; grid-template-columns: 1fr minmax(360px, 0.8fr); align-items: center; gap: clamp(64px, 10vw, 150px); }
-.m-signup-copy h1 { margin-top: 22px; }
+.m-signup { min-height: 670px; padding-block: clamp(84px, 11vw, 160px); display: grid; grid-template-columns: minmax(0, 0.88fr) minmax(400px, 0.76fr); align-items: center; gap: clamp(64px, 10vw, 150px); }
+.m-signup-copy h1 { max-width: 10ch; }
 .m-signup-copy > p { max-width: 61ch; color: var(--ink-soft); font-size: 1.08rem; }
-.m-launch-label { color: var(--green-dark); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; }
 .m-signup-path { padding: 26px; border: 1px solid var(--ink); background: var(--paper-bright); box-shadow: 0 22px 50px rgba(23, 35, 29, 0.12); }
-.m-signup-path > div { min-height: 76px; display: grid; grid-template-columns: 38px 1fr; align-items: center; gap: 20px; border-bottom: 1px solid var(--rule); }
-.m-signup-path span { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--ink); border-radius: 50%; font-size: 0.72rem; }
+.m-signup-path h2, .m-signup-form-sheet h2 { margin-bottom: 22px; font-size: clamp(1.55rem, 2.6vw, 2.5rem); line-height: 1.08; letter-spacing: -0.025em; }
+.m-signup-path > div { min-height: 72px; display: flex; align-items: center; border-bottom: 1px solid var(--rule); }
 .m-signup-path p { margin: 0; font-weight: 720; }
 .m-signup-path small { display: block; margin-top: 22px; color: var(--ink-soft); }
+.m-signup-form-sheet { position: relative; padding: clamp(24px, 4vw, 38px); border: 1px solid var(--ink); background: var(--paper-bright); box-shadow: 0 22px 50px rgba(23, 35, 29, 0.12); }
+.m-signup-form-sheet::after { content: ""; position: absolute; right: -22px; bottom: -22px; width: 13px; height: 13px; background: linear-gradient(var(--ink), var(--ink)) center / 1px 100% no-repeat, linear-gradient(90deg, var(--ink), var(--ink)) center / 100% 1px no-repeat; }
+.m-signup-form { display: grid; gap: 10px; }
+.m-signup-form label { display: grid; gap: 7px; font-size: 0.72rem; font-weight: 750; }
+.m-signup-form input:not([type="hidden"]) { width: 100%; min-height: 50px; padding: 11px 13px; border: 1px solid var(--ink-soft); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; caret-color: var(--green); }
+.m-signup-form input:not([type="hidden"])::placeholder { color: #5e6863; }
+.m-signup-form input:not([type="hidden"]):focus { border-color: var(--green-dark); }
+.m-signup-form small { margin: 2px 0 10px; color: var(--ink-soft); }
+.m-signup-form .m-button { width: 100%; margin-top: 8px; }
+.m-field-error { margin: -4px 0 2px; color: var(--ink); font-size: 0.72rem; font-weight: 700; }
+.m-form-error { margin-bottom: 20px; padding: 14px 16px; border: 1px solid var(--coral); color: var(--ink); background: color-mix(in srgb, var(--coral) 18%, var(--paper-bright)); }
+.m-signup-google { margin: 24px 0; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; color: var(--ink-soft); font-size: 0.72rem; }
+.m-signup-google::before, .m-signup-google::after { content: ""; height: 1px; background: var(--rule); }
+.m-google-link { grid-column: 1 / -1; min-height: 48px; display: grid; place-items: center; border: 1px solid var(--ink); border-radius: 12px; color: var(--ink); font-weight: 750; text-decoration: none; }
+.m-google-link:hover { background: var(--mint); }
+.m-signup-form-sheet > small { display: block; color: var(--ink-soft); }
+.m-signup-single { max-width: 760px; grid-template-columns: 1fr; }
+.m-verification-sheet { width: min(100%, 620px); margin-inline: auto; }
 
 @media (max-width: 980px) {
   :root { --shell: min(100% - 40px, 760px); }
@@ -346,7 +364,7 @@ h1 {
   .m-commerce { grid-template-columns: 1fr; }
   .m-dark-intro { position: static; }
   .m-cms, .m-signup { grid-template-columns: 1fr; }
-  .m-cms-proof, .m-signup-path { max-width: 620px; }
+  .m-cms-proof, .m-signup-path, .m-signup-form-sheet { max-width: 620px; }
   .m-pricing { align-items: flex-start; flex-direction: column; }
 }
 
@@ -386,6 +404,8 @@ h1 {
   .m-footer-grid { grid-template-columns: 1fr; gap: 38px; }
   .m-footer-base { flex-direction: column; }
   .m-signup { min-height: 0; padding-block: 80px; gap: 58px; }
+  .m-signup-form-sheet { padding: 24px 18px; }
+  .m-signup-form-sheet::after { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

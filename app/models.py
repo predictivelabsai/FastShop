@@ -57,6 +57,9 @@ class User(TimestampMixin, Base):
     # NULL for OIDC-only users. The single FASTSHOP_ADMIN_EMAIL env account is
     # separate and still governed by FASTSHOP_ALLOW_PASSWORD_LOGIN.
     password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class Membership(TimestampMixin, Base):
@@ -727,7 +730,12 @@ class CommerceMail(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
     site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
-    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    customer_id: Mapped[str | None] = mapped_column(
+        ForeignKey("shop_customers.id"), nullable=True, index=True
+    )
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
     challenge_id: Mapped[str | None] = mapped_column(ForeignKey("customer_challenges.id"), nullable=True)
     reference_json: Mapped[dict] = mapped_column(JSON, default=dict)
     kind: Mapped[str] = mapped_column(String(40))
@@ -736,6 +744,49 @@ class CommerceMail(TimestampMixin, Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     provider_id: Mapped[str] = mapped_column(String(100), default="")
+
+
+class SignupAttempt(TimestampMixin, Base):
+    """Short-lived HMAC identifiers used only for public-account rate limits."""
+
+    __tablename__ = "signup_attempts"
+    __table_args__ = (
+        Index("ix_signup_attempt_scope_client_created", "scope", "client_hash", "created_at"),
+        Index("ix_signup_attempt_scope_email_created", "scope", "email_hash", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    scope: Mapped[str] = mapped_column(String(20))
+    client_hash: Mapped[str] = mapped_column(String(64))
+    email_hash: Mapped[str] = mapped_column(String(64))
+    accepted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class SignupEmailVerification(TimestampMixin, Base):
+    """Tenant-scoped, expiring and single-use merchant email verification."""
+
+    __tablename__ = "signup_email_verifications"
+    __table_args__ = (
+        Index(
+            "ix_signup_verification_user_created",
+            "user_id",
+            "created_at",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class SiteOrder(TimestampMixin, Base):

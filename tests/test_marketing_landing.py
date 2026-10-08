@@ -37,13 +37,12 @@ def test_marketing_landing_contains_required_content_and_no_active_markup():
     assert "analytics" not in html
 
 
-def test_signup_is_an_honest_placeholder_without_a_form():
+def test_signup_closed_state_is_honest_and_has_no_form():
     response = _client().get("/signup")
     assert response.status_code == 200
     html = response.text.lower()
-    assert "sign up is launching" in html
-    assert "does not collect your email" in html
-    assert "leave your store-building flow intact" in html
+    assert "public signup is currently closed" in html
+    assert "no information is collected while signup is closed" in html
     assert "<form" not in html
     assert "<script" not in html
     assert "<iframe" not in html

@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import secrets
+from datetime import UTC, datetime
 
 from fasthtml.common import RedirectResponse, fast_app
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.staticfiles import StaticFiles
 
-from app import __version__, ai, auth, ui
+from app import __version__, ai, auth, signup_services, ui
 from app.api import api
 from app.config import settings
 from app.db import SessionLocal, health, prepare_schema
@@ -68,7 +70,6 @@ from app.site_context import SiteHostMiddleware  # noqa: E402
 from app.site_routes import register_site_routes  # noqa: E402
 
 register_site_routes(rt)
-register_marketing_routes(rt)
 app.add_middleware(SiteHostMiddleware)
 
 from app.scheduler import start_scheduler  # noqa: E402
@@ -163,6 +164,9 @@ def establish_session(session: dict, user: User, role: str) -> None:
     session["user_id"] = user.id
     session["role"] = role
     session["email"] = user.email
+
+
+register_marketing_routes(rt, csrf_token, require_csrf, establish_session)
 
 
 @rt("/")
@@ -380,9 +384,16 @@ def post(session, email: str, password: str, csrf_token: str = ""):
 
 
 @rt("/auth/google")
-def get(session):
+def get(session, signup: str = ""):
     if not auth.google_enabled():
-        return RedirectResponse("/login?error=Google+sign-in+is+not+configured", status_code=303)
+        destination = "/signup?status=unable" if signup else "/login?error=Google+sign-in+is+not+configured"
+        return RedirectResponse(destination, status_code=303)
+    if signup and not settings.signup_open:
+        return RedirectResponse("/signup", status_code=303)
+    if signup:
+        session["google_auth_mode"] = "signup"
+    else:
+        session.pop("google_auth_mode", None)
     state = auth.new_state()
     verifier = auth.new_code_verifier()
     session["google_oauth_state"] = state
@@ -393,20 +404,61 @@ def get(session):
 
 
 @rt("/auth/google/callback")
-def get(session, code: str = "", state: str = "", error: str = ""):
+def get(session, request, code: str = "", state: str = "", error: str = ""):
+    mode = session.pop("google_auth_mode", "login")
+    failure_path = (
+        "/signup?status=unable#signup-form"
+        if mode == "signup"
+        else "/login?error=Google+sign-in+failed"
+    )
     expected = session.pop("google_oauth_state", None)
     verifier = session.pop("google_oauth_verifier", "")
     if error or not code or not state or not expected or not secrets.compare_digest(state, expected):
-        return RedirectResponse("/login?error=Google+sign-in+failed", status_code=303)
+        return RedirectResponse(failure_path, status_code=303)
     identity = auth.exchange_code(code, verifier)
     if not identity:
-        return RedirectResponse("/login?error=Google+account+is+not+authorised", status_code=303)
+        return RedirectResponse(failure_path, status_code=303)
+    if mode == "signup" and not settings.signup_open:
+        return RedirectResponse("/signup", status_code=303)
     with SessionLocal() as db:
-        user = find_or_create_user(db, identity["email"], identity["name"])
+        user = db.scalar(select(User).where(User.email == identity["email"]))
+        if mode == "signup" and not user:
+            address = request.client.host if request.client else "unknown"
+            if signup_services.rate_limited(db, "signup", identity["email"], address):
+                db.commit()
+                return RedirectResponse(failure_path, status_code=303)
+            try:
+                name = signup_services.normalized_name(identity["name"])
+                result = signup_services.provision_google_signup(
+                    db,
+                    name,
+                    signup_services.normalized_email(identity["email"]),
+                    address,
+                )
+                db.commit()
+            except (CommerceError, IntegrityError, ValueError):
+                db.rollback()
+                with SessionLocal() as attempts:
+                    signup_services.record_attempt(
+                        attempts, "signup", identity["email"], address, accepted=False
+                    )
+                    attempts.commit()
+                return RedirectResponse(failure_path, status_code=303)
+            establish_session(session, result.user, "admin")
+            session["csrf_token"] = secrets.token_urlsafe(32)
+            return RedirectResponse(f"/admin/sites/{result.site.id}", status_code=303)
+        user = user or find_or_create_user(db, identity["email"], identity["name"])
+        if mode == "signup" and not user.email_verified_at:
+            user.email_verified_at = datetime.now(UTC)
         membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
         role = membership.role if membership else "customer"
         establish_session(session, user, role)
         db.commit()
+    if mode == "signup" and membership:
+        with SessionLocal() as db:
+            site = signup_services.first_site_for_user(db, user.id)
+        if site:
+            return RedirectResponse(f"/admin/sites/{site.id}", status_code=303)
     default = "/admin" if role in {"admin", "merchant"} else "/account"
     return RedirectResponse(
         safe_next_path(session.pop("login_next", ""), default), status_code=303
