@@ -402,6 +402,16 @@ class SiteMenu(TimestampMixin, Base):
         return validate_items(value) if value is not None else None
 
 
+class BlogCategory(TimestampMixin, Base):
+    __tablename__ = "blog_categories"
+    __table_args__ = (UniqueConstraint("site_id", "slug"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    slug: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(100))
+
+
 class SitePage(TimestampMixin, Base):
     __tablename__ = "site_pages"
     __table_args__ = (UniqueConstraint("site_id", "path"),)

@@ -360,6 +360,9 @@ def register_site_routes(rt):
                 site = content.owned_site(db, site_id, actor(session))
                 page = content.site_page(db, site, page_id)
                 document = resolve_document(page.draft_json, default_locale(site))
+                from app.site_blog import STATES, categories_for, metadata
+                blog = metadata(document)
+                blog_categories = categories_for(db, site) if page.kind == "article" else []
                 from app.site_media import media_for, media_url
                 library = [(media_url(m), m.title or "Untitled image", resolve_text(m.localized_alt if m.localized_alt is not None else m.alt, default_locale(site))) for m in media_for(db, site) if m.content_type.startswith("image/")]
 
@@ -371,7 +374,13 @@ def register_site_routes(rt):
                         Label("Page title", Input(name="title", value=document["title"], required=True, maxlength=240)),
                         Label("SEO description", Textarea(document.get("description", ""), name="description", rows=3, maxlength=320)),
                         Div(Label("Article image URL", Input(name="article_image", value=document.get("image", ""))),
-                            Label("Article category", Input(name="article_category", value=document.get("category", "LEARN")))) if page.kind == "article" else None,
+                            Label("Article category", Input(name="article_category", value=document.get("category", "LEARN"), maxlength=100)),
+                            Small("Use an existing name or enter a new category. Existing: " + ", ".join(c.name for c in blog_categories)),
+                            Label("Editorial state", Select(*[Option(s.title(), value=s, selected=blog["state"] == s) for s in STATES], name="article_state")),
+                            P("Save draft keeps the live page unchanged. Publish page applies this editorial state; only Published articles appear publicly."),
+                            Label("Tags (comma-separated slugs)", Input(name="article_tags", value=", ".join(blog["tags"]), placeholder="research, everyday-reading")),
+                            Label("Author name", Input(name="article_author", value=blog["author_name"], maxlength=160)),
+                            Label("Author bio (optional)", Textarea(blog["author_bio"], name="article_bio", maxlength=2000, rows=3))) if page.kind == "article" else None,
                         Div(*[section_editor(s, i, library) for i, s in enumerate(document["blocks"])], id="e-sections"),
                         Label("Add a section", Select(Option("Choose a section…", value=""), *[Option(label, value=key) for key, label in content.SECTION_TYPES.items()], name="new_section")),
                         Div(Button("Save draft", name="action", value="draft", cls="e-button"), Button("Publish page", name="action", value="publish", cls="e-button"),
@@ -403,6 +412,16 @@ def register_site_routes(rt):
                 if page.kind == "article":
                     document["image"] = merge_localized(document.get("image", ""), str(form.get("article_image", "")), locale)
                     document["category"] = merge_localized(document.get("category", "LEARN"), str(form.get("article_category", "LEARN"))[:100], locale)
+                    from app.site_blog import ensure_category, metadata
+                    category = ensure_category(db, site, resolve_text(document["category"], locale))
+                    blog = metadata(document)
+                    document["blog"] = blog | {
+                        "category_slug": category.slug,
+                        "state": str(form.get("article_state", blog["state"])),
+                        "tags": [t.strip() for t in str(form.get("article_tags", ",".join(blog["tags"]))).split(",") if t.strip()],
+                        "author_name": str(form.get("article_author", blog["author_name"])),
+                        "author_bio": str(form.get("article_bio", blog["author_bio"])),
+                    }
                 for i, section in enumerate(document["blocks"]):
                     values = {}
                     for key in ("eyebrow", "heading", "body", "image", "poster", "alt", "video", "mobile_video", "link", "button"):
@@ -536,9 +555,27 @@ def register_site_routes(rt):
             if not site:
                 return Response("Site not found", status_code=404)
             page = db.scalar(select(SitePage).where(SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id, SitePage.path == (path.rstrip("/") or "/")))
+            from app.site_blog import articles_for, categories_for, is_listed, metadata
+            category, tag = "", ""
+            normalized_path = path.rstrip("/") or "/"
+            match = re.fullmatch(r"/blog/(category|tag)/([a-z0-9]+(?:-[a-z0-9]+)*)", normalized_path)
+            if match or normalized_path == "/blog":
+                page = db.scalar(select(SitePage).where(SitePage.site_id == site.id,
+                    SitePage.tenant_id == site.tenant_id, SitePage.kind == "blog",
+                    SitePage.published_json.is_not(None)).order_by(SitePage.path))
+                if match:
+                    category = match[2] if match[1] == "category" else ""
+                    tag = match[2] if match[1] == "tag" else ""
+                    if category and category not in {c.slug for c in categories_for(db, site)}:
+                        return Response("Category not found", status_code=404)
+                    if tag and tag not in {t for p in articles_for(db, site) for t in metadata(p.published_json)["tags"]}:
+                        return Response("Tag not found", status_code=404)
             if not page or not page.published_json:
+                return Response("Page not found", status_code=404)
+            if page.kind == "article" and not is_listed(page):
                 return Response("Page not found", status_code=404)
             csrf(session)
             base = request.scope.get("site_base", f"/sites/{site.slug}") if request else f"/sites/{site.slug}"
             canonical_base = request.scope.get("site_canonical", settings.public_url + base) if request else settings.public_url + base
-            return site_ui.storefront(db, site, page, base, session["csrf_token"], canonical_base + page.path, message=message)
+            return site_ui.storefront(db, site, page, base, session["csrf_token"], canonical_base + normalized_path,
+                message=message, blog_listing=page.kind == "blog", blog_category=category, blog_tag=tag)
