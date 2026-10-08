@@ -38,11 +38,12 @@ def main():
     parser.add_argument("--woocommerce", action="store_true", help="Include Phase 3a fixture-backed WooCommerce migration")
     parser.add_argument("--shopify", action="store_true", help="Include Phase 3b fixture-backed Shopify migration")
     parser.add_argument("--wordpress", action="store_true", help="Include Phase 3c fixture-backed WordPress migration")
+    parser.add_argument("--csv-merchant-feed", action="store_true", help="Include Phase 3d CSV import and Merchant Center feed")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
-    if sum((args.woocommerce, args.shopify, args.wordpress)) > 1:
+    if sum((args.woocommerce, args.shopify, args.wordpress, args.csv_merchant_feed)) > 1:
         raise RuntimeError("Run one fixture-backed connector browser flow at a time.")
-    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress) and not (args.merchant or args.merchant_only):
+    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed) and not (args.merchant or args.merchant_only):
         raise RuntimeError("Generation, refinement and connector checks require --merchant against an isolated local database.")
     if args.woocommerce and not os.getenv("FASTSHOP_WOOCOMMERCE_FIXTURE_PATH"):
         raise RuntimeError("WooCommerce browser verification requires FASTSHOP_WOOCOMMERCE_FIXTURE_PATH.")
@@ -139,7 +140,7 @@ def main():
             page.get_by_role("button", name="Sign in", exact=True).click()
             page.wait_for_url("**/admin/sites")
             page.screenshot(path=str(out / "merchant-sites.png"), full_page=True)
-            if args.woocommerce or args.shopify or args.wordpress:
+            if args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed:
                 from sqlalchemy import select
 
                 from app.db import SessionLocal
@@ -150,23 +151,36 @@ def main():
                     if connector_site is None:
                         raise RuntimeError("The H2 4 You fixture site is unavailable.")
                     connector_site_id = connector_site.id
-                connector_name = "wordpress" if args.wordpress else "shopify" if args.shopify else "woocommerce"
-                connector_label = "WordPress" if args.wordpress else "Shopify" if args.shopify else "WooCommerce"
+                connector_name = "csv" if args.csv_merchant_feed else "wordpress" if args.wordpress else "shopify" if args.shopify else "woocommerce"
+                connector_label = "CSV catalog & Merchant Center" if args.csv_merchant_feed else "WordPress" if args.wordpress else "Shopify" if args.shopify else "WooCommerce"
                 page.goto(args.base + f"/admin/sites/{connector_site_id}/integrations")
                 page.wait_for_load_state("networkidle")
                 assert page.get_by_role("heading", name=connector_label, exact=True).is_visible()
-                fixture_message = "Development fixture site ready." if args.wordpress else "Development fixture store ready."
-                assert page.get_by_text(fixture_message, exact=True).is_visible()
+                if not args.csv_merchant_feed:
+                    fixture_message = "Development fixture site ready." if args.wordpress else "Development fixture store ready."
+                    assert page.get_by_text(fixture_message, exact=True).is_visible()
                 if args.wordpress:
                     with page.expect_download() as download_info:
                         page.get_by_role("link", name="Download published WXR XML", exact=True).click()
                     assert download_info.value.suggested_filename.endswith("-published.xml")
+                if args.csv_merchant_feed:
+                    with page.expect_download() as download_info:
+                        page.get_by_role("link", name="Download Merchant Center XML feed", exact=True).click()
+                    assert download_info.value.suggested_filename.endswith("-merchant-center.xml")
+                    with page.expect_download() as report_info:
+                        page.get_by_role("link", name="Download feed validation report", exact=True).click()
+                    assert report_info.value.suggested_filename.endswith("-merchant-center-review.csv")
                 for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
                     page.set_viewport_size({"width": width, "height": height})
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
                     page.screenshot(path=str(out / f"{device}-{connector_name}-integrations.png"), full_page=True)
                 page.set_viewport_size({"width": 1440, "height": 1000})
-                page.get_by_role("button", name="Run import dry run", exact=True).click()
+                if args.csv_merchant_feed:
+                    fixture = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "csv_catalog_edge_cases.csv"
+                    page.get_by_label("Catalog CSV", exact=True).set_input_files(str(fixture))
+                    page.get_by_role("button", name="Preview CSV import", exact=True).click()
+                else:
+                    page.get_by_role("button", name="Run import dry run", exact=True).click()
                 page.wait_for_url("**/integrations?**plan=**")
                 page.wait_for_load_state("networkidle")
                 assert page.get_by_role("heading", name="Reviewed import plan", exact=True).is_visible()
@@ -175,7 +189,7 @@ def main():
                 assert resource_row.is_visible()
                 assert resource_row.locator("td").all_inner_texts() == ["2", "2", "0", "0"]
                 page.get_by_text("Warnings and unmapped items", exact=False).click()
-                warning_text = "shortcode" if args.wordpress else "Archived gift wrap"
+                warning_text = "normalized rows" if args.csv_merchant_feed else "shortcode" if args.wordpress else "Archived gift wrap"
                 assert page.get_by_text(warning_text, exact=False).is_visible()
                 for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
                     page.set_viewport_size({"width": width, "height": height})
@@ -186,6 +200,11 @@ def main():
                 page.wait_for_load_state("networkidle")
                 assert page.get_by_text("Applied reviewed plan successfully:", exact=False).is_visible()
                 assert page.locator(".i-state-applied").is_visible()
+                if args.csv_merchant_feed:
+                    for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                        page.set_viewport_size({"width": width, "height": height})
+                        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                        page.screenshot(path=str(out / f"{device}-csv-completed.png"), full_page=True)
                 checks.append({
                     "merchant": f"{connector_label} fixture dry run renders and the exact reviewed plan applies once",
                     "status": "passed",
