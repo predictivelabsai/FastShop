@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from playwright.sync_api import sync_playwright
@@ -26,6 +27,65 @@ def load_page_media(page):
     page.wait_for_timeout(100)
 
 
+def verify_landing(base: str, output: str):
+    """Capture the static marketing surface without touching merchant state."""
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
+    failures = []
+    checks = []
+    allowed_origin = (urlsplit(base).scheme, urlsplit(base).netloc)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(channel="chrome", headless=True)
+        for device, width, height in (("desktop", 1440, 1000), ("mobile", 390, 844)):
+            context = browser.new_context(
+                viewport={"width": width, "height": height},
+                reduced_motion="reduce",
+            )
+            page = context.new_page()
+            page.on("pageerror", lambda error: failures.append(str(error)))
+            page.on(
+                "response",
+                lambda response: failures.append(f"HTTP {response.status}: {response.url}")
+                if response.status >= 400
+                else None,
+            )
+            outbound = []
+            page.on(
+                "request",
+                lambda request, outbound=outbound: outbound.append(request.url)
+                if (urlsplit(request.url).scheme, urlsplit(request.url).netloc) != allowed_origin
+                else None,
+            )
+            response = page.goto(base.rstrip("/") + "/marketing/")
+            assert response.status == 200
+            page.wait_for_load_state("networkidle")
+            assert page.locator("h1").count() == 1
+            assert "short description" in page.locator("h1").inner_text().lower()
+            assert page.get_by_role("link", name="Check signup status", exact=True).first.get_attribute("href") == "/signup"
+            assert page.locator("script").count() == 0
+            assert page.locator("iframe").count() == 0
+            assert page.locator('[src*="analytics"], [href*="analytics"]').count() == 0
+            assert not outbound, outbound
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+            page.screenshot(path=str(out / f"{device}.png"), full_page=True)
+            checks.append(
+                {
+                    "device": device,
+                    "width": width,
+                    "status": response.status,
+                    "overflow": False,
+                    "outbound_requests": 0,
+                }
+            )
+            context.close()
+        browser.close()
+    report = {"base": base, "checks": checks, "failures": failures}
+    (out / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps({"checks": len(checks), "failures": failures, "output": str(out)}))
+    if failures:
+        raise SystemExit(1)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:5033")
@@ -43,8 +103,14 @@ def main():
     parser.add_argument("--live-credentials", action="store_true", help="Include Phase 4b operator live-credential acceptance")
     parser.add_argument("--order-management", action="store_true", help="Include Phase 4c real order operations and revenue reporting")
     parser.add_argument("--webhook-reliability", action="store_true", help="Include Phase 4d provider re-sync and delivery recovery")
+    parser.add_argument("--landing", action="store_true", help="Capture the static Phase 5a marketing landing")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
+    if args.landing:
+        if args.output == "output/playwright/h24you-phase1":
+            args.output = "output/playwright/phase5a-landing"
+        verify_landing(args.base, args.output)
+        return
     if sum((args.woocommerce, args.shopify, args.wordpress, args.csv_merchant_feed)) > 1:
         raise RuntimeError("Run one fixture-backed connector browser flow at a time.")
     if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed or args.golive or args.live_credentials or args.order_management or args.webhook_reliability) and not (args.merchant or args.merchant_only):
