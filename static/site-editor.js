@@ -10,3 +10,18 @@ document.addEventListener('click', event => {
     section.parentElement.insertBefore(section.nextElementSibling, section);
   }
 });
+
+document.addEventListener('submit', event => {
+  const form = event.target.closest('[data-generation-form]');
+  if (!form) return;
+  const button = form.querySelector('[data-generation-submit]');
+  const status = form.querySelector('[data-generation-status]');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Building your private draft…';
+  }
+  if (status) {
+    status.hidden = false;
+    status.textContent = 'Creating pages, navigation, design and starter content. Keep this tab open.';
+  }
+});

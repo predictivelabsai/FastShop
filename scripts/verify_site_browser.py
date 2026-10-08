@@ -33,8 +33,11 @@ def main():
     parser.add_argument("--merchant-only", action="store_true", help="Rerun merchant flows after storefront verification")
     parser.add_argument("--blog", action="store_true", help="Include blog taxonomy and editorial workflow evidence")
     parser.add_argument("--embeds", action="store_true", help="Include Phase 1c embed and snippet publication evidence")
+    parser.add_argument("--generation", action="store_true", help="Include Phase 2a brief-to-draft generation")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
+    if args.generation and not (args.merchant or args.merchant_only):
+        raise RuntimeError("Site generation checks require --merchant against an isolated local database.")
     if args.embeds:
         if not (args.merchant or args.merchant_only) or not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
             raise RuntimeError("Embed/snippet checks require --merchant against an isolated local database.")
@@ -118,6 +121,41 @@ def main():
             page.get_by_role("button", name="Sign in", exact=True).click()
             page.wait_for_url("**/admin/sites")
             page.screenshot(path=str(out / "merchant-sites.png"), full_page=True)
+            if args.generation:
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.get_by_role("heading", name="Generate a site from a brief", exact=True).scroll_into_view_if_needed()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                page.screenshot(path=str(out / "desktop-generation-brief.png"), full_page=True)
+                page.set_viewport_size({"width": 390, "height": 844})
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                page.screenshot(path=str(out / "mobile-generation-brief.png"), full_page=True)
+                generated_name = "Moss & Kiln " + uuid4().hex[:6]
+                page.get_by_label("Business name", exact=True).fill(generated_name)
+                page.locator('select[name="kind"]').select_option("online shop")
+                page.locator('textarea[name="audience"]').fill(
+                    "People choosing useful, quietly expressive objects for compact homes"
+                )
+                page.locator('select[name="tone"]').select_option("warm and natural")
+                page.get_by_role("button", name="Generate private draft", exact=True).click()
+                page.wait_for_url("**/admin/sites/*/build?**")
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("status").get_by_text(
+                    "Private draft generated with guided presets.", exact=True
+                ).is_visible()
+                assert page.locator('select[name="section_id"] option').count() >= 4
+                preview = page.frame_locator("iframe.b-preview")
+                preview.locator("h1").wait_for(state="attached")
+                assert generated_name in preview.locator("h1").text_content()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-generated-site-editor.png"), full_page=True)
+                checks.append({
+                    "merchant": "guided brief form creates a private draft and opens generated blocks in the editor",
+                    "status": "passed",
+                })
+                page.goto(args.base + "/admin/sites")
+                page.set_viewport_size({"width": 1440, "height": 1000})
             slug = "browser-" + uuid4().hex[:10]
             page.locator('input[name="name"]').fill("Browser acceptance site")
             page.locator('input[name="slug"]').fill(slug)

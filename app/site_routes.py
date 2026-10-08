@@ -27,6 +27,7 @@ from fasthtml.common import (
     Textarea,
 )
 from sqlalchemy import select
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import RedirectResponse, Response
 
 from app import content, site_ui
@@ -104,7 +105,7 @@ def register_site_routes(rt):
     register_subscription_routes(rt, csrf, check_csrf)
 
     @rt("/admin/sites", methods=["GET"])
-    def get(session):
+    def get(session, notice: str = ""):
         if not session.get("user_id"):
             return RedirectResponse("/login?next=/admin/sites", status_code=303)
         try:
@@ -113,7 +114,33 @@ def register_site_routes(rt):
                 sites = list(db.scalars(select(Site).join(Membership, Membership.tenant_id == Site.tenant_id).where(
                     Membership.user_id == user_id, Membership.role.in_(["admin", "merchant", "editor"]))))
                 return shell("Your websites", P("Build your story. Shape your storefront. Publish when you're ready."),
+                    P(notice[:300], role="status", cls="e-note") if notice else None,
                     Div(*[Div(H2(site.name), P("/sites/" + site.slug), A("Open editor →", href=f"/admin/sites/{site.id}"), cls="e-card") for site in sites], cls="e-grid"),
+                    Div(H2("Generate a site from a brief"),
+                        P("Describe the essentials once. FastShop will assemble a private draft with pages, design, navigation, copy, image directions and a starter catalog when relevant."),
+                        Form(csrf(session),
+                            Label("Business name", Input(name="business_name", required=True, maxlength=160, autocomplete="organization")),
+                            Label("Business kind", Select(
+                                Option("Online shop", value="online shop"),
+                                Option("Food & beverage", value="food and beverage"),
+                                Option("Wellness business", value="wellness business"),
+                                Option("SaaS", value="SaaS"),
+                                Option("Local service", value="local service"),
+                                Option("Creative studio", value="creative studio"),
+                                name="kind", required=True)),
+                            Label("Who is it for?", Textarea(name="audience", rows=3, required=True, maxlength=500,
+                                placeholder="Independent teams who want a calmer way to manage projects")),
+                            Label("Desired tone", Select(
+                                Option("Warm and natural", value="warm and natural"),
+                                Option("Minimal and precise", value="minimal and precise"),
+                                Option("Bold and energetic", value="bold and energetic"),
+                                Option("Editorial and thoughtful", value="editorial and thoughtful"),
+                                name="tone", required=True)),
+                            Small("Generation runs synchronously and may take up to a minute. The result stays private until you review and publish it. Do not enter passwords, API keys or customer information."),
+                            Button("Generate private draft", cls="e-button", data_generation_submit=""),
+                            P("", role="status", aria_live="polite", data_generation_status="", hidden=True),
+                            method="post", action="/admin/sites/generate", cls="e-form", data_generation_form=""),
+                        cls="e-card e-generation"),
                     H2("Create a website"), Form(csrf(session), Label("Site name", Input(name="name", required=True, maxlength=160)),
                         Label("Site address", Input(name="slug", required=True, pattern="[a-z][a-z0-9-]{2,60}", placeholder="your-brand")),
                         P("Start with the editorial commerce theme. Your site stays private until you publish."),
@@ -122,6 +149,37 @@ def register_site_routes(rt):
                         Button("Create site", cls="e-button"), method="post", action="/admin/sites", cls="e-form"))
         except CommerceError as exc:
             return error(exc)
+
+    @rt("/admin/sites/generate", methods=["POST"])
+    async def post(session, request):
+        from urllib.parse import urlencode
+
+        form = await request.form()
+        try:
+            check_csrf(session, form)
+            user_id = actor(session)
+            from app.site_generation import MerchantBrief, create_generated_site, generate_plan
+
+            brief = MerchantBrief(
+                business_name=str(form.get("business_name", "")),
+                kind=str(form.get("kind", "")),
+                audience=str(form.get("audience", "")),
+                tone=str(form.get("tone", "")),
+            )
+            plan, source = await run_in_threadpool(generate_plan, brief)
+            with SessionLocal() as db:
+                site = create_generated_site(db, user_id, brief, plan, source)
+                home = next(page for page in content.site_pages(db, site) if page.path == "/")
+                db.commit()
+            notice = "Private draft generated with guided presets." if source == "guided" else "Private draft generated."
+            return RedirectResponse(
+                f"/admin/sites/{site.id}/build?" + urlencode({"page": home.id, "notice": notice}),
+                status_code=303,
+            )
+        except (CommerceError, ValueError, TypeError) as exc:
+            return RedirectResponse(
+                "/admin/sites?" + urlencode({"notice": str(exc)[:300]}), status_code=303
+            )
 
     @rt("/admin/sites", methods=["POST"])
     async def post(session, request):
