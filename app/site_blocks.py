@@ -6,6 +6,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from typing import NotRequired, TypedDict
+from urllib.parse import urlsplit
 
 from app.services import CommerceError
 
@@ -26,6 +27,7 @@ class Block(TypedDict):
     mobile_video: NotRequired[LocalizedText]
     poster: NotRequired[LocalizedText]
     link: NotRequired[LocalizedText]
+    url: NotRequired[LocalizedText]
     category: NotRequired[LocalizedText]
     alt: NotRequired[LocalizedText]
     gallery: NotRequired[list[LocalizedText]]
@@ -57,9 +59,10 @@ BLOCK_TYPES = {
     'contact': BlockSpec('Contact form'),
     'product': BlockSpec('Product details'),
     'references': BlockSpec('Studies referenced', ('url',)),
+    'embed': BlockSpec('Secure embed'),
 }
 TEXT_FIELDS = {'heading', 'eyebrow', 'body', 'button', 'image', 'video', 'mobile_video',
-               'poster', 'link', 'category', 'alt'}
+               'poster', 'link', 'url', 'category', 'alt'}
 ITEM_FIELDS = {'heading', 'body', 'url', 'theme', 'image', 'alt', 'label', 'value'}
 URL_FIELDS = {'image', 'video', 'mobile_video', 'poster', 'link', 'url'}
 LOCALE = re.compile(r'[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*')
@@ -111,6 +114,13 @@ def validate_block(block: dict) -> Block:
             raise CommerceError('Visibility and subscription preview must be true or false.')
     for key in TEXT_FIELDS & result.keys():
         result[key] = _text(result[key], key)
+    if result['type'] == 'embed':
+        from app.content import safe_url
+        value = result.get('url', '')
+        urls = value.values() if isinstance(value, dict) else [value]
+        for embed_url in urls:
+            if embed_url and urlsplit(safe_url(embed_url)).scheme != 'https':
+                raise CommerceError('Embed URLs must use HTTPS.')
     if 'items' in result:
         if not isinstance(result['items'], list) or len(result['items']) > 200:
             raise CommerceError('Block entries must be a list of up to 200 objects.')

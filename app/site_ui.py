@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from functools import partial
 
@@ -19,6 +20,7 @@ from fasthtml.common import (
     Footer,
     Form,
     Header,
+    Iframe,
     Img,
     Input,
     Label,
@@ -111,6 +113,21 @@ def social_link(social):
              href=social.get("url") or "#", cls="h-social-icon",
              aria_label=social["label"] + (" — placeholder link" if not social.get("url") else ""),
              **({"target": "_blank", "rel": "noopener noreferrer"} if social.get("url") else {}))
+
+
+def _snippet_node(item, placement, *, head=False):
+    if item["consent"] == "none":
+        node = NotStr(item["content"])
+    else:
+        encoded = base64.b64encode(item["content"].encode("utf-8")).decode("ascii")
+        node = NotStr(
+            f'<template data-fastshop-snippet="{placement}" data-consent="{item["consent"]}" '
+            f'data-content="{encoded}"></template>'
+        )
+    if head:
+        # FastHTML moves objects with a head-tag marker into the generated document head.
+        node.tag = "meta"
+    return node
 
 
 def product_cards(db, site, base, category=""):
@@ -207,6 +224,19 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
                  Div(Label("Leave this empty", Input(name="website", tabindex="-1", autocomplete="off")), cls="h-honeypot", aria_hidden="true"),
                  P("We'll use your details to answer this message. This does not sign you up for marketing emails. ", A("Privacy policy", href=url(base, "/pages/privacy-policy"))),
                  Button("Send message ↗", type="submit", cls="h-button"), method="post", action=base + "/contact", cls="h-contact-form"), cls="h-section h-container h-contact")
+    if kind == "embed":
+        frame = Iframe(
+            src=section["url"],
+            title=heading or "Embedded content",
+            loading="lazy",
+            referrerpolicy="no-referrer",
+            sandbox="allow-scripts",
+            allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'",
+            width="1280",
+            height="720",
+            cls="h-embed-frame",
+        ) if section.get("url") else None
+        return Section(intro, frame, cls="h-section h-container h-embed")
     if kind == "product":
         from app.commerce import settings_for
         commerce_config = settings_for(db, site)
@@ -284,6 +314,14 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
     from app.site_menus import rendered_navigation
     header_navigation = rendered_navigation(db, site, "header", preview=preview)
     footer_navigation = rendered_navigation(db, site, "footer", preview=preview)
+    from app.site_snippets import published_snippets
+    snippets = published_snippets(db, site, preview=preview)
+    head_snippets = [_snippet_node(item, "head", head=True) for item in snippets["head"]]
+    pre_footer_snippets = [_snippet_node(item, "pre-footer") for item in snippets["pre-footer"]]
+    foot_snippets = [_snippet_node(item, "foot") for item in snippets["foot"]]
+    has_gated_snippets = any(
+        item["consent"] != "none" for placement in snippets.values() for item in placement
+    )
     anchor_ids = {item["block_id"] for item in header_navigation + footer_navigation
                   if item.get("kind") == "anchor" and item["path"].split("#")[0] == page.path}
     home = page.path == "/"
@@ -302,8 +340,10 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         Meta(name="description", content=document.get("description", "")), Meta(name="robots", content="noindex,nofollow" if site.status != "published" or preview else "noindex,follow" if blog_listing and (blog_tag or not listing_articles) else "index,follow"),
         Meta(property="og:title", content=document["title"]), Meta(property="og:description", content=document.get("description", "")),
         Meta(property="og:url", content=canonical), Link(rel="canonical", href=canonical),
+        *head_snippets,
         Link(rel="icon", href="/static/favicon.svg", type="image/svg+xml"), Link(rel="stylesheet", href="/static/site-builder.css"), Script(src="/static/site-builder.js", defer=True),
         Script(src="/static/site-analytics.js", defer=True) if analytics_id else None,
+        Script(src="/static/site-snippets.js", defer=True) if has_gated_snippets else None,
         Script(NotStr(json.dumps(ga4_item)), type="application/json", id="h-ga4-item") if ga4_item else None,
         Link(rel="stylesheet", href="/static/site-theme.css"),
         Link(rel="stylesheet", href="/static/site-blog.css") if blog_listing else None,
@@ -327,12 +367,14 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                 *[section_view(s, i) for i, s in enumerate(document.get("blocks", [])) if not s.get("hidden")], id="content"),
             Section(Div(Small("A LITTLE SOMETHING TO LOOK FORWARD TO", cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P("Our first-order offer is coming when the shop opens.")),
                     Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer"),
+            *pre_footer_snippets,
             Footer(Div(Div(A(brand(), href=base + "/", cls="h-brand"), P(config.get("tagline", ""))),
                 Div(H3("Explore"), *[A(item["label"], href=url(base, item["path"])) for item in footer_navigation]),
                 Div(H3("Here to help"), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", "Terms and Conditions"), ("privacy-policy", "Privacy Policy"), ("faq", "FAQ"), ("returns-and-refunds", "Returns and Refunds")]]),
                 Div(H3(config.get("company", site.name)), P(config.get("address", "")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
                 P(config.get("footer", ""), cls="h-disclaimer"), Div(Span("© 2026 " + config.get("company", site.name)), payment_methods(), Button("Cookie preferences", type="button", data_cookie_open=""), cls="h-footer-bottom"), cls="h-footer"),
+            *foot_snippets,
             Div(H2("Your privacy, your choice."), P("Essential storage keeps this site working. Analytics and marketing are off unless you choose them."),
                 Details(Summary("Preferences"), Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"), Label(Input(type="checkbox", id="consent-analytics"), " Analytics"), Label(Input(type="checkbox", id="consent-marketing"), " Marketing")),
                 Div(Button("Accept all", data_consent="all"), Button("Decline", data_consent="none"), Button("Save preferences", data_consent="custom")),

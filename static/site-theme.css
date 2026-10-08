@@ -10,3 +10,11 @@
 .h-site[data-themed="true"] .h-hero-copy {text-align:var(--store-hero)}
 .h-site[data-themed="true"] .h-facts strong {color:var(--store-accent)}
 @media(max-width:700px){.h-site[data-themed="true"] .h-section{padding-top:min(var(--store-spacing),60px);padding-bottom:min(var(--store-spacing),60px)}}
+.h-embed-frame {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  background: #fff;
+}
