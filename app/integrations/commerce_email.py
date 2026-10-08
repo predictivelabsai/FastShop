@@ -7,21 +7,25 @@ import httpx
 from sqlalchemy import select, update
 
 from app import customer_services as customers
+from app import signup_services
 from app.db import SessionLocal
 from app.models import (
     CommerceMail,
     CustomerChallenge,
     CustomerOffer,
     MarketingConsent,
+    Membership,
     Order,
     ShipmentEvent,
     ShopCustomer,
+    SignupEmailVerification,
     Site,
     SiteOrder,
     SubscriptionContract,
     SubscriptionCycle,
+    User,
 )
-from app.services import money
+from app.services import CommerceError, money
 
 
 def send_email(recipient, subject, body, *, message_id):
@@ -43,7 +47,34 @@ def send_email(recipient, subject, body, *, message_id):
     return "failed", ""
 
 
-def render_message(db, row, site, customer):
+def render_message(db, row, site, customer=None, user=None):
+    if row.kind == "account_verification":
+        verification = db.scalar(
+            select(SignupEmailVerification).where(
+                SignupEmailVerification.id
+                == (row.reference_json or {}).get("verification_id"),
+                SignupEmailVerification.site_id == site.id,
+                SignupEmailVerification.tenant_id == site.tenant_id,
+                SignupEmailVerification.user_id == row.user_id,
+            )
+        )
+        if (
+            not user
+            or not verification
+            or verification.consumed_at
+            or signup_services.utc(verification.expires_at) <= datetime.now(UTC)
+        ):
+            return None
+        return "Verify your FastShop email", (
+            f"Confirm the email for your FastShop workspace:\n\n"
+            f"Open: {signup_services.verification_url(verification)}\n"
+            f"Verification code: {signup_services.verification_token(verification)}\n\n"
+            "This link expires and can be used once. Verification does not publish your "
+            "store or enable checkout. If you did not create this account, ignore this "
+            "email.\n\nFastShop"
+        )
+    if not customer:
+        return None
     if row.kind in {"renewal_failed", "renewal_upcoming"}:
         return render_subscription_message(db, row, site, customer)
     if row.kind in {"order_confirmation", "shipment_update"}:
@@ -123,7 +154,14 @@ def render_subscription_message(db, row, site, customer):
         SubscriptionContract.customer_id == customer.id))
     if not contract:
         return None
-    body = f"{site.name}\n\nSANDBOX SUBSCRIPTION — test mode, no real charges.\n\n"
+    config = commerce.settings_for(db, site)
+    try:
+        mode = commerce.payment_mode(db, site, config)
+    except CommerceError:
+        return None
+    body = (f"{site.name}\n\n" +
+            ("LIVE SUBSCRIPTION — payments are processed by Stripe.\n\n" if mode == "live" else
+             "SANDBOX SUBSCRIPTION — test mode, no real charges.\n\n"))
     if row.kind == "renewal_failed":
         cycle = db.scalar(select(SubscriptionCycle).where(SubscriptionCycle.id == reference.get("cycle_id"),
             SubscriptionCycle.contract_id == contract.id, SubscriptionCycle.site_id == site.id,
@@ -133,19 +171,19 @@ def render_subscription_message(db, row, site, customer):
         from app.subscription_recovery import pending
         if pending(db, site, contract.id):
             return None
-        subject = "Sandbox delivery needs attention"
+        subject = ("Delivery needs attention" if mode == "live" else "Sandbox delivery needs attention")
         body += (f"Your delivery scheduled for {cycle.due_at:%Y-%m-%d} UTC was not completed. "
             "Future deliveries are paused. No successful payment was recorded for this delivery.\n\n"
             "Sign in to review a fresh one-time checkout for the missed delivery, update your saved card, "
             "or manage future deliveries. Retrying the missed delivery does not automatically resume the subscription.\n")
     else:
-        config = commerce.settings_for(db, site)
         if (contract.state != "active" or contract.version != reference.get("version") or
                 customers.utc(contract.next_due_at).isoformat() != reference.get("due_at") or
                 customers.utc(contract.next_due_at) <= datetime.now(UTC) or
-                site.status not in ("preview", "published") or not config or config.mode != "sandbox"):
+                site.status not in ("preview", "published") or not config
+                or not commerce.payments_enabled(db, site, config)):
             return None
-        subject = "Upcoming sandbox delivery"
+        subject = "Upcoming delivery" if mode == "live" else "Upcoming sandbox delivery"
         amount = sum(line["unit_minor"] * line["quantity"] for line in contract.lines_json)
         body += (f"Your next delivery is scheduled for {contract.next_due_at:%Y-%m-%d} UTC.\n"
             f"Recurring merchandise: {money(amount, 'USD')}. Shipping and destination sales tax are calculated per delivery; "
@@ -170,14 +208,18 @@ def dispatch_mail(message_id, *, sessions=SessionLocal, sender=send_email):
         row = db.get(CommerceMail, message_id)
         site = db.scalar(select(Site).where(Site.id == row.site_id, Site.tenant_id == row.tenant_id))
         customer = db.scalar(select(ShopCustomer).where(ShopCustomer.id == row.customer_id,
-            ShopCustomer.site_id == row.site_id, ShopCustomer.tenant_id == row.tenant_id, ShopCustomer.is_active.is_(True)))
-        message = render_message(db, row, site, customer) if site and customer else None
+            ShopCustomer.site_id == row.site_id, ShopCustomer.tenant_id == row.tenant_id, ShopCustomer.is_active.is_(True))) if row.customer_id else None
+        user = db.scalar(select(User).join(Membership, Membership.user_id == User.id).where(
+            User.id == row.user_id, Membership.tenant_id == row.tenant_id,
+            Membership.role.in_(["admin", "merchant"]), User.is_active.is_(True))) if row.user_id else None
+        message = render_message(db, row, site, customer, user) if site else None
         if not message:
             row.status = "cancelled"
             db.commit()
             return False
         subject, body = message
-        status, provider_id = sender(customer.email, subject, body, message_id=row.id)
+        recipient = user.email if user else customer.email
+        status, provider_id = sender(recipient, subject, body, message_id=row.id)
         row.status, row.provider_id = status, provider_id
         row.available_at = datetime.now(UTC) + timedelta(minutes=min(60, 2 ** row.attempts))
         db.commit()

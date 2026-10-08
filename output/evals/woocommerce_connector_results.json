@@ -1,0 +1,279 @@
+{
+  "checks": {
+    "dry_run_has_no_writes": true,
+    "dry_run_reports_all_types": true,
+    "export_is_review_only": true,
+    "export_rounds_prices_exactly": true,
+    "first_apply_created_resources": true,
+    "reimport_applied_updates": true,
+    "reimport_has_no_duplicates": true,
+    "reimport_plans_updates": true,
+    "unmapped_items_warned": true
+  },
+  "export_counts": {
+    "categories": 3,
+    "products": 2
+  },
+  "first_apply": {
+    "categories": {
+      "created": 2,
+      "updated": 0
+    },
+    "customers": {
+      "created": 1,
+      "updated": 0
+    },
+    "orders": {
+      "created": 1,
+      "updated": 0
+    },
+    "products": {
+      "created": 2,
+      "updated": 0
+    }
+  },
+  "first_report": {
+    "applied": {
+      "categories": {
+        "created": 2,
+        "updated": 0
+      },
+      "customers": {
+        "created": 1,
+        "updated": 0
+      },
+      "orders": {
+        "created": 1,
+        "updated": 0
+      },
+      "products": {
+        "created": 2,
+        "updated": 0
+      }
+    },
+    "counts": {
+      "categories": {
+        "create": 2,
+        "fetched": 2,
+        "skip": 0,
+        "update": 0
+      },
+      "customers": {
+        "create": 1,
+        "fetched": 2,
+        "skip": 1,
+        "update": 0
+      },
+      "orders": {
+        "create": 1,
+        "fetched": 1,
+        "skip": 0,
+        "update": 0
+      },
+      "products": {
+        "create": 2,
+        "fetched": 2,
+        "skip": 0,
+        "update": 0
+      }
+    },
+    "limits": {
+      "max_items": 750,
+      "max_pages": 5,
+      "timeout_seconds": 20
+    },
+    "mode": "dry-run",
+    "platform": "woocommerce",
+    "samples": [
+      {
+        "action": "create",
+        "external_id": "10",
+        "label": "Tea",
+        "type": "category"
+      },
+      {
+        "action": "create",
+        "external_id": "11",
+        "label": "Herbal Tea",
+        "type": "category"
+      },
+      {
+        "action": "create",
+        "external_id": "100",
+        "label": "Evening Blend",
+        "type": "product"
+      },
+      {
+        "action": "create",
+        "external_id": "101",
+        "label": "Tea Strainer",
+        "type": "product"
+      },
+      {
+        "action": "create",
+        "external_id": "500",
+        "label": "Alex River",
+        "type": "customer"
+      },
+      {
+        "action": "create",
+        "external_id": "700",
+        "label": "alex@example.test",
+        "type": "order"
+      }
+    ],
+    "unmapped_items": [
+      {
+        "external_id": "501",
+        "reason": "missing or invalid email",
+        "type": "customer"
+      },
+      {
+        "external_id": "101",
+        "reason": "category ids not fetched: 999",
+        "type": "product"
+      },
+      {
+        "external_id": "700",
+        "reason": "catalog mapping unavailable for Archived gift wrap",
+        "type": "order_line"
+      }
+    ],
+    "warnings": [
+      "Unmapped order lines keep snapshots but do not attach to a FastShop variant."
+    ]
+  },
+  "fixture": "tests/fixtures/woocommerce_store.json",
+  "offline": true,
+  "passed": 9,
+  "second_apply": {
+    "categories": {
+      "created": 0,
+      "updated": 2
+    },
+    "customers": {
+      "created": 0,
+      "updated": 1
+    },
+    "orders": {
+      "created": 0,
+      "updated": 1
+    },
+    "products": {
+      "created": 0,
+      "updated": 2
+    }
+  },
+  "second_report": {
+    "applied": {
+      "categories": {
+        "created": 0,
+        "updated": 2
+      },
+      "customers": {
+        "created": 0,
+        "updated": 1
+      },
+      "orders": {
+        "created": 0,
+        "updated": 1
+      },
+      "products": {
+        "created": 0,
+        "updated": 2
+      }
+    },
+    "counts": {
+      "categories": {
+        "create": 0,
+        "fetched": 2,
+        "skip": 0,
+        "update": 2
+      },
+      "customers": {
+        "create": 0,
+        "fetched": 2,
+        "skip": 1,
+        "update": 1
+      },
+      "orders": {
+        "create": 0,
+        "fetched": 1,
+        "skip": 0,
+        "update": 1
+      },
+      "products": {
+        "create": 0,
+        "fetched": 2,
+        "skip": 0,
+        "update": 2
+      }
+    },
+    "limits": {
+      "max_items": 750,
+      "max_pages": 5,
+      "timeout_seconds": 20
+    },
+    "mode": "dry-run",
+    "platform": "woocommerce",
+    "samples": [
+      {
+        "action": "update",
+        "external_id": "10",
+        "label": "Tea",
+        "type": "category"
+      },
+      {
+        "action": "update",
+        "external_id": "11",
+        "label": "Herbal Tea",
+        "type": "category"
+      },
+      {
+        "action": "update",
+        "external_id": "100",
+        "label": "Evening Blend",
+        "type": "product"
+      },
+      {
+        "action": "update",
+        "external_id": "101",
+        "label": "Tea Strainer",
+        "type": "product"
+      },
+      {
+        "action": "update",
+        "external_id": "500",
+        "label": "Alex River",
+        "type": "customer"
+      },
+      {
+        "action": "update",
+        "external_id": "700",
+        "label": "alex@example.test",
+        "type": "order"
+      }
+    ],
+    "unmapped_items": [
+      {
+        "external_id": "501",
+        "reason": "missing or invalid email",
+        "type": "customer"
+      },
+      {
+        "external_id": "101",
+        "reason": "category ids not fetched: 999",
+        "type": "product"
+      },
+      {
+        "external_id": "700",
+        "reason": "catalog mapping unavailable for Archived gift wrap",
+        "type": "order_line"
+      }
+    ],
+    "warnings": [
+      "Unmapped order lines keep snapshots but do not attach to a FastShop variant."
+    ]
+  },
+  "total": 9
+}

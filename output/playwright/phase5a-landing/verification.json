@@ -1,0 +1,20 @@
+{
+  "base": "http://127.0.0.1:5033",
+  "checks": [
+    {
+      "device": "desktop",
+      "width": 1440,
+      "status": 200,
+      "overflow": false,
+      "outbound_requests": 0
+    },
+    {
+      "device": "mobile",
+      "width": 390,
+      "status": 200,
+      "overflow": false,
+      "outbound_requests": 0
+    }
+  ],
+  "failures": []
+}

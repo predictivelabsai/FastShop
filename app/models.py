@@ -57,6 +57,9 @@ class User(TimestampMixin, Base):
     # NULL for OIDC-only users. The single FASTSHOP_ADMIN_EMAIL env account is
     # separate and still governed by FASTSHOP_ALLOW_PASSWORD_LOGIN.
     password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class Membership(TimestampMixin, Base):
@@ -323,7 +326,10 @@ class WishlistItem(TimestampMixin, Base):
 
 class OutboxEvent(TimestampMixin, Base):
     __tablename__ = "outbox_events"
-    __table_args__ = (Index("ix_outbox_status_created", "status", "created_at"),)
+    __table_args__ = (
+        Index("ix_outbox_status_created", "status", "created_at"),
+        Index("ix_outbox_status_due_created", "status", "next_attempt_at", "created_at"),
+    )
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
     topic: Mapped[str] = mapped_column(String(100))
@@ -332,18 +338,68 @@ class OutboxEvent(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str] = mapped_column(Text, default="")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class StripeWebhookEvent(TimestampMixin, Base):
+    """Payload-free record of a Stripe event successfully handled for one site."""
+
+    __tablename__ = "stripe_webhook_events"
+    __table_args__ = (
+        UniqueConstraint("site_id", "event_id", name="uq_stripe_webhook_site_event"),
+        Index("ix_stripe_webhook_tenant_site_processed", "tenant_id", "site_id", "processed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    event_id: Mapped[str] = mapped_column(String(180))
+    event_type: Mapped[str] = mapped_column(String(120))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ExternalMapping(TimestampMixin, Base):
     __tablename__ = "external_mappings"
-    __table_args__ = (UniqueConstraint("tenant_id", "system", "resource_type", "local_id"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "system", "resource_type", "local_id"),
+        UniqueConstraint(
+            "tenant_id", "site_id", "system", "resource_type", "external_id",
+            name="uq_external_mapping_site_external",
+        ),
+    )
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    # Nullable only for compatibility with mappings created before connectors became
+    # site-scoped. New connector mappings always set it and never read legacy rows.
+    site_id: Mapped[str | None] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     system: Mapped[str] = mapped_column(String(50))
     resource_type: Mapped[str] = mapped_column(String(80))
     local_id: Mapped[str] = mapped_column(String(64))
     external_id: Mapped[str] = mapped_column(String(140))
     version: Mapped[str] = mapped_column(String(80), default="")
+
+
+class IntegrationPlan(TimestampMixin, Base):
+    """Immutable connector preview claimed exactly once before applying writes."""
+
+    __tablename__ = "integration_plans"
+    __table_args__ = (Index("ix_integration_plan_site_status", "site_id", "status"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    platform: Mapped[str] = mapped_column(String(50))
+    operation: Mapped[str] = mapped_column(String(30), default="import")
+    schema_version: Mapped[int] = mapped_column(Integer, default=1)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    report_json: Mapped[dict] = mapped_column(JSON)
+    payload_json: Mapped[dict] = mapped_column(JSON)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ChatThread(TimestampMixin, Base):
@@ -400,6 +456,37 @@ class SiteMenu(TimestampMixin, Base):
     def validate_items(self, key, value):
         from app.site_menus import validate_items
         return validate_items(value) if value is not None else None
+
+
+class SiteSnippet(TimestampMixin, Base):
+    __tablename__ = "site_snippets"
+    __table_args__ = (UniqueConstraint("site_id", "placement"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    placement: Mapped[str] = mapped_column(String(20))
+    draft_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    published_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    @validates("placement")
+    def validate_placement(self, key, value):
+        from app.site_snippets import validate_placement
+        return validate_placement(value)
+
+    @validates("draft_json", "published_json")
+    def validate_snapshot(self, key, value):
+        from app.site_snippets import validate_snapshot
+        return validate_snapshot(value) if value is not None else None
+
+
+class BlogCategory(TimestampMixin, Base):
+    __tablename__ = "blog_categories"
+    __table_args__ = (UniqueConstraint("site_id", "slug"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    slug: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(100))
 
 
 class SitePage(TimestampMixin, Base):
@@ -484,16 +571,26 @@ class DemoCommand(TimestampMixin, Base):
 
 class SiteMedia(TimestampMixin, Base):
     __tablename__ = "site_media"
+    __table_args__ = (UniqueConstraint("site_id", "public_url", name="uq_site_media_site_url"),)
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
-    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(200))
     alt: Mapped[str] = mapped_column(String(400))
+    public_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    localized_alt: Mapped[dict | str | None] = mapped_column(JSON, nullable=True)
     content_type: Mapped[str] = mapped_column(String(80))
     storage_key: Mapped[str] = mapped_column(String(240))
     is_placeholder: Mapped[bool] = mapped_column(Boolean, default=False)
     size: Mapped[int] = mapped_column(Integer, default=0)
     data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+
+    @validates("localized_alt")
+    def validate_localized_alt(self, key, value):
+        if value is not None:
+            from app.site_blocks import _text
+            _text(value, "alt", limit=400)
+        return value
 
 
 class SiteContact(TimestampMixin, Base):
@@ -527,7 +624,35 @@ class SiteCommerceSettings(TimestampMixin, Base):
     product_tax_codes_json: Mapped[dict] = mapped_column(JSON, default=dict)
     subscription_product_ids_json: Mapped[list] = mapped_column(JSON, default=list)
     tax_registration_reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
+    live_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    live_accepted_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    live_credential_id: Mapped[str | None] = mapped_column(
+        ForeignKey("site_stripe_live_credentials.id"), nullable=True
+    )
     version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class SiteStripeLiveCredential(TimestampMixin, Base):
+    """Operator-owned Stripe live secrets; ciphertext is never copied to JSON state."""
+
+    __tablename__ = "site_stripe_live_credentials"
+    __table_args__ = (UniqueConstraint("site_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
+    )
+    secret_key_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    webhook_secret_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    key_prefix: Mapped[str] = mapped_column(String(16))
+    key_last_four: Mapped[str] = mapped_column(String(4))
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verified_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
 
 class CommerceQuote(TimestampMixin, Base):
@@ -605,7 +730,12 @@ class CommerceMail(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
     site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
-    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id"), index=True)
+    customer_id: Mapped[str | None] = mapped_column(
+        ForeignKey("shop_customers.id"), nullable=True, index=True
+    )
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
     challenge_id: Mapped[str | None] = mapped_column(ForeignKey("customer_challenges.id"), nullable=True)
     reference_json: Mapped[dict] = mapped_column(JSON, default=dict)
     kind: Mapped[str] = mapped_column(String(40))
@@ -614,6 +744,49 @@ class CommerceMail(TimestampMixin, Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     provider_id: Mapped[str] = mapped_column(String(100), default="")
+
+
+class SignupAttempt(TimestampMixin, Base):
+    """Short-lived HMAC identifiers used only for public-account rate limits."""
+
+    __tablename__ = "signup_attempts"
+    __table_args__ = (
+        Index("ix_signup_attempt_scope_client_created", "scope", "client_hash", "created_at"),
+        Index("ix_signup_attempt_scope_email_created", "scope", "email_hash", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    scope: Mapped[str] = mapped_column(String(20))
+    client_hash: Mapped[str] = mapped_column(String(64))
+    email_hash: Mapped[str] = mapped_column(String(64))
+    accepted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class SignupEmailVerification(TimestampMixin, Base):
+    """Tenant-scoped, expiring and single-use merchant email verification."""
+
+    __tablename__ = "signup_email_verifications"
+    __table_args__ = (
+        Index(
+            "ix_signup_verification_user_created",
+            "user_id",
+            "created_at",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class SiteOrder(TimestampMixin, Base):
@@ -626,6 +799,32 @@ class SiteOrder(TimestampMixin, Base):
     quote_id: Mapped[str | None] = mapped_column(ForeignKey("commerce_quotes.id"), nullable=True)
     stripe_checkout_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
     stripe_invoice_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
+
+
+class RefundCommand(TimestampMixin, Base):
+    """Durable, replay-safe provider command for one exact refund amount."""
+
+    __tablename__ = "refund_commands"
+    __table_args__ = (
+        UniqueConstraint("site_id", "request_key"),
+        CheckConstraint("amount_minor > 0", name="ck_refund_command_amount_positive"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    site_order_id: Mapped[str] = mapped_column(ForeignKey("site_orders.id"), index=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    request_key: Mapped[str] = mapped_column(String(64))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    amount_minor: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3))
+    reason: Mapped[str] = mapped_column(String(500))
+    state: Mapped[str] = mapped_column(String(32), default="creating", index=True)
+    provider_payment_id: Mapped[str] = mapped_column(String(180))
+    provider_refund_id: Mapped[str | None] = mapped_column(String(180), nullable=True, unique=True)
+    command_json: Mapped[dict] = mapped_column(JSON)
+    result_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class ShipmentEvent(TimestampMixin, Base):

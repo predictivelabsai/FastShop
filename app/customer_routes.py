@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import secrets
-from urllib.parse import urlsplit
 
-from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Li, Option, P, Select, Small, Ul
+from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Li, P, Small, Ul
 from sqlalchemy import select
 from starlette.responses import RedirectResponse, Response
 
@@ -18,16 +17,12 @@ from app.models import (
     CustomerOffer,
     MarketingConsent,
     Order,
-    ShipmentEvent,
     ShopCustomer,
     Site,
     SiteOrder,
 )
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
-
-SHIPMENT_STATES = {"label_created", "in_transit", "out_for_delivery", "delivered", "exception", "returned"}
-TRACKING_HOSTS = {"dhl.com", "fedex.com", "ups.com", "usps.com", "omniva.ee", "omniva.eu"}
 
 
 def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error):
@@ -39,7 +34,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         if not site:
             raise CommerceError("Store not found.")
         config = commerce.settings_for(db, site)
-        if enabled and (not config or config.mode != "sandbox"):
+        if enabled and (not config or not commerce.payments_enabled(db, site, config)):
             raise CommerceError("Customer services are not enabled for this store yet.")
         return site
 
@@ -236,33 +231,6 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         except CommerceError as exc:
             return error(exc)
 
-    @rt("/admin/sites/{site_id}/shipments/{site_order_id}", methods=["POST"])
-    async def post(session, request, site_id: str, site_order_id: str):
-        try:
-            form = await request.form()
-            check_csrf(session, form)
-            with SessionLocal() as db:
-                user_id = actor(session)
-                site = content.owned_site(db, site_id, user_id, publish=True)
-                link = db.scalar(select(SiteOrder).where(SiteOrder.id == site_order_id,
-                    SiteOrder.site_id == site.id, SiteOrder.tenant_id == site.tenant_id))
-                if not link or form.get("status") not in SHIPMENT_STATES:
-                    raise CommerceError("Choose an owned order and a valid shipment status.")
-                tracking_url = content.safe_url(str(form.get("tracking_url", "")))
-                host = urlsplit(tracking_url).hostname or ""
-                if tracking_url and not any(host == allowed or host.endswith("." + allowed) for allowed in TRACKING_HOSTS):
-                    raise CommerceError("Use an HTTPS tracking link from DHL, FedEx, UPS, USPS or Omniva.")
-                shipment = ShipmentEvent(tenant_id=site.tenant_id, site_id=site.id, site_order_id=link.id,
-                    author_id=user_id, carrier=str(form.get("carrier", ""))[:100], tracking_number=str(form.get("tracking_number", ""))[:100],
-                    tracking_url=tracking_url[:500], status=form["status"], note=str(form.get("note", ""))[:500])
-                db.add(shipment)
-                db.flush()
-                customers.queue_order_mail(db, site, link, shipment=shipment)
-                db.commit()
-                return RedirectResponse(f"/admin/sites/{site.id}/customers", status_code=303)
-        except CommerceError as exc:
-            return error(exc)
-
     @rt("/admin/sites/{site_id}/customers", methods=["GET"])
     def get(session, site_id: str):
         try:
@@ -278,12 +246,8 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 return merchant_shell("Customers & email", A("← Site", href=f"/admin/sites/{site.id}"),
                     Div(H2("Customers"), *[P(row.email + (" · verified" if row.verified_at else " · verification pending")) for row in rows], cls="e-card"),
                     Div(H2("Email queue"), *[P(row.kind + " · " + row.status + f" · attempts {row.attempts}") for row in messages], cls="e-card"),
-                    Div(H2("Order tracking"), P("Enter verified carrier updates. These are merchant-entered events, not an automatic carrier feed."),
-                        *[Div(H2(order.number), P(order.email + " · " + order.payment_status),
-                            Form(csrf(session), Label("Shipment status", Select(*[Option(value.replace("_", " ").title(), value=value) for value in sorted(SHIPMENT_STATES)], name="status")),
-                                Label("Carrier", Input(name="carrier", maxlength=100)), Label("Tracking number", Input(name="tracking_number", maxlength=100)),
-                                Label("Carrier tracking URL", Input(name="tracking_url", type="url", maxlength=500)),
-                                Label("Customer-visible note", Input(name="note", maxlength=500)), Button("Add tracking update", cls="e-button"),
-                                action=f"/admin/sites/{site.id}/shipments/{link.id}", method="post", cls="e-form"), cls="e-card") for link, order in orders], cls="e-card"))
+                    Div(H2("Order management"), P("Fulfillment transitions, tracking details, refunds and the complete order timeline now live on the dedicated order surface."),
+                        A("Open orders", href=f"/admin/sites/{site.id}/orders", cls="e-button"),
+                        *[P(A(order.number, href=f"/admin/sites/{site.id}/orders/{link.id}"), " · " + order.email + " · " + order.status) for link, order in orders], cls="e-card"))
         except CommerceError as exc:
             return error(exc)

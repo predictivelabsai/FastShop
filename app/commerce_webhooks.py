@@ -1,15 +1,22 @@
 """Stripe callback boundary. No browser cookies, card payload storage or demo payments."""
 
 import re
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
 from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
 from app import checkout_services as checkout
+from app import commerce, live_credentials
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway, credentials, verify_webhook
-from app.models import Site
+from app.integrations.stripe_commerce import (
+    StripeGateway,
+    credentials,
+    make_gateway,
+    verify_webhook,
+)
+from app.models import Site, SiteCommerceSettings, StripeWebhookEvent
 from app.services import CommerceError
 
 CHECKOUT_EVENTS = {
@@ -20,9 +27,26 @@ RENEWAL_EVENTS = {"payment_intent.succeeded", "payment_intent.payment_failed",
     "payment_intent.processing", "payment_intent.canceled", "payment_intent.requires_action"}
 
 
+def signature_secret(db, site, config=None) -> tuple[str, str]:
+    config = config or db.scalar(select(SiteCommerceSettings).where(
+        SiteCommerceSettings.site_id == site.id,
+        SiteCommerceSettings.tenant_id == site.tenant_id,
+    ))
+    mode = commerce.payment_mode(db, site, config)
+    secret = (live_credentials.live_secrets(db, site, config)[1]
+              if mode == "live" else credentials(site)[1])
+    if not secret:
+        raise CommerceError("Webhook signing is not configured for this site.")
+    return mode, secret
+
+
 def process_event(db, site, event, gateway):
-    if event.get("livemode") is not False:
-        raise CommerceError("Live events are not enabled.")
+    live_mode = commerce.payment_mode(db, site) == "live"
+    if event.get("livemode") is not live_mode:
+        raise CommerceError(
+            "Live events are not enabled." if not live_mode else
+            "The webhook payment mode does not match this site."
+        )
     if event.get("type") not in CHECKOUT_EVENTS | RENEWAL_EVENTS:
         return "ignored"
     data = event.get("data")
@@ -39,7 +63,7 @@ def process_event(db, site, event, gateway):
         checkout.lock_site(db, site)
         cycle, contract, attempt, quote = renewals.load_cycle(db, site, metadata["cycle_id"])
         intent = gateway.payment_intent_status(obj.get("id", ""))
-        renewals.verify_intent(intent, cycle)
+        renewals.verify_intent(intent, cycle, live_mode=getattr(gateway, "live_mode", False))
         cycle.payment_intent_id = intent["id"]
         db.flush()
         renewals.settle(db, site, cycle.id, intent)
@@ -54,7 +78,8 @@ def process_event(db, site, event, gateway):
     if not isinstance(metadata, dict) or metadata.get("site_id") != site.id:
         return "ignored"  # The account may host unrelated integrations.
     attempt_id, session_id = obj.get("client_reference_id"), obj.get("id")
-    if not isinstance(attempt_id, str) or not isinstance(session_id, str) or not re.fullmatch(r"cs_test_[A-Za-z0-9]+", session_id):
+    prefix = "cs_live_" if live_mode else "cs_test_"
+    if not isinstance(attempt_id, str) or not isinstance(session_id, str) or not re.fullmatch(prefix + r"[A-Za-z0-9]+", session_id):
         raise CommerceError("Invalid checkout reference.")
     checkout.lock_site(db, site)
     attempt = checkout.owned_attempt(db, site, attempt_id)
@@ -68,6 +93,32 @@ def process_event(db, site, event, gateway):
         db.flush()
     checkout.reconcile(db, site, attempt.id, gateway)
     return "processed"
+
+
+def process_verified_event(db, site, event, gateway):
+    """Handle one verified event once; the ledger and commerce writes commit together."""
+    event_id, event_type = event.get("id"), event.get("type")
+    if not isinstance(event_id, str) or not event_id.startswith("evt_"):
+        raise CommerceError("Invalid webhook event.")
+    if not isinstance(event_type, str) or not event_type or len(event_type) > 120:
+        raise CommerceError("Invalid webhook event.")
+    previous = db.scalar(select(StripeWebhookEvent).where(
+        StripeWebhookEvent.tenant_id == site.tenant_id,
+        StripeWebhookEvent.site_id == site.id,
+        StripeWebhookEvent.event_id == event_id,
+    ))
+    if previous:
+        return "processed (duplicate)"
+    result = process_event(db, site, event, gateway)
+    db.add(StripeWebhookEvent(
+        tenant_id=site.tenant_id,
+        site_id=site.id,
+        event_id=event_id,
+        event_type=event_type,
+        processed_at=datetime.now(UTC),
+    ))
+    db.flush()
+    return result
 
 
 def register_commerce_webhooks(api):
@@ -84,12 +135,21 @@ def register_commerce_webhooks(api):
                 site = db.scalar(select(Site).where(Site.id == site_id))
                 if not site:
                     raise HTTPException(404, "Store not found")
+                config = db.scalar(select(SiteCommerceSettings).where(
+                    SiteCommerceSettings.site_id == site.id,
+                    SiteCommerceSettings.tenant_id == site.tenant_id,
+                ))
                 try:
-                    event = verify_webhook(bytes(body), request.headers.get("stripe-signature", ""), credentials(site)[1])
+                    _, secret = signature_secret(db, site, config)
+                    event = verify_webhook(
+                        bytes(body), request.headers.get("stripe-signature", ""), secret
+                    )
                 except CommerceError as exc:
                     raise HTTPException(400, "Invalid webhook signature or body") from exc
                 try:
-                    result = process_event(db, site, event, StripeGateway(site))
+                    result = process_verified_event(
+                        db, site, event, make_gateway(StripeGateway, site, db)
+                    )
                     db.commit()
                     return {"status": result}
                 except CommerceError as exc:

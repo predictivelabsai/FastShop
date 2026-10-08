@@ -20,6 +20,7 @@ from app.models import (
     VariantChannelListing,
 )
 from app.site_articles import ARTICLES
+from app.site_blog import backfill_categories
 
 ASSETS = "/static/h24you/"
 DISCLAIMER = "These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease."
@@ -43,6 +44,9 @@ def seed_h24you(db, admin_email):
     if existing:
         from app.site_menus import adapt_navigation
         adapt_navigation(db, existing)
+        from app.site_media import backfill_media
+        backfill_media(db, existing)
+        backfill_categories(db, existing)
         return existing
     tenant = Tenant(slug="h24you", name="H2 4 You Ltd")
     db.add(tenant)
@@ -106,6 +110,8 @@ def seed_h24you(db, admin_email):
 
     def page(path, title, kind, sections, **metadata):
         document = {"title": title, "description": metadata.pop("description", f"Explore {title.lower()} with H2 4 You. A fresh perspective on hydrogen water."), "sections": sections, **metadata}
+        if kind == "article":
+            document["blog"] = {"state": "published"}
         item = create_page(db, site, title, path, kind, document)
         item.published_json = copy.deepcopy(item.draft_json)
         return item
@@ -175,5 +181,8 @@ def seed_h24you(db, admin_email):
         {"heading": "Which tablet flavours are planned?", "body": "Unflavoured, Raspberry and Pineapple. Final ingredients and pack details are pending confirmation."}])])
     from app.site_menus import adapt_navigation
     adapt_navigation(db, site)
+    from app.site_media import backfill_media
+    backfill_media(db, site)
+    backfill_categories(db, site)
     db.flush()
     return site

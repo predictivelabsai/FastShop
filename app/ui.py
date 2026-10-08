@@ -530,7 +530,7 @@ def integrations_hub(session: Session):
                  "Sandbox-gated", True, "/admin/integrations/stripe"),
             card("PayPal", "Offer PayPal at checkout. Setup guide and where to add PayPal API keys, with readiness.",
                  "Guide & keys", True, "/admin/integrations/paypal", "Open guide & keys"),
-            card("WooCommerce", "Read-only catalog bridge to a WordPress / WooCommerce store.",
+            card("WooCommerce", "Reviewed import of catalog, customers and orders, plus JSON catalog export.",
                  "Optional", True, "/admin/integrations/woocommerce"),
             card("FastERP", state.message, "Reachable" if state.reachable else "Unavailable",
                  state.reachable, "/admin/integrations/fasterp", "Open"),
@@ -580,18 +580,21 @@ def stripe_guide():
 def woocommerce_guide():
     return _guide(
         "Storefront", "WooCommerce setup",
-        "Bridge a WordPress / WooCommerce store read-only. WordPress keeps its native checkout and "
-        "plugins; FastShop never writes to it and never uses a shopper-supplied URL.",
+        "Migrate products, categories, customers and orders through a read-only WooCommerce API key. "
+        "FastShop previews every bounded import before local writes and never uses a shopper-supplied URL.",
         ["In WordPress, open WooCommerce → Settings → Advanced → REST API.",
          "Create an API key with Read permission and copy the consumer key and secret.",
          "Set the environment variables below in Coolify, using your store's public HTTPS URL.",
          "Set …_ENABLED=true to turn the bridge on, then redeploy.",
-         "Verify with scripts/check_commerce_providers.py --provider woocommerce."],
+         "Verify with scripts/check_commerce_providers.py --provider woocommerce.",
+         "Open the site's Integrations screen, run a dry run, review it, then explicitly apply that plan."],
         "Environment variables (per store)",
         [_env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_ENABLED", "= true"),
          _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_URL", "= https://yourstore.com"),
          _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CONSUMER_KEY", "= ck_…"),
-         _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CONSUMER_SECRET", "= cs_…")],
+         _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CONSUMER_SECRET", "= cs_…"),
+         _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CURRENCY", "= USD"),
+         _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CURRENCY_SCALE", "= 2")],
         docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
     )
 

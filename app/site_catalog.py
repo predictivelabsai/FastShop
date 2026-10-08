@@ -19,6 +19,73 @@ def price_minor(value):
     return minor
 
 
+def create_catalog_product(db, site, definition):
+    """Create a real tenant catalog item through the shared validated boundary."""
+    required = {
+        "name", "slug", "subtitle", "description", "image_url", "category_slug",
+        "category_name", "variants",
+    }
+    if not isinstance(definition, dict) or set(definition) != required:
+        raise CommerceError("Use the supported product fields.")
+    name = str(definition["name"]).strip()
+    slug = str(definition["slug"]).strip()
+    if not name or len(name) > 220:
+        raise CommerceError("Enter a product name under 220 characters.")
+    if not re.fullmatch(r"[a-z0-9-]{1,100}", slug):
+        raise CommerceError("Use lowercase letters, numbers and hyphens in the slug.")
+    if db.scalar(select(Product.id).where(Product.tenant_id == site.tenant_id, Product.slug == slug)):
+        raise CommerceError("That product slug is already in use.")
+    image_url = content.safe_url(str(definition["image_url"]), media=True)
+    content.validate_media_ownership(db, site, {"image": image_url})
+    category_slug = str(definition["category_slug"]).strip()
+    category = db.scalar(select(Category).where(
+        Category.tenant_id == site.tenant_id, Category.slug == category_slug
+    ))
+    if category is None:
+        category = Category(
+            tenant_id=site.tenant_id, slug=category_slug,
+            name=str(definition["category_name"]).strip(),
+        )
+        db.add(category)
+        db.flush()
+    product_type = db.scalar(select(ProductType).where(
+        ProductType.tenant_id == site.tenant_id, ProductType.slug == "physical"
+    ))
+    if product_type is None:
+        product_type = ProductType(
+            tenant_id=site.tenant_id, slug="physical", name="Physical product"
+        )
+        db.add(product_type)
+        db.flush()
+    product = Product(
+        tenant_id=site.tenant_id, product_type_id=product_type.id, category_id=category.id,
+        slug=slug, name=name, subtitle=str(definition["subtitle"]).strip(),
+        description=str(definition["description"]).strip(), image_url=image_url,
+        is_published=True,
+    )
+    db.add(product)
+    db.flush()
+    variants = definition["variants"]
+    if not isinstance(variants, list) or not 1 <= len(variants) <= 30:
+        raise CommerceError("Enter between one and thirty variants.")
+    for index, values in enumerate(variants):
+        variant_name = str(values.get("name", "")).strip()
+        if not variant_name or len(variant_name) > 180:
+            raise CommerceError("Enter a variant name under 181 characters.")
+        variant = ProductVariant(
+            tenant_id=site.tenant_id, product_id=product.id,
+            sku=f"{slug}-{index}", name=variant_name, sort_order=index,
+        )
+        db.add(variant)
+        db.flush()
+        if values.get("price_minor") is not None:
+            db.add(VariantChannelListing(
+                variant_id=variant.id, channel_id=site.channel_id, currency="USD",
+                price_minor=price_minor(values["price_minor"]),
+            ))
+    return product
+
+
 def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
     @rt("/admin/sites/{site_id}/products", methods=["GET"])
     def get(session, site_id: str):
@@ -80,33 +147,16 @@ def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
                             db.add(VariantChannelListing(variant_id=variant.id, channel_id=site.channel_id, currency="USD", price_minor=price_minor(value)))
                 else:
                     slug = str(form.get("slug", "")).strip()
-                    if not re.fullmatch(r"[a-z0-9-]{1,100}", slug):
-                        raise CommerceError("Use lowercase letters, numbers and hyphens in the slug.")
-                    if db.scalar(select(Product.id).where(Product.tenant_id == site.tenant_id, Product.slug == slug)):
-                        raise CommerceError("That product slug is already in use.")
-                    category = db.scalar(select(Category).where(Category.tenant_id == site.tenant_id))
-                    if not category:
-                        category = Category(tenant_id=site.tenant_id, slug="collection", name="Our collection")
-                        db.add(category)
-                        db.flush()
-                    product_type = db.scalar(select(ProductType).where(ProductType.tenant_id == site.tenant_id))
-                    if not product_type:
-                        product_type = ProductType(tenant_id=site.tenant_id, slug="physical", name="Physical product")
-                        db.add(product_type)
-                        db.flush()
-                    product = Product(tenant_id=site.tenant_id, product_type_id=product_type.id, category_id=category.id,
-                        slug=slug, name=name, image_url=image_url, is_published=True)
-                    db.add(product)
-                    db.flush()
                     names = [n.strip() for n in str(form.get("variants", "Original")).split(",") if n.strip()]
-                    if not 1 <= len(names) <= 30:
-                        raise CommerceError("Enter between one and thirty variants.")
-                    for i, variant_name in enumerate(names):
-                        variant = ProductVariant(tenant_id=site.tenant_id, product_id=product.id, sku=f"{slug}-{i}", name=variant_name[:180], sort_order=i)
-                        db.add(variant)
-                        db.flush()
-                        if form.get("price"):
-                            db.add(VariantChannelListing(variant_id=variant.id, channel_id=site.channel_id, currency="USD", price_minor=price_minor(form["price"])))
+                    product = create_catalog_product(db, site, {
+                        "name": name, "slug": slug, "subtitle": "", "description": "",
+                        "image_url": image_url, "category_slug": "collection",
+                        "category_name": "Our collection", "variants": [
+                            {"name": variant_name, "price_minor": (
+                                price_minor(form["price"]) if form.get("price") else None
+                            )} for variant_name in names
+                        ],
+                    })
                     page = content.create_page(db, site, name, "/products/" + slug, "product", {"title": name, "sections": [{"type": "product", "heading": name, "image": image_url, "body": "Tell your product's story."}]})
                     page.product_id = product.id
                 site.version += 1

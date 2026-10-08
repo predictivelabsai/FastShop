@@ -100,6 +100,11 @@ def create_page(db: Session, site: Site, title: str, path: str, kind: str = "con
     if kind not in PAGE_KINDS:
         raise CommerceError("Choose a supported page type.")
     path = page_path(path)
+    if kind == "article":
+        document = copy.deepcopy(document or {"title": title, "sections": []})
+        document.setdefault("blog", {"state": "draft"})
+        from app.site_blog import prepare_article
+        document = prepare_article(db, site, document)
     if db.scalar(select(SitePage.id).where(SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id, SitePage.path == path)):
         raise CommerceError("A page already uses this path.")
     page = SitePage(tenant_id=site.tenant_id, site_id=site.id, title=title.strip(), path=path,
@@ -119,6 +124,9 @@ def save_page(db: Session, site: Site, page_id: str, user_id: str, document: dic
     if page.version != version:
         raise CommerceError("Someone updated this page. Reload before saving your changes.")
     document = validate_document(document)
+    if page.kind == "article":
+        from app.site_blog import prepare_article
+        document = prepare_article(db, site, document)
     validate_media_ownership(db, site, document)
     if action == "publish":
         from app.compliance import assert_document_compliant
@@ -230,6 +238,8 @@ def create_site(db: Session, user_id: str, name: str, slug: str) -> Site:
             {"type": "text", "heading": title, "body": "PLACEHOLDER — add your company's reviewed policy before launch."}]})
     from app.site_menus import adapt_navigation
     adapt_navigation(db, site)
+    from app.site_media import backfill_media
+    backfill_media(db, site)
     return site
 
 

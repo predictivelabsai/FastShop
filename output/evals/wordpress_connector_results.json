@@ -1,0 +1,439 @@
+{
+  "after_first": {
+    "mappings": 11,
+    "media": 3,
+    "pages": 11
+  },
+  "after_second": {
+    "mappings": 11,
+    "media": 3,
+    "pages": 11
+  },
+  "before": {
+    "mappings": 0,
+    "media": 0,
+    "pages": 8
+  },
+  "checks": {
+    "article_metadata_mapped": true,
+    "dry_run_has_no_cms_writes": true,
+    "dry_run_reports_all_resources": true,
+    "first_apply_created_content": true,
+    "html_sanitized_to_blocks": true,
+    "reimport_has_no_duplicates": true,
+    "reimport_plans_updates": true,
+    "remote_inline_media_registered_without_blob": true,
+    "trust_and_script_policy_reported": true,
+    "wxr_is_well_formed_and_structural": true
+  },
+  "first_apply": {
+    "authors": {
+      "created": 1,
+      "updated": 0
+    },
+    "categories": {
+      "created": 2,
+      "updated": 0
+    },
+    "media": {
+      "created": 3,
+      "updated": 0
+    },
+    "pages": {
+      "created": 1,
+      "updated": 0
+    },
+    "posts": {
+      "created": 2,
+      "updated": 0
+    },
+    "tags": {
+      "created": 2,
+      "updated": 0
+    }
+  },
+  "first_report": {
+    "applied": {
+      "authors": {
+        "created": 1,
+        "updated": 0
+      },
+      "categories": {
+        "created": 2,
+        "updated": 0
+      },
+      "media": {
+        "created": 3,
+        "updated": 0
+      },
+      "pages": {
+        "created": 1,
+        "updated": 0
+      },
+      "posts": {
+        "created": 2,
+        "updated": 0
+      },
+      "tags": {
+        "created": 2,
+        "updated": 0
+      }
+    },
+    "counts": {
+      "authors": {
+        "create": 1,
+        "fetched": 1,
+        "skip": 0,
+        "update": 0
+      },
+      "categories": {
+        "create": 2,
+        "fetched": 2,
+        "skip": 0,
+        "update": 0
+      },
+      "media": {
+        "create": 3,
+        "fetched": 3,
+        "skip": 0,
+        "update": 0
+      },
+      "pages": {
+        "create": 1,
+        "fetched": 1,
+        "skip": 0,
+        "update": 0
+      },
+      "posts": {
+        "create": 2,
+        "fetched": 2,
+        "skip": 0,
+        "update": 0
+      },
+      "tags": {
+        "create": 2,
+        "fetched": 2,
+        "skip": 0,
+        "update": 0
+      }
+    },
+    "limits": {
+      "max_items": 750,
+      "max_pages": 5,
+      "max_wxr_items": 500,
+      "timeout_seconds": 20
+    },
+    "mode": "dry-run",
+    "platform": "wordpress",
+    "samples": [
+      {
+        "action": "create",
+        "external_id": "11",
+        "label": "Field Notes",
+        "type": "category"
+      },
+      {
+        "action": "create",
+        "external_id": "12",
+        "label": "Research",
+        "type": "category"
+      },
+      {
+        "action": "create",
+        "external_id": "21",
+        "label": "Water",
+        "type": "tag"
+      },
+      {
+        "action": "create",
+        "external_id": "22",
+        "label": "Reading",
+        "type": "tag"
+      },
+      {
+        "action": "create",
+        "external_id": "31",
+        "label": "Mara Field",
+        "type": "author"
+      },
+      {
+        "action": "create",
+        "external_id": "501",
+        "label": "Spring water cover",
+        "type": "media"
+      },
+      {
+        "action": "create",
+        "external_id": "502",
+        "label": "Research notes",
+        "type": "media"
+      },
+      {
+        "action": "create",
+        "external_id": "inline:7a7c55e026414ad02020c18db43adac1",
+        "label": "spring-detail.jpg",
+        "type": "media"
+      },
+      {
+        "action": "create",
+        "external_id": "101",
+        "label": "A field guide to spring water",
+        "type": "post"
+      },
+      {
+        "action": "create",
+        "external_id": "102",
+        "label": "Unfinished reading notes",
+        "type": "post"
+      },
+      {
+        "action": "create",
+        "external_id": "201",
+        "label": "Water library",
+        "type": "page"
+      }
+    ],
+    "unmapped_items": [],
+    "warnings": [
+      "WordPress content is untrusted text and is revalidated through FastShop block and media boundaries.",
+      "WordPress snippets, head scripts and footer scripts are not imported because consent policies differ.",
+      "Remote media is registered by public HTTPS URL; no asset bytes are downloaded.",
+      "Removed unsupported <script> content.",
+      "Removed WordPress shortcode markup; surrounding text was retained.",
+      "Flattened unsupported <iframe> markup to text."
+    ]
+  },
+  "fixture": "tests/fixtures/wordpress_site.json",
+  "offline": true,
+  "passed": 10,
+  "second_apply": {
+    "authors": {
+      "created": 0,
+      "updated": 1
+    },
+    "categories": {
+      "created": 0,
+      "updated": 2
+    },
+    "media": {
+      "created": 0,
+      "updated": 3
+    },
+    "pages": {
+      "created": 0,
+      "updated": 1
+    },
+    "posts": {
+      "created": 0,
+      "updated": 2
+    },
+    "tags": {
+      "created": 0,
+      "updated": 2
+    }
+  },
+  "second_report": {
+    "applied": {
+      "authors": {
+        "created": 0,
+        "updated": 1
+      },
+      "categories": {
+        "created": 0,
+        "updated": 2
+      },
+      "media": {
+        "created": 0,
+        "updated": 3
+      },
+      "pages": {
+        "created": 0,
+        "updated": 1
+      },
+      "posts": {
+        "created": 0,
+        "updated": 2
+      },
+      "tags": {
+        "created": 0,
+        "updated": 2
+      }
+    },
+    "counts": {
+      "authors": {
+        "create": 0,
+        "fetched": 1,
+        "skip": 0,
+        "update": 1
+      },
+      "categories": {
+        "create": 0,
+        "fetched": 2,
+        "skip": 0,
+        "update": 2
+      },
+      "media": {
+        "create": 0,
+        "fetched": 3,
+        "skip": 0,
+        "update": 3
+      },
+      "pages": {
+        "create": 0,
+        "fetched": 1,
+        "skip": 0,
+        "update": 1
+      },
+      "posts": {
+        "create": 0,
+        "fetched": 2,
+        "skip": 0,
+        "update": 2
+      },
+      "tags": {
+        "create": 0,
+        "fetched": 2,
+        "skip": 0,
+        "update": 2
+      }
+    },
+    "limits": {
+      "max_items": 750,
+      "max_pages": 5,
+      "max_wxr_items": 500,
+      "timeout_seconds": 20
+    },
+    "mode": "dry-run",
+    "platform": "wordpress",
+    "samples": [
+      {
+        "action": "update",
+        "external_id": "11",
+        "label": "Field Notes",
+        "type": "category"
+      },
+      {
+        "action": "update",
+        "external_id": "12",
+        "label": "Research",
+        "type": "category"
+      },
+      {
+        "action": "update",
+        "external_id": "21",
+        "label": "Water",
+        "type": "tag"
+      },
+      {
+        "action": "update",
+        "external_id": "22",
+        "label": "Reading",
+        "type": "tag"
+      },
+      {
+        "action": "update",
+        "external_id": "31",
+        "label": "Mara Field",
+        "type": "author"
+      },
+      {
+        "action": "update",
+        "external_id": "501",
+        "label": "Spring water cover",
+        "type": "media"
+      },
+      {
+        "action": "update",
+        "external_id": "502",
+        "label": "Research notes",
+        "type": "media"
+      },
+      {
+        "action": "update",
+        "external_id": "inline:7a7c55e026414ad02020c18db43adac1",
+        "label": "spring-detail.jpg",
+        "type": "media"
+      },
+      {
+        "action": "update",
+        "external_id": "101",
+        "label": "A field guide to spring water",
+        "type": "post"
+      },
+      {
+        "action": "update",
+        "external_id": "102",
+        "label": "Unfinished reading notes",
+        "type": "post"
+      },
+      {
+        "action": "update",
+        "external_id": "201",
+        "label": "Water library",
+        "type": "page"
+      }
+    ],
+    "unmapped_items": [],
+    "warnings": [
+      "WordPress content is untrusted text and is revalidated through FastShop block and media boundaries.",
+      "WordPress snippets, head scripts and footer scripts are not imported because consent policies differ.",
+      "Remote media is registered by public HTTPS URL; no asset bytes are downloaded.",
+      "Removed unsupported <script> content.",
+      "Removed WordPress shortcode markup; surrounding text was retained.",
+      "Flattened unsupported <iframe> markup to text."
+    ]
+  },
+  "total": 10,
+  "wxr_items": [
+    [
+      "A field guide to spring water",
+      "post",
+      "publish"
+    ],
+    [
+      "About us",
+      "page",
+      "draft"
+    ],
+    [
+      "Contact",
+      "page",
+      "draft"
+    ],
+    [
+      "FAQ",
+      "page",
+      "draft"
+    ],
+    [
+      "Privacy Policy",
+      "page",
+      "draft"
+    ],
+    [
+      "Returns and Refunds",
+      "page",
+      "draft"
+    ],
+    [
+      "Terms and Conditions",
+      "page",
+      "draft"
+    ],
+    [
+      "Unfinished reading notes",
+      "post",
+      "draft"
+    ],
+    [
+      "Water library",
+      "page",
+      "publish"
+    ],
+    [
+      "WordPress fixture migration",
+      "page",
+      "draft"
+    ]
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "base": "http://127.0.0.1:51648",
+  "checks": [
+    {
+      "merchant": "guided brief creates a private draft, resolves owned placeholder images, exposes them in the media library and reruns resolution idempotently",
+      "status": "passed"
+    },
+    {
+      "merchant": "menu anchor add, reorder, publish, public target and desktop/mobile editor",
+      "status": "passed"
+    },
+    {
+      "merchant": "media upload, browse, pick and save alt desktop/mobile; referenced deletion refused",
+      "status": "passed"
+    }
+  ],
+  "failures": []
+}

@@ -1,0 +1,36 @@
+{
+  "suite": "phase4c-order-management",
+  "passed": 7,
+  "total": 7,
+  "external_calls": 0,
+  "cases": [
+    {
+      "case": "fulfillment state machine blocks skips and records tracking",
+      "passed": true
+    },
+    {
+      "case": "order mutations require tenant manager membership",
+      "passed": true
+    },
+    {
+      "case": "refund command is exact and idempotent",
+      "passed": true
+    },
+    {
+      "case": "refund cannot exceed captured remainder",
+      "passed": true
+    },
+    {
+      "case": "report subtracts refunds using integer minor units",
+      "passed": true
+    },
+    {
+      "case": "demo commerce is isolated from real revenue",
+      "passed": true
+    },
+    {
+      "case": "bounded empty report returns zeros",
+      "passed": true
+    }
+  ]
+}

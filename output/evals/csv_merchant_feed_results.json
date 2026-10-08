@@ -1,0 +1,151 @@
+{
+  "checks": {
+    "bom_crlf_and_quoted_comma_parsed": true,
+    "decimal_rounding_is_exact": true,
+    "first_apply_created_catalog": true,
+    "merchant_feed_is_well_formed_and_complete": true,
+    "per_row_status_is_complete": true,
+    "preview_has_no_catalog_writes": true,
+    "reimport_has_no_duplicates": true,
+    "reimport_plans_updates": true,
+    "stock_and_row_mappings_applied": true,
+    "validation_report_names_invalid_product": true
+  },
+  "feed_items": 1,
+  "feed_review": [
+    {
+      "errors": "",
+      "product_id": "38d049e81bcf4a238bbdb3bd65196852",
+      "sku": "MUG-L",
+      "status": "ready",
+      "title": "Trail Mug, Large",
+      "variant_id": "b5969a4f44b3414c8842a62ec99bd70c"
+    },
+    {
+      "errors": "description is missing | image_link is missing or invalid",
+      "product_id": "f34a611bb71541dc9e166968f45394ee",
+      "sku": "CSV-3E34329A03B3",
+      "status": "error",
+      "title": "Pocket Brewer",
+      "variant_id": "352e7d71b3b0423eb6c0c61690c1cf2e"
+    }
+  ],
+  "first_apply": {
+    "products": {
+      "created": 2,
+      "updated": 0
+    }
+  },
+  "first_report": {
+    "applied": {
+      "products": {
+        "created": 2,
+        "updated": 0
+      }
+    },
+    "counts": {
+      "products": {
+        "create": 2,
+        "fetched": 2,
+        "skip": 0,
+        "update": 0
+      }
+    },
+    "rows": [
+      {
+        "errors": [],
+        "identity": "sku:mug-l",
+        "name": "Trail Mug, Large",
+        "row_number": 2,
+        "status": "create"
+      },
+      {
+        "errors": [],
+        "identity": "sha256:bbd0a8ee7290ebd2700f386cb8ddc04550c4d8eb25ab254c8f9b0e2e5a7376de",
+        "name": "Pocket Brewer",
+        "row_number": 3,
+        "status": "create"
+      }
+    ],
+    "samples": [
+      {
+        "action": "create",
+        "external_id": "sku:mug-l",
+        "label": "Trail Mug, Large",
+        "type": "product"
+      },
+      {
+        "action": "create",
+        "external_id": "sha256:bbd0a8ee7290ebd2700f386cb8ddc04550c4d8eb25ab254c8f9b0e2e5a7376de",
+        "label": "Pocket Brewer",
+        "type": "product"
+      }
+    ],
+    "unmapped_items": [],
+    "warnings": [
+      "Rows without an explicit currency use the target site's configured USD channel currency.",
+      "The reviewed plan stores normalized rows, not the uploaded file; apply never rereads the upload."
+    ]
+  },
+  "fixture": "tests/fixtures/csv_catalog_edge_cases.csv",
+  "offline": true,
+  "passed": 10,
+  "second_apply": {
+    "products": {
+      "created": 0,
+      "updated": 2
+    }
+  },
+  "second_report": {
+    "applied": {
+      "products": {
+        "created": 0,
+        "updated": 2
+      }
+    },
+    "counts": {
+      "products": {
+        "create": 0,
+        "fetched": 2,
+        "skip": 0,
+        "update": 2
+      }
+    },
+    "rows": [
+      {
+        "errors": [],
+        "identity": "sku:mug-l",
+        "name": "Trail Mug, Large",
+        "row_number": 2,
+        "status": "update"
+      },
+      {
+        "errors": [],
+        "identity": "sha256:bbd0a8ee7290ebd2700f386cb8ddc04550c4d8eb25ab254c8f9b0e2e5a7376de",
+        "name": "Pocket Brewer",
+        "row_number": 3,
+        "status": "update"
+      }
+    ],
+    "samples": [
+      {
+        "action": "update",
+        "external_id": "sku:mug-l",
+        "label": "Trail Mug, Large",
+        "type": "product"
+      },
+      {
+        "action": "update",
+        "external_id": "sha256:bbd0a8ee7290ebd2700f386cb8ddc04550c4d8eb25ab254c8f9b0e2e5a7376de",
+        "label": "Pocket Brewer",
+        "type": "product"
+      }
+    ],
+    "unmapped_items": [],
+    "warnings": [
+      "Rows without an explicit currency use the target site's configured USD channel currency.",
+      "The reviewed plan stores normalized rows, not the uploaded file; apply never rereads the upload."
+    ]
+  },
+  "total": 10
+}

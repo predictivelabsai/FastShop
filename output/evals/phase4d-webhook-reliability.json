@@ -1,0 +1,11 @@
+{
+  "phase": "4d-webhook-reliability",
+  "offline": true,
+  "checks": {
+    "bounded_outbox": true,
+    "tenant_delivery_scope": true,
+    "idempotent_provider_resync": true,
+    "webhook_dedup": true
+  },
+  "passed": true
+}

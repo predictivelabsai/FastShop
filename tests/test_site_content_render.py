@@ -74,3 +74,15 @@ def test_legacy_fallback_matches_all_before_menu_renders():
 
     golden = GOLDEN.with_name("phase0b_storefront_sha256.json")
     assert seeded_render_hashes(without_menus) == json.loads(golden.read_text(encoding="utf-8"))
+
+
+def test_media_registration_preserves_all_golden_renders():
+    from app.site_media import backfill_media, media_for
+
+    def registered(db, site, *args, **kwargs):
+        assert backfill_media(db, site) == 0
+        if site.slug == "h24you":
+            assert media_for(db, site)
+        return storefront(db, site, *args, **kwargs)
+
+    assert seeded_render_hashes(registered) == json.loads(GOLDEN.read_text(encoding="utf-8"))

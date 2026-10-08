@@ -68,6 +68,48 @@ def test_builder_failure_and_secrets_do_not_modify_draft(editor, monkeypatch):
         assert db.get(Site, site.id).settings_json == site.settings_json
 
 
+def test_block_preview_reject_and_accept_routes(editor, monkeypatch):
+    import app.site_builder_routes as routes
+    client, site, page, token = editor
+    block_id = page.draft_json["blocks"][0]["id"]
+    original = page.draft_json["blocks"][0]["heading"]
+    monkeypatch.setattr(routes, "respond", lambda *args: ({"answer": "Review the heading", "operations": [{
+        "op": "patch", "page_id": page.id, "block_id": block_id, "after": {"heading": "Preview only"},
+    }]}, "fixture"))
+    base = f"/admin/sites/{site.id}/build"
+    result = client.post(base + "/message", data=message_form(site, page, token))
+    assert result.status_code == 200
+    assert "Review block edits" in result.text and block_id in result.text and "Hero" in result.text
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        saved_page = content.site_page(db, saved, page.id)
+        assert saved_page.draft_json["blocks"][0]["heading"] == original
+        turn = db.scalar(select(SiteBuilderTurn).where(SiteBuilderTurn.site_id == site.id))
+        operation = turn.response_json["refinement"]["operations"][0]
+        reject = {"csrf_token": token, "version": saved.version, "turn_id": turn.id,
+            "op_id": operation["op_id"], "decision": "reject", "page_id": page.id}
+    assert client.post(base + "/refinement", data=reject | {"csrf_token": "bad"}).status_code == 400
+    assert client.post(base + "/refinement", data=reject).status_code == 200
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        assert content.site_page(db, saved, page.id).draft_json["blocks"][0]["heading"] == original
+        version = saved.version
+
+    result = client.post(base + "/message", data=message_form(site, page, token) | {"version": version})
+    assert result.status_code == 200
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        turn = next(turn for turn in db.scalars(select(SiteBuilderTurn).where(SiteBuilderTurn.site_id == site.id))
+            if turn.response_json.get("refinement", {}).get("status") == "pending")
+        operation = turn.response_json["refinement"]["operations"][0]
+        accept = {"csrf_token": token, "version": saved.version, "turn_id": turn.id,
+            "op_id": operation["op_id"], "decision": "accept", "page_id": page.id}
+    assert client.post(base + "/refinement", data=accept).status_code == 200
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        assert content.site_page(db, saved, page.id).draft_json["blocks"][0]["heading"] == "Preview only"
+
+
 def test_classical_settings_save_is_reversible_from_builder(editor):
     client, site, page, token = editor
     base = f"/admin/sites/{site.id}"
@@ -132,9 +174,10 @@ def test_merchant_proposal_requires_csrf_and_explicit_confirmation(editor, monke
         assert saved.settings_json["sample_fields"]["shipping_minor"]["source"] == "ai_proposed"
         config = commerce.settings_for(db, saved)
         config_version = config.version
-    blocked = client.post(f"/admin/sites/{site.id}/commerce", data={"csrf_token": token,
-        "version": config_version, "mode": "sandbox", "states": "CA", "origin_country": "EE",
-        "shipping_minor": "1600", "free_shipping_threshold_minor": "7500"})
-    assert blocked.status_code == 400 and "Review merchant details" in blocked.text
+        site_version = saved.version
+    blocked = client.post(f"/admin/sites/{site.id}/golive/commerce", data={"csrf_token": token,
+        "version": site_version, "config_version": config_version, "enabled": "1"})
+    assert blocked.status_code == 200
+    assert "Sandbox commerce blocked" in blocked.text and "Merchant details are reviewed" in blocked.text
     with SessionLocal() as db:
         assert commerce.settings_for(db, db.get(Site, site.id)).mode == "disabled"

@@ -1,0 +1,170 @@
+{
+  "shop": {
+    "currencyCode": "USD"
+  },
+  "collections": [
+    {
+      "id": "gid://shopify/Collection/10",
+      "title": "Tea",
+      "handle": "tea",
+      "description": "Loose leaf and sachets.",
+      "updatedAt": "2026-10-01T10:00:00Z"
+    },
+    {
+      "id": "gid://shopify/Collection/11",
+      "title": "Herbal Tea",
+      "handle": "herbal-tea",
+      "description": "Caffeine-free blends.",
+      "updatedAt": "2026-10-01T10:05:00Z"
+    }
+  ],
+  "products": [
+    {
+      "id": "gid://shopify/Product/100",
+      "title": "Evening Blend",
+      "handle": "evening-blend",
+      "descriptionHtml": "<p>A quiet herbal blend.</p>",
+      "productType": "Tea",
+      "status": "ACTIVE",
+      "updatedAt": "2026-10-02T08:00:00Z",
+      "featuredImage": {
+        "url": "https://images.example.test/evening-blend.jpg"
+      },
+      "collections": [
+        {"id": "gid://shopify/Collection/11"}
+      ],
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/1001",
+          "title": "20 sachets",
+          "sku": "EVENING-20",
+          "price": "29.95",
+          "updatedAt": "2026-10-02T08:01:00Z"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/1002",
+          "title": "40 sachets",
+          "sku": "EVENING-40",
+          "price": "31.005",
+          "updatedAt": "2026-10-02T08:02:00Z"
+        }
+      ]
+    },
+    {
+      "id": "gid://shopify/Product/101",
+      "title": "Tea Strainer",
+      "handle": "tea-strainer",
+      "descriptionHtml": "Fine mesh stainless steel strainer.",
+      "productType": "Accessories",
+      "status": "DRAFT",
+      "updatedAt": "2026-10-02T09:00:00Z",
+      "featuredImage": null,
+      "collections": [
+        {"id": "gid://shopify/Collection/999"}
+      ],
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/1011",
+          "title": "Default Title",
+          "sku": "STRAINER-01",
+          "price": "18.50",
+          "updatedAt": "2026-10-02T09:01:00Z"
+        }
+      ]
+    }
+  ],
+  "customers": [
+    {
+      "id": "gid://shopify/Customer/500",
+      "firstName": "Alex",
+      "lastName": "River",
+      "displayName": "Alex River",
+      "defaultEmailAddress": {"emailAddress": "alex@example.test"},
+      "updatedAt": "2026-10-03T11:00:00Z"
+    },
+    {
+      "id": "gid://shopify/Customer/501",
+      "firstName": "Invalid",
+      "lastName": "Customer",
+      "displayName": "Invalid Customer",
+      "defaultEmailAddress": {"emailAddress": "not-an-email"},
+      "updatedAt": "2026-10-03T11:05:00Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "gid://shopify/Order/700",
+      "name": "#700",
+      "email": "alex@example.test",
+      "updatedAt": "2026-10-04T12:00:00Z",
+      "cancelledAt": null,
+      "displayFinancialStatus": "PAID",
+      "displayFulfillmentStatus": "UNFULFILLED",
+      "customer": {
+        "firstName": "Alex",
+        "lastName": "River",
+        "displayName": "Alex River",
+        "defaultEmailAddress": {"emailAddress": "alex@example.test"}
+      },
+      "currentSubtotalPriceSet": {
+        "shopMoney": {"amount": "64.90", "currencyCode": "USD"},
+        "presentmentMoney": {"amount": "60.20", "currencyCode": "EUR"}
+      },
+      "currentTotalDiscountsSet": {
+        "shopMoney": {"amount": "6.00", "currencyCode": "USD"},
+        "presentmentMoney": {"amount": "5.57", "currencyCode": "EUR"}
+      },
+      "totalShippingPriceSet": {
+        "shopMoney": {"amount": "10.00", "currencyCode": "USD"},
+        "presentmentMoney": {"amount": "9.28", "currencyCode": "EUR"}
+      },
+      "currentTotalTaxSet": {
+        "shopMoney": {"amount": "4.79", "currencyCode": "USD"},
+        "presentmentMoney": {"amount": "4.45", "currencyCode": "EUR"}
+      },
+      "currentTotalPriceSet": {
+        "shopMoney": {"amount": "73.69", "currencyCode": "USD"},
+        "presentmentMoney": {"amount": "68.36", "currencyCode": "EUR"}
+      },
+      "shippingAddress": {
+        "firstName": "Alex",
+        "lastName": "River",
+        "company": "",
+        "address1": "12 Test Street",
+        "address2": "",
+        "city": "Portland",
+        "provinceCode": "OR",
+        "zip": "97205",
+        "countryCodeV2": "US"
+      },
+      "lineItems": [
+        {
+          "name": "Evening Blend — 20 sachets",
+          "sku": "EVENING-20",
+          "quantity": 2,
+          "product": {"id": "gid://shopify/Product/100"},
+          "variant": {"id": "gid://shopify/ProductVariant/1001", "title": "20 sachets"},
+          "originalUnitPriceSet": {
+            "shopMoney": {"amount": "29.95", "currencyCode": "USD"}
+          },
+          "discountedTotalSet": {
+            "shopMoney": {"amount": "53.90", "currencyCode": "USD"}
+          }
+        },
+        {
+          "name": "Archived gift wrap",
+          "sku": "GIFT-OLD",
+          "quantity": 1,
+          "product": {"id": "gid://shopify/Product/999"},
+          "variant": {"id": "gid://shopify/ProductVariant/9991", "title": "Default Title"},
+          "originalUnitPriceSet": {
+            "shopMoney": {"amount": "5.00", "currencyCode": "USD"}
+          },
+          "discountedTotalSet": {
+            "shopMoney": {"amount": "5.00", "currencyCode": "USD"}
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -21,6 +21,7 @@ from app.site_blocks import (
     reorder_blocks,
     resolve_document,
 )
+from app.site_ui import render_section
 
 
 def legacy_document():
@@ -66,6 +67,31 @@ def test_bare_legacy_section_list_normalizes():
 def test_invalid_types_nested_fields_and_localized_urls_are_rejected(block):
     with pytest.raises(CommerceError):
         normalize_document({"version": 1, "blocks": [block]})
+
+
+@pytest.mark.parametrize("url", ["http://example.test/embed", "/local/embed", "mailto:embed@example.test", "javascript:alert(1)"])
+def test_embed_requires_https(url):
+    with pytest.raises(CommerceError):
+        normalize_document({"version": 1, "blocks": [{"id": "embed", "type": "embed", "url": url}]})
+
+
+def test_embed_is_provider_neutral_and_strictly_sandboxed():
+    document = normalize_document({"version": 1, "blocks": [{
+        "id": "embed",
+        "type": "embed",
+        "heading": "A secure demonstration",
+        "url": {"en": "https://embed.example.test/watch"},
+    }]})
+    assert resolve_document(document)["blocks"][0]["url"] == "https://embed.example.test/watch"
+    site = SimpleNamespace(id="site", tenant_id="tenant")
+    page = SimpleNamespace(kind="content")
+    rendered = render_section(None, site, page, {}, resolve_document(document)["blocks"][0], "", "csrf")
+    html = str(rendered)
+    assert 'sandbox="allow-scripts"' in html
+    assert 'referrerpolicy="no-referrer"' in html
+    assert 'loading="lazy"' in html
+    assert 'width="1280"' in html and 'height="720"' in html
+    assert "allow-same-origin" not in html
 
 
 def test_duplicate_block_ids_and_unknown_document_versions_are_rejected():

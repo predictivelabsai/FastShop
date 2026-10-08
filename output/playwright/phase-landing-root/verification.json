@@ -1,0 +1,54 @@
+{
+  "base": "http://127.0.0.1:5033",
+  "checks": [
+    {
+      "device": "desktop",
+      "width": 1440,
+      "path": "/",
+      "status": 200,
+      "stylesheet": "/static/marketing.css",
+      "overflow": false
+    },
+    {
+      "device": "desktop",
+      "width": 1440,
+      "path": "/demo",
+      "status": 200,
+      "stylesheet": "/static/site.css",
+      "overflow": false
+    },
+    {
+      "device": "desktop",
+      "width": 1440,
+      "path": "/demo/products",
+      "status": 200,
+      "stylesheet": "/static/site.css",
+      "overflow": false
+    },
+    {
+      "device": "mobile",
+      "width": 390,
+      "path": "/",
+      "status": 200,
+      "stylesheet": "/static/marketing.css",
+      "overflow": false
+    },
+    {
+      "device": "mobile",
+      "width": 390,
+      "path": "/demo",
+      "status": 200,
+      "stylesheet": "/static/site.css",
+      "overflow": false
+    },
+    {
+      "device": "mobile",
+      "width": 390,
+      "path": "/demo/products",
+      "status": 200,
+      "stylesheet": "/static/site.css",
+      "overflow": false
+    }
+  ],
+  "failures": []
+}

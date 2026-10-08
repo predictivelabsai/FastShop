@@ -19,10 +19,13 @@ from app.site_blocks import (
     patch_block,
     reorder_blocks,
 )
+from app.site_refinement import apply_operation as apply_refinement_operation
+from app.site_refinement import derive_operations
 from app.site_theme import validate_theme
 
 BRAND_FIELDS = {"name", "tagline", "announcement", "footer"}
-SECTION_FIELDS = {"heading", "eyebrow", "body", "image", "button", "link", "hidden", "items", "gallery", "video", "mobile_video", "poster", "role", "layout"}
+SECTION_FIELDS = {"heading", "eyebrow", "body", "image", "button", "link", "hidden", "items", "gallery", "alt", "video", "mobile_video", "poster", "role", "layout"}
+REFINEMENT_TTL = timedelta(minutes=30)
 
 
 def validate_section_text(values):
@@ -89,6 +92,33 @@ def validate_response(response):
     from app.site_builder_reviews import validate_proposals
     validate_proposals(response.get("proposals", []))
     return response
+
+
+def expire_refinements(db, site, user_id=None):
+    """Make stale previews inert without retaining an actionable draft indefinitely."""
+    statement = select(SiteBuilderTurn).where(
+        SiteBuilderTurn.site_id == site.id,
+        SiteBuilderTurn.tenant_id == site.tenant_id,
+        SiteBuilderTurn.created_at <= datetime.now(UTC) - REFINEMENT_TTL,
+        SiteBuilderTurn.status == "complete",
+    )
+    if user_id:
+        statement = statement.where(SiteBuilderTurn.user_id == user_id)
+    expired = 0
+    for turn in db.scalars(statement):
+        response = copy.deepcopy(turn.response_json)
+        preview = response.get("refinement")
+        if not isinstance(preview, dict) or preview.get("status") != "pending":
+            continue
+        for operation in preview.get("operations", []):
+            if operation.get("status") == "pending":
+                operation["status"] = "expired"
+        preview["status"] = "expired"
+        turn.response_json = response
+        expired += 1
+    if expired:
+        db.flush()
+    return expired
 
 
 def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
@@ -183,7 +213,8 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
 def undo_change(db, site_id, user_id, change_id, version):
     site = lock_site(db, site_id, user_id, version)
     change = db.scalar(select(SiteChangeSet).where(SiteChangeSet.id == change_id,
-        SiteChangeSet.site_id == site.id, SiteChangeSet.tenant_id == site.tenant_id))
+        SiteChangeSet.site_id == site.id, SiteChangeSet.tenant_id == site.tenant_id,
+        SiteChangeSet.source.notin_(["golive", "live-acceptance"])))
     if not change or not snapshot_matches(snapshot(db, site), change.after_json):
         raise CommerceError("Only the current unchanged draft revision can be undone.")
     before = snapshot(db, site)
@@ -224,6 +255,7 @@ def begin_turn(db, site_id, user_id, command_id, prompt, page_id, version, secti
             raise CommerceError("This command identifier is already in use.")
         return prior, False
     site = lock_site(db, site.id, user_id, version)
+    expire_refinements(db, site, user_id)
     from app.site_builder_reviews import review_context
     page = content.site_page(db, site, page_id)
     if section_id and section_id not in {s["id"] for s in normalize_document(page.draft_json)["blocks"]}:
@@ -255,8 +287,22 @@ def finish_turn(db, site_id, user_id, turn_id, response, provider):
     if claimed.rowcount != 1:
         raise CommerceError("This builder request is no longer pending.")
     validate_response(response)
-    change = apply_operations(db, site.id, user_id, turn.context_json["snapshot"], response.get("operations", []))
-    turn.response_json = response | {"change_id": change.id if change else "", "summary": change.summary if change else "No draft changes"}
+    immediate, refinements = derive_operations(turn.context_json["snapshot"], response.get("operations", []))
+    change = apply_operations(db, site.id, user_id, turn.context_json["snapshot"], immediate)
+    stored = copy.deepcopy(response)
+    stored["operations"] = immediate
+    stored.update(change_id=change.id if change else "", summary=change.summary if change else "No draft changes")
+    if refinements:
+        for operation in refinements:
+            validate_section_text(operation.get("after"))
+            operation["status"] = "pending"
+        stored["refinement"] = {
+            "status": "pending",
+            "expires_at": (datetime.now(UTC) + REFINEMENT_TTL).isoformat(),
+            "operations": refinements,
+        }
+        stored["summary"] = f"{len(refinements)} block edit{'s' if len(refinements) != 1 else ''} ready for review"
+    turn.response_json = stored
     if response.get("proposals"):
         from app.site_builder_reviews import review_context
         current = review_context(db, site)
@@ -269,6 +315,76 @@ def finish_turn(db, site_id, user_id, turn_id, response, provider):
     turn.provider, turn.status = provider, "complete"
     db.flush()
     return turn
+
+
+def decide_refinement(db, site_id, user_id, turn_id, decision, op_id, version):
+    """Accept or reject one/all pending block ops owned by the current merchant."""
+    site = content.owned_site(db, site_id, user_id)
+    expire_refinements(db, site, user_id)
+    turn = db.scalar(select(SiteBuilderTurn).where(
+        SiteBuilderTurn.id == turn_id,
+        SiteBuilderTurn.site_id == site.id,
+        SiteBuilderTurn.tenant_id == site.tenant_id,
+        SiteBuilderTurn.user_id == user_id,
+        SiteBuilderTurn.status == "complete",
+    ).with_for_update())
+    response = copy.deepcopy(turn.response_json) if turn else {}
+    preview = response.get("refinement")
+    if not turn or not isinstance(preview, dict) or preview.get("status") != "pending":
+        raise CommerceError("This edit preview is no longer pending.")
+    operations = preview.get("operations", [])
+    selected = [operation for operation in operations if operation.get("status") == "pending" and
+        (op_id == "all" or operation.get("op_id") == op_id)]
+    if not selected:
+        raise CommerceError("Choose a pending edit from this preview.")
+    if decision == "reject":
+        for operation in selected:
+            operation["status"] = "rejected"
+    elif decision == "accept":
+        site = lock_site(db, site.id, user_id, version)
+        before = snapshot(db, site)
+        documents: dict[str, dict] = {}
+        pages = {}
+        from app.compliance import assert_document_compliant
+        for operation in selected:
+            validate_section_text(operation.get("after"))
+            page_id = operation["page_id"]
+            if page_id not in documents:
+                page = content.site_page(db, site, page_id)
+                pages[page_id] = page
+                documents[page_id] = normalize_document(page.draft_json)
+            documents[page_id] = apply_refinement_operation(documents[page_id], operation)
+        for page_id, document in documents.items():
+            assert_document_compliant(document)
+            page = pages[page_id]
+            content.save_page(db, site, page.id, user_id, document, page.version)
+        site.version += 1
+        db.flush()
+        descriptions = [operation["description"] for operation in selected]
+        change = record_change(db, site, user_id, before, "chat-refinement", "; ".join(descriptions))
+        response["change_id"] = change.id
+        for operation in selected:
+            operation["status"] = "accepted"
+    else:
+        raise CommerceError("Choose accept or reject.")
+    states = {operation.get("status") for operation in operations}
+    if "pending" in states:
+        preview["status"] = "pending"
+    elif states == {"accepted"}:
+        preview["status"] = "accepted"
+    elif states == {"rejected"}:
+        preview["status"] = "rejected"
+    else:
+        preview["status"] = "decided"
+    response["summary"] = {
+        "pending": "Block edits awaiting review",
+        "accepted": "All block edits accepted",
+        "rejected": "All block edits rejected",
+        "decided": "Block edits reviewed",
+    }[preview["status"]]
+    turn.response_json = response
+    db.flush()
+    return len(selected), preview["status"]
 
 
 def end_pending_turn(db, site_id, user_id, command_id, *, failed=False):

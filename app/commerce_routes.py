@@ -27,7 +27,7 @@ from starlette.responses import RedirectResponse
 
 from app import commerce, content, site_builder_services
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway, credentials
+from app.integrations.stripe_commerce import StripeGateway, credentials, make_gateway
 from app.models import Product, ProductVariant, SiteCommerceSettings
 from app.services import CommerceError, money
 
@@ -70,9 +70,12 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                            Li("Shipping fee: " + (money(config.shipping_minor, "USD") if config.shipping_minor is not None else "not configured")),
                            Li("Sandbox mode enables accounts, email capture, one-time checkout and eligible product subscriptions when configuration is complete. Provider acceptance and worker scheduling must be verified before launch. Live payments are disabled."), cls="e-readiness"), cls="e-note"),
                     Div(Div(Form(csrf(session), Input(type="hidden", name="version", value=config.version),
+                        Input(type="hidden", name="site_version", value=site.version),
+                        Input(type="hidden", name="mode", value=config.mode),
                         H2("Market and shipping"),
-                        Label("Commerce mode", Select(Option("Disabled", value="disabled", selected=config.mode == "disabled"),
-                            Option("Stripe sandbox", value="sandbox", selected=config.mode == "sandbox"), name="mode")),
+                        P("Checkout status: " + ({"sandbox": "Sandbox enabled", "live": "Live payments approved by operator"}.get(config.mode, "Read-only storefront")), cls="g-state"),
+                        P("Enable or disable sandbox checkout from the go-live checklist after these settings are complete."),
+                        A("Open go-live checklist", href=f"/admin/sites/{site.id}/golive#commerce"),
                         H3("Actual EU fulfilment origin"), P("Confirm the warehouse address. The company address is not automatically used as the shipping origin."),
                         address_fields("origin_", config.origin_json, origin=True),
                         Label("Standard US shipping (USD cents; blank means unconfigured)", Input(name="shipping_minor", type="number", min="0", step="1", value=config.shipping_minor if config.shipping_minor is not None else "")),
@@ -99,16 +102,19 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
         try:
             check_csrf(session, form)
             with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session), publish=True)
-                site = site_builder_services.lock_site(db, site.id, actor(session), site.version)
+                user_id = actor(session)
+                site = content.owned_site(db, site_id, user_id, publish=True)
+                site = site_builder_services.lock_site(db, site.id, user_id, int(form.get("site_version", 0)))
                 config = commerce.settings_for(db, site, create=True)
                 config = db.scalar(select(SiteCommerceSettings).where(SiteCommerceSettings.id == config.id,
                     SiteCommerceSettings.site_id == site.id, SiteCommerceSettings.tenant_id == site.tenant_id).with_for_update().execution_options(populate_existing=True))
                 if config.version != int(form.get("version", 0)):
                     raise CommerceError("Settings changed in another session. Reload before saving.")
                 mode = str(form.get("mode", "disabled"))
-                if mode not in {"disabled", "sandbox"}:
-                    raise CommerceError("Only disabled or sandbox mode is available before live approval.")
+                if mode not in {"disabled", "sandbox", "live"}:
+                    raise CommerceError("Choose a supported commerce mode.")
+                if mode != config.mode:
+                    raise CommerceError("Change checkout availability from the reviewed go-live checklist.")
                 states = sorted(set(form.getlist("states")))
                 if not states or not set(states).issubset(commerce.US_STATES):
                     raise CommerceError("Select valid US delivery destinations.")
@@ -124,7 +130,7 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                     raise CommerceError("Stripe tax categories must use txcd_ followed by digits.")
                 from app.site_samples import invalidate_reviews, pending_reviews, values_for
                 previous_values = values_for(site, config)
-                config.mode, config.origin_json, config.allowed_states_json = mode, origin, states
+                config.origin_json, config.allowed_states_json = origin, states
                 config.shipping_minor = amount(form.get("shipping_minor", ""), optional=True)
                 config.free_shipping_threshold_minor = amount(form.get("free_shipping_threshold_minor", "7500"))
                 config.product_tax_codes_json, config.subscription_product_ids_json = codes, eligible
@@ -132,7 +138,7 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                 # Track edits to fields already participating in sample review.
                 if site.settings_json.get("sample_fields"):
                     site.settings_json = invalidate_reviews(site.settings_json, previous_values, values_for(site, config))
-                if mode == "sandbox" and pending_reviews(site.settings_json):
+                if config.mode == "sandbox" and pending_reviews(site.settings_json):
                     raise CommerceError("Review merchant details and replace samples before enabling Stripe sandbox. Save changes with commerce disabled first.")
                 config.version += 1
                 site.version += 1
@@ -154,7 +160,8 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                 destination = {key: form.get("destination_" + key, "") for key in ("line1", "line2", "city", "state", "postal_code", "country")}
                 quote = commerce.quote_order(db, site, config, [{"variant_id": str(form.get("variant_id", "")),
                     "quantity": int(form.get("quantity", "1")), "subscription": form.get("subscription") == "on"}],
-                    destination, StripeGateway(site), first_order_discount=form.get("first_order") == "on")
+                    destination, make_gateway(StripeGateway, site, db),
+                    first_order_discount=form.get("first_order") == "on")
                 db.commit()
                 return shell("Sandbox tax quote", A("← Commerce settings", href=f"/admin/sites/{site.id}/commerce"),
                     Div(H2("Delivery to " + commerce.US_STATES[destination["state"]]),

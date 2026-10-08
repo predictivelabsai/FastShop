@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import io
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlencode
 
 from fasthtml.common import (
     H2,
@@ -27,20 +27,20 @@ from fasthtml.common import (
     Summary,
     Textarea,
 )
-from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import RedirectResponse, Response
 
-from app import content, site_ui
+from app import content, signup_services, site_ui
 from app import site_builder_services as builder
 from app.config import settings
 from app.db import SessionLocal
+from app.integrations.commerce_email import dispatch_mail
 from app.integrations.contact_email import deliver
 from app.models import (
     Membership,
     Site,
     SiteContact,
-    SiteMedia,
     SitePage,
     SiteRevision,
     User,
@@ -56,6 +56,7 @@ from app.site_blocks import (
     remove_block,
     reorder_blocks,
     resolve_document,
+    resolve_text,
 )
 from app.site_catalog import register_catalog_routes
 
@@ -83,8 +84,70 @@ def register_site_routes(rt):
     def error(exc):
         return Response(str(exc), status_code=400, media_type="text/plain")
 
+    def verification_banner(db, user_id, session):
+        user = db.get(User, user_id)
+        if not user or not user.password_hash or user.email_verified_at:
+            return None
+        return Div(
+            H2("Verify your email"),
+            P(
+                "You can keep building now. Verify your address so this workspace is "
+                "ready for future account recovery and security messages."
+            ),
+            Form(
+                csrf(session),
+                Button("Resend verification email", cls="e-button"),
+                method="post",
+                action="/account/verification/resend",
+            ),
+            cls="e-card e-verification-banner",
+        )
+
+    @rt("/account/verification/resend", methods=["POST"])
+    async def post(session, request):
+        form = await request.form()
+        try:
+            check_csrf(session, form)
+            user_id = actor(session)
+            message_id = None
+            with SessionLocal() as db:
+                user = db.get(User, user_id)
+                site = signup_services.first_site_for_user(db, user_id)
+                if not user or not site:
+                    raise CommerceError("Workspace not found.")
+                address = request.client.host if request.client else "unknown"
+                limited = signup_services.rate_limited(
+                    db, "resend", user.email, address
+                )
+                if not limited and not user.email_verified_at:
+                    message_id = signup_services.queue_verification(db, site, user).id
+                if not limited:
+                    signup_services.record_attempt(
+                        db,
+                        "resend",
+                        user.email,
+                        address,
+                        accepted=bool(message_id),
+                    )
+                db.commit()
+            if message_id:
+                dispatch_mail(message_id)
+            notice = "If verification is still needed, a new email will arrive shortly."
+            return RedirectResponse(
+                f"/admin/sites/{site.id}?" + urlencode({"notice": notice}),
+                status_code=303,
+            )
+        except CommerceError:
+            return RedirectResponse("/login?next=/admin/sites", status_code=303)
+
+    from app.site_media_routes import register_media_routes
+    register_media_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_menu_routes import register_menu_routes
     register_menu_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_snippet_routes import register_snippet_routes
+    register_snippet_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_integration_routes import register_integration_routes
+    register_integration_routes(rt, actor, csrf, check_csrf, shell, error)
     register_catalog_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_builder_routes import register_builder_routes
     register_builder_routes(rt, actor, csrf, check_csrf, shell, error)
@@ -94,15 +157,21 @@ def register_site_routes(rt):
     register_demo_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.commerce_routes import register_commerce_routes
     register_commerce_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.order_management_routes import register_order_management_routes
+    register_order_management_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.customer_routes import register_customer_routes
     register_customer_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.store_checkout_routes import register_store_checkout_routes
     register_store_checkout_routes(rt, csrf, check_csrf, error)
     from app.subscription_routes import register_subscription_routes
     register_subscription_routes(rt, csrf, check_csrf)
+    from app.site_golive_routes import register_golive_routes
+    register_golive_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_live_credential_routes import register_live_credential_routes
+    register_live_credential_routes(rt, actor, csrf, check_csrf, shell, error)
 
     @rt("/admin/sites", methods=["GET"])
-    def get(session):
+    def get(session, notice: str = ""):
         if not session.get("user_id"):
             return RedirectResponse("/login?next=/admin/sites", status_code=303)
         try:
@@ -111,7 +180,34 @@ def register_site_routes(rt):
                 sites = list(db.scalars(select(Site).join(Membership, Membership.tenant_id == Site.tenant_id).where(
                     Membership.user_id == user_id, Membership.role.in_(["admin", "merchant", "editor"]))))
                 return shell("Your websites", P("Build your story. Shape your storefront. Publish when you're ready."),
+                    verification_banner(db, user_id, session),
+                    P(notice[:300], role="status", cls="e-note") if notice else None,
                     Div(*[Div(H2(site.name), P("/sites/" + site.slug), A("Open editor →", href=f"/admin/sites/{site.id}"), cls="e-card") for site in sites], cls="e-grid"),
+                    Div(H2("Generate a site from a brief"),
+                        P("Describe the essentials once. FastShop will assemble a private draft with pages, design, navigation, copy, image directions and a starter catalog when relevant."),
+                        Form(csrf(session),
+                            Label("Business name", Input(name="business_name", required=True, maxlength=160, autocomplete="organization")),
+                            Label("Business kind", Select(
+                                Option("Online shop", value="online shop"),
+                                Option("Food & beverage", value="food and beverage"),
+                                Option("Wellness business", value="wellness business"),
+                                Option("SaaS", value="SaaS"),
+                                Option("Local service", value="local service"),
+                                Option("Creative studio", value="creative studio"),
+                                name="kind", required=True)),
+                            Label("Who is it for?", Textarea(name="audience", rows=3, required=True, maxlength=500,
+                                placeholder="Independent teams who want a calmer way to manage projects")),
+                            Label("Desired tone", Select(
+                                Option("Warm and natural", value="warm and natural"),
+                                Option("Minimal and precise", value="minimal and precise"),
+                                Option("Bold and energetic", value="bold and energetic"),
+                                Option("Editorial and thoughtful", value="editorial and thoughtful"),
+                                name="tone", required=True)),
+                            Small("Generation runs synchronously and may take up to a minute. The result stays private until you review and publish it. Do not enter passwords, API keys or customer information."),
+                            Button("Generate private draft", cls="e-button", data_generation_submit=""),
+                            P("", role="status", aria_live="polite", data_generation_status="", hidden=True),
+                            method="post", action="/admin/sites/generate", cls="e-form", data_generation_form=""),
+                        cls="e-card e-generation"),
                     H2("Create a website"), Form(csrf(session), Label("Site name", Input(name="name", required=True, maxlength=160)),
                         Label("Site address", Input(name="slug", required=True, pattern="[a-z][a-z0-9-]{2,60}", placeholder="your-brand")),
                         P("Start with the editorial commerce theme. Your site stays private until you publish."),
@@ -120,6 +216,37 @@ def register_site_routes(rt):
                         Button("Create site", cls="e-button"), method="post", action="/admin/sites", cls="e-form"))
         except CommerceError as exc:
             return error(exc)
+
+    @rt("/admin/sites/generate", methods=["POST"])
+    async def post(session, request):
+        from urllib.parse import urlencode
+
+        form = await request.form()
+        try:
+            check_csrf(session, form)
+            user_id = actor(session)
+            from app.site_generation import MerchantBrief, create_generated_site, generate_plan
+
+            brief = MerchantBrief(
+                business_name=str(form.get("business_name", "")),
+                kind=str(form.get("kind", "")),
+                audience=str(form.get("audience", "")),
+                tone=str(form.get("tone", "")),
+            )
+            plan, source = await run_in_threadpool(generate_plan, brief)
+            with SessionLocal() as db:
+                site = create_generated_site(db, user_id, brief, plan, source)
+                home = next(page for page in content.site_pages(db, site) if page.path == "/")
+                db.commit()
+            notice = "Private draft generated with guided presets." if source == "guided" else "Private draft generated."
+            return RedirectResponse(
+                f"/admin/sites/{site.id}/build?" + urlencode({"page": home.id, "notice": notice}),
+                status_code=303,
+            )
+        except (CommerceError, ValueError, TypeError) as exc:
+            return RedirectResponse(
+                "/admin/sites?" + urlencode({"notice": str(exc)[:300]}), status_code=303
+            )
 
     @rt("/admin/sites", methods=["POST"])
     async def post(session, request):
@@ -138,7 +265,7 @@ def register_site_routes(rt):
             return error(exc)
 
     @rt("/admin/sites/{site_id}", methods=["GET"])
-    def get(session, site_id: str):
+    def get(session, site_id: str, notice: str = ""):
         try:
             user_id = actor(session)
             with SessionLocal() as db:
@@ -147,10 +274,20 @@ def register_site_routes(rt):
                 config = site.settings_json
                 from app.site_samples import pending_reviews
                 pending = pending_reviews(config)
+                from app import site_golive
+                publish_report = site_golive.assess(db, site)
+                passed = len(publish_report.checks) - len(publish_report.failures)
                 return shell(site.name,
+                    verification_banner(db, user_id, session),
                     Div(A("Build with AI →", href=f"/admin/sites/{site.id}/build"), A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"), A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"), A("Try commerce demo", href=f"/admin/sites/{site.id}/demo"), cls="e-actions"),
-                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
+                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Go-live review", href=f"/admin/sites/{site.id}/golive"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Orders", href=f"/admin/sites/{site.id}/orders"), A("Revenue", href=f"/admin/sites/{site.id}/revenue"), A("Integrations", href=f"/admin/sites/{site.id}/integrations"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
                     P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),
+                    P(notice[:300], role="status", cls="e-note") if notice else None,
+                    Div(H2("Go-live checklist"),
+                        P(f"{passed} of {len(publish_report.checks)} publication checks pass. Site status: {site.status}."),
+                        P("The checklist is derived from pages, menus, compliance, domain and commerce state; it is never stored as editable flags."),
+                        A("Review checklist and actions →", href=f"/admin/sites/{site.id}/golive"),
+                        cls="e-card g-overview"),
                     P("Before publication, review merchant fields: " + ", ".join(pending) + ". Publication does not confirm these details or enable payments.", cls="e-note") if pending else None,
                     A("Customers, tracking & email", href=f"/admin/sites/{site.id}/customers"),
                     Div(Div(H2("Pages"), *[Div(A(p.title, href=f"/admin/sites/{site.id}/pages/{p.id}"), Small(p.path),
@@ -323,18 +460,38 @@ def register_site_routes(rt):
         except CommerceError as exc:
             return error(exc)
 
-    def section_editor(section, index):
+    def media_picker(target, key, library, alt_target):
+        return Label("Pick from library: " + key, Select(
+            Option("Choose an image…", value=""),
+            *[Option(title, value=url, data_alt=alt) for url, title, alt in library],
+            data_media_pick=target, data_alt_target=alt_target, aria_label="Pick from library: " + key,
+            onchange="const f=this.form,t=f.elements[this.dataset.mediaPick],a=f.elements[this.dataset.altTarget];if(this.value){t.value=this.dataset.mediaPick.endsWith('_gallery')?[t.value,this.value].filter(Boolean).join('\\n'):this.value;if(a&&!a.value)a.value=this.selectedOptions[0].dataset.alt;}this.value='';"))
+
+    def section_editor(section, index, library):
         fields = []
         for key, label in [("eyebrow", "Eyebrow"), ("heading", "Heading"), ("body", "Text"), ("image", "Image URL"),
-                           ("video", "Video URL"), ("mobile_video", "Mobile video URL"), ("link", "Link"), ("button", "Button label")]:
+                           ("poster", "Poster URL"), ("alt", "Alt text"), ("video", "Video URL"), ("mobile_video", "Mobile video URL"), ("link", "Link"), ("button", "Button label")]:
             value = section.get(key, "")
             fields.append(Label(label, Textarea(value, name=f"section_{index}_{key}", rows=5 if key == "body" else 2) if key in {"body", "heading"} else Input(name=f"section_{index}_{key}", value=value)))
+        if section["type"] == "embed":
+            fields.append(Label("Embed URL (HTTPS)", Input(
+                name=f"section_{index}_url",
+                value=section.get("url", ""),
+                type="url",
+                placeholder="https://embed.example.com/item",
+                required=True,
+                maxlength=2048,
+            )))
+        for key in ("image", "poster", "gallery"):
+            if key == "gallery" and section["type"] != "product":
+                continue
+            fields.append(media_picker(f"section_{index}_{key}", key, library, f"section_{index}_alt"))
         for j, item in enumerate(section.get("items", [])):
-            fields.append(Div(H3(f"Entry {j + 1}"), *[Label(key.title(), Textarea(str(item.get(key, "")), name=f"section_{index}_item_{j}_{key}", rows=3 if key == "body" else 1)) for key in ("heading", "body", "url", "theme", "image")], Label(Input(type="checkbox", name=f"section_{index}_item_{j}_remove"), " Remove entry"), cls="e-entry"))
+            fields.append(Div(H3(f"Entry {j + 1}"), *[Label(key.title(), Textarea(str(item.get(key, "")), name=f"section_{index}_item_{j}_{key}", rows=3 if key == "body" else 1)) for key in ("heading", "body", "url", "theme", "image", "alt")], media_picker(f"section_{index}_item_{j}_image", "entry image", library, f"section_{index}_item_{j}_alt"), Label(Input(type="checkbox", name=f"section_{index}_item_{j}_remove"), " Remove entry"), cls="e-entry"))
         if section["type"] in {"faq", "team", "research", "references"}:
             fields.append(Label(Input(type="checkbox", name=f"section_{index}_add_item"), " Add a new entry on save"))
         if section["type"] == "product":
-            fields.append(Label("Gallery image URLs (one per line)", Textarea("\n".join(section.get("gallery", [])), name=f"section_{index}_gallery", rows=4)))
+            fields.append(Label("Gallery image URLs (one per line)", Textarea("\n".join(section.get("gallery", [])), name=f"section_{index}_gallery", rows=4, aria_label="Gallery image URLs (one per line)")))
         return Details(Summary(content.SECTION_TYPES[section["type"]] + (" · " + section.get("heading", "")[:45] if section.get("heading") else "")),
                        Input(type="hidden", name="section_order", value=section["id"]),
                        Div(Button("Move up", type="button", data_move="up"), Button("Move down", type="button", data_move="down"),
@@ -349,15 +506,28 @@ def register_site_routes(rt):
                 site = content.owned_site(db, site_id, actor(session))
                 page = content.site_page(db, site, page_id)
                 document = resolve_document(page.draft_json, default_locale(site))
+                from app.site_blog import STATES, categories_for, metadata
+                blog = metadata(document)
+                blog_categories = categories_for(db, site) if page.kind == "article" else []
+                from app.site_media import media_for, media_url
+                library = [(media_url(m), m.title or "Untitled image", resolve_text(m.localized_alt if m.localized_alt is not None else m.alt, default_locale(site))) for m in media_for(db, site) if m.content_type.startswith("image/")]
+
                 revisions = list(db.scalars(select(SiteRevision).where(SiteRevision.page_id == page.id,
                     SiteRevision.site_id == site.id, SiteRevision.tenant_id == site.tenant_id).order_by(SiteRevision.created_at.desc()).limit(20)))
-                return shell(document["title"], A("← All pages and settings", href=f"/admin/sites/{site.id}"),
+                return shell(document["title"], Div(A("← All pages and settings", href=f"/admin/sites/{site.id}"),
+                    A("Browse media library", href=f"/admin/sites/{site.id}/media", target="_blank"), cls="e-actions"),
                     Div(Form(csrf(session), Input(type="hidden", name="version", value=page.version),
                         Label("Page title", Input(name="title", value=document["title"], required=True, maxlength=240)),
                         Label("SEO description", Textarea(document.get("description", ""), name="description", rows=3, maxlength=320)),
                         Div(Label("Article image URL", Input(name="article_image", value=document.get("image", ""))),
-                            Label("Article category", Input(name="article_category", value=document.get("category", "LEARN")))) if page.kind == "article" else None,
-                        Div(*[section_editor(s, i) for i, s in enumerate(document["blocks"])], id="e-sections"),
+                            Label("Article category", Input(name="article_category", value=document.get("category", "LEARN"), maxlength=100)),
+                            Small("Use an existing name or enter a new category. Existing: " + ", ".join(c.name for c in blog_categories)),
+                            Label("Editorial state", Select(*[Option(s.title(), value=s, selected=blog["state"] == s) for s in STATES], name="article_state")),
+                            P("Save draft keeps the live page unchanged. Publish page applies this editorial state; only Published articles appear publicly."),
+                            Label("Tags (comma-separated slugs)", Input(name="article_tags", value=", ".join(blog["tags"]), placeholder="research, everyday-reading")),
+                            Label("Author name", Input(name="article_author", value=blog["author_name"], maxlength=160)),
+                            Label("Author bio (optional)", Textarea(blog["author_bio"], name="article_bio", maxlength=2000, rows=3))) if page.kind == "article" else None,
+                        Div(*[section_editor(s, i, library) for i, s in enumerate(document["blocks"])], id="e-sections"),
                         Label("Add a section", Select(Option("Choose a section…", value=""), *[Option(label, value=key) for key, label in content.SECTION_TYPES.items()], name="new_section")),
                         Div(Button("Save draft", name="action", value="draft", cls="e-button"), Button("Publish page", name="action", value="publish", cls="e-button"),
                             Button("Unpublish", name="action", value="unpublish"), cls="e-actions e-save"),
@@ -388,9 +558,21 @@ def register_site_routes(rt):
                 if page.kind == "article":
                     document["image"] = merge_localized(document.get("image", ""), str(form.get("article_image", "")), locale)
                     document["category"] = merge_localized(document.get("category", "LEARN"), str(form.get("article_category", "LEARN"))[:100], locale)
+                    from app.site_blog import ensure_category, metadata
+                    category = ensure_category(db, site, resolve_text(document["category"], locale))
+                    blog = metadata(document)
+                    document["blog"] = blog | {
+                        "category_slug": category.slug,
+                        "state": str(form.get("article_state", blog["state"])),
+                        "tags": [t.strip() for t in str(form.get("article_tags", ",".join(blog["tags"]))).split(",") if t.strip()],
+                        "author_name": str(form.get("article_author", blog["author_name"])),
+                        "author_bio": str(form.get("article_bio", blog["author_bio"])),
+                    }
                 for i, section in enumerate(document["blocks"]):
                     values = {}
-                    for key in ("eyebrow", "heading", "body", "image", "video", "mobile_video", "link", "button"):
+                    for key in ("eyebrow", "heading", "body", "image", "poster", "alt", "video", "mobile_video", "link", "button", "url"):
+                        if f"section_{i}_{key}" not in form:
+                            continue
                         values[key] = merge_localized(section.get(key, ""), str(form.get(f"section_{i}_{key}", ""))[:30000], locale)
                     values["hidden"] = form.get(f"section_{i}_hidden") == "on"
                     if "items" in section:
@@ -399,7 +581,7 @@ def register_site_routes(rt):
                             if form.get(f"section_{i}_item_{j}_remove") == "on":
                                 continue
                             item = copy.deepcopy(original)
-                            for key in ("heading", "body", "url", "theme", "image"):
+                            for key in ("heading", "body", "url", "theme", "image", "alt"):
                                 field = f"section_{i}_item_{j}_{key}"
                                 if field in form:
                                     item[key] = merge_localized(original.get(key, ""), str(form[field])[:5000], locale)
@@ -473,73 +655,6 @@ def register_site_routes(rt):
         except CommerceError as exc:
             return error(exc)
 
-    @rt("/admin/sites/{site_id}/media", methods=["GET"])
-    def get(session, site_id: str):
-        try:
-            with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session))
-                media = list(db.scalars(select(SiteMedia).where(SiteMedia.site_id == site.id, SiteMedia.tenant_id == site.tenant_id).order_by(SiteMedia.created_at.desc())))
-                return shell("Media library", A("← Site", href=f"/admin/sites/{site.id}"),
-                    P("Upload photographs with descriptive alt text. Images are optimized to WebP and stored with this site."),
-                    Form(csrf(session), Label("Title", Input(name="title", required=True, maxlength=200)),
-                        Label("Alt text", Input(name="alt", required=True, maxlength=400)),
-                        Label("Image (JPEG, PNG or WebP, up to 8 MB)", Input(type="file", name="image", accept="image/jpeg,image/png,image/webp", required=True)),
-                        Label(Input(type="checkbox", name="placeholder"), " Placeholder image"),
-                        Button("Upload image", cls="e-button"), method="post", enctype="multipart/form-data", cls="e-form"),
-                    Div(*[Div(H2(m.title), site_ui.image(f"/site-media/{site.id}/{m.id}", m.alt),
-                        Label("Image URL — use in a section", Input(value=f"/site-media/{site.id}/{m.id}", readonly=True)),
-                        P(m.alt), Small("PLACEHOLDER" if m.is_placeholder else "Uploaded asset"), cls="e-card") for m in media], cls="e-grid"))
-        except CommerceError as exc:
-            return error(exc)
-
-    @rt("/admin/sites/{site_id}/media", methods=["POST"])
-    async def post(session, request, site_id: str):
-        form = await request.form()
-        try:
-            check_csrf(session, form)
-            with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session))
-                upload = form.get("image")
-                if not upload or not hasattr(upload, "read"):
-                    raise CommerceError("Select an image.")
-                data = await upload.read(8 * 1024 * 1024 + 1)
-                if len(data) > 8 * 1024 * 1024:
-                    raise CommerceError("Images must be smaller than 8 MB.")
-                with Image.open(io.BytesIO(data)) as original:
-                    if original.format not in {"JPEG", "PNG", "WEBP"} or original.width * original.height > 25_000_000:
-                        raise CommerceError("Choose a JPEG, PNG or WebP image smaller than 25 megapixels.")
-                    original.thumbnail((1800, 1800))
-                    output = io.BytesIO()
-                    original.convert("RGB").save(output, format="WEBP", quality=85)
-                title, alt = str(form.get("title", "")).strip(), str(form.get("alt", "")).strip()
-                if not title or not alt:
-                    raise CommerceError("Provide a title and useful alt text.")
-                data = output.getvalue()
-                db.add(SiteMedia(tenant_id=site.tenant_id, site_id=site.id, title=title[:200], alt=alt[:400],
-                    storage_key=new_id() + ".webp", content_type="image/webp", size=len(data), data=data,
-                    is_placeholder=form.get("placeholder") == "on"))
-                db.commit()
-            return RedirectResponse(f"/admin/sites/{site_id}/media", status_code=303)
-        except (CommerceError, UnidentifiedImageError, Image.DecompressionBombError, OSError) as exc:
-            return error(CommerceError("Invalid image upload.") if not isinstance(exc, CommerceError) else exc)
-
-    @rt("/site-media/{site_id}/{media_id}", methods=["GET"])
-    def get(session, site_id: str, media_id: str):
-        with SessionLocal() as db:
-            site = db.get(Site, site_id)
-            if not site:
-                return Response("Not found", status_code=404)
-            if not content.media_is_public(db, site, media_id):
-                try:
-                    content.owned_site(db, site.id, actor(session))
-                except CommerceError:
-                    return Response("Not found", status_code=404)
-            media = db.scalar(select(SiteMedia).where(SiteMedia.id == media_id, SiteMedia.site_id == site.id, SiteMedia.tenant_id == site.tenant_id))
-            if not media or not media.data:
-                return Response("Not found", status_code=404)
-            return Response(media.data, media_type=media.content_type,
-                            headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
-
     @rt("/sites/{slug}/contact", methods=["POST"])
     async def post(session, request, slug: str):
         form = await request.form()
@@ -586,9 +701,27 @@ def register_site_routes(rt):
             if not site:
                 return Response("Site not found", status_code=404)
             page = db.scalar(select(SitePage).where(SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id, SitePage.path == (path.rstrip("/") or "/")))
+            from app.site_blog import articles_for, categories_for, is_listed, metadata
+            category, tag = "", ""
+            normalized_path = path.rstrip("/") or "/"
+            match = re.fullmatch(r"/blog/(category|tag)/([a-z0-9]+(?:-[a-z0-9]+)*)", normalized_path)
+            if match or normalized_path == "/blog":
+                page = db.scalar(select(SitePage).where(SitePage.site_id == site.id,
+                    SitePage.tenant_id == site.tenant_id, SitePage.kind == "blog",
+                    SitePage.published_json.is_not(None)).order_by(SitePage.path))
+                if match:
+                    category = match[2] if match[1] == "category" else ""
+                    tag = match[2] if match[1] == "tag" else ""
+                    if category and category not in {c.slug for c in categories_for(db, site)}:
+                        return Response("Category not found", status_code=404)
+                    if tag and tag not in {t for p in articles_for(db, site) for t in metadata(p.published_json)["tags"]}:
+                        return Response("Tag not found", status_code=404)
             if not page or not page.published_json:
+                return Response("Page not found", status_code=404)
+            if page.kind == "article" and not is_listed(page):
                 return Response("Page not found", status_code=404)
             csrf(session)
             base = request.scope.get("site_base", f"/sites/{site.slug}") if request else f"/sites/{site.slug}"
             canonical_base = request.scope.get("site_canonical", settings.public_url + base) if request else settings.public_url + base
-            return site_ui.storefront(db, site, page, base, session["csrf_token"], canonical_base + page.path, message=message)
+            return site_ui.storefront(db, site, page, base, session["csrf_token"], canonical_base + normalized_path,
+                message=message, blog_listing=page.kind == "blog", blog_category=category, blog_tag=tag)
