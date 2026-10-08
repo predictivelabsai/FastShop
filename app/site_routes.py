@@ -7,6 +7,7 @@ import hashlib
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlencode
 
 from fasthtml.common import (
     H2,
@@ -30,10 +31,11 @@ from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import RedirectResponse, Response
 
-from app import content, site_ui
+from app import content, signup_services, site_ui
 from app import site_builder_services as builder
 from app.config import settings
 from app.db import SessionLocal
+from app.integrations.commerce_email import dispatch_mail
 from app.integrations.contact_email import deliver
 from app.models import (
     Membership,
@@ -82,6 +84,62 @@ def register_site_routes(rt):
     def error(exc):
         return Response(str(exc), status_code=400, media_type="text/plain")
 
+    def verification_banner(db, user_id, session):
+        user = db.get(User, user_id)
+        if not user or not user.password_hash or user.email_verified_at:
+            return None
+        return Div(
+            H2("Verify your email"),
+            P(
+                "You can keep building now. Verify your address so this workspace is "
+                "ready for future account recovery and security messages."
+            ),
+            Form(
+                csrf(session),
+                Button("Resend verification email", cls="e-button"),
+                method="post",
+                action="/account/verification/resend",
+            ),
+            cls="e-card e-verification-banner",
+        )
+
+    @rt("/account/verification/resend", methods=["POST"])
+    async def post(session, request):
+        form = await request.form()
+        try:
+            check_csrf(session, form)
+            user_id = actor(session)
+            message_id = None
+            with SessionLocal() as db:
+                user = db.get(User, user_id)
+                site = signup_services.first_site_for_user(db, user_id)
+                if not user or not site:
+                    raise CommerceError("Workspace not found.")
+                address = request.client.host if request.client else "unknown"
+                limited = signup_services.rate_limited(
+                    db, "resend", user.email, address
+                )
+                if not limited and not user.email_verified_at:
+                    message_id = signup_services.queue_verification(db, site, user).id
+                if not limited:
+                    signup_services.record_attempt(
+                        db,
+                        "resend",
+                        user.email,
+                        address,
+                        accepted=bool(message_id),
+                    )
+                db.commit()
+            if message_id:
+                dispatch_mail(message_id)
+            notice = "If verification is still needed, a new email will arrive shortly."
+            return RedirectResponse(
+                f"/admin/sites/{site.id}?" + urlencode({"notice": notice}),
+                status_code=303,
+            )
+        except CommerceError:
+            return RedirectResponse("/login?next=/admin/sites", status_code=303)
+
     from app.site_media_routes import register_media_routes
     register_media_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_menu_routes import register_menu_routes
@@ -122,6 +180,7 @@ def register_site_routes(rt):
                 sites = list(db.scalars(select(Site).join(Membership, Membership.tenant_id == Site.tenant_id).where(
                     Membership.user_id == user_id, Membership.role.in_(["admin", "merchant", "editor"]))))
                 return shell("Your websites", P("Build your story. Shape your storefront. Publish when you're ready."),
+                    verification_banner(db, user_id, session),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
                     Div(*[Div(H2(site.name), P("/sites/" + site.slug), A("Open editor →", href=f"/admin/sites/{site.id}"), cls="e-card") for site in sites], cls="e-grid"),
                     Div(H2("Generate a site from a brief"),
@@ -219,6 +278,7 @@ def register_site_routes(rt):
                 publish_report = site_golive.assess(db, site)
                 passed = len(publish_report.checks) - len(publish_report.failures)
                 return shell(site.name,
+                    verification_banner(db, user_id, session),
                     Div(A("Build with AI →", href=f"/admin/sites/{site.id}/build"), A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"), A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"), A("Try commerce demo", href=f"/admin/sites/{site.id}/demo"), cls="e-actions"),
                     Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Go-live review", href=f"/admin/sites/{site.id}/golive"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Orders", href=f"/admin/sites/{site.id}/orders"), A("Revenue", href=f"/admin/sites/{site.id}/revenue"), A("Integrations", href=f"/admin/sites/{site.id}/integrations"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
                     P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),

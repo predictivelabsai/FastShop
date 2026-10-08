@@ -1,5 +1,9 @@
 """Static public SaaS marketing routes, independent of every tenant surface."""
 
+from __future__ import annotations
+
+import secrets
+
 from fasthtml.common import (
     H1,
     H2,
@@ -7,12 +11,16 @@ from fasthtml.common import (
     A,
     Article,
     Body,
+    Button,
     Details,
     Div,
     Footer,
+    Form,
     Head,
     Header,
     Html,
+    Input,
+    Label,
     Li,
     Link,
     Main,
@@ -28,7 +36,16 @@ from fasthtml.common import (
     Title,
     to_xml,
 )
-from starlette.responses import HTMLResponse
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from starlette.responses import HTMLResponse, RedirectResponse
+
+from app import auth, signup_services
+from app.config import settings
+from app.db import SessionLocal
+from app.integrations.commerce_email import dispatch_mail
+from app.models import User
+from app.services import CommerceError
 
 GITHUB_URL = "https://github.com/predictivelabsai/FastShop"
 
@@ -48,12 +65,17 @@ def _head(title: str, description: str):
     )
 
 
-def _document(title: str, description: str, *content):
+def _document(title: str, description: str, *content, private: bool = False):
     markup = to_xml(
         Html(Head(*_head(title, description)), Body(*content), lang="en"),
         indent=True,
     )
-    return HTMLResponse("<!doctype html>\n" + markup)
+    headers = (
+        {"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer"}
+        if private
+        else None
+    )
+    return HTMLResponse("<!doctype html>\n" + markup, headers=headers)
 
 
 def _brand():
@@ -78,7 +100,7 @@ def _header():
                 aria_label="Marketing navigation",
                 cls="m-nav-links",
             ),
-            A("Signup status", href="/signup", cls="m-button m-button-small"),
+            A("Create workspace", href="/signup", cls="m-button m-button-small"),
             cls="m-nav",
         ),
         cls="m-header",
@@ -101,7 +123,7 @@ def _footer():
                 aria_label="Page links",
             ),
             Nav(
-                A("Signup status", href="/signup"),
+                A("Create workspace", href="/signup"),
                 A(
                     "Documentation on GitHub",
                     href=GITHUB_URL,
@@ -203,13 +225,13 @@ def marketing_page():
                             cls="m-hero-lede",
                         ),
                         Div(
-                            A("Check signup status", href="/signup", cls="m-button"),
+                            A("Create your workspace", href="/signup", cls="m-button"),
                             A("See how it works", href="#how-it-works", cls="m-text-link"),
                             cls="m-hero-actions",
                         ),
                         P(
-                            "Signup opens in Phase 5b. The product workflows shown here are "
-                            "already built and review-gated.",
+                            "Signup availability is controlled at launch. Product workflows "
+                            "remain private and review-gated.",
                             cls="m-hero-note",
                         ),
                         cls="m-hero-copy",
@@ -230,8 +252,8 @@ def marketing_page():
                         _workflow_step(
                             "Step 1",
                             "Create your workspace",
-                            "Sign up and open a private store workspace. Phase 5b will replace "
-                            "today's placeholder with the real provisioning flow.",
+                            "Sign up and open a private store workspace with a structured "
+                            "starter site ready to edit.",
                         ),
                         _workflow_step(
                             "Step 2",
@@ -371,7 +393,7 @@ def marketing_page():
                             "the signup path and keep your store-building flow intact."
                         ),
                     ),
-                    A("Check signup status", href="/signup", cls="m-button m-button-inverse"),
+                    A("Create your workspace", href="/signup", cls="m-button m-button-inverse"),
                     id="pricing",
                     cls="m-pricing m-shell",
                 ),
@@ -413,8 +435,8 @@ def marketing_page():
                         Details(
                             Summary("Is signup available today?"),
                             P(
-                                "Not yet. The signup page in this release is an honest placeholder. "
-                                "Phase 5b adds account creation and first-site provisioning."
+                                "Signup availability is controlled by the public launch gate. "
+                                "When open, signup creates your account and first private site."
                             ),
                         ),
                         Details(
@@ -438,64 +460,430 @@ def marketing_page():
     )
 
 
-def signup_page():
-    description = "FastShop signup is launching in Phase 5b. No information is collected yet."
+def _field_error(message: str, error_id: str):
+    return P(message, id=error_id, cls="m-field-error", role="alert") if message else None
+
+
+def signup_page(
+    *,
+    signup_open: bool,
+    csrf: str = "",
+    status: str = "",
+    field_errors: dict[str, str] | None = None,
+    values: dict[str, str] | None = None,
+):
+    field_errors = field_errors or {}
+    values = values or {}
+    description = (
+        "Create a private FastShop merchant workspace."
+        if signup_open
+        else "FastShop public signup is currently closed."
+    )
+    if not signup_open:
+        main_content = Section(
+            Div(
+                H1("Public signup is currently closed."),
+                P(
+                    "We are not accepting new self-serve accounts through this page. "
+                    "Existing merchants can continue to sign in and work on their sites."
+                ),
+                Div(
+                    A("Sign in", href="/login", cls="m-button"),
+                    A("Explore FastShop", href="/marketing/", cls="m-text-link"),
+                    cls="m-hero-actions",
+                ),
+                cls="m-signup-copy",
+            ),
+            Div(
+                H2("What happens when signup opens"),
+                Div(P("Create one secure account and a private workspace.")),
+                Div(P("Start from a clean, structured storefront draft.")),
+                Div(P("Review every page before anything is published.")),
+                Small("No information is collected while signup is closed."),
+                cls="m-signup-path",
+            ),
+            id="content",
+            cls="m-signup m-shell",
+        )
+    else:
+        generic_error = status in {"unable", "rate"}
+        main_content = Section(
+            Div(
+                H1("Create your FastShop workspace."),
+                P(
+                    "Your account opens with a private, structured storefront draft. "
+                    "You can edit every page before publication."
+                ),
+                P(
+                    "Email verification does not block building, and checkout stays disabled "
+                    "until the separate go-live checks are complete."
+                ),
+                A("Already have an account? Sign in", href="/login", cls="m-text-link"),
+                cls="m-signup-copy",
+            ),
+            Div(
+                H2("Set up your account"),
+                P(
+                    "We could not complete signup with these details. Review your entries "
+                    "and try again later. If you may already have an account, ",
+                    A("sign in", href="/login"),
+                    ".",
+                    id="signup-error",
+                    cls="m-form-error",
+                    role="alert",
+                )
+                if generic_error
+                else None,
+                P(
+                    "Your session expired. Refresh this page and try again.",
+                    cls="m-form-error",
+                    role="alert",
+                )
+                if status == "session"
+                else None,
+                Form(
+                    Input(type="hidden", name="csrf_token", value=csrf),
+                    Label(
+                        "Your name",
+                        Input(
+                            name="name",
+                            value=values.get("name", ""),
+                            required=True,
+                            maxlength=signup_services.SIGNUP_NAME_MAX_LENGTH,
+                            autocomplete="name",
+                            aria_invalid="true" if field_errors.get("name") else None,
+                            aria_describedby="name-error" if field_errors.get("name") else None,
+                        ),
+                    ),
+                    _field_error(field_errors.get("name", ""), "name-error"),
+                    Label(
+                        "Email address",
+                        Input(
+                            name="email",
+                            type="email",
+                            value=values.get("email", ""),
+                            required=True,
+                            maxlength=signup_services.SIGNUP_EMAIL_MAX_LENGTH,
+                            autocomplete="email",
+                            aria_invalid="true" if field_errors.get("email") else None,
+                            aria_describedby="email-error" if field_errors.get("email") else None,
+                        ),
+                    ),
+                    _field_error(field_errors.get("email", ""), "email-error"),
+                    Label(
+                        "Password",
+                        Input(
+                            name="password",
+                            type="password",
+                            required=True,
+                            minlength=signup_services.SIGNUP_PASSWORD_MIN_LENGTH,
+                            maxlength=signup_services.SIGNUP_PASSWORD_MAX_LENGTH,
+                            autocomplete="new-password",
+                            aria_invalid="true" if field_errors.get("password") else None,
+                            aria_describedby=(
+                                "password-help password-error"
+                                if field_errors.get("password")
+                                else "password-help"
+                            ),
+                        ),
+                    ),
+                    _field_error(field_errors.get("password", ""), "password-error"),
+                    Label(
+                        "Confirm password",
+                        Input(
+                            name="password_confirmation",
+                            type="password",
+                            required=True,
+                            minlength=signup_services.SIGNUP_PASSWORD_MIN_LENGTH,
+                            maxlength=signup_services.SIGNUP_PASSWORD_MAX_LENGTH,
+                            autocomplete="new-password",
+                            aria_invalid=(
+                                "true" if field_errors.get("password_confirmation") else None
+                            ),
+                            aria_describedby=(
+                                "password-confirmation-error"
+                                if field_errors.get("password_confirmation")
+                                else None
+                            ),
+                        ),
+                    ),
+                    _field_error(
+                        field_errors.get("password_confirmation", ""),
+                        "password-confirmation-error",
+                    ),
+                    Small(
+                        f"Use {signup_services.SIGNUP_PASSWORD_MIN_LENGTH}–"
+                        f"{signup_services.SIGNUP_PASSWORD_MAX_LENGTH} characters.",
+                        id="password-help",
+                    ),
+                    Button("Create workspace", type="submit", cls="m-button"),
+                    method="post",
+                    action="/signup",
+                    cls="m-signup-form",
+                ),
+                Div(
+                    Span("or", aria_hidden="true"),
+                    A(
+                        "Continue with Google",
+                        href="/auth/google?signup=1",
+                        cls="m-google-link",
+                    ),
+                    cls="m-signup-google",
+                )
+                if auth.google_enabled()
+                else None,
+                Small(
+                    "Submitting creates a private workspace. Public-launch terms and consent "
+                    "will be presented separately when their reviewed copy is ready."
+                ),
+                id="signup-form",
+                tabindex="-1",
+                cls="m-signup-form-sheet",
+            ),
+            id="content",
+            cls="m-signup m-shell",
+        )
     return _document(
-        "Signup is launching",
+        "Create your workspace" if signup_open else "Signup closed",
         description,
         A("Skip to content", href="#content", cls="m-skip"),
         Div(
             Header(Div(_brand(), A("Back to overview", href="/marketing/", cls="m-text-link"), cls="m-nav"), cls="m-header"),
+            Main(main_content),
+            _footer(),
+            cls="m-page",
+        ),
+        private=True,
+    )
+
+
+def verification_page(csrf: str, *, status: str = ""):
+    return _document(
+        "Verify your email",
+        "Confirm a FastShop account email address.",
+        A("Skip to content", href="#content", cls="m-skip"),
+        Div(
+            Header(
+                Div(
+                    _brand(),
+                    A("Back to overview", href="/marketing/", cls="m-text-link"),
+                    cls="m-nav",
+                ),
+                cls="m-header",
+            ),
             Main(
                 Section(
                     Div(
-                        Span("Phase 5b", cls="m-launch-label"),
-                        H1("Sign up is launching."),
+                        H1("Confirm your email."),
                         P(
-                            "This page is holding the route for FastShop's self-serve account "
-                            "flow. It does not collect your email or create an account yet."
+                            "Enter the verification code from your email, then select Confirm. "
+                            "Opening this page alone does not change your account."
                         ),
                         P(
-                            "Leave your store-building flow intact: explore what FastShop already "
-                            "does, then return here when provisioning opens."
-                        ),
-                        Div(
-                            A("Explore FastShop", href="/marketing/", cls="m-button"),
-                            A(
-                                "Read the documentation",
-                                href=GITHUB_URL,
-                                target="_blank",
-                                rel="noopener noreferrer",
-                                cls="m-text-link",
+                            "This verification link is invalid, expired or already used.",
+                            cls="m-form-error",
+                            role="alert",
+                        )
+                        if status == "invalid"
+                        else None,
+                        Form(
+                            Input(type="hidden", name="csrf_token", value=csrf),
+                            Label(
+                                "Verification code",
+                                Input(
+                                    name="token",
+                                    required=True,
+                                    maxlength=64,
+                                    autocomplete="off",
+                                    data_email_token="",
+                                ),
                             ),
-                            cls="m-hero-actions",
+                            Button("Confirm email", type="submit", cls="m-button"),
+                            method="post",
+                            cls="m-signup-form",
                         ),
-                        cls="m-signup-copy",
-                    ),
-                    Div(
-                        Div(Span("1"), P("Create an account")),
-                        Div(Span("2"), P("Describe the business")),
-                        Div(Span("3"), P("Open the generated draft")),
-                        Small("The complete onboarding path arrives in Phase 5b–5c."),
-                        cls="m-signup-path",
+                        cls="m-signup-form-sheet m-verification-sheet",
                     ),
                     id="content",
-                    cls="m-signup m-shell",
-                ),
+                    cls="m-signup m-signup-single m-shell",
+                )
             ),
             _footer(),
             cls="m-page",
         ),
+        private=True,
     )
 
 
-def register_marketing_routes(rt):
-    """Register static platform routes without tenant, session, or database dependencies."""
+def verified_page():
+    return _document(
+        "Email verified",
+        "Your FastShop account email is verified.",
+        Div(
+            Header(Div(_brand(), cls="m-nav"), cls="m-header"),
+            Main(
+                Section(
+                    Div(
+                        H1("Your email is verified."),
+                        P("You can keep building your private storefront."),
+                        A("Open your sites", href="/admin/sites", cls="m-button"),
+                        cls="m-signup-copy",
+                    ),
+                    id="content",
+                    cls="m-signup m-signup-single m-shell",
+                )
+            ),
+            _footer(),
+            cls="m-page",
+        ),
+        private=True,
+    )
 
-    @rt("/marketing/")
+
+def _client_address(request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _remember_failure(session, *, errors=None, name="", email=""):
+    session["signup_errors"] = errors or {}
+    session["signup_values"] = {
+        "name": str(name)[: signup_services.SIGNUP_NAME_MAX_LENGTH],
+        "email": str(email)[: signup_services.SIGNUP_EMAIL_MAX_LENGTH],
+    }
+
+
+def _record_signup_failure(email: str, client_address: str) -> None:
+    with SessionLocal() as db:
+        signup_services.record_attempt(
+            db, "signup", email, client_address, accepted=False
+        )
+        db.commit()
+
+
+def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
+    """Register public platform routes without consulting tenant authentication state."""
+
+    @rt("/marketing/", methods=["GET"])
     def get():
         return marketing_page()
 
-    @rt("/signup")
+    @rt("/signup", methods=["GET"])
+    def get(session, status: str = ""):
+        errors = session.pop("signup_errors", {})
+        values = session.pop("signup_values", {})
+        return signup_page(
+            signup_open=settings.signup_open,
+            csrf=csrf_token(session) if settings.signup_open else "",
+            status=status,
+            field_errors=errors,
+            values=values,
+        )
+
+    @rt("/signup", methods=["POST"])
+    async def post(session, request):
+        if not settings.signup_open:
+            return RedirectResponse("/signup?status=closed", status_code=303)
+        form = await request.form()
+        try:
+            require_csrf(session, str(form.get("csrf_token", "")))
+        except CommerceError:
+            return RedirectResponse("/signup?status=session#signup-form", status_code=303)
+
+        raw_name = str(form.get("name", ""))
+        raw_email = str(form.get("email", ""))
+        password = str(form.get("password", ""))
+        confirmation = str(form.get("password_confirmation", ""))
+        address = _client_address(request)
+        errors: dict[str, str] = {}
+        try:
+            name = signup_services.normalized_name(raw_name)
+        except CommerceError as exc:
+            name = raw_name.strip()
+            errors["name"] = str(exc)
+        try:
+            email = signup_services.normalized_email(raw_email)
+        except CommerceError as exc:
+            email = raw_email.strip().lower()
+            errors["email"] = str(exc)
+        try:
+            password = signup_services.validate_password(password, confirmation)
+        except CommerceError as exc:
+            if "confirmation" in str(exc):
+                errors["password_confirmation"] = str(exc)
+            else:
+                errors["password"] = str(exc)
+
+        with SessionLocal() as db:
+            limited = signup_services.rate_limited(db, "signup", email, address)
+            existing = (
+                db.scalar(select(User.id).where(User.email == email))
+                if "email" not in errors
+                else None
+            )
+            if limited or existing or errors:
+                if not limited:
+                    signup_services.record_attempt(
+                        db, "signup", email, address, accepted=False
+                    )
+                db.commit()
+                _remember_failure(
+                    session,
+                    errors={} if existing or limited else errors,
+                    name=raw_name,
+                    email=raw_email,
+                )
+                return RedirectResponse("/signup?status=unable#signup-form", status_code=303)
+
+        result = None
+        for slug_start in range(1, 4):
+            try:
+                with SessionLocal() as db:
+                    result = signup_services.provision_password_signup(
+                        db,
+                        name,
+                        email,
+                        password,
+                        address,
+                        slug_start=slug_start,
+                    )
+                    db.commit()
+                break
+            except IntegrityError:
+                continue
+            except signup_services.SignupUnavailable:
+                break
+        if not result:
+            _record_signup_failure(email, address)
+            _remember_failure(session, name=raw_name, email=raw_email)
+            return RedirectResponse("/signup?status=unable#signup-form", status_code=303)
+
+        establish_session(session, result.user, "admin")
+        session["csrf_token"] = secrets.token_urlsafe(32)
+        if result.message_id:
+            dispatch_mail(result.message_id)
+        return RedirectResponse(f"/admin/sites/{result.site.id}", status_code=303)
+
+    @rt("/signup/verify/{tenant_id}/{verification_id}", methods=["GET"])
+    def get(session, tenant_id: str, verification_id: str, status: str = ""):
+        return verification_page(csrf_token(session), status=status)
+
+    @rt("/signup/verify/{tenant_id}/{verification_id}", methods=["POST"])
+    async def post(session, request, tenant_id: str, verification_id: str):
+        form = await request.form()
+        try:
+            require_csrf(session, str(form.get("csrf_token", "")))
+            with SessionLocal() as db:
+                signup_services.consume_verification(
+                    db, tenant_id, verification_id, str(form.get("token", ""))
+                )
+                db.commit()
+            return RedirectResponse("/signup/verified", status_code=303)
+        except CommerceError:
+            return RedirectResponse(
+                f"/signup/verify/{tenant_id}/{verification_id}?status=invalid",
+                status_code=303,
+            )
+
+    @rt("/signup/verified", methods=["GET"])
     def get():
-        return signup_page()
+        return verified_page()
