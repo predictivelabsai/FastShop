@@ -55,7 +55,7 @@ CASES: list[Case] = [
          "audience: Home tea drinkers", ["brief"], [],
          lambda s, d: s.get("builder_brief", {}).get("audience") == "Home tea drinkers"),
     Case("edit_hero_headline", "Edit the selected hero heading from chat",
-         f"Headline: {HERO_HEADLINE}", ["section"], [],
+         f"Headline: {HERO_HEADLINE}", ["patch"], [],
          lambda s, d: any(sec.get("heading") == HERO_HEADLINE for sec in d["blocks"] if sec["type"] == "hero"),
          select_hero=True),
     Case("shipping_needs_approval", "A commerce change is a proposal, never auto-applied",
@@ -85,9 +85,15 @@ def _run_case(db: Session, owner: User, case: Case, live: bool) -> dict:
     builder.finish_turn(db, site.id, owner.id, turn_id, response, provider)
     db.commit()
 
+    stored = db.get(type(turn), turn_id)
+    preview_ops = stored.response_json.get("refinement", {}).get("operations", [])
+    if preview_ops:
+        builder.decide_refinement(db, site.id, owner.id, turn_id, "accept", "all", site.version)
+        db.commit()
+
     db.refresh(site)
     home_after = next(p for p in content.site_pages(db, site) if p.path == "/")
-    produced_ops = sorted(op.get("op", "") for op in response.get("operations", []))
+    produced_ops = sorted(op.get("op", "") for op in stored.response_json.get("operations", []) + preview_ops)
     produced_proposals = sorted(p.get("kind", "") for p in response.get("proposals", []))
     effect_ok = bool(case.check(site.settings_json, home_after.draft_json))
 

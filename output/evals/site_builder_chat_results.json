@@ -1,6 +1,6 @@
 {
   "suite": "site_builder_chat",
-  "generated_at": "2026-09-23T23:53:47+00:00",
+  "generated_at": "2026-10-08T18:06:14+00:00",
   "mode": "guided",
   "model": "guided-presets",
   "total": 6,
@@ -75,10 +75,10 @@
       "prompt": "Headline: A calmer cup, every morning",
       "provider": "guided",
       "expected_ops": [
-        "section"
+        "patch"
       ],
       "produced_ops": [
-        "section"
+        "patch"
       ],
       "expected_proposals": [],
       "produced_proposals": [],
@@ -86,7 +86,7 @@
       "proposals_ok": true,
       "effect_ok": true,
       "mode_ok": true,
-      "answer": "Updated the selected heading.",
+      "answer": "Prepared the selected heading for review.",
       "passed": true
     },
     {
