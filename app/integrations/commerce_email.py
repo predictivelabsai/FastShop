@@ -21,7 +21,7 @@ from app.models import (
     SubscriptionContract,
     SubscriptionCycle,
 )
-from app.services import money
+from app.services import CommerceError, money
 
 
 def send_email(recipient, subject, body, *, message_id):
@@ -123,7 +123,14 @@ def render_subscription_message(db, row, site, customer):
         SubscriptionContract.customer_id == customer.id))
     if not contract:
         return None
-    body = f"{site.name}\n\nSANDBOX SUBSCRIPTION — test mode, no real charges.\n\n"
+    config = commerce.settings_for(db, site)
+    try:
+        mode = commerce.payment_mode(db, site, config)
+    except CommerceError:
+        return None
+    body = (f"{site.name}\n\n" +
+            ("LIVE SUBSCRIPTION — payments are processed by Stripe.\n\n" if mode == "live" else
+             "SANDBOX SUBSCRIPTION — test mode, no real charges.\n\n"))
     if row.kind == "renewal_failed":
         cycle = db.scalar(select(SubscriptionCycle).where(SubscriptionCycle.id == reference.get("cycle_id"),
             SubscriptionCycle.contract_id == contract.id, SubscriptionCycle.site_id == site.id,
@@ -133,19 +140,19 @@ def render_subscription_message(db, row, site, customer):
         from app.subscription_recovery import pending
         if pending(db, site, contract.id):
             return None
-        subject = "Sandbox delivery needs attention"
+        subject = ("Delivery needs attention" if mode == "live" else "Sandbox delivery needs attention")
         body += (f"Your delivery scheduled for {cycle.due_at:%Y-%m-%d} UTC was not completed. "
             "Future deliveries are paused. No successful payment was recorded for this delivery.\n\n"
             "Sign in to review a fresh one-time checkout for the missed delivery, update your saved card, "
             "or manage future deliveries. Retrying the missed delivery does not automatically resume the subscription.\n")
     else:
-        config = commerce.settings_for(db, site)
         if (contract.state != "active" or contract.version != reference.get("version") or
                 customers.utc(contract.next_due_at).isoformat() != reference.get("due_at") or
                 customers.utc(contract.next_due_at) <= datetime.now(UTC) or
-                site.status not in ("preview", "published") or not config or config.mode != "sandbox"):
+                site.status not in ("preview", "published") or not config
+                or not commerce.payments_enabled(db, site, config)):
             return None
-        subject = "Upcoming sandbox delivery"
+        subject = "Upcoming delivery" if mode == "live" else "Upcoming sandbox delivery"
         amount = sum(line["unit_minor"] * line["quantity"] for line in contract.lines_json)
         body += (f"Your next delivery is scheduled for {contract.next_due_at:%Y-%m-%d} UTC.\n"
             f"Recurring merchandise: {money(amount, 'USD')}. Shipping and destination sales tax are calculated per delivery; "

@@ -7,9 +7,10 @@ from urllib.parse import urlsplit
 from sqlalchemy import select
 
 from app import checkout_services as checkout
+from app import commerce
 from app.config import settings
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway
+from app.integrations.stripe_commerce import StripeGateway, make_gateway
 from app.models import CommerceQuote, ShopCustomer, Site, SubscriptionCycle
 from app.services import CommerceError
 
@@ -72,10 +73,10 @@ def payment_command(site, attempt, quote, customer):
     }
 
 
-def matches_quote(result, attempt, quote):
+def matches_quote(result, attempt, quote, *, live_mode=False):
     details = result.get("total_details") or {}
     metadata = result.get("metadata") or {}
-    return (result.get("livemode") is False and result.get("mode") == "payment" and
+    return (result.get("livemode") is live_mode and result.get("mode") == "payment" and
         result.get("client_reference_id") == attempt.id and metadata.get("site_id") == attempt.site_id and
         metadata.get("quote_id") == quote.id and result.get("currency") == quote.currency.lower() and
         type(result.get("amount_total")) is int and result["amount_total"] == quote.total_minor and
@@ -103,7 +104,8 @@ def handoff(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_
             ShopCustomer.site_id == site.id, ShopCustomer.tenant_id == site.tenant_id, ShopCustomer.is_active.is_(True)))
         if not quote or not customer:
             raise CommerceError("Checkout details are unavailable.")
-        gateway = gateway_factory(site)
+        mode = commerce.payment_mode(db, site)
+        gateway = make_gateway(gateway_factory, site, db)
         if not attempt.provider_payload_json:
             if attempt.state != "prepared":
                 raise CommerceError("The provider command requires merchant reconciliation.")
@@ -119,10 +121,11 @@ def handoff(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_
         # No database locks held across payment creation. The command is already durable.
         result = gateway.checkout_status(session_id) if session_id else gateway.create_checkout(attempt.id, command)
         result_id = result.get("id", "")
-        if not isinstance(result_id, str) or not re.fullmatch(r"cs_test_[A-Za-z0-9]+", result_id):
-            raise CommerceError("Stripe did not return a sandbox checkout reference.")
+        session_prefix = "cs_live_" if mode == "live" else "cs_test_"
+        if not isinstance(result_id, str) or not re.fullmatch(session_prefix + r"[A-Za-z0-9]+", result_id):
+            raise CommerceError("Stripe did not return a checkout reference for this payment mode.")
         metadata = result.get("metadata") or {}
-        if result.get("livemode") is not False or result.get("client_reference_id") != attempt.id or metadata.get("site_id") != site.id or metadata.get("quote_id") != quote.id:
+        if result.get("livemode") is (mode != "live") or result.get("client_reference_id") != attempt.id or metadata.get("site_id") != site.id or metadata.get("quote_id") != quote.id:
             raise CommerceError("Stripe returned a checkout for a different order.")
         checkout.lock_site(db, site)
         attempt = checkout.owned_attempt(db, site, attempt_id)
@@ -132,7 +135,7 @@ def handoff(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_
         if attempt.state == "creating":
             attempt.state = "open"
         db.commit()  # Retain reference even when tax validation fails, so it can be expired.
-        if not matches_quote(result, attempt, quote):
+        if not matches_quote(result, attempt, quote, live_mode=mode == "live"):
             raise CommerceError("Stripe's final tax or total differs from this quote. Do not pay; cancel and request a fresh quote.")
         if result.get("status") != "open" or attempt.state != "open":
             raise CommerceError("This checkout needs payment-status reconciliation.")
@@ -164,7 +167,8 @@ def cancel(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_f
         session_id = attempt.stripe_session_id
         if not session_id:
             raise CommerceError("The payment outcome is unknown. Retry recovery before cancelling.")
-        gateway = gateway_factory(site)
+        commerce.payment_mode(db, site)
+        gateway = make_gateway(gateway_factory, site, db)
         db.commit()
         current = gateway.checkout_status(session_id)
         if current.get("status") == "open":

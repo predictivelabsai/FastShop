@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import inspect
 import json
 import os
 import re
@@ -54,11 +55,36 @@ def encode_form(value, prefix=""):
 
 
 class StripeGateway:
-    def __init__(self, site, *, transport=None):
-        self.key, self.webhook_secret = credentials(site)
+    def __init__(self, site, *, transport=None, db=None):
+        self.live_mode = False
+        if db is not None:
+            from app import commerce, live_credentials
+
+            config = commerce.settings_for(db, site)
+            if config and config.mode == "live":
+                self.key, self.webhook_secret = live_credentials.live_secrets(db, site, config)
+                self.live_mode = True
+            else:
+                self.key, self.webhook_secret = credentials(site)
+        else:
+            self.key, self.webhook_secret = credentials(site)
         self.transport = transport
-        if not self.key.startswith(("sk_test_", "rk_test_")):
+        allowed = ("sk_live_",) if self.live_mode else ("sk_test_", "rk_test_")
+        if not self.key.startswith(allowed):
             raise CommerceError("Configure a Stripe sandbox key for this site. Live keys are not enabled.")
+
+    @classmethod
+    def for_live_validation(cls, key: str, webhook_secret: str, *, transport=None):
+        if not re.fullmatch(r"sk_live_[A-Za-z0-9_]{8,}", key) or not re.fullmatch(
+            r"whsec_[A-Za-z0-9_]{8,}", webhook_secret
+        ):
+            raise CommerceError("Stored live Stripe credentials are invalid.")
+        gateway = cls.__new__(cls)
+        gateway.key = key
+        gateway.webhook_secret = webhook_secret
+        gateway.transport = transport
+        gateway.live_mode = True
+        return gateway
 
     def request(self, method, path, payload=None, *, idempotency_key=None):
         if method not in {"GET", "POST"} or not re.fullmatch(r"/[A-Za-z0-9_/]+", path) or path.startswith("//"):
@@ -69,7 +95,7 @@ class StripeGateway:
         if idempotency_key:
             headers["Idempotency-Key"] = idempotency_key
         try:
-            with httpx.Client(base_url="https://api.stripe.com/v1", timeout=20,
+            with httpx.Client(base_url="https://api.stripe.com/v1", timeout=10,
                               transport=self.transport, follow_redirects=False) as client:
                 # Only replay transport failures, with the identical durable command/key.
                 # HTTP errors (including 402/429/500) need caller reconciliation, not
@@ -85,8 +111,10 @@ class StripeGateway:
                 result = response.json()
                 if not isinstance(result, dict):
                     raise ValueError("Invalid provider response")
-                if result.get("livemode") is True:
-                    raise CommerceError("A live Stripe response was rejected by sandbox commerce.")
+                if "livemode" in result and result.get("livemode") is not self.live_mode:
+                    if not self.live_mode and result.get("livemode") is True:
+                        raise CommerceError("A live Stripe response was rejected by sandbox commerce.")
+                    raise CommerceError("Stripe returned a response for the wrong payment mode.")
                 return result
         except CommerceError:
             raise
@@ -98,13 +126,24 @@ class StripeGateway:
         """Read-only provider check, returning no account identifiers or secret values."""
         account = self.request("GET", "/account")
         tax = self.request("GET", "/tax/settings")
-        if not str(account.get("id", "")).startswith("acct_") or tax.get("object") != "tax.settings" or tax.get("livemode") is not False:
-            raise CommerceError("Stripe returned an invalid sandbox readiness response.")
-        return {"connected": True, "mode": "sandbox",
+        if (not str(account.get("id", "")).startswith("acct_")
+                or tax.get("object") != "tax.settings"
+                or tax.get("livemode") is not self.live_mode):
+            raise CommerceError("Stripe returned an invalid readiness response.")
+        return {"connected": True, "mode": "live" if self.live_mode else "sandbox",
             "charges_enabled": account.get("charges_enabled") is True,
             "tax_settings_active": tax.get("status") == "active",
             "webhook_secret_configured": bool(self.webhook_secret),
             "provider_acceptance_complete": False}
+
+    def validate_live_account(self):
+        if not self.live_mode:
+            raise CommerceError("A live Stripe key is required for this validation.")
+        account = self.request("GET", "/account")
+        if (not str(account.get("id", "")).startswith("acct_")
+                or account.get("livemode", True) is not True):
+            raise CommerceError("Stripe returned an invalid live account response.")
+        return {"connected": True, "mode": "live"}
 
     def calculate_tax(self, lines, destination, origin, shipping_minor, *, idempotency_key):
         result = self.request("POST", "/tax/calculations", {
@@ -120,7 +159,7 @@ class StripeGateway:
             tax, total = result["tax_amount_exclusive"], result["amount_total"]
             if type(tax) is not int or type(total) is not int or min(tax, total) < 0:
                 raise ValueError("Invalid totals")
-            if result.get("tax_amount_inclusive", 0) != 0 or result.get("livemode") is not False:
+            if result.get("tax_amount_inclusive", 0) != 0 or result.get("livemode") is not self.live_mode:
                 raise ValueError("Unexpected tax mode")
             if not str(result["id"]).startswith("taxcalc_") or not isinstance(result["tax_breakdown"], list):
                 raise ValueError("Invalid tax calculation")
@@ -130,8 +169,9 @@ class StripeGateway:
             raise CommerceError("Stripe returned an incomplete tax calculation; checkout is unavailable.") from exc
 
     def checkout_status(self, session_id):
-        if not re.fullmatch(r"cs_test_[A-Za-z0-9]+", session_id):
-            raise CommerceError("Invalid sandbox checkout session.")
+        prefix = "cs_live_" if self.live_mode else "cs_test_"
+        if not re.fullmatch(prefix + r"[A-Za-z0-9]+", session_id):
+            raise CommerceError("Invalid checkout session.")
         return self.request("GET", "/checkout/sessions/" + session_id)
 
     def create_checkout(self, attempt_id, command):
@@ -144,8 +184,9 @@ class StripeGateway:
             idempotency_key="fastshop-checkout-" + attempt_id)
 
     def expire_checkout(self, session_id):
-        if not re.fullmatch(r"cs_test_[A-Za-z0-9]+", session_id):
-            raise CommerceError("Invalid sandbox checkout session.")
+        prefix = "cs_live_" if self.live_mode else "cs_test_"
+        if not re.fullmatch(prefix + r"[A-Za-z0-9]+", session_id):
+            raise CommerceError("Invalid checkout session.")
         return self.request("POST", "/checkout/sessions/" + session_id + "/expire",
             idempotency_key="fastshop-expire-" + session_id)
 
@@ -191,9 +232,18 @@ class StripeGateway:
         result = self.request("POST", "/tax/transactions/create_from_calculation",
             {"calculation": calculation_id, "reference": "fastshop-renewal-" + cycle_id},
             idempotency_key="fastshop-renewal-tax-" + cycle_id)
-        if not str(result.get("id", "")).startswith("tax_") or result.get("livemode") is not False:
+        if not str(result.get("id", "")).startswith("tax_") or result.get("livemode") is not self.live_mode:
             raise CommerceError("Tax transaction reconciliation is pending.")
         return result["id"]
+
+
+def make_gateway(factory, site, db):
+    """Pass the DB only to the production gateway; simple test doubles stay compatible."""
+    try:
+        accepts_db = "db" in inspect.signature(factory).parameters
+    except (TypeError, ValueError):
+        accepts_db = False
+    return factory(site, db=db) if accepts_db else factory(site)
 
 
 def verify_webhook(payload: bytes, signature: str, secret: str, *, now=None):

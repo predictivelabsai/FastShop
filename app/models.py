@@ -599,7 +599,35 @@ class SiteCommerceSettings(TimestampMixin, Base):
     product_tax_codes_json: Mapped[dict] = mapped_column(JSON, default=dict)
     subscription_product_ids_json: Mapped[list] = mapped_column(JSON, default=list)
     tax_registration_reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
+    live_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    live_accepted_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    live_credential_id: Mapped[str | None] = mapped_column(
+        ForeignKey("site_stripe_live_credentials.id"), nullable=True
+    )
     version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class SiteStripeLiveCredential(TimestampMixin, Base):
+    """Operator-owned Stripe live secrets; ciphertext is never copied to JSON state."""
+
+    __tablename__ = "site_stripe_live_credentials"
+    __table_args__ = (UniqueConstraint("site_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
+    )
+    secret_key_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    webhook_secret_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    key_prefix: Mapped[str] = mapped_column(String(16))
+    key_last_four: Mapped[str] = mapped_column(String(4))
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verified_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
 
 class CommerceQuote(TimestampMixin, Base):

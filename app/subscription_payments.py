@@ -8,10 +8,10 @@ from urllib.parse import urlsplit
 from sqlalchemy import select
 
 from app import checkout_services as checkout
-from app import subscriptions
+from app import commerce, subscriptions
 from app.config import settings
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway
+from app.integrations.stripe_commerce import StripeGateway, make_gateway
 from app.models import Site, SubscriptionEvent, SubscriptionPaymentSetup
 from app.services import CommerceError
 
@@ -59,11 +59,13 @@ def start(site_id, customer_id, contract_id, request_key, *, sessions=SessionLoc
             raise CommerceError("This card-update request is already closed. Reload to start another.")
         if not setup.session_id and checkout.utc(setup.created_at) < datetime.now(UTC) - timedelta(hours=23):
             raise CommerceError("The previous card setup needs merchant reconciliation before retrying.")
-        gateway = gateway_factory(site)
+        commerce.payment_mode(db, site)
+        gateway = make_gateway(gateway_factory, site, db)
         setup_id, session_id, command = setup.id, setup.session_id, setup.command_json
         db.commit()
         result = gateway.checkout_status(session_id) if session_id else gateway.create_payment_setup(setup_id, command)
-        validate_session(result, setup_id, command)
+        validate_session(result, setup_id, command,
+                         live_mode=getattr(gateway, "live_mode", False))
         site, contract = load(db, site_id, customer_id, contract_id)
         setup = db.scalar(select(SubscriptionPaymentSetup).where(SubscriptionPaymentSetup.id == setup_id,
             SubscriptionPaymentSetup.site_id == site.id, SubscriptionPaymentSetup.tenant_id == site.tenant_id,
@@ -81,9 +83,10 @@ def start(site_id, customer_id, contract_id, request_key, *, sessions=SessionLoc
         return result["url"]
 
 
-def validate_session(result, setup_id, command):
-    if (not re.fullmatch(r"cs_test_[A-Za-z0-9]+", str(result.get("id", ""))) or
-            result.get("livemode") is not False or result.get("mode") != "setup" or
+def validate_session(result, setup_id, command, *, live_mode=False):
+    prefix = "cs_live_" if live_mode else "cs_test_"
+    if (not re.fullmatch(prefix + r"[A-Za-z0-9]+", str(result.get("id", ""))) or
+            result.get("livemode") is not live_mode or result.get("mode") != "setup" or
             result.get("customer") != command["customer"] or result.get("client_reference_id") != setup_id or
             any((result.get("metadata") or {}).get(key) != value for key, value in command["metadata"].items())):
         raise CommerceError("Card-update session does not match this subscription.")
@@ -101,16 +104,18 @@ def finish(site_id, customer_id, contract_id, setup_id, *, sessions=SessionLocal
             return setup.state
         if not setup.session_id:
             raise CommerceError("Retry the original card-update request to recover its provider session.")
-        gateway = gateway_factory(site)
+        commerce.payment_mode(db, site)
+        gateway = make_gateway(gateway_factory, site, db)
         result = gateway.checkout_status(setup.session_id)
-        validate_session(result, setup.id, setup.command_json)
+        live_mode = getattr(gateway, "live_mode", False)
+        validate_session(result, setup.id, setup.command_json, live_mode=live_mode)
         if result["id"] != setup.session_id:
             raise CommerceError("Card-update reference mismatch.")
         if result.get("status") == "expired":
             setup.state = "expired"
         elif result.get("status") == "complete":
             intent = gateway.setup_intent_status(result.get("setup_intent", ""))
-            if (intent.get("id") != result.get("setup_intent") or intent.get("livemode") is not False or
+            if (intent.get("id") != result.get("setup_intent") or intent.get("livemode") is not live_mode or
                     intent.get("status") != "succeeded" or intent.get("usage") != "off_session" or
                     intent.get("customer") != contract.stripe_customer_id or
                     not re.fullmatch(r"pm_[A-Za-z0-9]+", str(intent.get("payment_method", ""))) or

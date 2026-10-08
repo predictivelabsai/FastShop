@@ -3,6 +3,7 @@
 from sqlalchemy import select
 from starlette.responses import Response
 
+from app import commerce as commerce_service
 from app.db import SessionLocal
 from app.models import Site, SiteCommerceSettings
 
@@ -31,7 +32,8 @@ class SiteHostMiddleware:
                         SiteCommerceSettings.tenant_id == site.tenant_id))
                     if (path.startswith(("/api", "/sites/")) or
                             (path.startswith("/account") and not commerce) or
-                            (path.startswith(("/cart", "/checkout")) and (not commerce or commerce.mode != "sandbox"))):
+                            (path.startswith(("/cart", "/checkout")) and
+                             not commerce_service.payments_enabled(db, site, commerce))):
                         return await Response("Commerce is not open on this preview site.", status_code=404)(scope, receive, send)
                     scope = dict(scope)
                     scope["site_base"] = ""

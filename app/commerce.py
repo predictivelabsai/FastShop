@@ -62,6 +62,21 @@ def settings_for(db, site, *, create=False):
     return config
 
 
+def payment_mode(db, site, config=None) -> str:
+    """Return the only provider mode this site may use, or fail closed."""
+    from app.live_credentials import effective_mode
+
+    return effective_mode(db, site, config or settings_for(db, site))
+
+
+def payments_enabled(db, site, config=None) -> bool:
+    try:
+        payment_mode(db, site, config)
+        return True
+    except CommerceError:
+        return False
+
+
 def discounted(amount: int, percent: int) -> int:
     """Round the resulting price half-up to cents; no binary floating point."""
     if type(amount) is not int or amount < 0 or type(percent) is not int or not 0 <= percent <= 100:
@@ -149,8 +164,7 @@ def quote_order(db, site, config, selections, destination, gateway, *, first_ord
     from dataclasses import asdict
     if config.site_id != site.id or config.tenant_id != site.tenant_id:
         raise CommerceError("Commerce settings do not belong to this site.")
-    if config.mode != "sandbox":
-        raise CommerceError("Sandbox commerce must be configured first; live payments are not enabled.")
+    payment_mode(db, site, config)
     if not config.tax_registration_reviewed:
         raise CommerceError("Review the merchant's Stripe Tax registrations before quoting.")
     destination = address(destination)

@@ -107,6 +107,8 @@ def register_site_routes(rt):
     register_subscription_routes(rt, csrf, check_csrf)
     from app.site_golive_routes import register_golive_routes
     register_golive_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_live_credential_routes import register_live_credential_routes
+    register_live_credential_routes(rt, actor, csrf, check_csrf, shell, error)
 
     @rt("/admin/sites", methods=["GET"])
     def get(session, notice: str = ""):

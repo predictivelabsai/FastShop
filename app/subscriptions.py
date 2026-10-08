@@ -43,7 +43,8 @@ def consent_snapshot(accepted):
 def saved_payment(gateway, provider, quote):
     """Verify customer and saved payment method against Stripe, not posted identifiers."""
     intent = gateway.payment_intent_status(provider.get("payment_intent", ""))
-    if (intent.get("status") != "succeeded" or intent.get("livemode") is not False or
+    if (intent.get("status") != "succeeded" or
+            intent.get("livemode") is not getattr(gateway, "live_mode", False) or
             intent.get("id") != provider.get("payment_intent") or intent.get("customer") != provider.get("customer") or
             not re.fullmatch(r"cus_[A-Za-z0-9]+", str(intent.get("customer", ""))) or
             not re.fullmatch(r"pm_[A-Za-z0-9]+", str(intent.get("payment_method", ""))) or

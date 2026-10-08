@@ -11,6 +11,7 @@ license = {text = "MIT"}
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.16,<2",
+  "cryptography>=46,<47",
   "fastapi>=0.115,<1",
   "httpx>=0.28,<1",
   "pillow>=11,<12",
