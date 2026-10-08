@@ -1,0 +1,131 @@
+{
+  "categories": [
+    {
+      "id": 11,
+      "name": "Field Notes",
+      "slug": "field-notes"
+    },
+    {
+      "id": 12,
+      "name": "Research",
+      "slug": "research"
+    }
+  ],
+  "tags": [
+    {
+      "id": 21,
+      "name": "Water",
+      "slug": "water"
+    },
+    {
+      "id": 22,
+      "name": "Reading",
+      "slug": "reading"
+    }
+  ],
+  "users": [
+    {
+      "id": 31,
+      "name": "Mara Field"
+    }
+  ],
+  "media": [
+    {
+      "id": 501,
+      "date_gmt": "2026-09-10T10:00:00",
+      "modified_gmt": "2026-09-10T10:00:00",
+      "slug": "spring-water-cover",
+      "title": {
+        "rendered": "Spring water cover"
+      },
+      "alt_text": "Clear spring water moving over stone",
+      "mime_type": "image/jpeg",
+      "source_url": "https://images.wordpress.example/spring-water-cover.jpg"
+    },
+    {
+      "id": 502,
+      "date_gmt": "2026-09-11T11:00:00",
+      "modified_gmt": "2026-09-11T11:00:00",
+      "slug": "research-notes",
+      "title": {
+        "rendered": "Research notes"
+      },
+      "alt_text": "Notebook beside a glass of water",
+      "mime_type": "image/webp",
+      "source_url": "https://images.wordpress.example/research-notes.webp"
+    }
+  ],
+  "posts": [
+    {
+      "id": 101,
+      "date_gmt": "2026-09-15T08:30:00",
+      "modified_gmt": "2026-09-16T09:00:00",
+      "slug": "field-guide-to-spring-water",
+      "status": "publish",
+      "title": {
+        "rendered": "A field guide to spring water"
+      },
+      "excerpt": {
+        "rendered": "<p>What to notice before filling a bottle.</p>"
+      },
+      "content": {
+        "rendered": "<p>Start with the source, not the label. <strong>Clarity matters</strong>.</p><h2>What to notice</h2><ul><li>Protected surroundings</li><li>Recent testing</li></ul><p><a href=\"https://example.org/water-guide\" onclick=\"steal()\">Read the source</a></p><img src=\"https://images.wordpress.example/spring-detail.jpg\" alt=\"Water flowing over pale stone\"><script>alert('unsafe')</script>[gallery ids=\"501,502\"]<iframe src=\"https://video.example/embed/1\"></iframe>"
+      },
+      "author": 31,
+      "featured_media": 501,
+      "categories": [
+        11
+      ],
+      "tags": [
+        21,
+        22
+      ]
+    },
+    {
+      "id": 102,
+      "date_gmt": "2026-09-20T12:00:00",
+      "modified_gmt": "2026-09-20T12:00:00",
+      "slug": "unfinished-reading-notes",
+      "status": "draft",
+      "title": {
+        "rendered": "Unfinished reading notes"
+      },
+      "excerpt": {
+        "rendered": "<p>A private draft retained for review.</p>"
+      },
+      "content": {
+        "rendered": "<blockquote>Keep claims close to their sources.</blockquote><ol><li>Read the method</li><li>Check the sample</li></ol>"
+      },
+      "author": 31,
+      "featured_media": 502,
+      "categories": [
+        12
+      ],
+      "tags": [
+        22
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "id": 201,
+      "date_gmt": "2026-09-12T07:00:00",
+      "modified_gmt": "2026-09-18T14:00:00",
+      "slug": "water-library",
+      "status": "publish",
+      "title": {
+        "rendered": "Water library"
+      },
+      "excerpt": {
+        "rendered": "<p>Notes and sources in one place.</p>"
+      },
+      "content": {
+        "rendered": "<h2>Browse the library</h2><p>Use these notes as a starting point, then read the original sources.</p>"
+      },
+      "author": 31,
+      "featured_media": 0,
+      "categories": [],
+      "tags": []
+    }
+  ]
+}
