@@ -98,29 +98,59 @@ Key work:
 
 - Per-site live credential flow: move from env-prefix-only to operator-approved credentials with live-mode guards that stay hard until explicit acceptance; never accept shopper or merchant input as credentials.
 - Publish workflow: review/publish transition per site, commerce enablement gate, domain binding path (custom hostname + TLS guidance since TLS terminates at the platform).
-- Merchant dashboards: tax/shipping configuration UI polish, order management depth (fulfillment status, refunds), per-site revenue reporting (server-side, no analytics on checkout pages).
-- Webhooks: live-mode reliability (retries, reconciliation, idempotency already exists in the outbox pattern).
+- Merchant dashboards: tax/shipping configuration UI polish, order management depth (fulfillment status, refunds), per-site revenue reporting (server-side, no analytics on checkout pages). → **Done: phase 4c order fulfillment + refunds (PR #15).**
+- Webhooks: live-mode reliability (retries, reconciliation, idempotency already exists in the outbox pattern). → Phase 4d.
 
 #### Acceptance criteria
 
 - An operator can take a reviewed site through publish → domain → commerce enablement with a documented checklist.
 - Real-provider acceptance still requires provider credentials and stays a separate gate by design.
 
-### Phase 5 — Public SaaS
+### Phase 5 — Public SaaS (market and sell the product itself)
 
-- Self-serve signup: merchant registration → tenant + site provisioning, onboarding wizard (describe your business → generated site ready to iterate).
-- Plans and quotas: site count, AI generation credits, publish limits; metering built on the existing event/outbox patterns.
-- SaaS billing: Stripe subscriptions for FastShop itself; separate from store payment acceptance.
-- Admin console for the platform operator (existing `/admin/*` extended, never the merchant workspaces).
+Slice order matters here: 5a–5c create the funnel, 5d–5e make it a business. Slices 5d–5e build on 5b (they need provisioning and account state), so keep that dependency order.
+
+#### 5a — Public marketing landing page
+
+- Customer-facing marketing site for FastShop itself, in the spirit of Shopify's or Lovable's landing pages, at `shop.fastsme.com` (URL to be confirmed with the operator before launch, so the page must also serve correctly under a preview hostname during review).
+- Entirely separate surface from the app and from every tenant site: served under its own route prefix/host path (e.g. `/marketing/…` or a dedicated host), never inheriting tenant `Site` records, never reachable through the site-builder editor, and never part of `SiteHostMiddleware` tenant matching.
+- Content pillars: the product promise (Lovable's brief-to-store generation), the commerce depth (Shopify's checkout and go-live), and the WordPress migration/connector story; feature sections, screenshots/demos, pricing teaser → 5d, CTA linking into 5b signup.
+- Static, server-rendered, no AI model calls, no tenant data; Playwright desktop + mobile evidence required like any UI change.
+
+#### 5b — Self-serve signup and provisioning
+
+- Public signup form (email + password or Google OIDC) on the FastShop SaaS surface → creates tenant + user + membership + first site in one transaction; zero operator intervention.
+- Provisioning reuses the existing seeding path end to end so new tenants get the same working defaults as seeded demo tenants.
+- Hostname reservation policy: each new site needs a bounded unique slug-based preview hostname; custom domains remain the Phase 4a reviewed binding.
+- Abuse/migration safety: signup rate-limiting per IP and per email, no secrets in any new surface, confirmation email through the existing transactional-mail queue.
+
+#### 5c — Onboarding wizard (signup → generated store)
+
+- The Lovable-style funnel: after signup, a short guided brief (business description, what they sell, look-and-feel direction) → Phase 2 AI generation produces the site plan + draft pages + product seeds → merchant lands directly in the builder with a publishable-ready draft.
+- Wizard is skippable: a merchant can choose a blank template and build manually (the CMS builder must stay the source of truth).
+- Wizard must be idempotent and resumable across sessions; generation failures never strand the account — the wizard falls back to a template with the brief saved for retry.
+
+#### 5d — Plans, quotas, and metering
+
+- Plan model per tenant (e.g. free / basic / pro): site count, AI-generation credits, publish limits, product count; enforced at the service boundary, not just the UI.
+- Metering built on the existing `OutboxEvent`/event patterns; operator console view of per-tenant usage.
+- Quota enforcement errors are merchant-readable and never block reading their own data.
+
+#### 5e — Stripe SaaS billing for FastShop itself
+
+- Stripe Checkout subscriptions for plan upgrades on the FastShop SaaS surface; separate integration from store payment acceptance — FastShop-as-merchant credentials, never a tenant's live credentials, never `SiteStripeLiveCredential`.
+- Webhooks for subscription lifecycle (trials, failures, cancellations) reconcile plan state; dunning via the transactional-mail queue.
+- Sandbox-first: billing runs in test mode end-to-end before any live-mode acceptance, reusing the live-credential ceremony pattern only for the platform's own credentials.
 
 #### Acceptance criteria
 
 - A new merchant can sign up and reach the generated-site editor without any operator intervention.
-- Quotas enforce.
+- Quotas enforce; billing state and plan enforcement agree.
+- The landing page, signup, and wizard are all covered by Playwright desktop + mobile evidence and the full suite.
 
 ## Sequencing and rationale
 
-0 → 1 → 2 is strict: the CMS model is the substrate for AI generation. Phase 4 follows the high-value AI work and delivers the higher-risk commerce go-live path. Phase 5 is last.
+0 → 1 → 2 is strict: the CMS model is the substrate for AI generation. Phase 4 follows the high-value AI work and delivers the higher-risk commerce go-live path. Phase 5 follows 4d: the funnel (5a marketing page → 5b signup → 5c wizard) ships before 5d–5e, which depend on 5b's provisioning and plan state.
 
 Phase 3 (integrations) is a parallel track: it touches different files than Phases 4–5 and can proceed concurrently with them once the connector framework lands. Prioritize the Shopify, WooCommerce, and WordPress migration connectors because they feed merchant acquisition for Phase 5.
 
