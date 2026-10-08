@@ -28,6 +28,7 @@ from fasthtml.common import (
     Ul,
 )
 from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from app import connectors, content
@@ -62,6 +63,18 @@ def _count_table(report):
         Th("Update"), Th("Skip"))), Tbody(*rows)), cls="table-scroll i-counts")
 
 
+def _row_status_table(report):
+    rows = report.get("rows", [])
+    if not rows:
+        return None
+    return Details(Summary(f"Per-row status ({len(rows)})"), Div(Table(
+        Thead(Tr(Th("CSV row"), Th("Status"), Th("Name"), Th("Details"))),
+        Tbody(*[Tr(Th(str(row.get("row_number", "")), scope="row"),
+            Td(str(row.get("status", "")).title()), Td(row.get("name", "") or "—"),
+            Td("; ".join(row.get("errors", [])) or row.get("identity", "")))
+            for row in rows])), cls="table-scroll"))
+
+
 def _plan_view(plan, csrf):
     report = plan.report_json
     provider_label = connectors.connector_for(plan.platform).label
@@ -74,6 +87,7 @@ def _plan_view(plan, csrf):
             cls="i-heading"),
         P("This is the exact stored snapshot that will be applied. It expires after 30 minutes and can be consumed once."),
         _count_table(report),
+        _row_status_table(report),
         H3("Sample changes"),
         Ul(*[Li(Span(item.get("action", "").title(), cls="i-action"), " ",
             item.get("type", "item"), " · ", item.get("label", ""),
@@ -122,6 +136,14 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                               cls="i-help"),
                             cls="e-actions",
                         )
+                    elif capabilities.exports and connector.platform == "csv":
+                        export_controls = Div(
+                            A("Download Merchant Center XML feed", cls="i-export",
+                              href=f"/admin/sites/{site.id}/integrations/{connector.platform}/export"),
+                            A("Download feed validation report", cls="i-export",
+                              href=f"/admin/sites/{site.id}/integrations/{connector.platform}/export?review_report=1"),
+                            P("The feed contains only valid published site products. The report lists every candidate and any missing required attributes.",
+                              cls="i-help"), cls="e-actions")
                     elif capabilities.exports:
                         export_controls = A(
                             "Download review-only export JSON",
@@ -135,9 +157,19 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                         P(state.message, role="status"),
                         P("Import: " + ", ".join(capabilities.imports) + ". Export: " +
                           export_label + "."),
-                        P(f"Bounded to {capabilities.max_pages} pages per resource, "
+                        P("CSV uploads: 2 MB, 750 rows, 32 columns, 20,000 characters per cell."
+                          if connector.platform == "csv" else
+                          f"Bounded to {capabilities.max_pages} pages per resource, "
                           f"{capabilities.max_items} items, and {capabilities.timeout_seconds}-second requests.",
                           cls="i-help"),
+                        Form(csrf(session),
+                            Label("Catalog CSV", Input(type="file", name="catalog_file",
+                                accept=".csv,text/csv", required=True)),
+                            P("Required: name, category, and exactly one price column. Optional: sku, description, currency, stock, variant_name, variant_options, and image_url(s).",
+                              cls="i-help"), Button("Preview CSV import", cls="e-button"),
+                            method="post", enctype="multipart/form-data",
+                            action=f"/admin/sites/{site.id}/integrations/{connector.platform}/dry-run",
+                            cls="e-form") if state.configured and connector.platform == "csv" else
                         Form(csrf(session), Button("Run import dry run", cls="e-button",
                             disabled=not state.configured), method="post",
                             action=f"/admin/sites/{site.id}/integrations/{connector.platform}/dry-run",
@@ -167,21 +199,32 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
 
     @rt("/admin/sites/{site_id}/integrations/{platform}/dry-run", methods=["POST"])
     async def post(session, request, site_id: str, platform: str):
-        form = await request.form()
         try:
+            form = await request.form(max_files=1, max_fields=10,
+                                      max_part_size=2 * 1024 * 1024 + 1)
             check_csrf(session, form)
             user_id = actor(session)
+            source = None
+            if platform == "csv":
+                upload = form.get("catalog_file")
+                if upload is None or not hasattr(upload, "read"):
+                    raise CommerceError("Choose a UTF-8 CSV file to preview.")
+                source = await upload.read(2 * 1024 * 1024 + 1)
+                await upload.close()
+                if len(source) > 2 * 1024 * 1024:
+                    raise CommerceError("CSV uploads are limited to 2097152 bytes.")
 
             def create():
                 with SessionLocal() as db:
                     site = content.owned_site(db, site_id, user_id, publish=True)
-                    planned = connectors.create_dry_run(db, site, user_id, platform)
+                    planned = connectors.create_dry_run(db, site, user_id, platform,
+                                                        transport=source)
                     db.commit()
                     return planned.id
 
             plan_id = await run_in_threadpool(create)
             return _redirect(site_id, "Dry run complete. Review the stored plan before applying it.", plan_id=plan_id)
-        except CommerceError as exc:
+        except (CommerceError, HTTPException) as exc:
             return _redirect(site_id, exc)
 
     @rt("/admin/sites/{site_id}/integrations/{platform}/apply", methods=["POST"])
@@ -224,16 +267,19 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
             return error(exc)
 
     @rt("/admin/sites/{site_id}/integrations/{platform}/export", methods=["GET"])
-    def get(session, site_id: str, platform: str, include_drafts: str = "0"):
+    def get(session, site_id: str, platform: str, include_drafts: str = "0",
+            review_report: str = "0"):
         try:
-            if include_drafts not in {"0", "1"}:
+            if include_drafts not in {"0", "1"} or review_report not in {"0", "1"}:
                 raise CommerceError("Choose a supported export content scope.")
+            if include_drafts == "1" and review_report == "1":
+                raise CommerceError("Choose one export content scope.")
             user_id = actor(session)
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, user_id, publish=True)
-                artifact = connectors.export_artifact(
-                    db, site, platform, include_drafts=include_drafts == "1"
-                )
+                artifact = (connectors.export_review_artifact(db, site, platform)
+                    if review_report == "1" else connectors.export_artifact(
+                        db, site, platform, include_drafts=include_drafts == "1"))
             response = Response(artifact.content, media_type=artifact.media_type)
             response.headers["Content-Disposition"] = (
                 f'attachment; filename="{artifact.filename}"'

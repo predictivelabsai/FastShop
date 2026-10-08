@@ -78,10 +78,12 @@ def _load_builtins() -> None:
     global _BUILTINS_LOADED
     if _BUILTINS_LOADED:
         return
+    from app.integrations.csv_catalog import CsvImportConnector
     from app.integrations.shopify import ShopifyConnector
     from app.integrations.woocommerce import WooCommerceConnector
     from app.integrations.wordpress import WordPressConnector
 
+    register_connector(CsvImportConnector())
     register_connector(ShopifyConnector())
     register_connector(WooCommerceConnector())
     register_connector(WordPressConnector())
@@ -214,3 +216,12 @@ def export_artifact(
         media_type="application/json",
         filename=f"fastshop-{site.id}-{connector.platform}-export.json",
     )
+
+
+def export_review_artifact(db, site: Site, platform: str) -> ExportArtifact:
+    """Return a connector-specific validation report without a remote write."""
+    connector = connector_for(platform)
+    provider_export = getattr(connector, "export_review_artifact", None)
+    if provider_export is None:
+        raise CommerceError("This connector does not provide a downloadable validation report.")
+    return provider_export(db, site)

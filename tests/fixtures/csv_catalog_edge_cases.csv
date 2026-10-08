@@ -1,0 +1,3 @@
+name,sku,description,price,currency,stock,variant_name,variant_options,image_urls,category
+"Trail Mug, Large",MUG-L,"A quoted description, with a comma",31.005,USD,12,Large,"Color=Blue|Size=Large",https://images.example.test/mug-large.jpg,Drinkware
+Pocket Brewer,,Compact brewer for travel,18.50,USD,0,Travel,Finish=Steel,https://images.example.test/pocket-brewer.jpg,Brewers
