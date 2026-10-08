@@ -73,7 +73,7 @@
       workspace.querySelector('[name=prompt]').focus({preventScroll:true});
       workspace.querySelector('.b-editor').scrollTop = scroll.editor;
       window.scrollTo(scroll.x, scroll.y);
-      workspace.querySelector('[data-builder-status]').textContent = 'Draft updated. Preview refreshed.';
+      workspace.querySelector('[data-builder-status]').textContent = 'Response ready. Review any proposed block edits below.';
     } catch (error) {
       status.textContent = error.message;
       // An unknown network outcome may have committed. Reuse this command ID

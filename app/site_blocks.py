@@ -222,9 +222,11 @@ def patch_block(document, block_id, values, locale=None) -> dict:
         raise CommerceError('A patch cannot change block identity or type.')
     result = normalize_document(document)
     old = get_block(result, block_id)
-    changes = {key: merge_localized(old.get(key), value, locale) if locale else copy.deepcopy(value)
-               for key, value in values.items()}
-    result['blocks'] = [validate_block(block | changes) if block['id'] == block_id else block
+    changes = {key: merge_localized(old.get(key), value, locale) if locale and value is not None else copy.deepcopy(value)
+               for key, value in values.items() if value is not None}
+    removals = {key for key, value in values.items() if value is None}
+    updated = {key: value for key, value in old.items() if key not in removals} | changes
+    result['blocks'] = [validate_block(updated) if block['id'] == block_id else block
                         for block in result['blocks']]
     return result
 

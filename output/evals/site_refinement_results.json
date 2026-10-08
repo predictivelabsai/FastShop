@@ -1,0 +1,115 @@
+{
+  "suite": "site_refinement",
+  "generated_at": "2026-10-08T18:06:15+00:00",
+  "total": 6,
+  "passed": 6,
+  "failed": 0,
+  "cases": [
+    {
+      "name": "tweak_hero_heading",
+      "mode": "guided",
+      "prompt": "Headline: A more thoughtful welcome",
+      "expected_op": "patch",
+      "produced_ops": [
+        "patch"
+      ],
+      "affected_blocks": [
+        "48ef81f473bf40538d3a473c10ac8a9f"
+      ],
+      "correct_target": true,
+      "minimal_op_set": true,
+      "reject_unchanged": true,
+      "accept_exact": true,
+      "passed": true
+    },
+    {
+      "name": "swap_two_sections",
+      "mode": "guided",
+      "prompt": "swap two sections",
+      "expected_op": "reorder",
+      "produced_ops": [
+        "reorder"
+      ],
+      "affected_blocks": [
+        "details",
+        "5d28cca1798e4d82bf0f10b59d56d040",
+        "faq"
+      ],
+      "correct_target": true,
+      "minimal_op_set": true,
+      "reject_unchanged": true,
+      "accept_exact": true,
+      "passed": true
+    },
+    {
+      "name": "remove_faq_block",
+      "mode": "guided",
+      "prompt": "remove the FAQ block",
+      "expected_op": "remove",
+      "produced_ops": [
+        "remove"
+      ],
+      "affected_blocks": [
+        "faq"
+      ],
+      "correct_target": true,
+      "minimal_op_set": true,
+      "reject_unchanged": true,
+      "accept_exact": true,
+      "passed": true
+    },
+    {
+      "name": "tweak_hero_heading",
+      "mode": "mocked-llm",
+      "prompt": "Headline: A more thoughtful welcome",
+      "expected_op": "patch",
+      "produced_ops": [
+        "patch"
+      ],
+      "affected_blocks": [
+        "c8e834af099e466faf23d8bd17e1584a"
+      ],
+      "correct_target": true,
+      "minimal_op_set": true,
+      "reject_unchanged": true,
+      "accept_exact": true,
+      "passed": true
+    },
+    {
+      "name": "swap_two_sections",
+      "mode": "mocked-llm",
+      "prompt": "swap two sections",
+      "expected_op": "reorder",
+      "produced_ops": [
+        "reorder"
+      ],
+      "affected_blocks": [
+        "details",
+        "6bd018c4d37d40f789cdf90338341b74",
+        "faq"
+      ],
+      "correct_target": true,
+      "minimal_op_set": true,
+      "reject_unchanged": true,
+      "accept_exact": true,
+      "passed": true
+    },
+    {
+      "name": "remove_faq_block",
+      "mode": "mocked-llm",
+      "prompt": "remove the FAQ block",
+      "expected_op": "remove",
+      "produced_ops": [
+        "remove"
+      ],
+      "affected_blocks": [
+        "faq"
+      ],
+      "correct_target": true,
+      "minimal_op_set": true,
+      "reject_unchanged": true,
+      "accept_exact": true,
+      "passed": true
+    }
+  ]
+}

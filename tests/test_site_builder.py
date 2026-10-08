@@ -148,10 +148,15 @@ def test_selected_section_is_owned_and_guided_edit_targets_it(workspace):
     with pytest.raises(CommerceError, match="belonging"):
         builder.begin_turn(db, site.id, owner.id, uuid4().hex, "Headline: New", page.id, site.version, foreign)
     section = page.draft_json["blocks"][0]["id"]
+    old_heading = page.draft_json["blocks"][0]["heading"]
     turn, _ = builder.begin_turn(db, site.id, owner.id, uuid4().hex, "Headline: New", page.id, site.version, section)
     reply = guided(turn.prompt, turn.context_json)
-    assert reply["operations"][0]["section_id"] == section
+    assert reply["operations"][0]["block_id"] == section
     builder.finish_turn(db, site.id, owner.id, turn.id, reply, "guided")
+    assert page.draft_json["blocks"][0]["heading"] == old_heading
+    operation = turn.response_json["refinement"]["operations"][0]
+    assert operation["block_id"] == section and operation["before"] == {"heading": old_heading}
+    builder.decide_refinement(db, site.id, owner.id, turn.id, "accept", operation["op_id"], site.version)
     assert page.draft_json["blocks"][0]["heading"] == "New"
 
 

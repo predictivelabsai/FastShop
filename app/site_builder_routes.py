@@ -96,6 +96,48 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                             Input(type="hidden", name="page_id", value=selected.id), Button("Reject proposal"), action=base + "/build/review", method="post") if pending and can_review else None,
                         P("A merchant or administrator must review this proposal.") if pending and not can_review else None, cls="e-card b-review")
 
+                def refinement_card(turn):
+                    preview = turn.response_json.get("refinement", {})
+                    operations = preview.get("operations", [])
+                    if not operations:
+                        return None
+                    pending_ops = [operation for operation in operations if operation.get("status") == "pending"]
+
+                    def decision_form(operation, decision, label):
+                        return Form(csrf(session), Input(type="hidden", name="version", value=site.version),
+                            Input(type="hidden", name="turn_id", value=turn.id),
+                            Input(type="hidden", name="op_id", value=operation["op_id"]),
+                            Input(type="hidden", name="decision", value=decision),
+                            Input(type="hidden", name="page_id", value=selected.id),
+                            Button(label, cls="e-button" if decision == "accept" else None),
+                            method="post", action=base + "/build/refinement", cls="b-diff-action")
+
+                    rows = []
+                    for operation in operations:
+                        block_ids = operation.get("block_ids") or [operation.get("block_id")]
+                        affected = ", ".join(block_id for block_id in block_ids if block_id)
+                        status = operation.get("status", "pending")
+                        rows.append(Div(
+                            Div(P(operation["description"], cls="b-diff-description"),
+                                Small(operation["op"].title() + " · " + operation["block_type"] +
+                                    (" · " + affected if affected else ""))),
+                            Div(decision_form(operation, "accept", "Accept"), decision_form(operation, "reject", "Reject"),
+                                cls="b-diff-actions") if status == "pending" else Small(status.title(), cls="b-diff-status"),
+                            cls="b-diff-op", data_refinement_op=operation["op_id"], data_status=status,
+                        ))
+                    return Div(H2("Review block edits"),
+                        P("Your draft is unchanged. Accept only the edits you want; rejected edits are never applied."),
+                        *rows,
+                        Form(csrf(session), Input(type="hidden", name="version", value=site.version),
+                            Input(type="hidden", name="turn_id", value=turn.id),
+                            Input(type="hidden", name="op_id", value="all"),
+                            Input(type="hidden", name="decision", value="accept"),
+                            Input(type="hidden", name="page_id", value=selected.id),
+                            Button("Accept all edits", cls="e-button"), method="post",
+                            action=base + "/build/refinement", cls="b-accept-all") if pending_ops else None,
+                        Small("Preview expires after 30 minutes · " + preview.get("status", "pending").title()),
+                        cls="b-diff-preview", aria_label="Block edit preview")
+
                 def hidden():
                     return (csrf(session), Input(type="hidden", name="version", value=site.version), Input(type="hidden", name="page_id", value=selected.id))
                 design = Form(*hidden(), H2("Design settings"),
@@ -110,6 +152,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     Div(*[Button(name.title(), type="button", data_prompt=name) for name in PRESETS], cls="b-presets"),
                     Div(*[Div(P(turn.prompt, cls="b-user"), P(turn.response_json.get("answer", "Request interrupted or still processing. Your saved draft is safe.")),
                         P(turn.response_json.get("question", "")), Small(turn.response_json.get("summary", turn.status)),
+                        refinement_card(turn),
                         review_card(turn),
                         Form(csrf(session), Input(type="hidden", name="command_id", value=turn.command_id),
                             Input(type="hidden", name="page_id", value=selected.id), Button("Cancel pending request"),
@@ -121,7 +164,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                         Label("Describe your site or a change", Textarea(name="prompt", rows=4, required=True, maxlength=4000,
                             placeholder="Warm cream and green, editorial headings, less whitespace…")),
                         Small("Draft edits only. Do not enter passwords, API keys or customer information."),
-                        Button("Update draft", cls="e-button"), P("", data_builder_status="", role="status"),
+                        Button("Prepare update", cls="e-button"), P("", data_builder_status="", role="status"),
                         Button("Cancel pending edit", type="button", data_builder_cancel=base + "/build/cancel", hidden=True),
                         method="post", action=base + "/build/message", cls="e-form", data_builder_form="", data_site=site.id))
                 return shell("Build " + site.name,
@@ -228,6 +271,22 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                 db.commit()
             return redirect(site_id, str(form.get("page_id", "")), "Pending edit cancelled; the provider may still finish processing, but its result cannot change this draft.")
         except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/build/refinement", methods=["POST"])
+    async def post(session, request, site_id: str):
+        form = await request.form()
+        try:
+            check_csrf(session, form)
+            with SessionLocal() as db:
+                count, status = builder.decide_refinement(db, site_id, actor(session),
+                    str(form.get("turn_id", "")), str(form.get("decision", "")),
+                    str(form.get("op_id", "")), int(form.get("version", 0)))
+                db.commit()
+            action = "accepted" if str(form.get("decision")) == "accept" else "rejected"
+            notice = f"{count} block edit{'s' if count != 1 else ''} {action}. Preview {status}."
+            return redirect(site_id, str(form.get("page_id", "")), notice)
+        except (CommerceError, ValueError) as exc:
             return error(exc)
 
     @rt("/admin/sites/{site_id}/build/review", methods=["POST"])

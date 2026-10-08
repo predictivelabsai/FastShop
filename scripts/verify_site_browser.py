@@ -34,10 +34,11 @@ def main():
     parser.add_argument("--blog", action="store_true", help="Include blog taxonomy and editorial workflow evidence")
     parser.add_argument("--embeds", action="store_true", help="Include Phase 1c embed and snippet publication evidence")
     parser.add_argument("--generation", action="store_true", help="Include Phase 2a brief-to-draft generation")
+    parser.add_argument("--refinement", action="store_true", help="Include Phase 2b block-diff review workflow")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
-    if args.generation and not (args.merchant or args.merchant_only):
-        raise RuntimeError("Site generation checks require --merchant against an isolated local database.")
+    if (args.generation or args.refinement) and not (args.merchant or args.merchant_only):
+        raise RuntimeError("Site generation and refinement checks require --merchant against an isolated local database.")
     if args.embeds:
         if not (args.merchant or args.merchant_only) or not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
             raise RuntimeError("Embed/snippet checks require --merchant against an isolated local database.")
@@ -179,6 +180,38 @@ def main():
             visitor.close()
             page.get_by_role("link", name="← All pages and settings").click()
             site_editor_url = page.url
+            if args.refinement:
+                page.goto(site_editor_url + "/build")
+                preview = page.frame_locator("iframe.b-preview")
+                original_heading = preview.locator("h1").text_content()
+                page.get_by_label("Describe your site or a change").fill("Headline: Rejected browser preview")
+                page.get_by_role("button", name="Prepare update", exact=True).click()
+                page.get_by_role("heading", name="Review block edits", exact=True).wait_for()
+                assert preview.locator("h1").text_content() == original_heading
+                page.get_by_role("button", name="Reject", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert preview.locator("h1").text_content() == original_heading
+
+                accepted_heading = "Accepted from the guided preview"
+                page.get_by_label("Describe your site or a change").fill("Headline: " + accepted_heading)
+                page.get_by_role("button", name="Prepare update", exact=True).click()
+                page.get_by_role("heading", name="Review block edits", exact=True).last.wait_for()
+                preview.locator("h1").wait_for(state="visible")
+                assert preview.locator("h1").text_content() == original_heading
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-refinement-preview.png"), full_page=True)
+                page.get_by_role("button", name="Accept all edits", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert preview.locator("h1").text_content() == accepted_heading
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.screenshot(path=str(out / "desktop-refinement-accepted.png"), full_page=True)
+                checks.append({
+                    "merchant": "guided block preview rejects without changes and accepts the exact heading edit",
+                    "status": "passed",
+                })
+                page.goto(site_editor_url)
             page.get_by_role("link", name="Menus", exact=True).click()
             header_menu = page.locator(".e-card").filter(has=page.get_by_role("heading", name="Header", exact=True))
             header_menu.get_by_text("Add an item", exact=True).click()
