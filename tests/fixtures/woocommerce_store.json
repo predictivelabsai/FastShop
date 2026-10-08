@@ -1,0 +1,130 @@
+{
+  "categories": [
+    {
+      "id": 10,
+      "name": "Tea",
+      "slug": "tea",
+      "description": "Loose leaf and sachets.",
+      "parent": 0,
+      "date_modified_gmt": "2026-10-01T10:00:00"
+    },
+    {
+      "id": 11,
+      "name": "Herbal Tea",
+      "slug": "herbal-tea",
+      "description": "Caffeine-free blends.",
+      "parent": 10,
+      "date_modified_gmt": "2026-10-01T10:05:00"
+    }
+  ],
+  "products": [
+    {
+      "id": 100,
+      "name": "Evening Blend",
+      "slug": "evening-blend",
+      "type": "variable",
+      "status": "publish",
+      "description": "<p>A quiet herbal blend.</p>",
+      "short_description": "Chamomile and lemon balm.",
+      "categories": [{"id": 11, "name": "Herbal Tea"}],
+      "images": [{"src": "https://images.example.test/evening-blend.jpg"}],
+      "date_modified_gmt": "2026-10-02T08:00:00"
+    },
+    {
+      "id": 101,
+      "name": "Tea Strainer",
+      "slug": "tea-strainer",
+      "type": "simple",
+      "status": "draft",
+      "description": "Fine mesh stainless steel strainer.",
+      "short_description": "Fits most cups.",
+      "regular_price": "18.50",
+      "sku": "STRAINER-01",
+      "categories": [{"id": 999, "name": "Accessories"}],
+      "images": [],
+      "date_modified_gmt": "2026-10-02T09:00:00"
+    }
+  ],
+  "variations": {
+    "100": [
+      {
+        "id": 1001,
+        "name": "20 sachets",
+        "sku": "EVENING-20",
+        "regular_price": "29.95",
+        "date_modified_gmt": "2026-10-02T08:01:00"
+      },
+      {
+        "id": 1002,
+        "name": "40 sachets",
+        "sku": "EVENING-40",
+        "regular_price": "31.005",
+        "date_modified_gmt": "2026-10-02T08:02:00"
+      }
+    ]
+  },
+  "customers": [
+    {
+      "id": 500,
+      "email": "alex@example.test",
+      "first_name": "Alex",
+      "last_name": "River",
+      "date_modified_gmt": "2026-10-03T11:00:00"
+    },
+    {
+      "id": 501,
+      "email": "not-an-email",
+      "first_name": "Invalid",
+      "last_name": "Customer"
+    }
+  ],
+  "orders": [
+    {
+      "id": 700,
+      "number": "700",
+      "status": "processing",
+      "currency": "USD",
+      "discount_total": "6.00",
+      "shipping_total": "10.00",
+      "total_tax": "4.79",
+      "total": "73.69",
+      "billing": {
+        "email": "alex@example.test",
+        "first_name": "Alex",
+        "last_name": "River"
+      },
+      "shipping": {
+        "first_name": "Alex",
+        "last_name": "River",
+        "company": "",
+        "address_1": "12 Test Street",
+        "address_2": "",
+        "city": "Portland",
+        "state": "OR",
+        "postcode": "97205",
+        "country": "US"
+      },
+      "line_items": [
+        {
+          "product_id": 100,
+          "variation_id": 1001,
+          "name": "Evening Blend — 20 sachets",
+          "sku": "EVENING-20",
+          "quantity": 2,
+          "subtotal": "59.90",
+          "total": "53.90"
+        },
+        {
+          "product_id": 999,
+          "variation_id": 0,
+          "name": "Archived gift wrap",
+          "sku": "GIFT-OLD",
+          "quantity": 1,
+          "subtotal": "5.00",
+          "total": "5.00"
+        }
+      ],
+      "date_modified_gmt": "2026-10-04T12:00:00"
+    }
+  ]
+}

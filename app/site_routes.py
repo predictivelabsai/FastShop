@@ -88,6 +88,8 @@ def register_site_routes(rt):
     register_menu_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_snippet_routes import register_snippet_routes
     register_snippet_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_integration_routes import register_integration_routes
+    register_integration_routes(rt, actor, csrf, check_csrf, shell, error)
     register_catalog_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_builder_routes import register_builder_routes
     register_builder_routes(rt, actor, csrf, check_csrf, shell, error)
@@ -209,7 +211,7 @@ def register_site_routes(rt):
                 pending = pending_reviews(config)
                 return shell(site.name,
                     Div(A("Build with AI →", href=f"/admin/sites/{site.id}/build"), A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"), A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"), A("Try commerce demo", href=f"/admin/sites/{site.id}/demo"), cls="e-actions"),
-                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
+                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Integrations", href=f"/admin/sites/{site.id}/integrations"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
                     P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),
                     P("Before publication, review merchant fields: " + ", ".join(pending) + ". Publication does not confirm these details or enable payments.", cls="e-note") if pending else None,
                     A("Customers, tracking & email", href=f"/admin/sites/{site.id}/customers"),
