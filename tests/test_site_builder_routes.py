@@ -174,9 +174,10 @@ def test_merchant_proposal_requires_csrf_and_explicit_confirmation(editor, monke
         assert saved.settings_json["sample_fields"]["shipping_minor"]["source"] == "ai_proposed"
         config = commerce.settings_for(db, saved)
         config_version = config.version
-    blocked = client.post(f"/admin/sites/{site.id}/commerce", data={"csrf_token": token,
-        "version": config_version, "mode": "sandbox", "states": "CA", "origin_country": "EE",
-        "shipping_minor": "1600", "free_shipping_threshold_minor": "7500"})
-    assert blocked.status_code == 400 and "Review merchant details" in blocked.text
+        site_version = saved.version
+    blocked = client.post(f"/admin/sites/{site.id}/golive/commerce", data={"csrf_token": token,
+        "version": site_version, "config_version": config_version, "enabled": "1"})
+    assert blocked.status_code == 200
+    assert "Sandbox commerce blocked" in blocked.text and "Merchant details are reviewed" in blocked.text
     with SessionLocal() as db:
         assert commerce.settings_for(db, db.get(Site, site.id)).mode == "disabled"

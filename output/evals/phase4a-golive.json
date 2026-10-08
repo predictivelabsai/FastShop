@@ -1,0 +1,41 @@
+{
+  "suite": "phase4a-golive-readiness",
+  "offline": true,
+  "external_calls": 0,
+  "passed": true,
+  "cases": [
+    {
+      "case": "draft-only home is rejected",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "case": "catalog checks are absent until commerce is requested",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "case": "published menu targets satisfy publication readiness",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "case": "noncompliant draft is rejected even when public snapshot is clean",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "case": "commerce request adds catalog, price and domain gates",
+      "expected": [
+        "catalog",
+        "channel_prices",
+        "custom_domain"
+      ],
+      "actual": [
+        "catalog",
+        "channel_prices",
+        "custom_domain"
+      ]
+    }
+  ]
+}
