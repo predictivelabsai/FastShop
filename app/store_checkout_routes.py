@@ -10,7 +10,7 @@ from starlette.responses import JSONResponse, RedirectResponse, Response
 from app import checkout_payments, commerce, customer_services, subscriptions
 from app import checkout_services as checkout
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway
+from app.integrations.stripe_commerce import StripeGateway, make_gateway
 from app.models import CheckoutAttempt, CommerceQuote, Site, SiteCart, SubscriptionCycle
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
@@ -20,8 +20,9 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
     def resolve(db, slug):
         site = db.scalar(select(Site).where(Site.slug == slug, Site.status.in_(["preview", "published"])))
         config = commerce.settings_for(db, site) if site else None
-        if not site or not config or config.mode != "sandbox":
-            raise CommerceError("Sandbox commerce is not enabled for this store.")
+        if not site or not config:
+            raise CommerceError("Commerce is not enabled for this store.")
+        site._payment_mode = commerce.payment_mode(db, site, config)
         return site, config
 
     def base(site, request):
@@ -40,7 +41,8 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
 
     def screen(site, request, title, *children):
         root = base(site, request)
-        return FtResponse(platform_page(title, P(site.name + " · Sandbox · No live payments"), *children,
+        mode_label = "Live payments" if site._payment_mode == "live" else "Sandbox · No live payments"
+        return FtResponse(platform_page(title, P(site.name + " · " + mode_label), *children,
             navigation=[A("Store", href=root + "/"), A("Bag", href=root + "/cart"), A("My account", href=root + "/account")], customer=True),
             headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
                 "Content-Security-Policy": "frame-ancestors 'self'"})
@@ -230,7 +232,8 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 if customer and email != customer.email:
                     raise CommerceError("Use your signed-in email, or sign out to check out as a guest.")
                 customer = customer or customer_services.customer_for(db, site, email, create=True)
-                attempt = checkout.prepare(db, site, customer.id, cart.lines_json, dict(form), StripeGateway(site),
+                attempt = checkout.prepare(db, site, customer.id, cart.lines_json, dict(form),
+                    make_gateway(StripeGateway, site, db),
                     request_key=cart.request_key, code=form.get("code", ""), recipient_name=name,
                     subscription_consent=form.get("subscription_consent") == "on")
                 cart.checkout_id = attempt.id
@@ -301,7 +304,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     db.commit()
                     return RedirectResponse(root + "/cart", status_code=303)
                 if action == "refresh":
-                    checkout.reconcile(db, site, attempt.id, StripeGateway(site))
+                    checkout.reconcile(db, site, attempt.id, make_gateway(StripeGateway, site, db))
                     db.commit()
             if action == "pay":
                 return RedirectResponse(checkout_payments.handoff(site_id, customer_id, attempt_id), status_code=303)

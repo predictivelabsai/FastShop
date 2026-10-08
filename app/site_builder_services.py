@@ -213,7 +213,8 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
 def undo_change(db, site_id, user_id, change_id, version):
     site = lock_site(db, site_id, user_id, version)
     change = db.scalar(select(SiteChangeSet).where(SiteChangeSet.id == change_id,
-        SiteChangeSet.site_id == site.id, SiteChangeSet.tenant_id == site.tenant_id))
+        SiteChangeSet.site_id == site.id, SiteChangeSet.tenant_id == site.tenant_id,
+        SiteChangeSet.source.notin_(["golive", "live-acceptance"])))
     if not change or not snapshot_matches(snapshot(db, site), change.after_json):
         raise CommerceError("Only the current unchanged draft revision can be undone.")
     before = snapshot(db, site)

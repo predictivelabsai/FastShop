@@ -14,7 +14,7 @@ from sqlalchemy import select
 from app import checkout_services as checkout
 from app import commerce, subscriptions
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway
+from app.integrations.stripe_commerce import StripeGateway, make_gateway
 from app.models import (
     CheckoutAttempt,
     Site,
@@ -30,7 +30,9 @@ def start(site_id, customer_id, contract_id, cycle_id, version, request_key, *, 
         site = db.scalar(select(Site).where(Site.id == site_id))
         if not site or site.status not in ("preview", "published"):
             raise CommerceError("The store must be open before retrying a delivery.")
-        attempt = prepare(db, site, customer_id, contract_id, cycle_id, gateway_factory(site),
+        commerce.payment_mode(db, site)
+        attempt = prepare(db, site, customer_id, contract_id, cycle_id,
+            make_gateway(gateway_factory, site, db),
             version=version, request_key=request_key)
         db.commit()
         return attempt.id
@@ -76,8 +78,9 @@ def prepare(db, site, customer_id, contract_id, cycle_id, gateway, *, version, r
         if current:
             return current
         config = commerce.settings_for(db, site)
-        if not config or config.mode != "sandbox" or contract.consent_json.get("accepted") is not True:
-            raise CommerceError("Sandbox commerce and existing subscription consent are required.")
+        if (not config or not commerce.payments_enabled(db, site, config)
+                or contract.consent_json.get("accepted") is not True):
+            raise CommerceError("Commerce and existing subscription consent are required.")
         selections = [{"variant_id": line["variant_id"], "quantity": line["quantity"], "subscription": True}
             for line in contract.lines_json]
         prices = {line.variant_id: line.unit_minor for line in commerce.price_lines(db, site, config, selections)}

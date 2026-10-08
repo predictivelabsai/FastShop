@@ -25,6 +25,7 @@ class Settings:
     public_url: str = os.getenv("FASTSHOP_PUBLIC_URL", "http://localhost:5025").rstrip("/")
     session_secret: str = os.getenv("FASTSHOP_SESSION_SECRET") or secrets.token_hex(32)
     encryption_key: str = os.getenv("FASTSHOP_ENCRYPTION_KEY", "")
+    store_key_encryption_key: str = os.getenv("FASTSHOP_STORE_KEY_ENCRYPTION_KEY", "")
     data_dir: Path = Path(os.getenv("FASTSHOP_DATA_DIR", "data"))
     db_url: str = os.getenv("DB_URL", "")
     db_schema: str = os.getenv("DB_SCHEMA", "fast_shop")

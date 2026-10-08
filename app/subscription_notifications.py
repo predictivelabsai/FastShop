@@ -48,7 +48,8 @@ def queue_upcoming(*, days_ahead=3, limit=100, sessions=SessionLocal, now=None):
             .join(SiteCommerceSettings, SiteCommerceSettings.site_id == Site.id)
             .join(ShopCustomer, ShopCustomer.id == SubscriptionContract.customer_id)
             .where(Site.tenant_id == SubscriptionContract.tenant_id, Site.status.in_(["preview", "published"]),
-                SiteCommerceSettings.tenant_id == Site.tenant_id, SiteCommerceSettings.mode == "sandbox",
+                SiteCommerceSettings.tenant_id == Site.tenant_id,
+                SiteCommerceSettings.mode.in_(["sandbox", "live"]),
                 ShopCustomer.site_id == Site.id, ShopCustomer.tenant_id == Site.tenant_id, ShopCustomer.is_active.is_(True))
             .order_by(SubscriptionContract.next_due_at, SubscriptionContract.id).limit(max(1, min(limit, 500)))).all()
     for contract_id, site_id, version in candidates:
@@ -62,7 +63,8 @@ def queue_upcoming(*, days_ahead=3, limit=100, sessions=SessionLocal, now=None):
             contract = db.scalar(select(SubscriptionContract).where(SubscriptionContract.id == contract_id,
                 SubscriptionContract.site_id == site.id, SubscriptionContract.tenant_id == site.tenant_id))
             config = commerce.settings_for(db, site)
-            if not config or config.mode != "sandbox" or not contract or contract.state != "active" or contract.version != version:
+            if (not config or not commerce.payments_enabled(db, site, config) or not contract
+                    or contract.state != "active" or contract.version != version):
                 continue
             if not now < checkout.utc(contract.next_due_at) <= horizon:
                 continue

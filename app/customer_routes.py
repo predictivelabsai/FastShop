@@ -39,7 +39,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         if not site:
             raise CommerceError("Store not found.")
         config = commerce.settings_for(db, site)
-        if enabled and (not config or config.mode != "sandbox"):
+        if enabled and (not config or not commerce.payments_enabled(db, site, config)):
             raise CommerceError("Customer services are not enabled for this store yet.")
         return site
 

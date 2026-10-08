@@ -230,7 +230,8 @@ def reconcile(db, site, attempt_id, gateway):
         result = gateway.checkout_status(attempt.stripe_session_id)
         quote = db.scalar(select(CommerceQuote).where(CommerceQuote.id == attempt.quote_id,
             CommerceQuote.site_id == site.id, CommerceQuote.tenant_id == site.tenant_id))
-        if (result.get("id") != attempt.stripe_session_id or result.get("livemode") is not False or
+        live_mode = commerce.payment_mode(db, site) == "live"
+        if (result.get("id") != attempt.stripe_session_id or result.get("livemode") is not live_mode or
                 result.get("client_reference_id") != attempt.id or
                 (result.get("metadata") or {}).get("site_id") != site.id):
             raise CommerceError("Stripe checkout details do not match the reserved order.")
@@ -243,7 +244,7 @@ def reconcile(db, site, attempt_id, gateway):
             raise CommerceError("Stripe checkout details do not match the reserved order.")
         if attempt.provider_payload_json:
             from app.checkout_payments import matches_quote
-            if not matches_quote(result, attempt, quote):
+            if not matches_quote(result, attempt, quote, live_mode=live_mode):
                 raise CommerceError("Stripe's final tax details require merchant reconciliation.")
         if result.get("status") == "complete" and result.get("payment_status") == "paid":
             if result.get("mode") != "payment" or not str(result.get("payment_intent", "")).startswith("pi_"):

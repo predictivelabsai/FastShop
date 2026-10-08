@@ -27,7 +27,7 @@ from starlette.responses import RedirectResponse
 
 from app import commerce, content, site_builder_services
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway, credentials
+from app.integrations.stripe_commerce import StripeGateway, credentials, make_gateway
 from app.models import Product, ProductVariant, SiteCommerceSettings
 from app.services import CommerceError, money
 
@@ -73,7 +73,7 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                         Input(type="hidden", name="site_version", value=site.version),
                         Input(type="hidden", name="mode", value=config.mode),
                         H2("Market and shipping"),
-                        P("Checkout status: " + ("Sandbox enabled" if config.mode == "sandbox" else "Read-only storefront"), cls="g-state"),
+                        P("Checkout status: " + ({"sandbox": "Sandbox enabled", "live": "Live payments approved by operator"}.get(config.mode, "Read-only storefront")), cls="g-state"),
                         P("Enable or disable sandbox checkout from the go-live checklist after these settings are complete."),
                         A("Open go-live checklist", href=f"/admin/sites/{site.id}/golive#commerce"),
                         H3("Actual EU fulfilment origin"), P("Confirm the warehouse address. The company address is not automatically used as the shipping origin."),
@@ -111,8 +111,8 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                 if config.version != int(form.get("version", 0)):
                     raise CommerceError("Settings changed in another session. Reload before saving.")
                 mode = str(form.get("mode", "disabled"))
-                if mode not in {"disabled", "sandbox"}:
-                    raise CommerceError("Only disabled or sandbox mode is available before live approval.")
+                if mode not in {"disabled", "sandbox", "live"}:
+                    raise CommerceError("Choose a supported commerce mode.")
                 if mode != config.mode:
                     raise CommerceError("Change checkout availability from the reviewed go-live checklist.")
                 states = sorted(set(form.getlist("states")))
@@ -160,7 +160,8 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                 destination = {key: form.get("destination_" + key, "") for key in ("line1", "line2", "city", "state", "postal_code", "country")}
                 quote = commerce.quote_order(db, site, config, [{"variant_id": str(form.get("variant_id", "")),
                     "quantity": int(form.get("quantity", "1")), "subscription": form.get("subscription") == "on"}],
-                    destination, StripeGateway(site), first_order_discount=form.get("first_order") == "on")
+                    destination, make_gateway(StripeGateway, site, db),
+                    first_order_discount=form.get("first_order") == "on")
                 db.commit()
                 return shell("Sandbox tax quote", A("← Commerce settings", href=f"/admin/sites/{site.id}/commerce"),
                     Div(H2("Delivery to " + commerce.US_STATES[destination["state"]]),

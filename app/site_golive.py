@@ -540,6 +540,8 @@ def set_sandbox_commerce(
         raise CommerceError("Commerce settings changed. Reload the checklist and try again.")
     before = _state(site, config.mode)
     if not enabled:
+        if config.mode == "live":
+            raise CommerceError("Only the platform operator can disable accepted live payments.")
         if config.mode == "disabled":
             return TransitionDecision(False, False, "Sandbox commerce is already disabled.")
         config.mode = "disabled"

@@ -27,12 +27,14 @@ from fasthtml.common import (
     Tr,
     Ul,
 )
+from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from app import connectors, content
 from app.db import SessionLocal
+from app.models import SiteCommerceSettings
 from app.services import CommerceError
 
 
@@ -120,6 +122,15 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
             user_id = actor(session)
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, user_id, publish=True)
+                commerce_config = db.scalar(select(SiteCommerceSettings).where(
+                    SiteCommerceSettings.site_id == site.id,
+                    SiteCommerceSettings.tenant_id == site.tenant_id,
+                ))
+                live_approved = bool(
+                    commerce_config and commerce_config.mode == "live"
+                    and commerce_config.live_accepted_at and commerce_config.live_accepted_by
+                    and commerce_config.live_credential_id
+                )
                 rows = []
                 for connector in connectors.listed_connectors():
                     state = connector.credential_state(site)
@@ -184,6 +195,8 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                 history = connectors.recent_plans(db, site)
                 return shell("Integrations",
                     Div(A("← Back to site", href=f"/admin/sites/{site.id}"), cls="e-actions"),
+                    P("Live payments: " + ("approved by operator" if live_approved else "not approved"),
+                      cls="g-state g-state-live" if live_approved else "g-state"),
                     P("Migrations are sandbox-first: preview provider data before any FastShop write. "
                       "Connection details are controlled by the operator and are never entered here.",
                       cls="i-intro"),

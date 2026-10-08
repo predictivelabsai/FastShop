@@ -238,9 +238,10 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
         ) if section.get("url") else None
         return Section(intro, frame, cls="h-section h-container h-embed")
     if kind == "product":
-        from app.commerce import settings_for
+        from app.commerce import payment_mode, payments_enabled, settings_for
         commerce_config = settings_for(db, site)
-        checkout_enabled = bool(commerce_config and commerce_config.mode == "sandbox" and not preview)
+        checkout_enabled = bool(commerce_config and payments_enabled(db, site, commerce_config) and not preview)
+        provider_mode = payment_mode(db, site, commerce_config) if checkout_enabled else "sandbox"
         product = catalog_product(db, site, page.product_id) if page.product_id else None
         variants = list(db.scalars(select(ProductVariant).where(ProductVariant.product_id == product.id, ProductVariant.tenant_id == site.tenant_id).order_by(ProductVariant.sort_order))) if product else []
         listing = db.scalar(select(VariantChannelListing).where(VariantChannelListing.channel_id == site.channel_id, VariantChannelListing.variant_id == variants[0].id)) if variants else None
@@ -258,25 +259,25 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
                     Label("Quantity", Input(type="number", name="quantity", value=1, min=1, max=25, required=True)),
                     Label("Purchase option", Select(Option("One-time purchase", value="off", selected=True),
                         Option("Subscribe and save 10% · monthly", value="on"), name="subscription")) if subscription_enabled else None,
-                    P("USD · Sandbox checkout. Shipping and state-specific sales tax are calculated before payment."),
+                    P("USD · " + ("Live checkout" if provider_mode == "live" else "Sandbox checkout") + ". Shipping and state-specific sales tax are calculated before payment."),
                     P("Monthly delivery at 10% off merchandise. Skip, pause or cancel future deliveries in My account.") if subscription_enabled else None,
                     Button("Add to bag", cls="h-button"), method="post", action=base + "/cart/add", cls="h-contact-form") if checkout_enabled and listing else None,
                 Label("Choose your option", Select(*[Option(v.name, value=v.id) for v in variants], aria_label="Choose your option")) if len(variants) > 1 and not checkout_enabled else None,
                 Div(Label(Input(type="radio", name="purchase", checked=True), " One-time purchase"),
                     Label(Input(type="radio", name="purchase"), " Subscribe and save 10% · monthly"), cls="h-purchase") if tablets and not checkout_enabled else None,
                 Button("Add to cart — coming in Phase 2", disabled=True, cls="h-button") if not checkout_enabled else None,
-                P("Sandbox only. No live payments." if checkout_enabled else "Design preview. Orders and subscriptions are not open yet.", cls="h-muted"), cls="h-product-copy"), cls="h-product-detail h-container")
+                P(("Live payments accepted." if provider_mode == "live" else "Sandbox only. No live payments.") if checkout_enabled else "Design preview. Orders and subscriptions are not open yet.", cls="h-muted"), cls="h-product-copy"), cls="h-product-detail h-container")
     return Section(intro, cta(section, base), cls="h-section h-container h-editorial")
 
 
 def storefront(db, site, page, base, csrf, canonical, *, preview=False, message="", blog_listing=False, blog_category="", blog_tag=""):
-    from app.commerce import settings_for
+    from app.commerce import payments_enabled, settings_for
     from app.customer_services import consent_text
     from app.site_analytics import measurement_id
     from app.site_theme import theme_style
     analytics_id = measurement_id(site, preview=preview)
     commerce_config = settings_for(db, site)
-    customer_services_enabled = bool(commerce_config and commerce_config.mode == "sandbox")
+    customer_services_enabled = bool(commerce_config and payments_enabled(db, site, commerce_config))
     ga4_item = None
     if analytics_id and page.kind == "product" and page.product_id:
         ga4_product = catalog_product(db, site, page.product_id)

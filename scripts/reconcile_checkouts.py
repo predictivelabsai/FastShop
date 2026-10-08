@@ -8,7 +8,7 @@ from sqlalchemy import select, update
 from app import checkout_payments
 from app import checkout_services as checkout
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway
+from app.integrations.stripe_commerce import StripeGateway, make_gateway
 from app.models import CheckoutAttempt, Site, SubscriptionCycle
 from app.services import CommerceError
 
@@ -39,7 +39,9 @@ def recover(*, limit=50, sessions=SessionLocal, gateway_factory=StripeGateway):
                     checkout.cancel_unstarted(db, site, attempt.id)
                     state = "expired"
                 elif state in ("creating", "open") and session_id and not expired:
-                    state = checkout.reconcile(db, site, attempt.id, gateway_factory(site)).state
+                    state = checkout.reconcile(
+                        db, site, attempt.id, make_gateway(gateway_factory, site, db)
+                    ).state
                 # Rotate every checked row so a waiting attempt cannot starve the queue.
                 attempt.updated_at = datetime.now(UTC)
                 db.commit()

@@ -124,7 +124,7 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     cls="e-form",
                 )
                 commerce_mode = config.mode if config else "disabled"
-                commerce_form = Form(
+                commerce_form = (Form(
                     csrf(session),
                     Input(type="hidden", name="version", value=site.version),
                     Input(type="hidden", name="config_version", value=config.version if config else ""),
@@ -136,7 +136,8 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     ),
                     method="post",
                     action=f"/admin/sites/{site.id}/golive/commerce",
-                )
+                ) if commerce_mode != "live" else
+                    P("Live checkout can only be disabled from the operator acceptance ceremony."))
                 audit_nodes = []
                 for entry in audits:
                     event = site_golive.audit_event(entry)
@@ -157,6 +158,10 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     "Go-live review",
                     A("← Site settings", href=f"/admin/sites/{site.id}"),
                     P(f"{site.name} · Site status: {site.status} · Commerce: {commerce_mode}", cls="g-summary"),
+                    P("Live payments: " + ("approved by operator" if commerce_mode == "live" else "not approved"),
+                      cls="g-state g-state-live" if commerce_mode == "live" else "g-state"),
+                    A("Open operator live-payment ceremony →",
+                      href=f"/admin/platform/sites/{site.id}/live-credentials") if operator else None,
                     P(notice, role="status", cls="e-note") if notice else None,
                     Div(
                         H2("Publish the reviewed site", id="publish"),

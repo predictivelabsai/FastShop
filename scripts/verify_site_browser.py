@@ -40,12 +40,15 @@ def main():
     parser.add_argument("--wordpress", action="store_true", help="Include Phase 3c fixture-backed WordPress migration")
     parser.add_argument("--csv-merchant-feed", action="store_true", help="Include Phase 3d CSV import and Merchant Center feed")
     parser.add_argument("--golive", action="store_true", help="Include Phase 4a publish, domain and sandbox-commerce gates")
+    parser.add_argument("--live-credentials", action="store_true", help="Include Phase 4b operator live-credential acceptance")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
     if sum((args.woocommerce, args.shopify, args.wordpress, args.csv_merchant_feed)) > 1:
         raise RuntimeError("Run one fixture-backed connector browser flow at a time.")
-    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed or args.golive) and not (args.merchant or args.merchant_only):
+    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress or args.csv_merchant_feed or args.golive or args.live_credentials) and not (args.merchant or args.merchant_only):
         raise RuntimeError("Generation, refinement and connector checks require --merchant against an isolated local database.")
+    if args.live_credentials and not args.golive:
+        raise RuntimeError("Live-credential browser verification also requires --golive to prepare the reviewed fixture site.")
     if args.woocommerce and not os.getenv("FASTSHOP_WOOCOMMERCE_FIXTURE_PATH"):
         raise RuntimeError("WooCommerce browser verification requires FASTSHOP_WOOCOMMERCE_FIXTURE_PATH.")
     if args.shopify and not os.getenv("FASTSHOP_SHOPIFY_FIXTURE_PATH"):
@@ -254,6 +257,70 @@ def main():
                     page.screenshot(path=str(out / f"{device}-golive-commerce-enabled.png"), full_page=True)
                 checks.append({
                     "merchant": "go-live checklist blocks an incomplete publish, approves a ready publish, binds a domain and enables sandbox commerce",
+                    "status": "passed",
+                })
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.goto(args.base + "/admin/sites")
+            if args.live_credentials:
+                from sqlalchemy import select
+
+                from app import live_credentials
+                from app.db import SessionLocal
+                from app.models import Site, User
+
+                secret_key = "sk_live_browser_fixture_1234"
+                webhook_secret = "whsec_browser_fixture_5678"
+                with SessionLocal() as db:
+                    live_site = db.scalar(select(Site).where(Site.slug == "h24you"))
+                    operator = db.scalar(select(User).where(User.email == os.environ["FASTSHOP_ADMIN_EMAIL"].lower()))
+                    if not live_site or not operator:
+                        raise RuntimeError("The operator fixture site is unavailable.")
+                    live_site_id = live_site.id
+
+                anonymous = browser.new_context(viewport={"width": 390, "height": 844}).new_page()
+                denied = anonymous.goto(args.base + f"/admin/platform/sites/{live_site_id}/live-credentials")
+                assert denied.status == 400
+                assert secret_key not in anonymous.content() and webhook_secret not in anonymous.content()
+                anonymous.context.close()
+
+                page.goto(args.base + f"/admin/platform/sites/{live_site_id}/live-credentials")
+                page.get_by_label("Stripe live secret key", exact=True).fill(secret_key)
+                page.get_by_label("Webhook signing secret", exact=True).fill(webhook_secret)
+                page.get_by_role("button", name="Store encrypted credentials", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("status").inner_text().startswith("Live credentials stored encrypted")
+                assert page.get_by_text("sk_live_****1234", exact=False).is_visible()
+                assert secret_key not in page.content() and webhook_secret not in page.content()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-live-credentials-stored.png"), full_page=True)
+
+                with SessionLocal() as db:
+                    live_site = db.get(Site, live_site_id)
+                    credential = live_credentials.credential_for(db, live_site)
+                    live_credentials.mark_verified(db, live_site.id, operator.id, credential.id)
+                    db.commit()
+                page.reload()
+                page.wait_for_load_state("networkidle")
+                page.get_by_label("Acceptance reason", exact=True).fill(
+                    "Browser fixture confirms the reviewed site and mocked live credential verification."
+                )
+                page.get_by_label("I confirm the published site, bound domain, sandbox checkout, and verified live account are ready.", exact=True).check()
+                page.get_by_role("button", name="Accept live payments", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert page.get_by_role("status").inner_text() == "Live payments accepted for this site."
+                assert page.get_by_text("Live payments are approved by the platform operator.", exact=True).is_visible()
+                assert secret_key not in page.content() and webhook_secret not in page.content()
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-live-credentials-accepted.png"), full_page=True)
+                page.goto(args.base + f"/admin/sites/{live_site_id}/integrations")
+                assert page.get_by_text("Live payments: approved by operator", exact=True).is_visible()
+                assert secret_key not in page.content() and webhook_secret not in page.content()
+                checks.append({
+                    "operator": "live credentials are stored without echo, masked, explicitly accepted, and reduced to an approval badge on merchant integrations",
                     "status": "passed",
                 })
                 page.set_viewport_size({"width": 1440, "height": 1000})

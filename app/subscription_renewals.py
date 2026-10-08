@@ -7,12 +7,11 @@ from sqlalchemy import or_, select, update
 from app import checkout_services as checkout
 from app import commerce, subscriptions
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway
+from app.integrations.stripe_commerce import StripeGateway, make_gateway
 from app.models import (
     CommerceQuote,
     ShopCustomer,
     Site,
-    SiteCommerceSettings,
     SubscriptionContract,
     SubscriptionCycle,
     SubscriptionEvent,
@@ -43,8 +42,8 @@ def prepare_cycle(db, site, contract_id, gateway, *, now=None):
         if existing:
             return existing
         config = commerce.settings_for(db, site)
-        if not config or config.mode != "sandbox":
-            raise CommerceError("Sandbox commerce must be enabled before a renewal.")
+        if not config or not commerce.payments_enabled(db, site, config):
+            raise CommerceError("Commerce must be enabled before a renewal.")
         if contract.consent_json.get("accepted") is not True:
             raise CommerceError("Recurring-payment consent is missing.")
         selections = [{"variant_id": line["variant_id"], "quantity": line["quantity"], "subscription": True} for line in contract.lines_json]
@@ -89,9 +88,9 @@ def load_cycle(db, site, cycle_id):
     return cycle, contract, attempt, quote
 
 
-def verify_intent(intent, cycle):
+def verify_intent(intent, cycle, *, live_mode=False):
     payload = cycle.provider_payload_json
-    if (not str(intent.get("id", "")).startswith("pi_") or intent.get("livemode") is not False or
+    if (not str(intent.get("id", "")).startswith("pi_") or intent.get("livemode") is not live_mode or
             (cycle.payment_intent_id and intent["id"] != cycle.payment_intent_id) or
             intent.get("currency") != "usd" or type(intent.get("amount")) is not int or
             intent["amount"] != payload["amount"] or intent.get("customer") != payload["customer"] or
@@ -105,7 +104,7 @@ def settle(db, site, cycle_id, intent, *, now=None):
     now = now or datetime.now(UTC)
     checkout.lock_site(db, site)
     cycle, contract, attempt, quote = load_cycle(db, site, cycle_id)
-    verify_intent(intent, cycle)
+    verify_intent(intent, cycle, live_mode=commerce.payment_mode(db, site) == "live")
     if cycle.state in ("paid", "failed", "cancelled", "recovered"):
         return cycle
     status = intent.get("status")
@@ -151,7 +150,7 @@ def run_cycle(site_id, cycle_id, *, sessions=SessionLocal, gateway_factory=Strip
             raise CommerceError("Store not found.")
         checkout.lock_site(db, site)
         cycle, contract, attempt, quote = load_cycle(db, site, cycle_id)
-        gateway = gateway_factory(site)
+        gateway = make_gateway(gateway_factory, site, db)
         if cycle.state in ("failed", "cancelled", "recovered"):
             return cycle.state
         if cycle.state == "paid":
@@ -162,7 +161,8 @@ def run_cycle(site_id, cycle_id, *, sessions=SessionLocal, gateway_factory=Strip
             return "paid"
         if cycle.state == "prepared":
             config = commerce.settings_for(db, site)
-            if not config or config.mode != "sandbox" or contract.state != "active" or checkout.utc(quote.expires_at) <= datetime.now(UTC):
+            if (not config or not commerce.payments_enabled(db, site, config)
+                    or contract.state != "active" or checkout.utc(quote.expires_at) <= datetime.now(UTC)):
                 checkout._release(db, site, attempt)
                 cycle.state = "failed" if contract.state == "active" else "cancelled"
                 if contract.state == "active":
@@ -184,10 +184,10 @@ def run_cycle(site_id, cycle_id, *, sessions=SessionLocal, gateway_factory=Strip
         intent = gateway.payment_intent_status(intent_id) if intent_id else gateway.create_renewal(cycle_id, payload)
         checkout.lock_site(db, site)
         cycle, contract, attempt, quote = load_cycle(db, site, cycle_id)
-        verify_intent(intent, cycle)
+        verify_intent(intent, cycle, live_mode=getattr(gateway, "live_mode", False))
         cycle.payment_intent_id = intent["id"]
-        enabled = db.scalar(select(SiteCommerceSettings.id).where(SiteCommerceSettings.site_id == site.id,
-            SiteCommerceSettings.tenant_id == site.tenant_id, SiteCommerceSettings.mode == "sandbox"))
+        config = commerce.settings_for(db, site)
+        enabled = bool(config and commerce.payments_enabled(db, site, config))
         customer_active = db.scalar(select(ShopCustomer.id).where(ShopCustomer.id == contract.customer_id,
             ShopCustomer.site_id == site.id, ShopCustomer.tenant_id == site.tenant_id, ShopCustomer.is_active.is_(True)))
         # Claim before confirmation. A later pause/cancel applies to future cycles;
@@ -221,7 +221,7 @@ def record_tax(site_id, cycle_id, *, sessions=SessionLocal, gateway_factory=Stri
         cycle, contract, attempt, quote = load_cycle(db, site, cycle_id)
         if cycle.state != "paid" or cycle.tax_transaction_id:
             return
-        gateway = gateway_factory(site)
+        gateway = make_gateway(gateway_factory, site, db)
         calculation_id = quote.provider_id
         db.commit()
         transaction_id = gateway.record_renewal_tax(cycle_id, calculation_id)
@@ -249,7 +249,8 @@ def process_due(*, limit=50, sessions=SessionLocal, gateway_factory=StripeGatewa
                 site = db.scalar(select(Site).where(Site.id == site_id))
                 if not site:
                     raise CommerceError("Store not found.")
-                cycle = prepare_cycle(db, site, contract_id, gateway_factory(site))
+                cycle = prepare_cycle(db, site, contract_id,
+                    make_gateway(gateway_factory, site, db))
                 db.commit()
                 counts["prepared"] += int(cycle is not None)
         except CommerceError:
