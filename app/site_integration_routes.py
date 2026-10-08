@@ -28,7 +28,7 @@ from fasthtml.common import (
     Ul,
 )
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import JSONResponse, RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from app import connectors, content
 from app.db import SessionLocal
@@ -47,7 +47,10 @@ def _redirect(site_id, notice, *, plan_id=""):
 def _count_table(report):
     rows = []
     counts = report.get("counts", {})
-    preferred = ("categories", "collections", "products", "customers", "orders")
+    preferred = (
+        "categories", "tags", "authors", "media", "posts", "pages",
+        "collections", "products", "customers", "orders",
+    )
     names = [name for name in preferred if name in counts]
     names.extend(name for name in counts if name not in names)
     for name in names:
@@ -108,6 +111,23 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                     state = connector.credential_state(site)
                     capabilities = connector.capabilities
                     export_label = ", ".join(capabilities.exports) if capabilities.exports else "not included"
+                    export_controls = None
+                    if capabilities.exports and connector.platform == "wordpress":
+                        export_controls = Div(
+                            A("Download published WXR XML", cls="i-export",
+                              href=f"/admin/sites/{site.id}/integrations/{connector.platform}/export"),
+                            A("Download WXR XML with drafts", cls="i-export",
+                              href=f"/admin/sites/{site.id}/integrations/{connector.platform}/export?include_drafts=1"),
+                            P("Choose whether the portable bundle contains only published snapshots or also unpublished drafts.",
+                              cls="i-help"),
+                            cls="e-actions",
+                        )
+                    elif capabilities.exports:
+                        export_controls = A(
+                            "Download review-only export JSON",
+                            cls="i-export",
+                            href=f"/admin/sites/{site.id}/integrations/{connector.platform}/export",
+                        )
                     rows.append(Div(
                         Div(H2(connector.label), Span("Ready" if state.configured else "Needs operator setup",
                             cls="i-state " + ("i-state-ready" if state.configured else "i-state-missing")),
@@ -122,9 +142,7 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                             disabled=not state.configured), method="post",
                             action=f"/admin/sites/{site.id}/integrations/{connector.platform}/dry-run",
                             cls="e-form") if state.configured else None,
-                        A("Download review-only export JSON", cls="i-export",
-                          href=f"/admin/sites/{site.id}/integrations/{connector.platform}/export.json")
-                        if capabilities.exports else None,
+                        export_controls,
                         cls="e-card i-connector"))
                 selected = None
                 if plan:
@@ -201,6 +219,27 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                 f'attachment; filename="fastshop-{site_id}-{platform}-export.json"'
             )
             response.headers["Cache-Control"] = "private, no-store"
+            return response
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/integrations/{platform}/export", methods=["GET"])
+    def get(session, site_id: str, platform: str, include_drafts: str = "0"):
+        try:
+            if include_drafts not in {"0", "1"}:
+                raise CommerceError("Choose a supported export content scope.")
+            user_id = actor(session)
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, user_id, publish=True)
+                artifact = connectors.export_artifact(
+                    db, site, platform, include_drafts=include_drafts == "1"
+                )
+            response = Response(artifact.content, media_type=artifact.media_type)
+            response.headers["Content-Disposition"] = (
+                f'attachment; filename="{artifact.filename}"'
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            response.headers["X-Content-Type-Options"] = "nosniff"
             return response
         except CommerceError as exc:
             return error(exc)

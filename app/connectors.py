@@ -7,6 +7,7 @@ but no route accepts origins, keys, secrets, page limits, or provider options.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol, runtime_checkable
@@ -34,6 +35,13 @@ class ConnectorCapabilities:
     max_pages: int
     max_items: int
     timeout_seconds: int
+
+
+@dataclass(frozen=True)
+class ExportArtifact:
+    content: bytes
+    media_type: str
+    filename: str
 
 
 @runtime_checkable
@@ -72,9 +80,11 @@ def _load_builtins() -> None:
         return
     from app.integrations.shopify import ShopifyConnector
     from app.integrations.woocommerce import WooCommerceConnector
+    from app.integrations.wordpress import WordPressConnector
 
     register_connector(ShopifyConnector())
     register_connector(WooCommerceConnector())
+    register_connector(WordPressConnector())
     _BUILTINS_LOADED = True
 
 
@@ -182,3 +192,25 @@ def apply_reviewed_plan(
 
 def export_bundle(db, site: Site, platform: str) -> dict:
     return connector_for(platform).export_bundle(db, site)
+
+
+def export_artifact(
+    db,
+    site: Site,
+    platform: str,
+    *,
+    include_drafts: bool = False,
+) -> ExportArtifact:
+    """Return a download without performing a provider write."""
+    connector = connector_for(platform)
+    provider_export = getattr(connector, "export_artifact", None)
+    if provider_export is not None:
+        return provider_export(db, site, include_drafts=include_drafts)
+    if include_drafts:
+        raise CommerceError("This connector does not export CMS draft snapshots.")
+    payload = json.dumps(connector.export_bundle(db, site), indent=2, sort_keys=True).encode()
+    return ExportArtifact(
+        content=payload,
+        media_type="application/json",
+        filename=f"fastshop-{site.id}-{connector.platform}-export.json",
+    )

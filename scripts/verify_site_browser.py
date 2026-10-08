@@ -37,16 +37,19 @@ def main():
     parser.add_argument("--refinement", action="store_true", help="Include Phase 2b block-diff review workflow")
     parser.add_argument("--woocommerce", action="store_true", help="Include Phase 3a fixture-backed WooCommerce migration")
     parser.add_argument("--shopify", action="store_true", help="Include Phase 3b fixture-backed Shopify migration")
+    parser.add_argument("--wordpress", action="store_true", help="Include Phase 3c fixture-backed WordPress migration")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
-    if args.woocommerce and args.shopify:
+    if sum((args.woocommerce, args.shopify, args.wordpress)) > 1:
         raise RuntimeError("Run one fixture-backed connector browser flow at a time.")
-    if (args.generation or args.refinement or args.woocommerce or args.shopify) and not (args.merchant or args.merchant_only):
+    if (args.generation or args.refinement or args.woocommerce or args.shopify or args.wordpress) and not (args.merchant or args.merchant_only):
         raise RuntimeError("Generation, refinement and connector checks require --merchant against an isolated local database.")
     if args.woocommerce and not os.getenv("FASTSHOP_WOOCOMMERCE_FIXTURE_PATH"):
         raise RuntimeError("WooCommerce browser verification requires FASTSHOP_WOOCOMMERCE_FIXTURE_PATH.")
     if args.shopify and not os.getenv("FASTSHOP_SHOPIFY_FIXTURE_PATH"):
         raise RuntimeError("Shopify browser verification requires FASTSHOP_SHOPIFY_FIXTURE_PATH.")
+    if args.wordpress and not os.getenv("FASTSHOP_WORDPRESS_FIXTURE_PATH"):
+        raise RuntimeError("WordPress browser verification requires FASTSHOP_WORDPRESS_FIXTURE_PATH.")
     if args.embeds:
         if not (args.merchant or args.merchant_only) or not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
             raise RuntimeError("Embed/snippet checks require --merchant against an isolated local database.")
@@ -123,6 +126,12 @@ def main():
             if not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
                 raise RuntimeError("Merchant mutation checks are limited to an isolated local database.")
             context = browser.new_context(viewport={"width": 1440, "height": 1000})
+            if args.wordpress:
+                fixture_image = Path(__file__).resolve().parents[1] / "static" / "h24you" / "water-placeholder.webp"
+                context.route(
+                    "https://images.wordpress.example/**",
+                    lambda route: route.fulfill(path=str(fixture_image), content_type="image/webp"),
+                )
             page = context.new_page()
             page.goto(args.base + "/login?next=/admin/sites")
             page.locator('input[name="email"]').fill(os.environ["FASTSHOP_ADMIN_EMAIL"])
@@ -130,7 +139,7 @@ def main():
             page.get_by_role("button", name="Sign in", exact=True).click()
             page.wait_for_url("**/admin/sites")
             page.screenshot(path=str(out / "merchant-sites.png"), full_page=True)
-            if args.woocommerce or args.shopify:
+            if args.woocommerce or args.shopify or args.wordpress:
                 from sqlalchemy import select
 
                 from app.db import SessionLocal
@@ -141,12 +150,17 @@ def main():
                     if connector_site is None:
                         raise RuntimeError("The H2 4 You fixture site is unavailable.")
                     connector_site_id = connector_site.id
-                connector_name = "shopify" if args.shopify else "woocommerce"
-                connector_label = "Shopify" if args.shopify else "WooCommerce"
+                connector_name = "wordpress" if args.wordpress else "shopify" if args.shopify else "woocommerce"
+                connector_label = "WordPress" if args.wordpress else "Shopify" if args.shopify else "WooCommerce"
                 page.goto(args.base + f"/admin/sites/{connector_site_id}/integrations")
                 page.wait_for_load_state("networkidle")
                 assert page.get_by_role("heading", name=connector_label, exact=True).is_visible()
-                assert page.get_by_text("Development fixture store ready.", exact=True).is_visible()
+                fixture_message = "Development fixture site ready." if args.wordpress else "Development fixture store ready."
+                assert page.get_by_text(fixture_message, exact=True).is_visible()
+                if args.wordpress:
+                    with page.expect_download() as download_info:
+                        page.get_by_role("link", name="Download published WXR XML", exact=True).click()
+                    assert download_info.value.suggested_filename.endswith("-published.xml")
                 for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
                     page.set_viewport_size({"width": width, "height": height})
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
@@ -156,11 +170,13 @@ def main():
                 page.wait_for_url("**/integrations?**plan=**")
                 page.wait_for_load_state("networkidle")
                 assert page.get_by_role("heading", name="Reviewed import plan", exact=True).is_visible()
-                product_row = page.locator(".i-counts tbody tr").filter(has_text="Products")
-                assert product_row.is_visible()
-                assert product_row.locator("td").all_inner_texts() == ["2", "2", "0", "0"]
+                resource_label = "Posts" if args.wordpress else "Products"
+                resource_row = page.locator(".i-counts tbody tr").filter(has_text=resource_label)
+                assert resource_row.is_visible()
+                assert resource_row.locator("td").all_inner_texts() == ["2", "2", "0", "0"]
                 page.get_by_text("Warnings and unmapped items", exact=False).click()
-                assert page.get_by_text("Archived gift wrap", exact=False).is_visible()
+                warning_text = "shortcode" if args.wordpress else "Archived gift wrap"
+                assert page.get_by_text(warning_text, exact=False).is_visible()
                 for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
                     page.set_viewport_size({"width": width, "height": height})
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
@@ -174,6 +190,44 @@ def main():
                     "merchant": f"{connector_label} fixture dry run renders and the exact reviewed plan applies once",
                     "status": "passed",
                 })
+                if args.wordpress:
+                    from app.models import ExternalMapping
+
+                    with SessionLocal() as db:
+                        article_mapping = db.scalar(select(ExternalMapping).where(
+                            ExternalMapping.tenant_id == connector_site.tenant_id,
+                            ExternalMapping.site_id == connector_site_id,
+                            ExternalMapping.system == "wordpress",
+                            ExternalMapping.resource_type == "post",
+                            ExternalMapping.external_id == "101",
+                        ))
+                        if article_mapping is None:
+                            raise RuntimeError("The imported WordPress article mapping is unavailable.")
+                        imported_article_id = article_mapping.local_id
+                    page.goto(
+                        args.base
+                        + f"/admin/sites/{connector_site_id}/build?page={imported_article_id}"
+                    )
+                    page.wait_for_load_state("networkidle")
+                    preview = page.frame_locator("iframe.b-preview")
+                    preview.locator("h1").wait_for(state="attached")
+                    assert preview.locator("h1").text_content() == "A field guide to spring water"
+                    cookie = preview.locator("#h-cookie")
+                    cookie.evaluate("element => { element.hidden = true; }")
+                    for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                        page.set_viewport_size({"width": width, "height": height})
+                        if device == "mobile":
+                            page.get_by_role("button", name="Preview", exact=True).click()
+                            assert page.locator("iframe.b-preview").is_visible()
+                        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                        page.screenshot(
+                            path=str(out / f"{device}-wordpress-imported-article-builder.png"),
+                            full_page=True,
+                        )
+                    checks.append({
+                        "merchant": "Imported WordPress article is visible in the FastShop builder",
+                        "status": "passed",
+                    })
                 page.goto(args.base + "/admin/sites")
                 page.set_viewport_size({"width": 1440, "height": 1000})
             if args.generation:
