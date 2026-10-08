@@ -402,6 +402,27 @@ class SiteMenu(TimestampMixin, Base):
         return validate_items(value) if value is not None else None
 
 
+class SiteSnippet(TimestampMixin, Base):
+    __tablename__ = "site_snippets"
+    __table_args__ = (UniqueConstraint("site_id", "placement"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    placement: Mapped[str] = mapped_column(String(20))
+    draft_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    published_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    @validates("placement")
+    def validate_placement(self, key, value):
+        from app.site_snippets import validate_placement
+        return validate_placement(value)
+
+    @validates("draft_json", "published_json")
+    def validate_snapshot(self, key, value):
+        from app.site_snippets import validate_snapshot
+        return validate_snapshot(value) if value is not None else None
+
+
 class BlogCategory(TimestampMixin, Base):
     __tablename__ = "blog_categories"
     __table_args__ = (UniqueConstraint("site_id", "slug"),)

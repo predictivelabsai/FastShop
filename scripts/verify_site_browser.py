@@ -32,8 +32,23 @@ def main():
     parser.add_argument("--merchant", action="store_true")
     parser.add_argument("--merchant-only", action="store_true", help="Rerun merchant flows after storefront verification")
     parser.add_argument("--blog", action="store_true", help="Include blog taxonomy and editorial workflow evidence")
+    parser.add_argument("--embeds", action="store_true", help="Include Phase 1c embed and snippet publication evidence")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
+    if args.embeds:
+        if not (args.merchant or args.merchant_only) or not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
+            raise RuntimeError("Embed/snippet checks require --merchant against an isolated local database.")
+        from sqlalchemy import select
+
+        from app.db import SessionLocal
+        from app.models import Site
+
+        with SessionLocal() as db:
+            site = db.scalar(select(Site).where(Site.slug == "h24you"))
+            if not site:
+                raise RuntimeError("The H2 4 You fixture is not available.")
+            site.status = "published"
+            db.commit()
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
     paths = ["/", "/shop", "/collections/hydrogen-tablets", "/collections/hydrogen-water-bottles",
@@ -206,6 +221,67 @@ def main():
             page.get_by_role("button", name="Delete media", exact=True).click()
             assert page.get_by_role("status").inner_text().startswith("Cannot delete referenced media")
             checks.append({"merchant": "media upload, browse, pick and save alt desktop/mobile; referenced deletion refused", "status": "passed"})
+            if args.embeds:
+                context.route("https://embed.example.test/**", lambda route: route.fulfill(
+                    content_type="text/html",
+                    body="<!doctype html><title>Embed fixture</title><style>body{font:24px sans-serif;padding:32px}</style><p>Secure embed fixture</p>",
+                ))
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.goto(args.base + "/admin/sites")
+                h24_card = page.locator(".e-card").filter(has=page.get_by_role("heading", name="H2 4 You", exact=True))
+                h24_card.get_by_role("link", name="Open editor →", exact=True).click()
+                h24_editor_url = page.url
+                page.get_by_role("link", name="Follow the questions.", exact=True).click()
+                page.locator('select[name="new_section"]').select_option("embed")
+                page.get_by_role("button", name="Save draft", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                embed_section = page.locator("details.e-section").last
+                embed_section.locator("summary").click()
+                embed_section.locator('textarea[name$="_heading"]').fill("Watch the research briefing")
+                embed_section.locator('textarea[name$="_body"]').fill("A provider-neutral HTTPS embed rendered inside the strict storefront sandbox.")
+                embed_section.get_by_label("Embed URL (HTTPS)", exact=True).fill("https://embed.example.test/widget")
+                page.get_by_role("button", name="Publish page", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                page.goto(h24_editor_url + "/snippets")
+                head_card = page.locator(".e-card").filter(has=page.get_by_role("heading", name="Document head", exact=True))
+                head_card.get_by_label("Snippet markup", exact=True).fill('<meta name="phase1c-browser" content="published">')
+                head_card.get_by_label("Enable this placement", exact=True).check()
+                head_card.get_by_role("button", name="Publish snippet", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                foot_card = page.locator(".e-card").filter(has=page.get_by_role("heading", name="After footer", exact=True))
+                foot_card.get_by_label("Snippet markup", exact=True).fill("<script>window.__phase1cSnippetLoaded = true</script>")
+                foot_card.get_by_label("Enable this placement", exact=True).check()
+                foot_card.get_by_role("button", name="Publish snippet", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                snippets_url = page.url
+                for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                    page.set_viewport_size({"width": width, "height": height})
+                    page.goto(snippets_url)
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-snippet-editor.png"), full_page=True)
+                    page.goto(args.base + "/sites/h24you/pages/science")
+                    page.wait_for_load_state("networkidle")
+                    assert page.locator('head meta[name="phase1c-browser"]').get_attribute("content") == "published"
+                    frame = page.locator('iframe[src="https://embed.example.test/widget"]')
+                    assert frame.is_visible()
+                    assert frame.get_attribute("sandbox") == "allow-scripts"
+                    assert frame.get_attribute("referrerpolicy") == "no-referrer"
+                    assert "allow-same-origin" not in frame.get_attribute("sandbox")
+                    frame.scroll_into_view_if_needed()
+                    embedded_fixture = page.frame_locator('iframe[src="https://embed.example.test/widget"]').get_by_text(
+                        "Secure embed fixture", exact=True,
+                    )
+                    embedded_fixture.wait_for(state="visible")
+                    assert page.evaluate("window.__phase1cSnippetLoaded") is None
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    load_page_media(page)
+                    page.screenshot(path=str(out / f"{device}-embed-block.png"), full_page=True)
+                page.get_by_role("button", name="Cookie preferences", exact=True).click()
+                page.locator("#h-cookie summary").click()
+                page.locator("#consent-analytics").check()
+                page.locator('[data-consent="custom"]').click()
+                page.wait_for_function("window.__phase1cSnippetLoaded === true")
+                checks.append({"merchant": "embed desktop/mobile plus published and consent-gated snippets", "status": "passed"})
             context.close()
         browser.close()
     report = {"base": args.base, "checks": checks, "failures": failures}
