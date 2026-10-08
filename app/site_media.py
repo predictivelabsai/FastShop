@@ -1,12 +1,38 @@
 """Site-owned media registry. Content URLs are never rewritten by registration."""
+import io
 import mimetypes
 from pathlib import Path
 
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
 
 from app import content
 from app.models import Product, SiteChangeSet, SiteMedia, SiteMenu, SiteRevision
 from app.services import CommerceError
+
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_IMAGE_PIXELS = 25_000_000
+
+
+def prepare_image_bytes(data: bytes, *, max_size=(1800, 1800)) -> bytes:
+    """Validate and normalize trusted-boundary image bytes like merchant uploads."""
+    if not isinstance(data, bytes) or not data or len(data) > MAX_IMAGE_BYTES:
+        raise CommerceError("Images must be smaller than 8 MB.")
+    try:
+        with Image.open(io.BytesIO(data)) as original:
+            if (
+                original.format not in {"JPEG", "PNG", "WEBP"}
+                or original.width * original.height > MAX_IMAGE_PIXELS
+            ):
+                raise CommerceError(
+                    "Choose a JPEG, PNG or WebP image smaller than 25 megapixels."
+                )
+            original.thumbnail(max_size)
+            output = io.BytesIO()
+            original.convert("RGB").save(output, format="WEBP", quality=85)
+            return output.getvalue()
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as exc:
+        raise CommerceError("Invalid image data.") from exc
 
 
 def media_url(media):
@@ -17,6 +43,17 @@ def media_for(db, site):
     return list(db.scalars(select(SiteMedia).where(
         SiteMedia.tenant_id == site.tenant_id, SiteMedia.site_id == site.id,
     ).order_by(SiteMedia.created_at.desc(), SiteMedia.id)))
+
+
+def generated_direction(site, url: str) -> str:
+    """Return the retained generation direction for one resolved asset URL."""
+    generation = (site.settings_json or {}).get("site_generation", {})
+    imagery = generation.get("imagery", []) if isinstance(generation, dict) else []
+    return next((
+        str(item.get("direction", ""))
+        for item in imagery
+        if isinstance(item, dict) and item.get("resolved_url") == url
+    ), "")
 
 
 def owned_media(db, site, media_id):

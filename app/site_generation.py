@@ -510,7 +510,7 @@ def generate_plan(value: MerchantBrief | dict, provider: PlanProvider | None = N
 
 def apply_plan(db, site: Site, user_id: str, plan: dict, *, expected_version: int,
                key: str, source: str, retry: bool = False,
-               brief: MerchantBrief | dict | None = None) -> Site:
+               brief: MerchantBrief | dict | None = None, image_provider=None) -> Site:
     """Apply a fully validated plan to one private site in the caller transaction."""
     from app import site_builder_services as builder
     from app.site_catalog import create_catalog_product
@@ -589,19 +589,23 @@ def apply_plan(db, site: Site, user_id: str, plan: dict, *, expected_version: in
             "product_ids": list(product_ids.values()),
         },
     })
-    content.validate_media_ownership(db, site, config)
     site.settings_json = config
     for name in ("header", "footer"):
         menu = site_menus.put_menu(db, site, name, plan["menus"][name])
         menu.published_items_json = None
+    from app.site_images import resolve_site_imagery
+
+    resolve_site_imagery(db, site, user_id, provider=image_provider)
+    content.validate_media_ownership(db, site, site.settings_json)
     site.version += 1
     db.flush()
     return site
 
 
 def create_generated_site(db, user_id: str, value: MerchantBrief | dict, plan: dict,
-                          source: str) -> Site:
+                          source: str, *, image_provider=None) -> Site:
     brief = validate_brief(value)
     site = content.create_site(db, user_id, brief.business_name, site_slug(db, brief.business_name))
     return apply_plan(db, site, user_id, plan, expected_version=site.version,
-                      key=generation_key(brief), source=source, brief=brief)
+                      key=generation_key(brief), source=source, brief=brief,
+                      image_provider=image_provider)

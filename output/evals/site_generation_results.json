@@ -1,6 +1,6 @@
 {
   "suite": "site_generation",
-  "generated_at": "2026-10-08T17:40:28+00:00",
+  "generated_at": "2026-10-08T18:17:07+00:00",
   "network": "disabled",
   "briefs": 10,
   "runs": 20,
@@ -24,10 +24,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -340,10 +343,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -656,10 +662,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -1232,10 +1241,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -1808,10 +1820,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -2124,10 +2139,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -2440,10 +2458,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -2756,10 +2777,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -3072,10 +3096,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -3648,10 +3675,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -4224,10 +4254,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -4800,10 +4833,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -5376,10 +5412,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -5692,10 +5731,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -6008,10 +6050,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -6324,10 +6369,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -6640,10 +6688,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -7216,10 +7267,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -7792,10 +7846,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,
@@ -8108,10 +8165,13 @@
         "menus_resolve": true,
         "compliance_passes": true,
         "theme_valid": true,
-        "draft_applied": true
+        "draft_applied": true,
+        "imagery_resolved": true,
+        "resolution_bounded": true,
+        "resolution_idempotent": true
       },
-      "score": 6,
-      "possible": 6,
+      "score": 9,
+      "possible": 9,
       "passed": true,
       "plan": {
         "version": 1,

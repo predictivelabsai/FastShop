@@ -14,13 +14,13 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from app import content
 from app.compliance import scan_document
-from app.models import Base, User
-from app.site_blocks import normalize_document
+from app.models import Base, SiteMedia, User
+from app.site_blocks import normalize_document, resolve_text
 from app.site_generation import (
     MerchantBrief,
     create_generated_site,
@@ -28,6 +28,7 @@ from app.site_generation import (
     guided_plan,
     validate_plan,
 )
+from app.site_images import MAX_IMAGES_PER_RESOLUTION, resolve_site_imagery
 from app.site_theme import CHOICES, PRESETS
 
 
@@ -106,7 +107,41 @@ def run() -> dict:
                 site = create_generated_site(db, owner.id, case.brief, plan, source)
                 applied_pages = content.site_pages(db, site)
                 applied_ok = len(applied_pages) == len(plan["pages"]) and site.status == "draft"
-                checks = score["checks"] | {"draft_applied": applied_ok}
+                visual_urls = []
+                for page in applied_pages:
+                    document = normalize_document(page.draft_json)
+                    for block in document["blocks"]:
+                        if block["type"] in {"hero", "split", "product"}:
+                            visual_urls.append(resolve_text(
+                                block.get("image", ""), case.brief.default_locale
+                            ))
+                imagery_ok = len(visual_urls) == len(plan["imagery"]) and all(
+                    url.startswith(f"/site-media/{site.id}/")
+                    or (url.startswith("/static/") and "placeholder" in url.lower())
+                    for url in visual_urls
+                )
+                for url in visual_urls:
+                    content.validate_media_ownership(db, site, url)
+                media_before = db.scalar(select(func.count()).select_from(SiteMedia).where(
+                    SiteMedia.tenant_id == site.tenant_id,
+                    SiteMedia.site_id == site.id,
+                ))
+                repeated = resolve_site_imagery(db, site, owner.id)
+                media_after = db.scalar(select(func.count()).select_from(SiteMedia).where(
+                    SiteMedia.tenant_id == site.tenant_id,
+                    SiteMedia.site_id == site.id,
+                ))
+                bounded = (
+                    len(plan["imagery"]) <= MAX_IMAGES_PER_RESOLUTION
+                    and repeated.total <= MAX_IMAGES_PER_RESOLUTION
+                )
+                idempotent = repeated.provider_calls == 0 and media_after == media_before
+                checks = score["checks"] | {
+                    "draft_applied": applied_ok,
+                    "imagery_resolved": imagery_ok,
+                    "resolution_bounded": bounded,
+                    "resolution_idempotent": idempotent,
+                }
                 rows.append({
                     "case": case.name, "mode": mode, "provider": source,
                     "brief": asdict(case.brief), "checks": checks,
@@ -134,8 +169,8 @@ def write_results(summary: dict, out_dir: str = "output/evals") -> Path:
         f"Generated: {summary['generated_at']} · network: `{summary['network']}`",
         f"**{summary['passed']}/{summary['runs']} runs passed across {summary['briefs']} golden briefs.**",
         "",
-        "| Brief | Mode | Structure | Menus | Safety | Theme | Apply | Score |",
-        "|---|---|---:|---:|---:|---:|---:|---:|",
+        "| Brief | Mode | Structure | Menus | Safety | Theme | Apply | Images | Bounded | Idempotent | Score |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     def marker(value):
         return "pass" if value else "FAIL"
@@ -147,11 +182,13 @@ def write_results(summary: dict, out_dir: str = "output/evals") -> Path:
             f"| {row['case']} | {row['mode']} | {marker(structure)} | "
             f"{marker(check['menus_resolve'])} | {marker(check['compliance_passes'])} | "
             f"{marker(check['theme_valid'])} | {marker(check['draft_applied'])} | "
+            f"{marker(check['imagery_resolved'])} | {marker(check['resolution_bounded'])} | "
+            f"{marker(check['resolution_idempotent'])} | "
             f"{row['score']}/{row['possible']} |"
         )
     lines.extend([
         "", "## Coverage", "",
-        "The golden set includes wellness, food, SaaS, local services, fashion, coffee, creative services, consulting, home goods and fitness. Guided and mocked-provider runs use the same validation and apply boundaries; neither path accesses the network.",
+        "The golden set includes wellness, food, SaaS, local services, fashion, coffee, creative services, consulting, home goods and fitness. Guided and mocked-provider runs use the same validation, apply and image-resolution boundaries; every visual block resolves to owned media or an approved static placeholder. Re-resolution is bounded and does not call the provider or duplicate media. No path accesses the network.",
     ])
     (out / "site_generation_results.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out
