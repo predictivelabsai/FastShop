@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:5033")
     parser.add_argument("--merchant", action="store_true")
+    parser.add_argument("--merchant-only", action="store_true", help="Rerun merchant flows after storefront verification")
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
     out = Path(args.output)
@@ -42,7 +43,7 @@ def main():
     failures, checks = [], []
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel="chrome", headless=True)
-        for device, width, height in [("desktop", 1440, 1000), ("ipad", 834, 1112), ("mobile", 390, 844)]:
+        for device, width, height in ([] if args.merchant_only else [("desktop", 1440, 1000), ("ipad", 834, 1112), ("mobile", 390, 844)]):
             context = browser.new_context(viewport={"width": width, "height": height}, reduced_motion="reduce")
             page = context.new_page()
             page.on("pageerror", lambda error: failures.append(str(error)))
@@ -83,7 +84,7 @@ def main():
             page.get_by_role("button", name="View gallery image 2", exact=True).click()
             assert "water-placeholder" in page.locator('[data-gallery-main] img').get_attribute("src")
             context.close()
-        if args.merchant:
+        if args.merchant or args.merchant_only:
             if not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
                 raise RuntimeError("Merchant mutation checks are limited to an isolated local database.")
             context = browser.new_context(viewport={"width": 1440, "height": 1000})
@@ -149,18 +150,58 @@ def main():
             page.set_viewport_size({"width": 1440, "height": 1000})
             page.goto(site_editor_url)
             page.get_by_role("link", name="Media library", exact=True).click()
-            page.locator('input[name="title"]').fill("Acceptance image")
-            page.locator('input[name="alt"]').fill("Water texture for browser acceptance")
+            page.locator('input[name="title"]').first.fill("Acceptance image")
+            page.locator('input[name="alt"]').first.fill("Water texture for browser acceptance")
             page.locator('input[type="file"]').set_input_files("static/h24you/water-placeholder.webp")
             page.get_by_role("button", name="Upload image", exact=True).click()
             page.wait_for_load_state("networkidle")
             assert page.get_by_role("heading", name="Acceptance image", exact=True).is_visible()
             page.screenshot(path=str(out / "merchant-media-library.png"), full_page=True)
-            checks.append({"merchant": "create site, edit sections, publish, verify public page, upload image", "status": "passed"})
+            media_url = page.get_by_label("Image URL — use in a section").input_value()
+            library_url = page.url
+            page.goto(site_editor_url)
+            page.get_by_role("link", name="Our browser-tested home", exact=True).click()
+            page.locator('select[name="new_section"]').select_option("product")
+            page.get_by_role("button", name="Save draft", exact=True).click()
+            page.wait_for_load_state("networkidle")
+            for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
+                page.set_viewport_size({"width": width, "height": height})
+                page.goto(library_url)
+                assert page.locator(".e-card img").evaluate("i => i.complete && i.naturalWidth > 0")
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                page.screenshot(path=str(out / f"{device}-media-library.png"), full_page=True)
+                page.goto(site_editor_url)
+                page.get_by_role("link", name="Our browser-tested home", exact=True).click()
+                section = page.locator("details.e-section").first
+                if section.get_attribute("open") is None:
+                    section.locator("summary").click()
+                section.get_by_label("Pick from library: image", exact=True).select_option(media_url)
+                assert section.get_by_label("Image URL", exact=True).input_value() == media_url
+                section.get_by_label("Pick from library: poster", exact=True).select_option(media_url)
+                assert section.get_by_label("Poster URL", exact=True).input_value() == media_url
+                product = page.locator("details.e-section").last
+                if product.get_attribute("open") is None:
+                    product.locator("summary").click()
+                product.get_by_label("Gallery image URLs (one per line)", exact=True).fill("")
+                product.get_by_label("Pick from library: gallery", exact=True).select_option(media_url)
+                product.get_by_label("Pick from library: gallery", exact=True).select_option(media_url)
+                assert product.get_by_label("Gallery image URLs (one per line)", exact=True).input_value() == media_url + "\n" + media_url
+                product.locator("summary").click()
+                section.get_by_label("Alt text", exact=True).fill("Reusable water image " + device)
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                page.screenshot(path=str(out / f"{device}-media-picker.png"), full_page=True)
+                page.get_by_role("button", name="Save draft", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                assert page.locator('input[name="section_0_image"]').input_value() == media_url
+                assert page.locator('input[name="section_0_alt"]').input_value() == "Reusable water image " + device
+            page.goto(library_url)
+            page.get_by_role("button", name="Delete media", exact=True).click()
+            assert page.get_by_role("status").inner_text().startswith("Cannot delete referenced media")
+            checks.append({"merchant": "media upload, browse, pick and save alt desktop/mobile; referenced deletion refused", "status": "passed"})
             context.close()
         browser.close()
     report = {"base": args.base, "checks": checks, "failures": failures}
-    (out / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    (out / ("verification-merchant.json" if args.merchant_only else "verification.json")).write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps({"checks": len(checks), "failures": failures, "output": str(out)}))
     if failures:
         raise SystemExit(1)

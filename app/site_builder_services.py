@@ -22,7 +22,7 @@ from app.site_blocks import (
 from app.site_theme import validate_theme
 
 BRAND_FIELDS = {"name", "tagline", "announcement", "footer"}
-SECTION_FIELDS = {"heading", "eyebrow", "body", "image", "button", "link", "hidden", "items", "gallery", "video", "mobile_video", "poster", "role", "layout"}
+SECTION_FIELDS = {"heading", "eyebrow", "body", "image", "button", "link", "hidden", "items", "gallery", "alt", "video", "mobile_video", "poster", "role", "layout"}
 
 
 def validate_section_text(values):

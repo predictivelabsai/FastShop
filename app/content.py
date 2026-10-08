@@ -230,6 +230,8 @@ def create_site(db: Session, user_id: str, name: str, slug: str) -> Site:
             {"type": "text", "heading": title, "body": "PLACEHOLDER — add your company's reviewed policy before launch."}]})
     from app.site_menus import adapt_navigation
     adapt_navigation(db, site)
+    from app.site_media import backfill_media
+    backfill_media(db, site)
     return site
 
 
