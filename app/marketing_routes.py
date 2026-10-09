@@ -64,6 +64,7 @@ def _head(title: str, description: str):
         Meta(property="og:type", content="website"),
         Link(rel="icon", href="/static/favicon.svg", type="image/svg+xml"),
         Link(rel="stylesheet", href="/static/fonts.css"),
+        Link(rel="stylesheet", href="/static/platform.css"),
         Link(rel="stylesheet", href="/static/marketing.css"),
     )
 
@@ -617,6 +618,86 @@ def _field_error(message: str, error_id: str):
     return P(message, id=error_id, cls="m-field-error", role="alert") if message else None
 
 
+def login_page(
+    csrf: str,
+    error: str = "",
+    google_enabled: bool = False,
+    local_enabled: bool = True,
+):
+    return _document(
+        "Sign in",
+        "Sign in to your FastShop merchant workspace.",
+        A("Skip to content", href="#content", cls="m-skip"),
+        Div(
+            Header(
+                Div(
+                    _brand(),
+                    A("Create workspace", href="/signup", cls="m-text-link"),
+                    cls="m-nav",
+                ),
+                cls="m-header",
+            ),
+            Main(
+                Section(
+                    Div(
+                        H1("Welcome back."),
+                        P(
+                            "Sign in to manage your storefront, orders, and workspace.",
+                            cls="m-auth-intro",
+                        ),
+                        P(error, cls="m-form-error", role="alert") if error else None,
+                        A(
+                            "Continue with Google",
+                            href="/auth/google",
+                            cls="m-auth-google",
+                        )
+                        if google_enabled
+                        else P(
+                            "Google sign-in is not configured locally.",
+                            cls="m-auth-notice",
+                        ),
+                        Div(Span("or"), cls="m-auth-divider", aria_hidden="true")
+                        if local_enabled
+                        else None,
+                        Form(
+                            Input(type="hidden", name="csrf_token", value=csrf),
+                            Label(
+                                "Email address",
+                                Input(
+                                    type="email",
+                                    name="email",
+                                    required=True,
+                                    autocomplete="email",
+                                ),
+                            ),
+                            Label(
+                                "Password",
+                                Input(
+                                    type="password",
+                                    name="password",
+                                    required=True,
+                                    autocomplete="current-password",
+                                ),
+                            ),
+                            Button("Sign in", type="submit", cls="m-button"),
+                            action="/login",
+                            method="post",
+                            cls="m-auth-form",
+                        )
+                        if local_enabled
+                        else None,
+                        cls="m-auth-card",
+                    ),
+                    id="content",
+                    cls="m-auth m-shell",
+                )
+            ),
+            cls="m-page m-auth-page",
+        ),
+        private=True,
+    )
+
+
 def signup_page(
     *,
     signup_open: bool,
@@ -765,8 +846,7 @@ def signup_page(
                         "password-confirmation-error",
                     ),
                     Small(
-                        f"Use {signup_services.SIGNUP_PASSWORD_MIN_LENGTH}–"
-                        f"{signup_services.SIGNUP_PASSWORD_MAX_LENGTH} characters.",
+                        f"At least {signup_services.SIGNUP_PASSWORD_MIN_LENGTH} characters.",
                         id="password-help",
                     ),
                     Button("Create workspace", type="submit", cls="m-button"),
