@@ -94,12 +94,30 @@ def _login_csrf(http):
     return _re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
 
 
-def test_per_user_password_login_uses_membership_role():
+def test_per_user_password_login_uses_membership_role(monkeypatch):
+    from dataclasses import replace
+
     from sqlalchemy import select
 
+    from app import auth
     from app.auth import hash_admin_password
     from app.db import SessionLocal
     from app.models import Membership, Tenant, User
+
+    monkeypatch.setattr(
+        auth,
+        "settings",
+        replace(
+            auth.settings,
+            environment="production",
+            signup_open=True,
+            allow_password_login=False,
+            admin_email="",
+            admin_password_hash="",
+            admin_password="",
+        ),
+    )
+    monkeypatch.setattr(auth, "_password_attempts", auth.deque())
 
     password = "merchant-test-passphrase-24-chars"
     email = "merchant-user@fastshop.example"

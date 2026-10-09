@@ -106,8 +106,15 @@ def verify_admin_password(password: str, encoded: str) -> bool:
 
 def local_login_allowed() -> bool:
     if settings.is_production:
-        return bool(settings.allow_password_login and settings.admin_password_hash
-                    and settings.admin_email and not settings.admin_email.endswith(".example"))
+        return bool(
+            settings.signup_open
+            or (
+                settings.allow_password_login
+                and settings.admin_password_hash
+                and settings.admin_email
+                and not settings.admin_email.endswith(".example")
+            )
+        )
     return bool(settings.admin_email and settings.admin_password)
 
 

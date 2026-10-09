@@ -9,6 +9,7 @@ from app import auth
 def test_production_disables_local_password_auth():
     environment = os.environ | {
         "FASTSHOP_ENV": "production",
+        "FASTSHOP_SIGNUP_OPEN": "0",
         "FASTSHOP_ADMIN_EMAIL": "merchant@example.com",
         "FASTSHOP_ADMIN_PASSWORD": "",
     }
@@ -33,7 +34,7 @@ def test_production_disables_local_password_auth():
 def test_explicit_production_hash_login_preserves_account_boundary(monkeypatch):
     password = "synthetic-admin-password-for-tests-only"
     encoded = auth.hash_admin_password(password)
-    config = SimpleNamespace(is_production=True, allow_password_login=True,
+    config = SimpleNamespace(is_production=True, signup_open=False, allow_password_login=True,
         admin_email="admin@example.test", admin_password_hash=encoded, admin_password="ignored")
     monkeypatch.setattr(auth, "settings", config)
     assert auth.local_login_allowed()
@@ -43,6 +44,22 @@ def test_explicit_production_hash_login_preserves_account_boundary(monkeypatch):
     assert not auth.valid_local_credentials(config.admin_email, "ignored")
     config.allow_password_login = False
     assert not auth.valid_local_credentials(config.admin_email, password)
+
+
+def test_production_allows_password_form_for_open_signup_without_admin_credentials(
+    monkeypatch,
+):
+    config = SimpleNamespace(
+        is_production=True,
+        signup_open=True,
+        allow_password_login=False,
+        admin_email="",
+        admin_password_hash="",
+        admin_password="",
+    )
+    monkeypatch.setattr(auth, "settings", config)
+    assert auth.local_login_allowed()
+    assert not auth.valid_local_credentials("merchant@example.test", "not-an-admin-password")
 
 
 def test_malformed_or_unbounded_hashes_fail_closed():

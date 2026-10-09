@@ -1,5 +1,8 @@
+import os
 import re
 import secrets
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -111,6 +114,37 @@ def signup(client, *, name="North & Pine", email="owner@example.test"):
         },
         follow_redirects=False,
     )
+
+
+def test_signup_is_open_by_default_when_environment_flag_is_absent():
+    environment = os.environ.copy()
+    environment.pop("FASTSHOP_SIGNUP_OPEN", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from app.config import Settings; assert Settings().signup_open is True",
+        ],
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_open_marketing_page_has_live_signup_copy(signup_workspace):
+    response = signup_workspace.client.get("/marketing/")
+    assert response.status_code == 200
+    assert 'href="/signup"' in response.text
+    assert "Create your workspace" in response.text
+    assert "Create an account now; product publishing stays review-gated." in response.text
+    assert "Signup availability is controlled at launch" not in response.text
+    assert "Phase 5d" not in response.text
+    assert "Free includes 2 sites, 3 AI generations per month, 10 products" in response.text
+    assert "Basic raises those limits to 10, 25, 250, and 5" in response.text
+    assert "Pro to 50, 100, 1,000, and 25" in response.text
+    assert 'href="/admin/billing"' in response.text
 
 
 def test_signup_kill_switch_off_and_on(signup_workspace):
