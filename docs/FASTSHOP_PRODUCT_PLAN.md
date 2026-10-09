@@ -137,11 +137,12 @@ Slice order matters here: 5a–5c create the funnel, 5d–5e make it a business.
 - Metering built on the existing `OutboxEvent`/event patterns; operator console view of per-tenant usage.
 - Quota enforcement errors are merchant-readable and never block reading their own data. → **Done: phase 5d plans, quotas, and metering (this working-tree change; see docs/PHASE5D_PLANS_QUOTAS.md).**
 
-#### 5e — Stripe SaaS billing for FastShop itself
+#### 5e — Stripe SaaS billing for FastShop itself — **Shipped**
 
 - Stripe Checkout subscriptions for plan upgrades on the FastShop SaaS surface; separate integration from store payment acceptance — FastShop-as-merchant credentials, never a tenant's live credentials, never `SiteStripeLiveCredential`.
 - Webhooks for subscription lifecycle (trials, failures, cancellations) reconcile plan state; dunning via the transactional-mail queue.
 - Sandbox-first: billing runs in test mode end-to-end before any live-mode acceptance, reusing the live-credential ceremony pattern only for the platform's own credentials.
+- Shipped with dedicated platform credentials and configured Price IDs, Stripe-hosted subscription Checkout, signed idempotent lifecycle reconciliation, transactional dunning, deterministic operator precedence, and desktop/mobile evidence. See `docs/PHASE5E_SAAS_BILLING.md`.
 
 #### Acceptance criteria
 

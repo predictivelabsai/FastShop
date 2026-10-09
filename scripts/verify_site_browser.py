@@ -168,6 +168,10 @@ def signup_server(signup_open: bool, *, include_data_dir: bool = False):
                 "POSTMARK_SERVER_TOKEN": "",
                 "STRIPE_SECRET_KEY": "",
                 "STRIPE_WEBHOOK_SECRET": "",
+                "FASTSHOP_BILLING_STRIPE_SECRET_KEY": "",
+                "FASTSHOP_BILLING_STRIPE_WEBHOOK_SECRET": "",
+                "FASTSHOP_BILLING_PRICE_BASIC": "",
+                "FASTSHOP_BILLING_PRICE_PRO": "",
             }
         )
         environment.pop("FASTSHOP_ADMIN_EMAIL", None)
@@ -518,6 +522,82 @@ def verify_plans(output: str):
         raise SystemExit(1)
 
 
+def verify_billing(output: str):
+    """Capture Phase 5e's safe unconfigured merchant billing state."""
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
+    failures = []
+    checks = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(channel="chrome", headless=True)
+        context = browser.new_context(
+            viewport={"width": 1440, "height": 1000},
+            reduced_motion="reduce",
+        )
+        page = context.new_page()
+        page.on("pageerror", lambda error: failures.append(str(error)))
+        page.on(
+            "response",
+            lambda response: failures.append(f"HTTP {response.status}: {response.url}")
+            if response.status >= 400
+            else None,
+        )
+        try:
+            with signup_server(True) as base:
+                email = "billing-browser-" + uuid4().hex[:8] + "@example.test"
+                page.goto(base + "/signup")
+                page.get_by_label("Your name", exact=True).fill("Billing workspace")
+                page.get_by_label("Email address", exact=True).fill(email)
+                page.get_by_label("Password", exact=True).fill(
+                    "correct-horse-battery-staple"
+                )
+                page.get_by_label("Confirm password", exact=True).fill(
+                    "correct-horse-battery-staple"
+                )
+                page.get_by_role("button", name="Create workspace", exact=True).click()
+                page.wait_for_url("**/admin/onboarding/*")
+                page.goto(base + "/admin/billing")
+                assert page.get_by_role("heading", name="Billing", exact=True).is_visible()
+                assert page.get_by_text(
+                    "Billing setup is incomplete", exact=False
+                ).first.is_visible()
+                unavailable = page.get_by_role(
+                    "button", name="Currently unavailable", exact=True
+                )
+                assert unavailable.count() == 2
+                assert unavailable.first.is_disabled()
+                assert unavailable.last.is_disabled()
+                for device, width, height in (
+                    ("desktop", 1440, 1000),
+                    ("mobile", 390, 844),
+                ):
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate(
+                        "document.documentElement.scrollWidth <= innerWidth + 1"
+                    )
+                    page.screenshot(
+                        path=str(out / f"{device}-billing-unconfigured.png"),
+                        full_page=True,
+                    )
+                checks.append(
+                    {
+                        "merchant": (
+                            "billing view keeps plan and quota access visible while dedicated "
+                            "Stripe credentials and Price IDs are unconfigured"
+                        ),
+                        "status": "passed",
+                    }
+                )
+        finally:
+            context.close()
+            browser.close()
+    report = {"checks": checks, "failures": failures}
+    (out / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps({"checks": len(checks), "failures": failures, "output": str(out)}))
+    if failures:
+        raise SystemExit(1)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:5033")
@@ -552,6 +632,11 @@ def main():
         action="store_true",
         help="Include Phase 5d plan, quota and metering enforcement evidence",
     )
+    parser.add_argument(
+        "--billing",
+        action="store_true",
+        help="Include Phase 5e platform billing disabled-state evidence",
+    )
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
     if args.onboarding:
@@ -563,6 +648,11 @@ def main():
         if args.output == "output/playwright/h24you-phase1":
             args.output = "output/playwright/phase5d-plans"
         verify_plans(args.output)
+        return
+    if args.billing:
+        if args.output == "output/playwright/h24you-phase1":
+            args.output = "output/playwright/phase5e-billing"
+        verify_billing(args.output)
         return
     if args.signup:
         if args.output == "output/playwright/h24you-phase1":

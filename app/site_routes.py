@@ -174,6 +174,8 @@ def register_site_routes(rt):
     register_onboarding_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.plan_routes import register_plan_routes
     register_plan_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.billing_routes import register_billing_routes
+    register_billing_routes(rt, actor, csrf, check_csrf, shell, error)
 
     @rt("/admin/sites", methods=["GET"])
     def get(session, notice: str = ""):
@@ -208,6 +210,7 @@ def register_site_routes(rt):
                             (f" · resets {row.resets_at}" if row.resets_at else ""),
                             cls="e-plan-row") for row in quota_rows],
                         Small("Limits come from your current plan. Higher plans add room; nothing here is a price."),
+                        A("Manage billing →", href="/admin/billing", cls="b-manage-link"),
                         cls="e-card e-plan-usage"),
                     Div(*[Div(H2(site.name), P("/sites/" + site.slug),
                         A("Resume store setup →", href=f"/admin/onboarding/{site.id}", cls="n-resume-link")

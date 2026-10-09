@@ -312,12 +312,28 @@ def require_platform_operator(db, user_id: str) -> None:
 
 
 def set_tenant_plan(db, tenant_id: str, plan_id: str) -> Tenant:
-    """Operator action: move a tenant onto a catalog plan tier."""
+    """Operator action: move a tenant onto a catalog plan tier.
+
+    A conflicting operator assignment is authoritative. It disables local
+    self-serve reconciliation so later Stripe deliveries cannot silently
+    restore a different tier; provider cancellation remains an operator task.
+    """
     plan = PLANS.get(str(plan_id).strip().lower())
     if not plan:
         raise CommerceError("Choose a plan from the platform catalog.")
     tenant = db.get(Tenant, tenant_id)
     if not tenant:
         raise CommerceError("Tenant not found.")
+    from app.models import BillingSubscription
+
+    subscription = db.scalar(select(BillingSubscription).where(
+        BillingSubscription.tenant_id == tenant.id,
+    ))
+    if (
+        subscription
+        and not subscription.operator_disabled_at
+        and subscription.plan_id != plan.id
+    ):
+        subscription.operator_disabled_at = datetime.now(UTC)
     tenant.plan = plan.id
     return tenant

@@ -1,0 +1,9 @@
+{
+  "checks": [
+    {
+      "merchant": "billing view keeps plan and quota access visible while dedicated Stripe credentials and Price IDs are unconfigured",
+      "status": "passed"
+    }
+  ],
+  "failures": []
+}

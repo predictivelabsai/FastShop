@@ -1019,3 +1019,69 @@ class UsageEvent(TimestampMixin, Base):
     user_id: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
     kind: Mapped[str] = mapped_column(String(40))
     quantity: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class BillingSubscription(TimestampMixin, Base):
+    """Durable tenant-to-platform-Stripe subscription mapping.
+
+    This is intentionally separate from shopper subscription contracts and
+    site-owned Stripe credentials. It stores provider references only, never
+    card data or secret material.
+    """
+
+    __tablename__ = "billing_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", name="uq_billing_subscription_tenant"),
+        UniqueConstraint("stripe_customer_id", name="uq_billing_subscription_customer"),
+        UniqueConstraint(
+            "stripe_subscription_id", name="uq_billing_subscription_provider_subscription"
+        ),
+        UniqueConstraint(
+            "stripe_checkout_session_id", name="uq_billing_subscription_checkout"
+        ),
+        Index("ix_billing_subscription_user_status", "user_id", "status"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    plan_id: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(30), default="checkout_pending")
+    checkout_command_id: Mapped[str] = mapped_column(String(32), default=new_id)
+    stripe_customer_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    stripe_subscription_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    stripe_checkout_session_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    current_period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_invoice_status: Mapped[str] = mapped_column(String(30), default="")
+    operator_disabled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class PlatformBillingStripeEvent(TimestampMixin, Base):
+    """Payload-free deduplication record for platform billing webhooks."""
+
+    __tablename__ = "platform_billing_stripe_events"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_platform_billing_stripe_event"),
+        Index("ix_platform_billing_event_tenant_processed", "tenant_id", "processed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str | None] = mapped_column(
+        ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    event_id: Mapped[str] = mapped_column(String(180))
+    event_type: Mapped[str] = mapped_column(String(120))
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
