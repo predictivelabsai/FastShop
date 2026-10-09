@@ -40,7 +40,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.responses import HTMLResponse, RedirectResponse
 
-from app import auth, signup_services
+from app import auth, plans, signup_services
 from app.config import settings
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
@@ -204,6 +204,9 @@ def _proof_surface():
 
 
 def marketing_page():
+    free = plans.PLANS["free"]
+    basic = plans.PLANS["basic"]
+    pro = plans.PLANS["pro"]
     description = (
         "Turn a short business description into a reviewable storefront with a full CMS, "
         "migration tools, and guarded commerce go-live."
@@ -230,8 +233,7 @@ def marketing_page():
                             cls="m-hero-actions",
                         ),
                         P(
-                            "Signup availability is controlled at launch. Product workflows "
-                            "remain private and review-gated.",
+                            "Create an account now; product publishing stays review-gated.",
                             cls="m-hero-note",
                         ),
                         cls="m-hero-copy",
@@ -389,8 +391,9 @@ def marketing_page():
                     Div(
                         H2("Simple plans based on sites and AI generations."),
                         P(
-                            "Real plan details arrive with metering in Phase 5d. For now, join "
-                            "the signup path and keep your store-building flow intact."
+                            "Free, Basic, and Pro scale site, AI-generation, product, and "
+                            "publishing limits. Start free, then manage paid upgrades in "
+                            "Billing when checkout is configured."
                         ),
                     ),
                     A("Create your workspace", href="/signup", cls="m-button m-button-inverse"),
@@ -442,9 +445,16 @@ def marketing_page():
                         Details(
                             Summary("How much will FastShop cost?"),
                             P(
-                                "Pricing has not been published. Phase 5d will introduce plans "
-                                "based on sites and AI generations, with the real limits and plan "
-                                "details shown before billing arrives."
+                                f"Free includes {free.sites} sites, "
+                                f"{free.ai_generations_per_month} AI generations per month, "
+                                f"{free.products} products, and {free.published_sites} published "
+                                f"sites. Basic raises those limits to {basic.sites}, "
+                                f"{basic.ai_generations_per_month}, {basic.products}, and "
+                                f"{basic.published_sites}; Pro to {pro.sites}, "
+                                f"{pro.ai_generations_per_month}, {pro.products:,}, and "
+                                f"{pro.published_sites}. Paid plan checkout is available from ",
+                                A("Billing", href="/admin/billing"),
+                                " when billing is configured.",
                             ),
                         ),
                         cls="m-faq-list",

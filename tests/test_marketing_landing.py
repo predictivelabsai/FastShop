@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from starlette.responses import PlainTextResponse
 from starlette.testclient import TestClient
 
-from app import site_context
+from app import marketing_routes, site_context
 from app.main import app
 
 
@@ -39,7 +39,12 @@ def test_marketing_landing_contains_required_content_and_no_active_markup():
     assert "analytics" not in html
 
 
-def test_signup_closed_state_is_honest_and_has_no_form():
+def test_signup_closed_state_is_honest_and_has_no_form(monkeypatch):
+    monkeypatch.setattr(
+        marketing_routes,
+        "settings",
+        replace(marketing_routes.settings, signup_open=False),
+    )
     response = _client().get("/signup")
     assert response.status_code == 200
     html = response.text.lower()

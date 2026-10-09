@@ -662,7 +662,8 @@ def main():
     if args.landing:
         if args.output == "output/playwright/h24you-phase1":
             args.output = "output/playwright/phase5a-landing"
-        verify_landing(args.base, args.output)
+        with signup_server(True) as base:
+            verify_landing(base, args.output)
         return
     if args.platform_root:
         if args.output == "output/playwright/h24you-phase1":
