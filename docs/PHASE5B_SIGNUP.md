@@ -43,8 +43,9 @@ Password signup performs the following work in one database transaction:
 
 After commit, the existing transactional-mail dispatcher may attempt delivery. Missing mail
 credentials leave the durable queue row awaiting configuration; they never roll back the
-account. The request then establishes the existing `user_id` / `role` / `email` session,
-rotates CSRF, and redirects to `/admin/sites/{site_id}`.
+account. The request then establishes the existing `user_id` / `role` / `email` session and
+rotates CSRF. Phase 5c now extends this handoff to `/admin/onboarding/{site_id}`; a terminal
+wizard choice redirects to `/admin/sites/{site_id}`.
 
 Database uniqueness remains the concurrency authority. Slug selection is bounded and a
 uniqueness race is retried with the next suffix without leaving partial users, tenants, or
@@ -85,8 +86,8 @@ The existing authorization-code flow already provides state, PKCE, verified Goog
 and optional operator domain/email allowlists. Phase 5b therefore reuses it. Starting Google
 signup is allowed only while `signup_open` is true. A first verified Google identity is
 provisioned through the same clean site transaction, marked email-verified, logged in, and
-redirected to its site overview. Existing accounts are signed in without creating another
-tenant. Provider calls remain confined to the existing OIDC boundary.
+redirected to its Phase 5c onboarding state. Existing accounts are signed in without creating
+another tenant. Provider calls remain confined to the existing OIDC boundary.
 
 ## Migration
 

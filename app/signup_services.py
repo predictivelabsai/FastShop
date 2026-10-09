@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, func, select, update
 
-from app import content
+from app import content, onboarding
 from app.auth import hash_admin_password
 from app.config import settings
 from app.models import (
@@ -266,6 +266,7 @@ def provision_password_signup(
         name,
         unique_site_slug(db, name, start=slug_start),
     )
+    onboarding.create_state(db, site, user.id)
     message = queue_verification(db, site, user)
     record_attempt(db, "signup", email, client_address, accepted=True)
     return SignupResult(user=user, site=site, message_id=message.id)
@@ -295,6 +296,7 @@ def provision_google_signup(
         name,
         unique_site_slug(db, name, start=slug_start),
     )
+    onboarding.create_state(db, site, user.id)
     record_attempt(db, "signup", email, client_address, accepted=True)
     return SignupResult(user=user, site=site, message_id=None)
 

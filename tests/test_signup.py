@@ -10,12 +10,13 @@ from sqlalchemy.pool import StaticPool
 from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 
-from app import marketing_routes, signup_services, site_routes
+from app import marketing_routes, onboarding_routes, signup_services, site_routes
 from app.models import (
     Base,
     Channel,
     CommerceMail,
     Membership,
+    OnboardingState,
     SignupAttempt,
     SignupEmailVerification,
     Site,
@@ -51,6 +52,7 @@ def signup_workspace(monkeypatch):
     monkeypatch.setattr(marketing_routes, "dispatch_mail", lambda message_id: sent.append(message_id))
     monkeypatch.setattr(signup_services, "settings", service_settings)
     monkeypatch.setattr(site_routes, "SessionLocal", sessions)
+    monkeypatch.setattr(onboarding_routes, "SessionLocal", sessions)
     monkeypatch.setattr(site_routes, "dispatch_mail", lambda message_id: sent.append(message_id))
 
     app, rt = fast_app(
@@ -133,21 +135,20 @@ def test_signup_kill_switch_off_and_on(signup_workspace):
 def test_happy_path_provisions_clean_site_and_authenticates_session(signup_workspace):
     response = signup(signup_workspace.client)
     assert response.status_code == 303
-    assert response.headers["location"].startswith("/admin/sites/")
+    assert response.headers["location"].startswith("/admin/onboarding/")
     session = signup_workspace.client.get("/_session").json()
     assert session["role"] == "admin"
     assert session["email"] == "owner@example.test"
-    dashboard = signup_workspace.client.get(response.headers["location"])
-    assert dashboard.status_code == 200
-    assert "Verify your email" in dashboard.text
-    assert 'action="/account/verification/resend"' in dashboard.text
+    onboarding_page = signup_workspace.client.get(response.headers["location"])
+    assert onboarding_page.status_code == 200
+    assert "Tell us what you are building" in onboarding_page.text
 
     with signup_workspace.sessions() as db:
         user = db.scalar(select(User).where(User.email == "owner@example.test"))
         membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
         tenant = db.get(Tenant, membership.tenant_id)
         site = db.scalar(select(Site).where(Site.tenant_id == tenant.id))
-        assert response.headers["location"] == f"/admin/sites/{site.id}"
+        assert response.headers["location"] == f"/admin/onboarding/{site.id}"
         assert membership.role == "admin"
         assert tenant.name == "North & Pine"
         assert site.hostname is None and site.status == "draft"
@@ -165,6 +166,14 @@ def test_happy_path_provisions_clean_site_and_authenticates_session(signup_works
             select(func.count(Channel.id)).where(Channel.tenant_id == tenant.id)
         ) == 1
         assert "hydrogen" not in str(site.settings_json).lower()
+        onboarding_state = db.scalar(
+            select(OnboardingState).where(
+                OnboardingState.site_id == site.id,
+                OnboardingState.tenant_id == tenant.id,
+                OnboardingState.user_id == user.id,
+            )
+        )
+        assert onboarding_state and onboarding_state.status == "brief"
         verification = db.scalar(
             select(SignupEmailVerification).where(
                 SignupEmailVerification.user_id == user.id,
@@ -210,6 +219,9 @@ def test_google_signup_provisions_verified_workspace_without_password_or_mail(
         assert user.password_hash is None
         assert user.email_verified_at is not None
         assert membership.role == "admin"
+        assert db.scalar(
+            select(OnboardingState.status).where(OnboardingState.site_id == site_id)
+        ) == "brief"
         assert db.scalar(select(func.count(CommerceMail.id))) == 0
         assert db.scalar(
             select(func.count(SitePage.id)).where(SitePage.site_id == site_id)

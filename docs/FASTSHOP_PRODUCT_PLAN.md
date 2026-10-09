@@ -124,11 +124,12 @@ Slice order matters here: 5a–5c create the funnel, 5d–5e make it a business.
 - Hostname reservation policy: each new site needs a bounded unique slug-based preview hostname; custom domains remain the Phase 4a reviewed binding.
 - Abuse/migration safety: signup rate-limiting per IP and per email, no secrets in any new surface, confirmation email through the existing transactional-mail queue.
 
-#### 5c — Onboarding wizard (signup → generated store)
+#### 5c — Onboarding wizard (signup → generated store) — **Shipped**
 
 - The Lovable-style funnel: after signup, a short guided brief (business description, what they sell, look-and-feel direction) → Phase 2 AI generation produces the site plan + draft pages + product seeds → merchant lands directly in the builder with a publishable-ready draft.
 - Wizard is skippable: a merchant can choose a blank template and build manually (the CMS builder must stay the source of truth).
 - Wizard must be idempotent and resumable across sessions; generation failures never strand the account — the wizard falls back to a template with the brief saved for retry.
+- Shipped with durable tenant-scoped progress, an explicit clean-template exit, the existing Phase 2 plan/apply boundary on the signup-provisioned site, guarded retries, and desktop/mobile browser evidence. See `docs/PHASE5C_ONBOARDING_WIZARD.md`.
 
 #### 5d — Plans, quotas, and metering
 

@@ -39,6 +39,7 @@ from app.integrations.commerce_email import dispatch_mail
 from app.integrations.contact_email import deliver
 from app.models import (
     Membership,
+    OnboardingState,
     Site,
     SiteContact,
     SitePage,
@@ -169,6 +170,8 @@ def register_site_routes(rt):
     register_golive_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_live_credential_routes import register_live_credential_routes
     register_live_credential_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.onboarding_routes import register_onboarding_routes
+    register_onboarding_routes(rt, actor, csrf, check_csrf, shell, error)
 
     @rt("/admin/sites", methods=["GET"])
     def get(session, notice: str = ""):
@@ -177,12 +180,31 @@ def register_site_routes(rt):
         try:
             user_id = actor(session)
             with SessionLocal() as db:
-                sites = list(db.scalars(select(Site).join(Membership, Membership.tenant_id == Site.tenant_id).where(
-                    Membership.user_id == user_id, Membership.role.in_(["admin", "merchant", "editor"]))))
+                site_rows = list(db.execute(select(Site, Membership.role).join(
+                    Membership, Membership.tenant_id == Site.tenant_id
+                ).where(
+                    Membership.user_id == user_id,
+                    Membership.role.in_(["admin", "merchant", "editor"]),
+                )))
+                sites = [row[0] for row in site_rows]
+                roles = {row[0].id: row[1] for row in site_rows}
+                onboarding_by_site = {
+                    state.site_id: state for state in db.scalars(
+                        select(OnboardingState).where(
+                            OnboardingState.site_id.in_([site.id for site in sites])
+                        )
+                    )
+                } if sites else {}
                 return shell("Your websites", P("Build your story. Shape your storefront. Publish when you're ready."),
                     verification_banner(db, user_id, session),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
-                    Div(*[Div(H2(site.name), P("/sites/" + site.slug), A("Open editor →", href=f"/admin/sites/{site.id}"), cls="e-card") for site in sites], cls="e-grid"),
+                    Div(*[Div(H2(site.name), P("/sites/" + site.slug),
+                        A("Resume store setup →", href=f"/admin/onboarding/{site.id}", cls="n-resume-link")
+                        if roles[site.id] in {"admin", "merchant"}
+                        and onboarding_by_site.get(site.id)
+                        and onboarding_by_site[site.id].status not in {"complete", "skipped"}
+                        else None,
+                        A("Open editor →", href=f"/admin/sites/{site.id}"), cls="e-card") for site in sites], cls="e-grid"),
                     Div(H2("Generate a site from a brief"),
                         P("Describe the essentials once. FastShop will assemble a private draft with pages, design, navigation, copy, image directions and a starter catalog when relevant."),
                         Form(csrf(session),
@@ -277,8 +299,24 @@ def register_site_routes(rt):
                 from app import site_golive
                 publish_report = site_golive.assess(db, site)
                 passed = len(publish_report.checks) - len(publish_report.failures)
+                onboarding_state = db.scalar(
+                    select(OnboardingState)
+                    .join(Membership, Membership.tenant_id == OnboardingState.tenant_id)
+                    .where(
+                        OnboardingState.site_id == site.id,
+                        OnboardingState.tenant_id == site.tenant_id,
+                        Membership.user_id == user_id,
+                        Membership.role.in_(["admin", "merchant"]),
+                    )
+                )
                 return shell(site.name,
                     verification_banner(db, user_id, session),
+                    Div(H2("Finish setting up your first draft"),
+                        P("Your saved brief is ready whenever you are. Generate a tailored draft or keep the clean template."),
+                        A("Continue setup →", href=f"/admin/onboarding/{site.id}"),
+                        cls="e-card n-onboarding-banner")
+                    if onboarding_state and onboarding_state.status not in {"complete", "skipped"}
+                    else None,
                     Div(A("Build with AI →", href=f"/admin/sites/{site.id}/build"), A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"), A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"), A("Try commerce demo", href=f"/admin/sites/{site.id}/demo"), cls="e-actions"),
                     Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Go-live review", href=f"/admin/sites/{site.id}/golive"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Orders", href=f"/admin/sites/{site.id}/orders"), A("Revenue", href=f"/admin/sites/{site.id}/revenue"), A("Integrations", href=f"/admin/sites/{site.id}/integrations"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
                     P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),
