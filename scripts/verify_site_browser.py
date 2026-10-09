@@ -598,6 +598,169 @@ def verify_billing(output: str):
         raise SystemExit(1)
 
 
+def verify_design_audit(base: str, output: str):
+    """Capture the key public, merchant, builder, billing and operator surfaces."""
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
+    failures = []
+    checks = []
+    skipped = []
+    sizes = (("desktop", 1440, 1000), ("mobile", 390, 844))
+
+    def capture(page, surface, device, width, height, *, status=200, fold=False):
+        page.set_viewport_size({"width": width, "height": height})
+        page.wait_for_load_state("networkidle")
+        page.evaluate("document.fonts.ready")
+        page.evaluate("window.scrollTo(0, 0)")
+        overflow = page.evaluate(
+            "document.documentElement.scrollWidth > innerWidth + 1"
+        )
+        suffix = "-fold" if fold else ""
+        filename = f"{surface}-{device}{suffix}.png"
+        page.screenshot(path=str(out / filename), full_page=not fold)
+        checks.append(
+            {
+                "surface": surface,
+                "device": device,
+                "width": width,
+                "url": page.url,
+                "status": status,
+                "overflow": overflow,
+                "capture": "viewport" if fold else "full-page",
+                "file": filename,
+            }
+        )
+        assert not overflow, f"Horizontal overflow on {surface} at {width}px"
+
+    def capture_url(page, surface, device, width, height, path, *, landing=False):
+        response = page.goto(base.rstrip("/") + path)
+        assert response and response.status == 200, (surface, response.status if response else None)
+        page.wait_for_load_state("networkidle")
+        if landing:
+            load_page_media(page)
+        capture(page, surface, device, width, height, status=response.status)
+        if landing:
+            capture(page, surface, device, width, height, status=response.status, fold=True)
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(channel="chrome", headless=True)
+        try:
+            for device, width, height in sizes:
+                context = browser.new_context(
+                    viewport={"width": width, "height": height}, reduced_motion="reduce"
+                )
+                page = context.new_page()
+                page.on("pageerror", lambda error: failures.append(str(error)))
+                capture_url(page, "marketing", device, width, height, "/", landing=True)
+                capture_url(page, "signup", device, width, height, "/signup")
+                capture_url(page, "login", device, width, height, "/login")
+                context.close()
+
+            merchant = browser.new_context(
+                viewport={"width": 1440, "height": 1000}, reduced_motion="reduce"
+            )
+            page = merchant.new_page()
+            page.on("pageerror", lambda error: failures.append(str(error)))
+            email = "design-audit-" + uuid4().hex[:8] + "@example.test"
+            page.goto(base.rstrip("/") + "/signup")
+            page.get_by_label("Your name", exact=True).fill("Design audit workspace")
+            page.get_by_label("Email address", exact=True).fill(email)
+            page.get_by_label("Password", exact=True).fill("correct-horse-battery-staple")
+            page.get_by_label("Confirm password", exact=True).fill(
+                "correct-horse-battery-staple"
+            )
+            page.get_by_role("button", name="Create workspace", exact=True).click()
+            page.wait_for_url("**/admin/onboarding/*")
+            onboarding_url = page.url
+            for device, width, height in sizes:
+                capture(page, "onboarding", device, width, height)
+
+            page.goto(base.rstrip("/") + "/admin/sites")
+            dashboard_url = page.url
+            for device, width, height in sizes:
+                capture(page, "dashboard", device, width, height)
+
+            page.goto(base.rstrip("/") + "/admin/billing")
+            billing_url = page.url
+            for device, width, height in sizes:
+                capture(page, "billing", device, width, height)
+            merchant.close()
+
+            operator = browser.new_context(
+                viewport={"width": 1440, "height": 1000}, reduced_motion="reduce"
+            )
+            page = operator.new_page()
+            page.on("pageerror", lambda error: failures.append(str(error)))
+            page.goto(base.rstrip("/") + "/login?next=/admin/sites")
+            page.locator('input[name="email"]').fill(
+                os.environ.get("FASTSHOP_ADMIN_EMAIL", "admin@fastshop.example")
+            )
+            page.locator('input[name="password"]').fill(
+                os.environ.get("FASTSHOP_ADMIN_PASSWORD", "FastShop2026$")
+            )
+            page.get_by_role("button", name="Sign in", exact=True).click()
+            page.wait_for_url("**/admin/sites")
+            h24_card = page.locator(".e-card").filter(
+                has=page.get_by_role("heading", name="H2 4 You", exact=True)
+            )
+            h24_card.get_by_role("link", name="Open editor →", exact=True).click()
+            page.get_by_role("link", name="Build with AI →", exact=True).click()
+            page.wait_for_url("**/admin/sites/*/build")
+            builder_url = page.url
+            for device, width, height in sizes:
+                capture(page, "builder", device, width, height)
+
+            plans_response = page.goto(base.rstrip("/") + "/admin/platform/plans")
+            if (
+                plans_response
+                and plans_response.status == 200
+                and page.get_by_role("heading", name="Plans & quotas", exact=True).count()
+            ):
+                plans_url = page.url
+                for device, width, height in sizes:
+                    capture(
+                        page,
+                        "plans-console",
+                        device,
+                        width,
+                        height,
+                        status=plans_response.status,
+                    )
+            else:
+                plans_url = base.rstrip("/") + "/admin/platform/plans"
+                skipped.append(
+                    {
+                        "surface": "plans-console",
+                        "url": plans_url,
+                        "reason": "Platform operator access is not available without operator configuration.",
+                    }
+                )
+            operator.close()
+        finally:
+            browser.close()
+
+    report = {
+        "base": base,
+        "urls": {
+            "marketing": base.rstrip("/") + "/",
+            "signup": base.rstrip("/") + "/signup",
+            "login": base.rstrip("/") + "/login",
+            "onboarding": onboarding_url,
+            "dashboard": dashboard_url,
+            "builder": builder_url,
+            "billing": billing_url,
+            "plans-console": plans_url,
+        },
+        "checks": checks,
+        "skipped": skipped,
+        "failures": failures,
+    }
+    (out / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps({"checks": len(checks), "failures": failures, "output": str(out)}))
+    if failures:
+        raise SystemExit(1)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:5033")
@@ -637,8 +800,18 @@ def main():
         action="store_true",
         help="Include Phase 5e platform billing disabled-state evidence",
     )
+    parser.add_argument(
+        "--design-audit",
+        action="store_true",
+        help="Capture all key product surfaces against one already-running app",
+    )
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
+    if args.design_audit:
+        if args.output == "output/playwright/h24you-phase1":
+            args.output = "output/playwright/design-audit"
+        verify_design_audit(args.base, args.output)
+        return
     if args.onboarding:
         if args.output == "output/playwright/h24you-phase1":
             args.output = "output/playwright/phase-onboarding-wizard"

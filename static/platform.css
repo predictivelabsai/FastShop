@@ -1,0 +1,77 @@
+/* FastShop merchant/admin design tokens. This layer intentionally overrides the
+   legacy storefront variables from site.css without changing that storefront. */
+:root {
+  color-scheme: light;
+
+  /* Palette */
+  --paper: #f4f1e9;
+  --paper-bright: #fbfaf6;
+  --ink: #16201c;
+  --ink-soft: #49534e;
+  --rule: #c7c8be;
+  --fastshop-green: #087f5b;
+  --fastshop-green-dark: #05563e;
+  --mint-wash: #d9eadf;
+  --night: #13221c;
+  --focus-blue: #005fcc;
+  --white: #fff;
+  --danger: #b42318;
+
+  /* Backwards-compatible platform aliases */
+  --soft: var(--paper-bright);
+  --muted: var(--ink-soft);
+  --line: var(--rule);
+  --accent: var(--fastshop-green);
+  --accent-dark: var(--fastshop-green-dark);
+  --tint: var(--mint-wash);
+  --green: var(--fastshop-green);
+  --green-dark: var(--fastshop-green-dark);
+  --mint: var(--mint-wash);
+  --focus: var(--focus-blue);
+
+  /* Local type families retain system fallbacks for unsupported glyphs. */
+  --font-display: "Archivo", "Arial Narrow", "Aptos Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Spacing scale: 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64px */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+  --space-64: 64px;
+
+  /* Shape */
+  --radius-control: 8px;
+  --radius-card: 10px;
+  --radius-pill: 999px;
+
+  /* Proof elevation */
+  --elevation-hero: 0 24px 60px rgba(23, 35, 29, 0.14), 0 6px 16px rgba(23, 35, 29, 0.08);
+  --elevation-workspace: 0 22px 50px rgba(23, 35, 29, 0.12);
+  --shadow: var(--elevation-workspace);
+
+  /* Type scale */
+  --type-display-size: clamp(3.2rem, 5.6vw, 5.9rem);
+  --type-display-weight: 760;
+  --type-display-line-height: 0.98;
+  --type-display-letter-spacing: -0.04em;
+  --type-headline-size: clamp(2.45rem, 4.6vw, 4.9rem);
+  --type-headline-weight: 760;
+  --type-headline-line-height: 1.02;
+  --type-headline-letter-spacing: -0.04em;
+  --type-title-size: clamp(2rem, 3vw, 2.5rem);
+  --type-title-weight: 740;
+  --type-title-line-height: 1.08;
+  --type-title-letter-spacing: -0.025em;
+  --type-body-size: 1rem;
+  --type-body-weight: 400;
+  --type-body-line-height: 1.55;
+  --type-body-letter-spacing: normal;
+  --type-label-size: 0.72rem;
+  --type-label-weight: 800;
+  --type-label-line-height: 1.55;
+  --type-label-letter-spacing: 0.12em;
+}

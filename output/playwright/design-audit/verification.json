@@ -1,0 +1,197 @@
+{
+  "base": "http://127.0.0.1:5033",
+  "urls": {
+    "marketing": "http://127.0.0.1:5033/",
+    "signup": "http://127.0.0.1:5033/signup",
+    "login": "http://127.0.0.1:5033/login",
+    "onboarding": "http://127.0.0.1:5033/admin/onboarding/e83283b3eac0492e9fb70e46cb544457",
+    "dashboard": "http://127.0.0.1:5033/admin/sites",
+    "builder": "http://127.0.0.1:5033/admin/sites/898977f186734bb681b6d82b13e462b7/build",
+    "billing": "http://127.0.0.1:5033/admin/billing",
+    "plans-console": "http://127.0.0.1:5033/admin/platform/plans"
+  },
+  "checks": [
+    {
+      "surface": "marketing",
+      "device": "desktop",
+      "width": 1440,
+      "url": "http://127.0.0.1:5033/",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "marketing-desktop.png"
+    },
+    {
+      "surface": "marketing",
+      "device": "desktop",
+      "width": 1440,
+      "url": "http://127.0.0.1:5033/",
+      "status": 200,
+      "overflow": false,
+      "capture": "viewport",
+      "file": "marketing-desktop-fold.png"
+    },
+    {
+      "surface": "signup",
+      "device": "desktop",
+      "width": 1440,
+      "url": "http://127.0.0.1:5033/signup",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "signup-desktop.png"
+    },
+    {
+      "surface": "login",
+      "device": "desktop",
+      "width": 1440,
+      "url": "http://127.0.0.1:5033/login",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "login-desktop.png"
+    },
+    {
+      "surface": "marketing",
+      "device": "mobile",
+      "width": 390,
+      "url": "http://127.0.0.1:5033/",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "marketing-mobile.png"
+    },
+    {
+      "surface": "marketing",
+      "device": "mobile",
+      "width": 390,
+      "url": "http://127.0.0.1:5033/",
+      "status": 200,
+      "overflow": false,
+      "capture": "viewport",
+      "file": "marketing-mobile-fold.png"
+    },
+    {
+      "surface": "signup",
+      "device": "mobile",
+      "width": 390,
+      "url": "http://127.0.0.1:5033/signup",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "signup-mobile.png"
+    },
+    {
+      "surface": "login",
+      "device": "mobile",
+      "width": 390,
+      "url": "http://127.0.0.1:5033/login",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "login-mobile.png"
+    },
+    {
+      "surface": "onboarding",
+      "device": "desktop",
+      "width": 1440,
+      "url": "http://127.0.0.1:5033/admin/onboarding/e83283b3eac0492e9fb70e46cb544457",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "onboarding-desktop.png"
+    },
+    {
+      "surface": "onboarding",
+      "device": "mobile",
+      "width": 390,
+      "url": "http://127.0.0.1:5033/admin/onboarding/e83283b3eac0492e9fb70e46cb544457",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "onboarding-mobile.png"
+    },
+    {
+      "surface": "dashboard",
+      "device": "desktop",
+      "width": 1440,
+      "url": "http://127.0.0.1:5033/admin/sites",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "dashboard-desktop.png"
+    },
+    {
+      "surface": "dashboard",
+      "device": "mobile",
+      "width": 390,
+      "url": "http://127.0.0.1:5033/admin/sites",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "dashboard-mobile.png"
+    },
+    {
+      "surface": "billing",
+      "device": "desktop",
+      "width": 1440,
+      "url": "http://127.0.0.1:5033/admin/billing",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "billing-desktop.png"
+    },
+    {
+      "surface": "billing",
+      "device": "mobile",
+      "width": 390,
+      "url": "http://127.0.0.1:5033/admin/billing",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "billing-mobile.png"
+    },
+    {
+      "surface": "builder",
+      "device": "desktop",
+      "width": 1440,
+      "url": "http://127.0.0.1:5033/admin/sites/898977f186734bb681b6d82b13e462b7/build",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "builder-desktop.png"
+    },
+    {
+      "surface": "builder",
+      "device": "mobile",
+      "width": 390,
+      "url": "http://127.0.0.1:5033/admin/sites/898977f186734bb681b6d82b13e462b7/build",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "builder-mobile.png"
+    },
+    {
+      "surface": "plans-console",
+      "device": "desktop",
+      "width": 1440,
+      "url": "http://127.0.0.1:5033/admin/platform/plans",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "plans-console-desktop.png"
+    },
+    {
+      "surface": "plans-console",
+      "device": "mobile",
+      "width": 390,
+      "url": "http://127.0.0.1:5033/admin/platform/plans",
+      "status": 200,
+      "overflow": false,
+      "capture": "full-page",
+      "file": "plans-console-mobile.png"
+    }
+  ],
+  "skipped": [],
+  "failures": []
+}
