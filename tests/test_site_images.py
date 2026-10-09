@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from app import content
-from app.models import Base, SiteMedia, User
+from app.models import Base, Membership, SiteMedia, Tenant, User, new_id
 from app.services import CommerceError
 from app.site_blocks import normalize_document, resolve_text
 from app.site_generation import MerchantBrief, create_generated_site, generate_plan
@@ -35,6 +35,14 @@ def image_db():
     with Session(engine, expire_on_commit=False) as db:
         owner = User(email="site-images@example.test", name="Image seam owner")
         db.add(owner)
+        db.flush()
+        # Platform-tenant precedent (app/seed.py): image-seam tests provision
+        # extra sites for one owner, so the account holds a pro-tier membership
+        # and app/plans.py free-account quotas never limit this coverage.
+        platform = Tenant(name="Image seam platform", slug=f"images-{new_id()}", plan="pro")
+        db.add(platform)
+        db.flush()
+        db.add(Membership(tenant_id=platform.id, user_id=owner.id, role="admin"))
         db.flush()
         yield db, owner
 

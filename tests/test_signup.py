@@ -23,6 +23,7 @@ from app.models import (
     SiteMenu,
     SitePage,
     Tenant,
+    UsageEvent,
     User,
 )
 from app.services import CommerceError
@@ -151,6 +152,15 @@ def test_happy_path_provisions_clean_site_and_authenticates_session(signup_works
         assert response.headers["location"] == f"/admin/onboarding/{site.id}"
         assert membership.role == "admin"
         assert tenant.name == "North & Pine"
+        assert tenant.plan == "free"
+        startup_usage = db.scalar(
+            select(UsageEvent).where(
+                UsageEvent.tenant_id == tenant.id,
+                UsageEvent.kind == "site_created",
+            )
+        )
+        assert startup_usage is not None and startup_usage.quantity == 1
+        assert startup_usage.site_id == site.id
         assert site.hostname is None and site.status == "draft"
         assert db.scalar(
             select(func.count(SitePage.id)).where(

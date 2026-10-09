@@ -1,6 +1,7 @@
 """Small tenant-scoped catalog editor for Phase 1 product presentation."""
 
 import re
+from urllib.parse import urlencode
 
 from fasthtml.common import H2, A, Button, Div, Form, Input, Label, P
 from sqlalchemy import select
@@ -19,7 +20,7 @@ def price_minor(value):
     return minor
 
 
-def create_catalog_product(db, site, definition):
+def create_catalog_product(db, site, definition, *, user_id: str | None = None):
     """Create a real tenant catalog item through the shared validated boundary."""
     required = {
         "name", "slug", "subtitle", "description", "image_url", "category_slug",
@@ -83,12 +84,15 @@ def create_catalog_product(db, site, definition):
                 variant_id=variant.id, channel_id=site.channel_id, currency="USD",
                 price_minor=price_minor(values["price_minor"]),
             ))
+    from app.plans import record as record_usage
+
+    record_usage(db, site.tenant_id, "product_created", site_id=site.id, user_id=user_id)
     return product
 
 
 def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
     @rt("/admin/sites/{site_id}/products", methods=["GET"])
-    def get(session, site_id: str):
+    def get(session, site_id: str, notice: str = ""):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
@@ -106,6 +110,7 @@ def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
                         Label("Image URL", Input(name="image", value=product.image_url)), *fields,
                         Button("Save catalog details", cls="e-button"), method="post", cls="e-form"), cls="e-card"))
                 return shell("Products", A("← Site", href=f"/admin/sites/{site.id}"), P("Catalog changes update product displays immediately. Checkout remains closed in Phase 1."),
+                    P(notice[:300], role="status", cls="e-note") if notice else None,
                     Div(*cards, cls="e-grid"), H2("Add a product"), Form(csrf(session),
                         Label("Name", Input(name="name", required=True, maxlength=220)),
                         Label("URL slug", Input(name="slug", required=True, pattern="[a-z0-9-]+")),
@@ -120,9 +125,11 @@ def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
         form = await request.form()
         try:
             check_csrf(session, form)
+            user_id = actor(session)
             with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session), publish=True)
-                site = site_builder_services.lock_site(db, site.id, actor(session), site.version)
+                site = content.owned_site(db, site_id, user_id, publish=True)
+                site = site_builder_services.lock_site(db, site.id, user_id, site.version)
+                from app.plans import ensure_products
                 name = str(form.get("name", "")).strip()
                 if not name or len(name) > 220:
                     raise CommerceError("Enter a product name under 220 characters.")
@@ -147,6 +154,7 @@ def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
                             db.add(VariantChannelListing(variant_id=variant.id, channel_id=site.channel_id, currency="USD", price_minor=price_minor(value)))
                 else:
                     slug = str(form.get("slug", "")).strip()
+                    ensure_products(db, user_id)
                     names = [n.strip() for n in str(form.get("variants", "Original")).split(",") if n.strip()]
                     product = create_catalog_product(db, site, {
                         "name": name, "slug": slug, "subtitle": "", "description": "",
@@ -156,11 +164,18 @@ def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
                                 price_minor(form["price"]) if form.get("price") else None
                             )} for variant_name in names
                         ],
-                    })
+                    }, user_id=user_id)
                     page = content.create_page(db, site, name, "/products/" + slug, "product", {"title": name, "sections": [{"type": "product", "heading": name, "image": image_url, "body": "Tell your product's story."}]})
                     page.product_id = product.id
                 site.version += 1
                 db.commit()
             return RedirectResponse(f"/admin/sites/{site_id}/products", status_code=303)
-        except (CommerceError, ValueError) as exc:
+        except CommerceError as exc:
+            if getattr(exc, "code", "") == "quota_exceeded":
+                return RedirectResponse(
+                    f"/admin/sites/{site_id}/products?" + urlencode({"notice": str(exc)[:300]}),
+                    status_code=303,
+                )
+            return error(exc)
+        except ValueError as exc:
             return error(exc)

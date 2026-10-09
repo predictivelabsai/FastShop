@@ -1,0 +1,9 @@
+{
+  "checks": [
+    {
+      "merchant": "plan usage panel reads account counts and the third site creation is refused with a readable free-plan notice",
+      "status": "passed"
+    }
+  ],
+  "failures": []
+}

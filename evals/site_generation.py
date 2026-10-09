@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app import content
 from app.compliance import scan_document
-from app.models import Base, SiteMedia, User
+from app.models import Base, Membership, SiteMedia, Tenant, User, new_id
 from app.site_blocks import normalize_document, resolve_text
 from app.site_generation import (
     MerchantBrief,
@@ -93,6 +93,14 @@ def run() -> dict:
     with Session(engine, expire_on_commit=False) as db:
         owner = User(email="site-generation-evals@example.test", name="Site generation evals")
         db.add(owner)
+        db.flush()
+        # Platform-tenant precedent (app/seed.py): the eval harness provisions
+        # many sites for one owner, so the account holds a pro-tier membership
+        # and app/plans.py free-account quotas never limit eval coverage.
+        platform = Tenant(name="Generation eval platform", slug=f"eval-{new_id()}", plan="pro")
+        db.add(platform)
+        db.flush()
+        db.add(Membership(tenant_id=platform.id, user_id=owner.id, role="admin"))
         db.flush()
         for case in CASES:
             for mode in ("guided", "mocked-llm"):

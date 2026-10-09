@@ -153,6 +153,43 @@ def _aware(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
 
+# ExternalMapping resource type that each connector's product rows use. Used to
+# count how many of a reviewed plan's items would become brand-new products,
+# so imports can be refused as a bounded whole before anything is written.
+_PRODUCT_RESOURCE_TYPES = {
+    "csv": "row",
+    "shopify": "product",
+    "woocommerce": "product",
+}
+_PRODUCT_PAYLOAD_KEYS = ("products", "rows")
+
+
+def planned_new_products(db, site: Site, platform: str, payload: dict) -> int:
+    """Count plan items that would create a product without an existing mapping."""
+    from app.models import ExternalMapping
+
+    resource_type = _PRODUCT_RESOURCE_TYPES.get(str(platform).strip().lower())
+    if not resource_type:
+        return 0
+    rows: list = []
+    for key in _PRODUCT_PAYLOAD_KEYS:
+        value = payload.get(key) if isinstance(payload, dict) else None
+        if isinstance(value, list):
+            rows = value
+            break
+    external_ids = [str(row.get("external_id")) for row in rows if isinstance(row, dict) and row.get("external_id")]
+    if not external_ids:
+        return 0
+    mapped = set(db.scalars(select(ExternalMapping.external_id).where(
+        ExternalMapping.tenant_id == site.tenant_id,
+        ExternalMapping.site_id == site.id,
+        ExternalMapping.system == str(platform).strip().lower(),
+        ExternalMapping.resource_type == resource_type,
+        ExternalMapping.external_id.in_(external_ids),
+    )))
+    return sum(1 for external_id in external_ids if external_id not in mapped)
+
+
 def apply_reviewed_plan(
     db,
     site: Site,
@@ -184,7 +221,23 @@ def apply_reviewed_plan(
     db.flush()
     db.refresh(plan)
 
+    # Quota enforcement (Phase 5d): a plan is applied or refused as one bounded
+    # whole. The check runs after the claim but before the first write, so a
+    # refusal leaves the preview pending and nothing half-imported (the caller
+    # session rolls the status update back on the error).
+    from app.plans import ensure_products
+
+    ensure_products(db, user_id, additional=planned_new_products(db, site, plan.platform, plan.payload_json))
+
     result = connector_for(plan.platform).apply_import(db, site, user_id, plan.payload_json)
+    created_products = int(result.get("products", {}).get("created", 0)) if isinstance(result, dict) else 0
+    if created_products:
+        from app.plans import record as record_usage
+
+        record_usage(
+            db, site.tenant_id, "product_created",
+            site_id=site.id, user_id=user_id, quantity=created_products,
+        )
     plan.status = "applied"
     plan.consumed_at = datetime.now(UTC)
     plan.report_json = {**plan.report_json, "applied": result}

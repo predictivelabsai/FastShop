@@ -135,7 +135,7 @@ Slice order matters here: 5a–5c create the funnel, 5d–5e make it a business.
 
 - Plan model per tenant (e.g. free / basic / pro): site count, AI-generation credits, publish limits, product count; enforced at the service boundary, not just the UI.
 - Metering built on the existing `OutboxEvent`/event patterns; operator console view of per-tenant usage.
-- Quota enforcement errors are merchant-readable and never block reading their own data.
+- Quota enforcement errors are merchant-readable and never block reading their own data. → **Done: phase 5d plans, quotas, and metering (this working-tree change; see docs/PHASE5D_PLANS_QUOTAS.md).**
 
 #### 5e — Stripe SaaS billing for FastShop itself
 
