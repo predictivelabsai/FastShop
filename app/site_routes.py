@@ -79,9 +79,9 @@ def register_site_routes(rt):
         if not session.get("csrf_token") or not secrets.compare_digest(session["csrf_token"], str(form.get("csrf_token", ""))):
             raise CommerceError("Your session expired. Reload and try again.")
 
-    def shell(title, *children):
+    def shell(title, *children, subnavigation=None):
         from app.platform_ui import platform_page
-        return platform_page(title, *children)
+        return platform_page(title, *children, subnavigation=subnavigation)
 
     def error(exc):
         return Response(str(exc), status_code=400, media_type="text/plain")
@@ -434,6 +434,43 @@ def register_site_routes(rt):
                         Membership.role.in_(["admin", "merchant"]),
                     )
                 )
+                from app.platform_ui import platform_subnav
+
+                site_navigation = platform_subnav(
+                    (
+                        "Build & content",
+                        (
+                            A("Build with AI →", href=f"/admin/sites/{site.id}/build"),
+                            A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"),
+                            A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"),
+                            A("Menus", href=f"/admin/sites/{site.id}/menus"),
+                            A("Media library", href=f"/admin/sites/{site.id}/media"),
+                            A("Snippets", href=f"/admin/sites/{site.id}/snippets"),
+                            A("Reviews", href=f"/admin/sites/{site.id}/reviews"),
+                            A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"),
+                        ),
+                    ),
+                    (
+                        "Catalog & commerce",
+                        (
+                            A("Products", href=f"/admin/sites/{site.id}/products"),
+                            A("Commerce", href=f"/admin/sites/{site.id}/commerce"),
+                            A("Orders", href=f"/admin/sites/{site.id}/orders"),
+                            A("Revenue", href=f"/admin/sites/{site.id}/revenue"),
+                            A("Try commerce demo", href=f"/admin/sites/{site.id}/demo", cls="e-button"),
+                        ),
+                    ),
+                    (
+                        "Launch & operations",
+                        (
+                            A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"),
+                            A("Go-live review", href=f"/admin/sites/{site.id}/golive"),
+                            A("Integrations", href=f"/admin/sites/{site.id}/integrations"),
+                            A("Inbox", href=f"/admin/sites/{site.id}/inbox"),
+                        ),
+                    ),
+                    aria_label=site.name + " tools",
+                )
                 return shell(site.name,
                     verification_banner(db, user_id, session),
                     Div(H2("Finish setting up your first draft"),
@@ -442,8 +479,6 @@ def register_site_routes(rt):
                         cls="e-card n-onboarding-banner")
                     if onboarding_state and onboarding_state.status not in {"complete", "skipped"}
                     else None,
-                    Div(A("Build with AI →", href=f"/admin/sites/{site.id}/build"), A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"), A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"), A("Try commerce demo", href=f"/admin/sites/{site.id}/demo"), cls="e-actions"),
-                    Div(A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"), A("Go-live review", href=f"/admin/sites/{site.id}/golive"), A("Products", href=f"/admin/sites/{site.id}/products"), A("Commerce", href=f"/admin/sites/{site.id}/commerce"), A("Orders", href=f"/admin/sites/{site.id}/orders"), A("Revenue", href=f"/admin/sites/{site.id}/revenue"), A("Integrations", href=f"/admin/sites/{site.id}/integrations"), A("Inbox", href=f"/admin/sites/{site.id}/inbox"), A("Menus", href=f"/admin/sites/{site.id}/menus"), A("Media library", href=f"/admin/sites/{site.id}/media"), A("Snippets", href=f"/admin/sites/{site.id}/snippets"), A("Reviews", href=f"/admin/sites/{site.id}/reviews"), A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"), cls="e-actions"),
                     P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
                     Div(H2("Go-live checklist"),
@@ -482,7 +517,8 @@ def register_site_routes(rt):
                             P("An approved statement must include an asterisk (*) and compliant wording; it renders beside the FDA footer disclaimer.", cls="e-note"),
                             Button("Save draft settings", name="action", value="draft", cls="e-button"),
                             Button("Publish shared settings", name="action", value="publish", cls="e-button"),
-                            method="post", action=f"/admin/sites/{site.id}/settings", cls="e-form"), cls="e-card"), cls="e-grid"))
+                            method="post", action=f"/admin/sites/{site.id}/settings", cls="e-form"), cls="e-card"), cls="e-grid"),
+                    subnavigation=site_navigation)
         except CommerceError as exc:
             return error(exc)
 

@@ -32,6 +32,7 @@ from app.config import settings
 from app.db import SessionLocal
 from app.integrations.site_builder_llm import next_question, respond
 from app.models import Membership, SiteBuilderTurn, SiteChangeSet
+from app.platform_ui import platform_subnav
 from app.services import CommerceError, money
 from app.site_blocks import default_locale, resolve_document
 from app.site_theme import CHOICES, DEFAULTS, PRESETS, validate_theme
@@ -89,14 +90,15 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     pending = response.get("review_status") == "pending"
                     return Div(H2("Review merchant changes"), *details,
                         P("Catalog approval changes prices immediately. Merchant details remain draft; shipping settings are operational. This does not publish pages, enable payments or approve tax registrations."),
-                        Small("Status: " + response.get("review_status", "unavailable")),
+                        Small("Status: " + response.get("review_status", "unavailable"), cls="b-review-status"),
                         Form(csrf(session), Input(type="hidden", name="turn_id", value=turn.id),
                             Input(type="hidden", name="decision", value="approve"), Input(type="hidden", name="page_id", value=selected.id),
                             Label(Input(type="checkbox", name="confirmed", required=True), " I reviewed every proposed change"),
                             Button("Approve merchant changes", cls="e-button"), action=base + "/build/review", method="post") if pending and can_review else None,
                         Form(csrf(session), Input(type="hidden", name="turn_id", value=turn.id), Input(type="hidden", name="decision", value="reject"),
                             Input(type="hidden", name="page_id", value=selected.id), Button("Reject proposal"), action=base + "/build/review", method="post") if pending and can_review else None,
-                        P("A merchant or administrator must review this proposal.") if pending and not can_review else None, cls="e-card b-review")
+                        P("A merchant or administrator must review this proposal.") if pending and not can_review else None,
+                        cls="e-card b-review " + ("b-review-pending" if pending else "b-review-resolved"))
 
                 def refinement_card(turn):
                     preview = turn.response_json.get("refinement", {})
@@ -164,36 +166,52 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     *[Label(k.title(), Input(name=k, type="color", value=theme[k])) for k in ("accent", "background", "surface", "text")],
                     *[Label(k.title(), Select(*[Option(v.title(), value=v, selected=theme[k] == v) for v in values], name=k)) for k, values in CHOICES.items()],
                     Button("Save design", cls="e-button"), method="post", action=base + "/build/design", cls="e-form")
-                chat = Div(H2("Build together"),
-                    P("AI assistant" if settings.xai_api_key else "Guided presets · AI provider not configured", cls="b-mode"),
-                    P(next_question(site.settings_json), cls="b-next-question"),
-                    Small("Guided commands: Business:, Audience:, Pages:, Tone:, Headline:, Shipping: (USD cents)."),
-                    Div(*[P(key.replace("_", " ").title() + ": " + value) for key, value in site.settings_json.get("builder_brief", {}).items()], cls="b-brief"),
-                    Div(*[Button(name.title(), type="button", data_prompt=name) for name in PRESETS], cls="b-presets"),
-                    Div(*[Div(P(turn.prompt, cls="b-user"), P(turn.response_json.get("answer", "Request interrupted or still processing. Your saved draft is safe.")),
-                        P(turn.response_json.get("question", "")), Small(turn.response_json.get("summary", turn.status)),
+                turn_views = [Div(
+                        Div(Small("You", cls="b-message-label"), P(turn.prompt, cls="b-user"), cls="b-message b-message-user"),
+                        Div(Small("Assistant", cls="b-message-label"),
+                            P(turn.response_json.get("answer", "Request interrupted or still processing. Your saved draft is safe.")),
+                            P(turn.response_json.get("question", "")), Small(turn.response_json.get("summary", turn.status)),
+                            cls="b-message b-message-assistant"),
                         refinement_card(turn),
                         review_card(turn),
                         Form(csrf(session), Input(type="hidden", name="command_id", value=turn.command_id),
                             Input(type="hidden", name="page_id", value=selected.id), Button("Cancel pending request"),
                             method="post", action=base + "/build/cancel") if turn.status == "pending" and turn.user_id == user_id else None,
-                        cls="b-turn") for turn in reversed(turns)], cls="b-history", aria_live="polite"),
+                        cls="b-turn b-turn-" + turn.status) for turn in reversed(turns)]
+                chat = Div(
+                    Div(H2("Build together"),
+                        P("AI assistant" if settings.xai_api_key else "Guided presets · AI provider not configured", cls="b-mode"),
+                        P(next_question(site.settings_json), cls="b-next-question"),
+                        Small("Guided commands: Business:, Audience:, Pages:, Tone:, Headline:, Shipping: (USD cents).", cls="b-guidance"),
+                        cls="b-assistant-header"),
+                    Div(*[P(key.replace("_", " ").title() + ": " + value) for key, value in site.settings_json.get("builder_brief", {}).items()], cls="b-brief"),
+                    Div(*[Button(name.title(), type="button", data_prompt=name) for name in PRESETS], cls="b-presets"),
+                    Div(*turn_views if turn_views else [Div(P("No prepared updates yet."), P("Describe a change below to start a reviewable draft update."), cls="b-history-empty")], cls="b-history", aria_live="polite"),
                     Form(*hidden(), Input(type="hidden", name="command_id", value=uuid4().hex),
+                        H2("Prepare an update", cls="b-compose-heading"),
                         Label("Target section (optional)", Select(Option("Whole page / design", value=""),
                             *[Option((s.get("heading") or s["type"])[:100], value=s["id"]) for s in resolve_document(selected.draft_json, default_locale(site))["blocks"]], name="section_id")),
                         Label("Describe your site or a change", Textarea(name="prompt", rows=4, required=True, maxlength=4000,
                             placeholder="Warm cream and green, editorial headings, less whitespace…")),
-                        Small("Draft edits only. Do not enter passwords, API keys or customer information."),
-                        Button("Prepare update", cls="e-button"), P("", data_builder_status="", role="status"),
-                        Button("Cancel pending edit", type="button", data_builder_cancel=base + "/build/cancel", hidden=True),
-                        method="post", action=base + "/build/message", cls="e-form", data_builder_form="", data_site=site.id))
+                        Small("Draft edits only. Do not enter passwords, API keys or customer information.", cls="b-compose-note"),
+                        Div(Button("Prepare update", cls="e-button"), P("", data_builder_status="", role="status"),
+                            Button("Cancel pending edit", type="button", data_builder_cancel=base + "/build/cancel", hidden=True), cls="b-submit-row"),
+                        method="post", action=base + "/build/message", cls="e-form b-compose", data_builder_form="", data_site=site.id),
+                    cls="b-assistant")
+                builder_navigation = platform_subnav(
+                    ("Pages & content", (
+                        A("Classical editor", href=base), A("Menus", href=base + "/menus"),
+                        A("Media library", href=base + "/media"), A("Snippets", href=base + "/snippets"))),
+                    ("Build & appearance", (
+                        A("Chat", href=base + "/build?page=" + selected.id),
+                        A("Design controls", href=base + "/build?view=design&page=" + selected.id),
+                        A("Merchant details & samples", href=base + "/samples"))),
+                    ("Catalog & commerce", (
+                        A("Products", href=base + "/products"), A("Commerce", href=base + "/commerce"),
+                        A("Try commerce demo", href=base + "/demo", cls="e-button"))),
+                    aria_label=site.name + " builder tools")
                 return shell("Build " + site.name,
                     Link(rel="stylesheet", href="/static/site-workspace.css"), Script(src="/static/site-workspace.js", defer=True),
-                    Div(A("Menus", href=base + "/menus"), A("Media library", href=base + "/media"), A("Snippets", href=base + "/snippets"), A("Classical editor", href=base), A("Chat", href=base + "/build?page=" + selected.id),
-                        A("Design controls", href=base + "/build?view=design&page=" + selected.id),
-                        A("Products", href=base + "/products"), A("Commerce", href=base + "/commerce"), cls="e-actions"),
-                    Div(A("Merchant details & samples", href=base + "/samples"),
-                        A("Try commerce demo", href=base + "/demo", cls="e-button"), cls="e-actions"),
                     P("Merchant fields awaiting review: " + ", ".join(pending), cls="e-note") if pending else None,
                     P("Changes save to a private draft. Review and publish through the classical editor."),
                     P(notice[:200], role="status") if notice else None,
@@ -212,7 +230,8 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                                 Button("Select section", type="button", data_select_section="", aria_pressed="false") if view != "design" else None,
                                 A("Edit page fields", href=base + "/pages/" + selected.id), cls="b-toolbar"),
                             Iframe(src=base + "/preview/" + selected.id, title="Live draft preview", cls="b-preview"),
-                            cls="b-canvas", data_workspace_panel="preview"), cls="b-workspace"))
+                            cls="b-canvas", data_workspace_panel="preview"), cls="b-workspace"),
+                    subnavigation=builder_navigation)
         except CommerceError as exc:
             return error(exc)
 
