@@ -24,6 +24,7 @@ from fasthtml.common import (
     P,
     Select,
     Small,
+    Span,
     Summary,
     Textarea,
 )
@@ -202,54 +203,145 @@ def register_site_routes(rt):
                 from app.plans import account_usage
 
                 plan_tier, quota_rows = account_usage(db, user_id)
+                quota_cards = []
+                for row in quota_rows:
+                    unlimited = row.limit is None
+                    limit_label = "unlimited" if unlimited else str(row.limit)
+                    usage_label = f"{row.label}: {row.used} of {limit_label}"
+                    meter_value = (
+                        0
+                        if unlimited or not row.limit
+                        else max(0, min(100, round(row.used / row.limit * 100)))
+                    )
+                    quota_cards.append(
+                        Div(
+                            P(usage_label, cls="e-quota-summary"),
+                            Div(
+                                Span(
+                                    cls="e-quota-meter-value",
+                                    style=f"width: {meter_value}%",
+                                ),
+                                cls=(
+                                    "e-quota-meter e-quota-meter-unlimited"
+                                    if unlimited
+                                    else "e-quota-meter"
+                                ),
+                                role="progressbar" if not unlimited else None,
+                                aria_label=f"{row.label} usage" if not unlimited else None,
+                                aria_valuemin="0" if not unlimited else None,
+                                aria_valuemax=str(row.limit) if not unlimited else None,
+                                aria_valuenow=str(row.used) if not unlimited else None,
+                            ),
+                            Small(
+                                f"Resets {row.resets_at}" if row.resets_at else "Unlimited",
+                                cls="e-quota-meta",
+                            ) if row.resets_at or unlimited else None,
+                            cls="e-quota",
+                        )
+                    )
                 return shell("Your websites", P("Build your story. Shape your storefront. Publish when you're ready."),
-                    verification_banner(db, user_id, session),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
-                    Div(H2(f"Plan & usage — {plan_tier.name}"),
-                        *[P(f"{row.label}: {row.used} of {row.limit}" +
-                            (f" · resets {row.resets_at}" if row.resets_at else ""),
-                            cls="e-plan-row") for row in quota_rows],
-                        Small("Limits come from your current plan. Higher plans add room; nothing here is a price."),
-                        A("Manage billing →", href="/admin/billing", cls="b-manage-link"),
-                        cls="e-card e-plan-usage"),
-                    Div(*[Div(H2(site.name), P("/sites/" + site.slug),
-                        A("Resume store setup →", href=f"/admin/onboarding/{site.id}", cls="n-resume-link")
-                        if roles[site.id] in {"admin", "merchant"}
-                        and onboarding_by_site.get(site.id)
-                        and onboarding_by_site[site.id].status not in {"complete", "skipped"}
-                        else None,
-                        A("Open editor →", href=f"/admin/sites/{site.id}"), cls="e-card") for site in sites], cls="e-grid"),
-                    Div(H2("Generate a site from a brief"),
-                        P("Describe the essentials once. FastShop will assemble a private draft with pages, design, navigation, copy, image directions and a starter catalog when relevant."),
-                        Form(csrf(session),
-                            Label("Business name", Input(name="business_name", required=True, maxlength=160, autocomplete="organization")),
-                            Label("Business kind", Select(
-                                Option("Online shop", value="online shop"),
-                                Option("Food & beverage", value="food and beverage"),
-                                Option("Wellness business", value="wellness business"),
-                                Option("SaaS", value="SaaS"),
-                                Option("Local service", value="local service"),
-                                Option("Creative studio", value="creative studio"),
-                                name="kind", required=True)),
-                            Label("Who is it for?", Textarea(name="audience", rows=3, required=True, maxlength=500,
-                                placeholder="Independent teams who want a calmer way to manage projects")),
-                            Label("Desired tone", Select(
-                                Option("Warm and natural", value="warm and natural"),
-                                Option("Minimal and precise", value="minimal and precise"),
-                                Option("Bold and energetic", value="bold and energetic"),
-                                Option("Editorial and thoughtful", value="editorial and thoughtful"),
-                                name="tone", required=True)),
-                            Small("Generation runs synchronously and may take up to a minute. The result stays private until you review and publish it. Do not enter passwords, API keys or customer information."),
-                            Button("Generate private draft", cls="e-button", data_generation_submit=""),
-                            P("", role="status", aria_live="polite", data_generation_status="", hidden=True),
-                            method="post", action="/admin/sites/generate", cls="e-form", data_generation_form=""),
-                        cls="e-card e-generation"),
-                    H2("Create a website"), Form(csrf(session), Label("Site name", Input(name="name", required=True, maxlength=160)),
-                        Label("Site address", Input(name="slug", required=True, pattern="[a-z][a-z0-9-]{2,60}", placeholder="your-brand")),
-                        P("Start with the editorial commerce theme. Your site stays private until you publish."),
-                        Label("Build your way", Select(Option("Classical editor", value="classical"), Option("Build with AI / guided presets", value="chat"), name="flow")),
-                        Label(Input(type="checkbox", name="samples"), " Start with clearly labelled sample merchant details"),
-                        Button("Create site", cls="e-button"), method="post", action="/admin/sites", cls="e-form"))
+                    Div(
+                        Div(
+                            H2(f"Plan & usage — {plan_tier.name}"),
+                            A("Manage billing →", href="/admin/billing", cls="b-manage-link"),
+                            cls="e-plan-heading",
+                        ),
+                        Div(*quota_cards, cls="e-quota-grid"),
+                        Small(
+                            "Limits come from your current plan. Higher plans add room; nothing here is a price.",
+                            cls="e-plan-smallprint",
+                        ),
+                        cls="e-card e-plan-usage",
+                    ),
+                    verification_banner(db, user_id, session),
+                    Div(
+                        Div(
+                            H2("Websites"),
+                            P(f"{len(sites)} website" + ("" if len(sites) == 1 else "s")),
+                            cls="e-dashboard-section-heading",
+                        ),
+                        Div(
+                            *[
+                                Div(
+                                    Div(
+                                        H3(site.name),
+                                        P("/sites/" + site.slug, cls="e-site-address"),
+                                        cls="e-site-identity",
+                                    ),
+                                    Div(
+                                        A(
+                                            "Resume store setup →",
+                                            href=f"/admin/onboarding/{site.id}",
+                                            cls="e-button e-site-resume",
+                                        )
+                                        if roles[site.id] in {"admin", "merchant"}
+                                        and onboarding_by_site.get(site.id)
+                                        and onboarding_by_site[site.id].status not in {"complete", "skipped"}
+                                        else None,
+                                        A(
+                                            "Open editor →",
+                                            href=f"/admin/sites/{site.id}",
+                                            cls="e-site-open",
+                                        ),
+                                        cls="e-site-actions",
+                                    ),
+                                    cls="e-card e-site-card",
+                                )
+                                for site in sites
+                            ],
+                            cls="e-sites-grid",
+                        ),
+                        cls="e-dashboard-section",
+                    ),
+                    Div(
+                        Div(
+                            H2("Start something new"),
+                            P("Choose a guided draft or begin with the editorial commerce theme."),
+                            cls="e-dashboard-section-heading e-action-heading",
+                        ),
+                        Div(
+                            Div(
+                                H3("Generate a site from a brief"),
+                                P("Describe the essentials once. FastShop will assemble a private draft with pages, design, navigation, copy, image directions and a starter catalog when relevant."),
+                                Form(csrf(session),
+                                    Label("Business name", Input(name="business_name", required=True, maxlength=160, autocomplete="organization")),
+                                    Label("Business kind", Select(
+                                        Option("Online shop", value="online shop"),
+                                        Option("Food & beverage", value="food and beverage"),
+                                        Option("Wellness business", value="wellness business"),
+                                        Option("SaaS", value="SaaS"),
+                                        Option("Local service", value="local service"),
+                                        Option("Creative studio", value="creative studio"),
+                                        name="kind", required=True)),
+                                    Label("Who is it for?", Textarea(name="audience", rows=3, required=True, maxlength=500,
+                                        placeholder="Independent teams who want a calmer way to manage projects")),
+                                    Label("Desired tone", Select(
+                                        Option("Warm and natural", value="warm and natural"),
+                                        Option("Minimal and precise", value="minimal and precise"),
+                                        Option("Bold and energetic", value="bold and energetic"),
+                                        Option("Editorial and thoughtful", value="editorial and thoughtful"),
+                                        name="tone", required=True)),
+                                    Small("Generation runs synchronously and may take up to a minute. The result stays private until you review and publish it. Do not enter passwords, API keys or customer information."),
+                                    Button("Generate private draft", cls="e-button", data_generation_submit=""),
+                                    P("", role="status", aria_live="polite", data_generation_status="", hidden=True),
+                                    method="post", action="/admin/sites/generate", cls="e-form", data_generation_form=""),
+                                cls="e-card e-generation",
+                            ),
+                            Div(
+                                H3("Create a website"),
+                                P("Start with the editorial commerce theme. Your site stays private until you publish."),
+                                Form(csrf(session), Label("Site name", Input(name="name", required=True, maxlength=160)),
+                                    Label("Site address", Input(name="slug", required=True, pattern="[a-z][a-z0-9-]{2,60}", placeholder="your-brand")),
+                                    Label("Build your way", Select(Option("Classical editor", value="classical"), Option("Build with AI / guided presets", value="chat"), name="flow")),
+                                    Label(Input(type="checkbox", name="samples"), " Start with clearly labelled sample merchant details"),
+                                    Button("Create site", cls="e-button"), method="post", action="/admin/sites", cls="e-form"),
+                                cls="e-card e-create-site",
+                            ),
+                            cls="e-dashboard-actions",
+                        ),
+                        cls="e-dashboard-section e-dashboard-action-section",
+                    ))
         except CommerceError as exc:
             return error(exc)
 

@@ -96,7 +96,8 @@ def register_billing_routes(rt, actor, csrf, check_csrf, shell, error):
                             P(
                                 f"{plan.sites} sites · {plan.ai_generations_per_month} AI "
                                 f"generations per month · {plan.products} products · "
-                                f"{plan.published_sites} published sites"
+                                f"{plan.published_sites} published sites",
+                                cls="b-limits",
                             ),
                             Form(
                                 csrf(session),
@@ -118,15 +119,28 @@ def register_billing_routes(rt, actor, csrf, check_csrf, shell, error):
                     )
                 return shell(
                     "Billing",
-                    A("Back to plan & usage", href="/admin/sites"),
-                    P(
-                        f"Current account plan: {current_plan.name}. Prices and payment "
-                        "collection are owned by Stripe Checkout; FastShop stores no card data.",
-                        cls="b-intro",
-                    ),
+                    A("← Back to plan & usage", href="/admin/sites", cls="b-back-link"),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
-                    Div(H2("Subscription status"), P(state), cls="e-card b-summary"),
-                    Div(*choices, cls="e-grid b-plans"),
+                    Div(
+                        Div(
+                            Small("Current account plan"),
+                            H2(current_plan.name, cls="b-current-plan"),
+                            cls="b-current-plan-block",
+                        ),
+                        Div(
+                            H3("Subscription status"),
+                            P(state),
+                            cls="b-status-copy",
+                        ),
+                        P(
+                            "Prices and payment collection are owned by Stripe Checkout; "
+                            "FastShop stores no card data.",
+                            cls="b-intro",
+                        ),
+                        cls="e-card b-summary",
+                    ),
+                    Div(H2("Paid plans"), cls="b-section-heading"),
+                    Div(*choices, cls="b-plans"),
                 )
         except CommerceError as exc:
             return error(exc)
