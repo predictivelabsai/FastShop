@@ -10,6 +10,7 @@ from app import customer_services as customers
 from app import signup_services
 from app.db import SessionLocal
 from app.models import (
+    BillingSubscription,
     CommerceMail,
     CustomerChallenge,
     CustomerOffer,
@@ -72,6 +73,23 @@ def render_message(db, row, site, customer=None, user=None):
             "This link expires and can be used once. Verification does not publish your "
             "store or enable checkout. If you did not create this account, ignore this "
             "email.\n\nFastShop"
+        )
+    if row.kind == "platform_billing_payment_failed":
+        reference = row.reference_json or {}
+        subscription = db.scalar(select(BillingSubscription).where(
+            BillingSubscription.id == reference.get("billing_subscription_id"),
+            BillingSubscription.tenant_id == site.tenant_id,
+        ))
+        if not user or not subscription or subscription.last_invoice_status != "payment_failed":
+            return None
+        return "FastShop subscription payment needs attention", (
+            f"{site.name}\n\n"
+            "Stripe could not collect the latest FastShop subscription payment. "
+            "Your current access remains available while Stripe reports the subscription "
+            "as recoverable. Review the payment method and invoice in the Stripe-hosted "
+            "billing flow, or contact the platform operator.\n\n"
+            "FastShop stores no card details. This is a transactional account notice.\n\n"
+            "FastShop"
         )
     if not customer:
         return None

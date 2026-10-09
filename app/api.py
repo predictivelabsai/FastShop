@@ -86,9 +86,11 @@ api.add_middleware(
     allow_headers=["Accept", "Content-Type", "Authorization"],
 )
 
+from app.billing_webhooks import register_billing_webhooks  # noqa: E402
 from app.commerce_webhooks import register_commerce_webhooks  # noqa: E402
 
 register_commerce_webhooks(api)
+register_billing_webhooks(api)
 
 
 @api.get("/", tags=["System"])

@@ -67,7 +67,8 @@ def register_plan_routes(rt, actor, csrf, check_csrf, shell, error):
                 return shell("Plans & quotas",
                     A("← Sites & content", href="/admin/sites"),
                     P("Tenant plans come from the app/plans.py catalog. Changes apply immediately "
-                      "and never appear on public or marketing pages."),
+                      "and never appear on public or marketing pages. A conflicting operator "
+                      "change disables self-serve reconciliation for that tenant."),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
                     Div(*rows, cls="e-grid") if rows else P("No tenants yet."))
         except CommerceError as exc:

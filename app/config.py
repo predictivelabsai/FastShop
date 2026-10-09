@@ -67,6 +67,17 @@ class Settings:
     fasterp_company_id: str = os.getenv("FASTERP_COMPANY_ID", "")
     stripe_secret_key: str = os.getenv("STRIPE_SECRET_KEY", "")
     stripe_webhook_secret: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    # Platform SaaS billing owns a separate Stripe account boundary. These
+    # values must never fall back to store-payment credentials.
+    billing_stripe_secret_key: str = os.getenv(
+        "FASTSHOP_BILLING_STRIPE_SECRET_KEY", ""
+    )
+    billing_stripe_webhook_secret: str = os.getenv(
+        "FASTSHOP_BILLING_STRIPE_WEBHOOK_SECRET", ""
+    )
+    billing_price_basic: str = os.getenv("FASTSHOP_BILLING_PRICE_BASIC", "")
+    billing_price_pro: str = os.getenv("FASTSHOP_BILLING_PRICE_PRO", "")
+    billing_live_accepted: bool = _bool("FASTSHOP_BILLING_LIVE_ACCEPTED", False)
 
     @property
     def is_production(self) -> bool:
