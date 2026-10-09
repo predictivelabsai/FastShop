@@ -789,6 +789,42 @@ class SignupEmailVerification(TimestampMixin, Base):
     )
 
 
+class OnboardingState(TimestampMixin, Base):
+    """Durable first-site onboarding progress for one tenant workspace."""
+
+    __tablename__ = "onboarding_states"
+    __table_args__ = (
+        UniqueConstraint("tenant_id"),
+        UniqueConstraint("site_id"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(24), default="brief", index=True)
+    business_description: Mapped[str] = mapped_column(Text, default="")
+    product_context: Mapped[str] = mapped_column(Text, default="")
+    design_direction: Mapped[str] = mapped_column(String(160), default="")
+    generation_key: Mapped[str] = mapped_column(String(64), default="")
+    generation_token: Mapped[str] = mapped_column(String(64), default="")
+    site_fingerprint: Mapped[str] = mapped_column(String(64), default="")
+    generation_source: Mapped[str] = mapped_column(String(24), default="")
+    failure_code: Mapped[str] = mapped_column(String(40), default="")
+    result_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    generation_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
 class SiteOrder(TimestampMixin, Base):
     __tablename__ = "site_orders"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)

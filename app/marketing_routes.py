@@ -861,7 +861,7 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
         session["csrf_token"] = secrets.token_urlsafe(32)
         if result.message_id:
             dispatch_mail(result.message_id)
-        return RedirectResponse(f"/admin/sites/{result.site.id}", status_code=303)
+        return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
 
     @rt("/signup/verify/{tenant_id}/{verification_id}", methods=["GET"])
     def get(session, tenant_id: str, verification_id: str, status: str = ""):

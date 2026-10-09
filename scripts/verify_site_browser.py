@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -149,7 +150,7 @@ def _available_port():
 
 
 @contextmanager
-def signup_server(signup_open: bool):
+def signup_server(signup_open: bool, *, include_data_dir: bool = False):
     """Run one isolated app process because frozen settings cannot change in-process."""
     port = _available_port()
     data_dir = tempfile.mkdtemp(prefix="fastshop-signup-browser-")
@@ -204,7 +205,7 @@ def signup_server(signup_open: bool):
                     time.sleep(0.1)
             else:
                 raise RuntimeError("Timed out starting the signup browser server.")
-            yield base
+            yield (base, data_dir) if include_data_dir else base
         finally:
             process.terminate()
             try:
@@ -292,6 +293,146 @@ def verify_signup(output: str):
         raise SystemExit(1)
 
 
+def verify_onboarding(output: str):
+    """Exercise signup through generated and skipped onboarding outcomes."""
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
+    failures = []
+    checks = []
+
+    def capture(page, state, device, width, height):
+        page.set_viewport_size({"width": width, "height": height})
+        page.wait_for_load_state("networkidle")
+        assert page.locator("h1").count() == 1
+        assert page.locator("iframe").count() == 0
+        assert page.locator('[src*="analytics"], [href*="analytics"]').count() == 0
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+        page.screenshot(path=str(out / f"{device}-{state}.png"), full_page=True)
+        checks.append(
+            {
+                "state": state,
+                "device": device,
+                "width": width,
+                "overflow": False,
+                "iframes": 0,
+                "analytics_markers": 0,
+            }
+        )
+
+    def create_workspace(page, base, suffix):
+        page.goto(base + "/signup")
+        page.get_by_label("Your name", exact=True).fill(f"Onboarding {suffix}")
+        page.get_by_label("Email address", exact=True).fill(
+            f"onboarding-{suffix.lower()}@example.test"
+        )
+        password = "correct-horse-battery-staple"
+        page.get_by_label("Password", exact=True).fill(password)
+        page.get_by_label("Confirm password", exact=True).fill(password)
+        page.get_by_role("button", name="Create workspace", exact=True).click()
+        page.wait_for_url("**/admin/onboarding/*")
+
+    def save_brief(page):
+        page.get_by_label("Describe your business", exact=True).fill(
+            "A thoughtful home-goods shop for apartment dwellers who value useful, "
+            "long-lasting objects."
+        )
+        page.get_by_label("What do you sell? (optional)", exact=True).fill("online shop")
+        page.get_by_label("Warm and natural", exact=True).check()
+        page.get_by_role("button", name="Save and continue", exact=True).click()
+        page.wait_for_load_state("networkidle")
+        assert page.get_by_role("heading", name="Your brief is ready", exact=True).is_visible()
+
+    with signup_server(True, include_data_dir=True) as server, sync_playwright() as pw:
+        base, data_dir = server
+        allowed_origin = (urlsplit(base).scheme, urlsplit(base).netloc)
+        browser = pw.chromium.launch(channel="chrome", headless=True)
+        for outcome in ("generated", "skipped", "failed"):
+            context = browser.new_context(
+                viewport={"width": 1440, "height": 1000}, reduced_motion="reduce"
+            )
+            page = context.new_page()
+            page.on("pageerror", lambda error: failures.append(str(error)))
+            page.on(
+                "response",
+                lambda response: failures.append(f"HTTP {response.status}: {response.url}")
+                if response.status >= 400
+                else None,
+            )
+            outbound = []
+            page.on(
+                "request",
+                lambda request, outbound=outbound: outbound.append(request.url)
+                if (urlsplit(request.url).scheme, urlsplit(request.url).netloc)
+                != allowed_origin
+                else None,
+            )
+            create_workspace(page, base, outcome)
+            for device, width, height in (
+                ("desktop", 1440, 1000),
+                ("mobile", 390, 844),
+            ):
+                capture(page, f"wizard-brief-{outcome}", device, width, height)
+            page.set_viewport_size({"width": 1440, "height": 1000})
+            save_brief(page)
+            for device, width, height in (
+                ("desktop", 1440, 1000),
+                ("mobile", 390, 844),
+            ):
+                capture(page, f"wizard-choice-{outcome}", device, width, height)
+            page.set_viewport_size({"width": 1440, "height": 1000})
+            if outcome == "failed":
+                connection = sqlite3.connect(Path(data_dir) / "fastshop.sqlite3")
+                try:
+                    connection.execute(
+                        "UPDATE onboarding_states SET status = 'failed', "
+                        "failure_code = 'browser_fixture' WHERE status = 'ready'"
+                    )
+                    connection.commit()
+                finally:
+                    connection.close()
+                page.reload()
+                assert page.get_by_role(
+                    "heading", name="Something went wrong", exact=True
+                ).is_visible()
+                for device, width, height in (
+                    ("desktop", 1440, 1000),
+                    ("mobile", 390, 844),
+                ):
+                    capture(page, "failed", device, width, height)
+            elif outcome == "generated":
+                page.get_by_role("button", name="Generate with AI", exact=True).click()
+                page.wait_for_url("**/admin/sites/*")
+                assert page.get_by_role("status").inner_text().startswith(
+                    "Draft created with guided presets"
+                )
+            else:
+                page.get_by_role(
+                    "button", name="Skip — start with the clean template", exact=True
+                ).click()
+                page.wait_for_url("**/admin/sites/*")
+                assert page.get_by_role("status").inner_text().startswith(
+                    "Clean template kept"
+                )
+            if outcome != "failed":
+                for device, width, height in (
+                    ("desktop", 1440, 1000),
+                    ("mobile", 390, 844),
+                ):
+                    capture(page, outcome, device, width, height)
+            unexpected = [
+                url for url in outbound if urlsplit(url).netloc != "cdn.jsdelivr.net"
+            ]
+            assert not unexpected, unexpected
+            assert all("analytics" not in url.lower() for url in outbound)
+            context.close()
+        browser.close()
+    report = {"checks": checks, "failures": failures}
+    (out / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps({"checks": len(checks), "failures": failures, "output": str(out)}))
+    if failures:
+        raise SystemExit(1)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:5033")
@@ -316,8 +457,18 @@ def main():
         help="Capture the platform-root landing and /demo mapping",
     )
     parser.add_argument("--signup", action="store_true", help="Capture closed and open Phase 5b signup states")
+    parser.add_argument(
+        "--onboarding",
+        action="store_true",
+        help="Capture Phase 5c generated and skipped onboarding flows",
+    )
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
+    if args.onboarding:
+        if args.output == "output/playwright/h24you-phase1":
+            args.output = "output/playwright/phase-onboarding-wizard"
+        verify_onboarding(args.output)
+        return
     if args.signup:
         if args.output == "output/playwright/h24you-phase1":
             args.output = "output/playwright/phase5b-signup"

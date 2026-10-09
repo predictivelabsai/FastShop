@@ -446,7 +446,7 @@ def get(session, request, code: str = "", state: str = "", error: str = ""):
                 return RedirectResponse(failure_path, status_code=303)
             establish_session(session, result.user, "admin")
             session["csrf_token"] = secrets.token_urlsafe(32)
-            return RedirectResponse(f"/admin/sites/{result.site.id}", status_code=303)
+            return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
         user = user or find_or_create_user(db, identity["email"], identity["name"])
         if mode == "signup" and not user.email_verified_at:
             user.email_verified_at = datetime.now(UTC)
@@ -458,6 +458,23 @@ def get(session, request, code: str = "", state: str = "", error: str = ""):
         with SessionLocal() as db:
             site = signup_services.first_site_for_user(db, user.id)
         if site:
+            from app.models import OnboardingState
+
+            with SessionLocal() as db:
+                onboarding_state = db.scalar(
+                    select(OnboardingState).where(
+                        OnboardingState.site_id == site.id,
+                        OnboardingState.tenant_id == site.tenant_id,
+                    )
+                )
+            if (
+                membership.role in {"admin", "merchant"}
+                and onboarding_state
+                and onboarding_state.status not in {"complete", "skipped"}
+            ):
+                return RedirectResponse(
+                    f"/admin/onboarding/{site.id}", status_code=303
+                )
             return RedirectResponse(f"/admin/sites/{site.id}", status_code=303)
     default = "/admin" if role in {"admin", "merchant"} else "/account"
     return RedirectResponse(
