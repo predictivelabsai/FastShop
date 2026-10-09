@@ -172,6 +172,8 @@ def register_site_routes(rt):
     register_live_credential_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.onboarding_routes import register_onboarding_routes
     register_onboarding_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.plan_routes import register_plan_routes
+    register_plan_routes(rt, actor, csrf, check_csrf, shell, error)
 
     @rt("/admin/sites", methods=["GET"])
     def get(session, notice: str = ""):
@@ -195,9 +197,18 @@ def register_site_routes(rt):
                         )
                     )
                 } if sites else {}
+                from app.plans import account_usage
+
+                plan_tier, quota_rows = account_usage(db, user_id)
                 return shell("Your websites", P("Build your story. Shape your storefront. Publish when you're ready."),
                     verification_banner(db, user_id, session),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
+                    Div(H2(f"Plan & usage — {plan_tier.name}"),
+                        *[P(f"{row.label}: {row.used} of {row.limit}" +
+                            (f" · resets {row.resets_at}" if row.resets_at else ""),
+                            cls="e-plan-row") for row in quota_rows],
+                        Small("Limits come from your current plan. Higher plans add room; nothing here is a price."),
+                        cls="e-card e-plan-usage"),
                     Div(*[Div(H2(site.name), P("/sites/" + site.slug),
                         A("Resume store setup →", href=f"/admin/onboarding/{site.id}", cls="n-resume-link")
                         if roles[site.id] in {"admin", "merchant"}
@@ -255,9 +266,19 @@ def register_site_routes(rt):
                 audience=str(form.get("audience", "")),
                 tone=str(form.get("tone", "")),
             )
+            from app.plans import ensure_ai_generations, ensure_sites
+            from app.plans import record as record_usage
+
+            # Pre-flight quota checks (Phase 5d) in their own short session:
+            # nothing is generated, charged, or created when the plan blocks.
+            # Credits are metered only after the site draft exists.
+            with SessionLocal() as db:
+                ensure_sites(db, user_id)
+                ensure_ai_generations(db, user_id)
             plan, source = await run_in_threadpool(generate_plan, brief)
             with SessionLocal() as db:
                 site = create_generated_site(db, user_id, brief, plan, source)
+                record_usage(db, site.tenant_id, "ai_generation", site_id=site.id, user_id=user_id)
                 home = next(page for page in content.site_pages(db, site) if page.path == "/")
                 db.commit()
             notice = "Private draft generated with guided presets." if source == "guided" else "Private draft generated."
@@ -277,6 +298,9 @@ def register_site_routes(rt):
             check_csrf(session, form)
             user_id = actor(session)
             with SessionLocal() as db:
+                from app.plans import ensure_sites
+
+                ensure_sites(db, user_id)
                 site = content.create_site(db, user_id, str(form.get("name", "")), str(form.get("slug", "")))
                 if form.get("samples") == "on":
                     from app.site_samples import seed_samples
@@ -284,6 +308,12 @@ def register_site_routes(rt):
                 db.commit()
                 return RedirectResponse(f"/admin/sites/{site.id}" + ("/build" if form.get("flow") == "chat" else ""), status_code=303)
         except CommerceError as exc:
+            from app.plans import QuotaExceeded
+
+            if isinstance(exc, QuotaExceeded):
+                return RedirectResponse(
+                    "/admin/sites?" + urlencode({"notice": str(exc)[:300]}), status_code=303
+                )
             return error(exc)
 
     @rt("/admin/sites/{site_id}", methods=["GET"])

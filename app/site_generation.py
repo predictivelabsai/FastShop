@@ -526,6 +526,15 @@ def apply_plan(db, site: Site, user_id: str, plan: dict, *, expected_version: in
         raise CommerceError("This site already has generated content. Retry explicitly to replace its draft.")
     if retry and not existing:
         raise CommerceError("Only an already generated site can use generation retry.")
+    from app.plans import ensure_products
+
+    # Whole-unit quota pre-check (Phase 5d): a generation is applied or refused
+    # as one bounded transaction — never a partially seeded site. Retries
+    # delete the previous generated products first, so only the net growth is
+    # charged.
+    existing_products = set(existing.get("product_ids", [])) if existing and retry else set()
+    additional = max(0, len(plan["products"]) - len(existing_products))
+    ensure_products(db, user_id, additional=additional)
     site = builder.lock_site(db, site.id, user_id, expected_version)
 
     generated_page_ids = set(existing.get("page_ids", [])) if existing and retry else set()
@@ -553,7 +562,7 @@ def apply_plan(db, site: Site, user_id: str, plan: dict, *, expected_version: in
 
     product_ids = {}
     for definition in plan["products"]:
-        product = create_catalog_product(db, site, definition)
+        product = create_catalog_product(db, site, definition, user_id=user_id)
         product_ids[definition["slug"]] = product.id
     created_page_ids = []
     for page_plan in plan["pages"]:
@@ -605,6 +614,12 @@ def apply_plan(db, site: Site, user_id: str, plan: dict, *, expected_version: in
 def create_generated_site(db, user_id: str, value: MerchantBrief | dict, plan: dict,
                           source: str, *, image_provider=None) -> Site:
     brief = validate_brief(value)
+    from app.plans import ensure_sites
+
+    # A generation provisions a new site, so its account-level site quota is
+    # checked here (before anything is created). apply_plan stays a
+    # same-tenant operation and never re-checks site count.
+    ensure_sites(db, user_id)
     site = content.create_site(db, user_id, brief.business_name, site_slug(db, brief.business_name))
     return apply_plan(db, site, user_id, plan, expected_version=site.version,
                       key=generation_key(brief), source=source, brief=brief,

@@ -101,7 +101,10 @@ def seed(session: Session, admin_email: str = "admin@fastshop.example") -> Tenan
     if existing:
         return existing
 
-    tenant = Tenant(slug=TENANT_SLUG, name="Northstar Goods")
+    # Platform-owned fixture tenant: seeded on the Pro tier so the operator
+    # account's free-tier quotas never interfere with demo, golive, or test
+    # flows (app/plans.py PLANS catalog).
+    tenant = Tenant(slug=TENANT_SLUG, name="Northstar Goods", plan="pro")
     session.add(tenant)
     session.flush()
     channel = Channel(

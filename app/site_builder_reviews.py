@@ -104,6 +104,9 @@ def decide(db, site_id, user_id, turn_id, *, approve):
 
 def _decide(db, site_id, user_id, turn_id, *, approve):
     from app import site_builder_services as builder
+    from app.plans import ensure_products
+    from app.plans import record as record_usage
+
     site = content.owned_site(db, site_id, user_id, publish=True)
     site = builder.lock_site(db, site.id, user_id, site.version)
     turn = db.scalar(select(SiteBuilderTurn).where(SiteBuilderTurn.id == turn_id,
@@ -117,6 +120,10 @@ def _decide(db, site_id, user_id, turn_id, *, approve):
         if response.get("review_context") != review_context(db, site) or response.get("review_site_version") != site.version:
             raise CommerceError("Merchant data changed after this proposal. Ask for a fresh proposal before approving.")
         proposals = validate_proposals(response["proposals"])
+        product_proposals = sum(1 for proposal in proposals if proposal.get("kind") == "product")
+        if product_proposals:
+            # Quota pre-check (Phase 5d): proposal approvals apply as a whole.
+            ensure_products(db, user_id, additional=product_proposals)
         for proposal in proposals:
             if proposal["kind"] == "merchant":
                 config = commerce.settings_for(db, site, create=True)
@@ -141,6 +148,7 @@ def _decide(db, site_id, user_id, turn_id, *, approve):
                     db.add(VariantChannelListing(variant_id=variant.id, channel_id=site.channel_id, currency="USD", price_minor=proposal["price_minor"]))
             else:
                 create_product(db, site, proposal)
+                record_usage(db, site.tenant_id, "product_created", site_id=site.id, user_id=user_id)
         site.version += 1
     response.update(review_status="approved" if approve else "rejected", reviewed_by=user_id, reviewed_at=datetime.now(UTC).isoformat())
     turn.response_json = response

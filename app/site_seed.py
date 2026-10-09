@@ -48,7 +48,9 @@ def seed_h24you(db, admin_email):
         backfill_media(db, existing)
         backfill_categories(db, existing)
         return existing
-    tenant = Tenant(slug="h24you", name="H2 4 You Ltd")
+    # Platform-owned preview fixture: Pro tier so operator free-quota limits
+    # never block the golive/browser flows (app/plans.py PLANS catalog).
+    tenant = Tenant(slug="h24you", name="H2 4 You Ltd", plan="pro")
     db.add(tenant)
     db.flush()
     admin = db.scalar(select(User).where(User.email == admin_email))

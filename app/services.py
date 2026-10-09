@@ -32,7 +32,13 @@ from app.seed import CHANNEL_SLUG, TENANT_SLUG
 
 
 class CommerceError(ValueError):
-    """A user-correctable commerce rule violation."""
+    """A user-correctable commerce rule violation.
+
+    ``code`` is a stable machine-readable identifier surfaced to merchants;
+    plan and quota rules extend it via ``QuotaExceeded`` (``quota_exceeded``).
+    """
+
+    code = "commerce_error"
 
 
 @dataclass(frozen=True)

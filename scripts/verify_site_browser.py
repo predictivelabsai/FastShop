@@ -433,6 +433,91 @@ def verify_onboarding(output: str):
         raise SystemExit(1)
 
 
+def verify_plans(output: str):
+    """Capture Phase 5d plan/usage evidence in one isolated local app process."""
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
+    failures = []
+    checks = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(channel="chrome", headless=True)
+        context = browser.new_context(
+            viewport={"width": 1440, "height": 1000},
+            reduced_motion="reduce",
+        )
+        page = context.new_page()
+        page.on("pageerror", lambda error: failures.append(str(error)))
+        page.on(
+            "response",
+            lambda response: failures.append(f"HTTP {response.status}: {response.url}")
+            if response.status >= 400
+            else None,
+        )
+        try:
+            with signup_server(True) as base:
+                # Signup provisions the first site on the free plan (2 sites).
+                email = "plans-browser-" + uuid4().hex[:8] + "@example.test"
+                page.goto(base + "/signup")
+                page.get_by_label("Your name", exact=True).fill("Plans quota workspace")
+                page.get_by_label("Email address", exact=True).fill(email)
+                page.get_by_label("Password", exact=True).fill("correct-horse-battery-staple")
+                page.get_by_label("Confirm password", exact=True).fill(
+                    "correct-horse-battery-staple"
+                )
+                page.get_by_role("button", name="Create workspace", exact=True).click()
+                page.wait_for_url("**/admin/onboarding/*")
+
+                # Second site creation succeeds and fills the free site quota.
+                page.goto(base + "/admin/sites")
+                assert page.get_by_text("Plan & usage — Free", exact=False).is_visible()
+                assert page.get_by_text("Sites: 1 of 2", exact=True).is_visible()
+                page.locator('input[name="name"]').fill("Quota second site")
+                page.locator('input[name="slug"]').fill("quota-second-" + uuid4().hex[:8])
+                page.get_by_role("button", name="Create site", exact=True).click()
+                page.wait_for_url("**/admin/sites/*")
+
+                # The usage panel now reads the exhausted count; reads stay open.
+                page.goto(base + "/admin/sites")
+                assert page.get_by_text("Sites: 2 of 2", exact=True).is_visible()
+                for device, width, height in (("desktop", 1440, 1000), ("mobile", 390, 844)):
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(path=str(out / f"{device}-plans-usage.png"), full_page=True)
+
+                # A third site creation is refused with a merchant-readable notice.
+                page.set_viewport_size({"width": 1440, "height": 1000})
+                page.locator('input[name="name"]').fill("Blocked third site")
+                page.locator('input[name="slug"]').fill("quota-blocked-" + uuid4().hex[:8])
+                page.get_by_role("button", name="Create site", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                status = page.get_by_role("status").inner_text()
+                assert "Your Free plan allows 2 sites" in status, status
+                assert "you are now using 2 of 2" in status, status
+                for device, width, height in (("desktop", 1440, 1000), ("mobile", 390, 844)):
+                    page.set_viewport_size({"width": width, "height": height})
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                    page.screenshot(
+                        path=str(out / f"{device}-site-quota-blocked.png"), full_page=True
+                    )
+                checks.append(
+                    {
+                        "merchant": (
+                            "plan usage panel reads account counts and the third site "
+                            "creation is refused with a readable free-plan notice"
+                        ),
+                        "status": "passed",
+                    }
+                )
+        finally:
+            context.close()
+            browser.close()
+    report = {"checks": checks, "failures": failures}
+    (out / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps({"checks": len(checks), "failures": failures, "output": str(out)}))
+    if failures:
+        raise SystemExit(1)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:5033")
@@ -462,12 +547,22 @@ def main():
         action="store_true",
         help="Capture Phase 5c generated and skipped onboarding flows",
     )
+    parser.add_argument(
+        "--plans",
+        action="store_true",
+        help="Include Phase 5d plan, quota and metering enforcement evidence",
+    )
     parser.add_argument("--output", default="output/playwright/h24you-phase1")
     args = parser.parse_args()
     if args.onboarding:
         if args.output == "output/playwright/h24you-phase1":
             args.output = "output/playwright/phase-onboarding-wizard"
         verify_onboarding(args.output)
+        return
+    if args.plans:
+        if args.output == "output/playwright/h24you-phase1":
+            args.output = "output/playwright/phase5d-plans"
+        verify_plans(args.output)
         return
     if args.signup:
         if args.output == "output/playwright/h24you-phase1":

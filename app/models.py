@@ -45,6 +45,8 @@ class Tenant(TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(160))
     status: Mapped[str] = mapped_column(String(30), default="active")
+    # Plan tier id from app/plans.py PLANS catalog (never prices: billing is 5e).
+    plan: Mapped[str] = mapped_column(String(20), default="free", server_default="free")
 
 
 class User(TimestampMixin, Base):
@@ -994,3 +996,26 @@ class SubscriptionPaymentSetup(TimestampMixin, Base):
     state: Mapped[str] = mapped_column(String(24), default="pending")
     session_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     command_json: Mapped[dict] = mapped_column(JSON)
+
+
+class UsageEvent(TimestampMixin, Base):
+    """Tenant-scoped durable metering ledger (Phase 5d).
+
+    Deliberately separate from :class:`OutboxEvent`, which is the FastERP
+    delivery outbox. This table records billable/quotable consumption only.
+    """
+
+    __tablename__ = "usage_events"
+    __table_args__ = (
+        Index("ix_usage_events_tenant_kind_created", "tenant_id", "kind", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str | None] = mapped_column(
+        ForeignKey("sites.id", ondelete="SET NULL"), nullable=True
+    )
+    user_id: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
+    kind: Mapped[str] = mapped_column(String(40))
+    quantity: Mapped[int] = mapped_column(Integer, default=1)

@@ -207,7 +207,13 @@ def create_site(db: Session, user_id: str, name: str, slug: str) -> Site:
         raise CommerceError("Enter a name and a unique lowercase site address (3–61 characters).")
     if db.scalar(select(Site.id).where(Site.slug == slug)):
         raise CommerceError("That site address is already taken.")
-    tenant = Tenant(name=name, slug=f"site-{new_id()}")
+    from app.plans import DEFAULT_PLAN
+    from app.plans import record as record_usage
+
+    # Plan assignment (Phase 5d): every provisioned tenant starts on the free
+    # tier inside the same transaction as the site; quota enforcement for
+    # merchant-facing creation lives in the routes (signup never blocked).
+    tenant = Tenant(name=name, slug=f"site-{new_id()}", plan=DEFAULT_PLAN)
     db.add(tenant)
     db.flush()
     db.add(Membership(tenant_id=tenant.id, user_id=user_id, role="admin"))
@@ -240,6 +246,7 @@ def create_site(db: Session, user_id: str, name: str, slug: str) -> Site:
     adapt_navigation(db, site)
     from app.site_media import backfill_media
     backfill_media(db, site)
+    record_usage(db, tenant.id, "site_created", site_id=site.id, user_id=user_id)
     return site
 
 

@@ -26,6 +26,7 @@ from app.models import (
     Site,
     SiteMenu,
     SitePage,
+    UsageEvent,
     User,
 )
 from app.services import CommerceError
@@ -165,6 +166,15 @@ def test_happy_path_saves_brief_generates_same_site_and_completes(
         assert state.result_json["pages_generated"] >= 5
         assert state.result_json["products_seeded"] == 3
         assert state.site_id == workspace.site_id
+        usage = list(
+            db.scalars(
+                select(UsageEvent).where(
+                    UsageEvent.site_id == workspace.site_id,
+                    UsageEvent.kind == "ai_generation",
+                )
+            )
+        )
+        assert len(usage) == 1 and usage[0].quantity == 1
         paths = set(db.scalars(select(SitePage.path).where(SitePage.site_id == workspace.site_id)))
         assert {"/", "/shop", "/blogs/learn"} <= paths
     overview = client.get(response.headers["location"])
@@ -245,6 +255,11 @@ def test_generation_failure_preserves_brief_and_retry_completes(
         state = db.scalar(select(OnboardingState))
         assert state.status == "failed"
         assert "useful, considered home goods" in state.business_description
+        assert db.scalar(
+            select(func.count(UsageEvent.id)).where(
+                UsageEvent.kind == "ai_generation"
+            )
+        ) == 0
 
     retried = client.post(
         f"/admin/onboarding/{workspace.site_id}/generate",
@@ -255,6 +270,53 @@ def test_generation_failure_preserves_brief_and_retry_completes(
     assert len(calls) == 2
     with workspace.sessions() as db:
         assert db.scalar(select(OnboardingState.status)) == "complete"
+        assert db.scalar(
+            select(func.count(UsageEvent.id)).where(
+                UsageEvent.kind == "ai_generation"
+            )
+        ) == 1
+
+
+def test_generation_quota_redirects_before_claim_or_provider_call(
+    onboarding_workspace, monkeypatch
+):
+    workspace = onboarding_workspace
+    client, token = workspace.signed_in()
+    save_brief(client, workspace.site_id, token)
+    calls = guided_counter(monkeypatch)
+    with workspace.sessions() as db:
+        state = db.scalar(select(OnboardingState))
+        db.add_all(
+            [
+                UsageEvent(
+                    tenant_id=state.tenant_id,
+                    site_id=state.site_id,
+                    user_id=workspace.owner_id,
+                    kind="ai_generation",
+                )
+                for _ in range(3)
+            ]
+        )
+        db.commit()
+
+    page = client.get(f"/admin/onboarding/{workspace.site_id}")
+    response = client.post(
+        f"/admin/onboarding/{workspace.site_id}/generate",
+        data={"csrf_token": csrf(page)},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith(
+        f"/admin/onboarding/{workspace.site_id}?notice="
+    )
+    notice = client.get(response.headers["location"])
+    assert "Your Free plan allows 3 AI generation credits this month" in notice.text
+    assert calls == []
+    with workspace.sessions() as db:
+        state = db.scalar(select(OnboardingState))
+        assert state.status == "ready"
+        assert state.generation_token == ""
 
 
 def test_duplicate_generate_post_is_idempotent(onboarding_workspace, monkeypatch):

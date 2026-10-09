@@ -29,6 +29,8 @@ from starlette.responses import RedirectResponse, Response
 from app import onboarding, site_generation
 from app.db import SessionLocal
 from app.models import OnboardingState, Product, Site, SitePage
+from app.plans import QuotaExceeded, ensure_ai_generations
+from app.plans import record as record_usage
 from app.services import CommerceError
 
 
@@ -389,6 +391,10 @@ def register_onboarding_routes(rt, actor, csrf, check_csrf, shell, error):
                         _wizard_url(site.id, "Save your brief before generating a draft."),
                         status_code=303,
                     )
+                # Check the account credit before claiming the wizard run. The
+                # generation happens outside this transaction in a threadpool;
+                # usage is recorded only after its plan applies successfully.
+                ensure_ai_generations(db, user_id)
                 brief = onboarding.merchant_brief(state, site)
                 token = secrets.token_urlsafe(24)
                 fingerprint = onboarding.site_fingerprint(db, site)
@@ -402,6 +408,10 @@ def register_onboarding_routes(rt, actor, csrf, check_csrf, shell, error):
                 db.commit()
         except OnboardingAccessDenied:
             return _access_denied()
+        except QuotaExceeded as exc:
+            return RedirectResponse(
+                _wizard_url(site_id, str(exc)[:300]), status_code=303
+            )
         except CommerceError as exc:
             return error(exc)
 
@@ -451,6 +461,13 @@ def register_onboarding_routes(rt, actor, csrf, check_csrf, shell, error):
                     key=state.generation_key,
                     source=source,
                     brief=brief,
+                )
+                record_usage(
+                    db,
+                    site.tenant_id,
+                    "ai_generation",
+                    site_id=site.id,
+                    user_id=user_id,
                 )
                 page_count = db.scalar(
                     select(func.count(SitePage.id)).where(

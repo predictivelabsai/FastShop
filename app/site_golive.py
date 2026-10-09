@@ -483,9 +483,17 @@ def publish_site(
         _audit(db, site, user_id, action="publish", decision="already-published", reason=reason,
                before=before, report=report, overridden=bool(report.failures))
         return TransitionDecision(False, bool(report.failures), "The site is already published.", report)
+    from app.plans import ensure_published
+    from app.plans import record as record_usage
+
+    # Quota check (Phase 5d) right before the transition: readiness blocking
+    # and idempotent republish attempts are evaluated first, and nothing is
+    # flipped when the plan has no free publication slot.
+    ensure_published(db, user_id)
     site.status = "published"
     site.version += 1
     db.flush()
+    record_usage(db, site.tenant_id, "published", site_id=site.id, user_id=user_id)
     overridden = bool(report.failures)
     _audit(db, site, user_id, action="publish", decision="overridden" if overridden else "approved",
            reason=reason, before=before, report=report, overridden=overridden)
