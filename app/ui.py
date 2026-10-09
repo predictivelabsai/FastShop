@@ -346,7 +346,7 @@ def product_detail(session: Session, product: Product, csrf: str, notice: str = 
 
 def summary_panel(summary: CartSummary, csrf: str, checkout: bool = False):
     return Div(
-        H2("Order summary", style="font-family:Georgia,serif;font-weight:500"),
+        H2("Order summary", style="font-family:var(--font-display,Archivo,'Arial Narrow','Aptos Narrow','Helvetica Neue',Arial,sans-serif);font-stretch:100%;font-weight:700;letter-spacing:-.025em"),
         Div(Span("Subtotal"), Span(money(summary.subtotal_minor, summary.currency)), cls="summary-row"),
         Div(Span("Discount"), Span("−" + money(summary.discount_minor, summary.currency)), cls="summary-row") if summary.discount_minor else None,
         Div(Span("Delivery"), Span("Free" if not summary.shipping_minor else money(summary.shipping_minor, summary.currency)), cls="summary-row"),
@@ -378,7 +378,7 @@ def checkout_page(summary: CartSummary, csrf: str, idempotency_key: str, user: d
         Div(error, cls="error") if error else None,
         Div(
             Div(
-                H2("Delivery details", style="font-family:Georgia,serif;font-weight:500"),
+                H2("Delivery details", style="font-family:var(--font-display,Archivo,'Arial Narrow','Aptos Narrow','Helvetica Neue',Arial,sans-serif);font-stretch:100%;font-weight:700;letter-spacing:-.025em"),
                 Form(
                     csrf_input(csrf),
                     Input(type="hidden", name="idempotency_key", value=idempotency_key),

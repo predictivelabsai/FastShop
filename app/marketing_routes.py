@@ -61,6 +61,7 @@ def _head(title: str, description: str):
         Meta(property="og:description", content=description),
         Meta(property="og:type", content="website"),
         Link(rel="icon", href="/static/favicon.svg", type="image/svg+xml"),
+        Link(rel="stylesheet", href="/static/fonts.css"),
         Link(rel="stylesheet", href="/static/marketing.css"),
     )
 
