@@ -416,26 +416,6 @@ def success_page(order: Order):
     )
 
 
-def login_page(
-    csrf: str,
-    error: str = "",
-    google_enabled: bool = False,
-    local_enabled: bool = True,
-):
-    return Div(
-        Div(
-            H1("Welcome back"),
-            P("Sign in to see orders, wishlists, and merchant tools."),
-            Div(error, cls="error") if error else None,
-            A("Continue with Google", href="/auth/google", cls="button", style="width:100%") if google_enabled else Div("Google sign-in is not configured locally.", cls="notice"),
-            Div("or sign in with the configured admin password", cls="or") if local_enabled else None,
-            Form(csrf_input(csrf), Input(type="email", name="email", placeholder="Email", required=True), Input(type="password", name="password", placeholder="Password", required=True), Button("Sign in", cls="button", type="submit"), action="/login", method="post") if local_enabled else None,
-            cls="login-card",
-        ),
-        cls="login-wrap",
-    )
-
-
 MERCHANT_NAV = (
     ("Overview", (("dashboard", "Dashboard", "/admin"), ("assistant", "AI Assistant", "/admin/assistant"))),
     ("Commerce", (("products", "Products", "/admin/products"), ("orders", "Orders", "/admin/orders"), ("customers", "Customers", "/admin/customers"), ("promotions", "Promotions", "/admin/promotions"))),
