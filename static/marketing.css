@@ -328,6 +328,81 @@ h1 {
 .m-footer nav a { color: #f7f4eb; font-size: 0.86rem; }
 .m-footer-base { margin-top: 68px; padding-top: 20px; display: flex; justify-content: space-between; gap: 24px; border-top: 1px solid #4a5751; color: #bbc7c0; }
 
+.m-auth-page { min-height: 100svh; background: var(--paper); }
+.m-auth {
+  min-height: calc(100svh - 79px);
+  padding-block: clamp(var(--space-48), 9vw, 112px);
+  display: grid;
+  place-items: center;
+}
+.m-auth-card {
+  width: min(100%, 540px);
+  padding: clamp(var(--space-24), 4vw, var(--space-48));
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--paper-bright);
+  box-shadow: var(--elevation-workspace);
+}
+.m-auth-card h1 {
+  max-width: none;
+  margin-bottom: var(--space-12);
+  font-family: var(--font-display);
+  font-size: var(--type-title-size);
+  font-weight: var(--type-title-weight);
+  line-height: var(--type-title-line-height);
+  letter-spacing: var(--type-title-letter-spacing);
+}
+.m-auth-intro { max-width: 46ch; margin-bottom: var(--space-32); color: var(--ink-soft); }
+.m-auth-card .m-form-error { margin-bottom: var(--space-24); }
+.m-auth-google {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font-weight: 750;
+  text-decoration: none;
+  transition: background-color 180ms ease-out, transform 180ms ease-out;
+}
+.m-auth-google:hover { background: var(--mint-wash); transform: translateY(-2px); }
+.m-auth-notice {
+  margin-bottom: 0;
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--mint-wash);
+  color: var(--ink-soft);
+  font-size: var(--type-body-size);
+}
+.m-auth-divider {
+  margin-block: var(--space-24);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-12);
+  color: var(--ink-soft);
+  font-size: var(--type-label-size);
+}
+.m-auth-divider::before, .m-auth-divider::after { content: ""; height: 1px; background: var(--rule); }
+.m-auth-form { display: grid; gap: var(--space-16); }
+.m-auth-form label { display: grid; gap: var(--space-8); font-size: var(--type-label-size); font-weight: 750; }
+.m-auth-form input:not([type="hidden"]) {
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 13px;
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--radius-control);
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  caret-color: var(--fastshop-green);
+}
+.m-auth-form input:not([type="hidden"]):focus { border-color: var(--fastshop-green-dark); }
+.m-auth-form .m-button { width: 100%; margin-top: var(--space-8); border-radius: var(--radius-control); }
+
 .m-signup { min-height: 670px; padding-block: clamp(84px, 11vw, 160px); display: grid; grid-template-columns: minmax(0, 0.88fr) minmax(400px, 0.76fr); align-items: center; gap: clamp(64px, 10vw, 150px); }
 .m-signup-copy h1 { max-width: 10ch; }
 .m-signup-copy > p { max-width: 61ch; color: var(--ink-soft); font-size: 1.08rem; }
@@ -337,6 +412,7 @@ h1 {
 .m-signup-path p { margin: 0; font-weight: 720; }
 .m-signup-path small { display: block; margin-top: 22px; color: var(--ink-soft); }
 .m-signup-form-sheet { position: relative; padding: clamp(24px, 4vw, 38px); border: 1px solid var(--ink); background: var(--paper-bright); box-shadow: 0 22px 50px rgba(23, 35, 29, 0.12); }
+.m-signup-form-sheet h2 { margin-bottom: 18px; }
 .m-signup-form-sheet::after { content: ""; position: absolute; right: -22px; bottom: -22px; width: 13px; height: 13px; background: linear-gradient(var(--ink), var(--ink)) center / 1px 100% no-repeat, linear-gradient(90deg, var(--ink), var(--ink)) center / 100% 1px no-repeat; }
 .m-signup-form { display: grid; gap: 10px; }
 .m-signup-form label { display: grid; gap: 7px; font-size: 0.72rem; font-weight: 750; }
@@ -366,6 +442,11 @@ h1 {
   .m-cms, .m-signup { grid-template-columns: 1fr; }
   .m-cms-proof, .m-signup-path, .m-signup-form-sheet { max-width: 620px; }
   .m-pricing { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 720px) {
+  .m-auth { min-height: calc(100svh - 69px); padding-block: var(--space-48); }
+  .m-auth-card { padding: var(--space-24) var(--space-16); }
 }
 
 @media (max-width: 640px) {

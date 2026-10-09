@@ -65,7 +65,7 @@ app.routes[:] = [
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/api", api)
 
-from app.marketing_routes import register_marketing_routes  # noqa: E402
+from app.marketing_routes import login_page, register_marketing_routes  # noqa: E402
 from app.site_context import SiteHostMiddleware  # noqa: E402
 from app.site_routes import register_site_routes  # noqa: E402
 
@@ -335,14 +335,11 @@ def get(session, error: str = "", next: str = ""):
         session["login_next"] = destination
     if current_user(session):
         return RedirectResponse(destination or "/account", status_code=303)
-    return (
-        *ui.document_head("Sign in"),
-        ui.login_page(
-            csrf_token(session),
-            error,
-            auth.google_enabled(),
-            auth.local_login_allowed(),
-        ),
+    return login_page(
+        csrf_token(session),
+        error,
+        auth.google_enabled(),
+        auth.local_login_allowed(),
     )
 
 
