@@ -46,6 +46,8 @@ from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
 from app.models import User
 from app.services import CommerceError
+from app.site_blocks import BLOCK_TYPES
+from app.site_generation import MAX_PAGES
 
 GITHUB_URL = "https://github.com/predictivelabsai/FastShop"
 
@@ -102,7 +104,11 @@ def _header():
                 aria_label="Marketing navigation",
                 cls="m-nav-links",
             ),
-            A("Create workspace", href="/signup", cls="m-button m-button-small"),
+            Div(
+                A("Sign in", href="/login", cls="m-sign-in"),
+                A("Create workspace", href="/signup", cls="m-button m-button-small"),
+                cls="m-nav-actions",
+            ),
             cls="m-nav",
         ),
         cls="m-header",
@@ -145,10 +151,18 @@ def _footer():
     )
 
 
-def _workflow_step(label: str, title: str, body: str):
+def _workflow_step(label: str, title: str, body: str, evidence: tuple[tuple[str, str], ...]):
     return Li(
         Span(label, cls="m-step-label"),
         Div(H3(title), P(body)),
+        Div(
+            *(
+                Div(Span(item_label), Strong(value))
+                for item_label, value in evidence
+            ),
+            cls="m-step-evidence",
+            aria_label=f"{title} evidence",
+        ),
     )
 
 
@@ -162,45 +176,132 @@ def _proof_surface():
                 aria_hidden="true",
                 cls="m-proof-dots",
             ),
-            Span("Draft / Home"),
-            Span("Ready for review", cls="m-proof-status"),
+            Span("North & Pine / Builder"),
+            Span("Draft saved", cls="m-proof-status"),
             cls="m-proof-bar",
         ),
         Div(
             Div(
-                Span("North & Pine", cls="m-proof-brand"),
-                Div(Span("Shop"), Span("Journal"), Span("About"), cls="m-proof-links"),
-                cls="m-proof-nav",
+                Div(
+                    Span("F", cls="m-builder-mark"),
+                    Div(Small("Store"), Strong("North & Pine")),
+                    cls="m-builder-identity",
+                ),
+                Div(
+                    Span("Home", cls="is-active"),
+                    Span("Shop"),
+                    Span("Journal"),
+                    Span("About"),
+                    cls="m-builder-pages",
+                ),
+                Div(
+                    Small("AI builder"),
+                    P("Tighten the home page around the new collection."),
+                    Span("Prepare update", cls="m-builder-prepare"),
+                    cls="m-builder-agent",
+                ),
+                cls="m-builder-rail",
             ),
             Div(
                 Div(
-                    Small("NEW SEASON / DRAFT COPY"),
-                    P("Useful objects, made for unhurried homes.", cls="m-proof-title"),
-                    Span("Explore the collection", cls="m-proof-cta"),
-                    cls="m-proof-copy",
+                    Span("North & Pine", cls="m-proof-brand"),
+                    Div(
+                        Span("Shop"),
+                        Span("Journal"),
+                        Span("About"),
+                        cls="m-proof-links",
+                    ),
+                    cls="m-proof-nav",
                 ),
                 Div(
-                    Div(Span("Image direction"), Strong("Warm studio still life")),
-                    Div(Span("Catalog"), Strong("12 products mapped")),
-                    Div(Span("Checkout"), Strong("Sandbox ready")),
-                    cls="m-proof-notes",
+                    Div(
+                        Small("NEW SEASON / DRAFT COPY"),
+                        P("Useful objects, made for unhurried homes.", cls="m-proof-title"),
+                        Span("Explore the collection", cls="m-proof-cta"),
+                        cls="m-proof-copy",
+                    ),
+                    Div(
+                        Span("Studio series 01", cls="m-product-code"),
+                        Div(
+                            Span(cls="m-product-shape m-product-shape-tall"),
+                            Span(cls="m-product-shape m-product-shape-round"),
+                            aria_hidden="true",
+                            cls="m-product-still-life",
+                        ),
+                        Small("Art direction placeholder"),
+                        cls="m-proof-visual",
+                    ),
+                    cls="m-proof-hero",
                 ),
-                cls="m-proof-hero",
+                Div(
+                    Div(Span(cls="m-product-thumb"), Strong("Oak catch-all"), Small("Draft item")),
+                    Div(Span(cls="m-product-thumb is-sage"), Strong("Linen shade"), Small("Draft item")),
+                    Div(Span(cls="m-product-thumb is-clay"), Strong("Low bowl"), Small("Draft item")),
+                    cls="m-proof-products",
+                ),
+                cls="m-proof-page",
             ),
             Div(
-                Div(Span("Pages"), Strong("6")),
-                Div(Span("Blocks"), Strong("24")),
-                Div(Span("Menus"), Strong("2")),
-                cls="m-proof-metrics",
+                Small("Update 03"),
+                Strong("Home page refinement"),
+                P("Rebalance the hero and surface the studio collection."),
+                Div(Span("2 block edits"), Span("Review required")),
+                cls="m-agent-panel",
             ),
-            cls="m-proof-page",
+            cls="m-builder-workspace",
         ),
-        Div(Span("Generated draft"), Span("Illustrative interface"), cls="m-proof-caption"),
+        Div(
+            Small("Commerce go-live"),
+            Div(Span(cls="m-check-dot is-ready"), Span("Published pages"), Strong("Ready")),
+            Div(Span(cls="m-check-dot is-ready"), Span("Catalog + prices"), Strong("Ready")),
+            Div(Span(cls="m-check-dot"), Span("Live provider"), Strong("Review")),
+            cls="m-launch-chip",
+        ),
+        Div(
+            Span("Generated storefront inside the FastShop builder"),
+            Span("Illustrative interface"),
+            cls="m-proof-caption",
+        ),
         cls="m-proof",
         role="img",
         aria_label=(
-            "Illustrative FastShop draft showing generated store copy, pages, blocks, "
-            "menus, catalog mapping, and sandbox checkout readiness"
+            "Illustrative FastShop builder showing a generated North and Pine storefront, "
+            "an AI-prepared update, and a commerce go-live checklist"
+        ),
+    )
+
+
+def _proof_layer():
+    return Section(
+        Div(
+            Span("Works with", cls="m-proof-label"),
+            Div(
+                Div(Strong("Stripe"), Small("Sandbox-first checkout")),
+                Div(Strong("WooCommerce + WordPress"), Small("REST + WXR")),
+                Div(Strong("CSV + Google Merchant Center"), Small("Import + feed export")),
+                Div(Strong("FastShop API"), Small("Versioned REST")),
+                cls="m-integration-plates",
+            ),
+            cls="m-integrations m-shell",
+        ),
+        Div(
+            Div(Strong(str(len(BLOCK_TYPES))), Span("supported block families")),
+            Div(Strong(str(MAX_PAGES)), Span("maximum generated pages")),
+            Div(Strong("2"), Span("required generated menus")),
+            Div(Strong(str(len(plans.PLANS))), Span("plan tiers with enforced limits")),
+            cls="m-capability-band m-shell",
+        ),
+        cls="m-proof-layer",
+        aria_label="Verified FastShop integrations and capabilities",
+    )
+
+
+def _plan_limit(plan: plans.Plan):
+    return Div(
+        Strong(plan.name),
+        Span(
+            f"{plan.sites} sites · {plan.ai_generations_per_month} AI generations / month · "
+            f"{plan.products:,} products · {plan.published_sites} published sites"
         ),
     )
 
@@ -243,6 +344,7 @@ def marketing_page():
                     _proof_surface(),
                     cls="m-hero m-shell",
                 ),
+                _proof_layer(),
                 Section(
                     Div(
                         H2("A direct path from idea to owned storefront."),
@@ -258,18 +360,33 @@ def marketing_page():
                             "Create your workspace",
                             "Sign up and open a private store workspace with a structured "
                             "starter site ready to edit.",
+                            (
+                                ("Workspace", "Private"),
+                                ("Starting point", "Structured site"),
+                                ("Publishing", "Off by default"),
+                            ),
                         ),
                         _workflow_step(
                             "Step 2",
                             "Describe the business",
                             "Give FastShop the offer, audience, pages, and tone. The generator "
                             "builds a structured draft site—not a published black box.",
+                            (
+                                ("Brief", "Offer + audience"),
+                                ("Output", "Draft pages"),
+                                ("Navigation", "Header + footer"),
+                            ),
                         ),
                         _workflow_step(
                             "Step 3",
                             "Refine, review, and go live",
                             "Edit blocks in the visual builder, accept or reject proposed "
                             "changes, then pass publish, domain, and commerce checks.",
+                            (
+                                ("Changes", "Accept or reject"),
+                                ("Launch", "Publish checks"),
+                                ("Payments", "Reviewed gate"),
+                            ),
                         ),
                         cls="m-steps",
                     ),
@@ -327,12 +444,23 @@ def marketing_page():
                 ),
                 Section(
                     Div(
-                        H2("Bring the store you already have."),
-                        P(
-                            "Every import begins with a dry-run report. You review counts, "
-                            "warnings, and mappings before tenant-scoped changes are applied."
+                        Div(
+                            H2("Bring the store you already have."),
+                            P(
+                                "Every import begins with a dry-run report. You review counts, "
+                                "warnings, and mappings before tenant-scoped changes are applied."
+                            ),
+                            cls="m-section-heading",
                         ),
-                        cls="m-section-heading",
+                        Div(
+                            Small("Reviewed import path"),
+                            Div(Span("01"), Strong("Preview"), Small("Counts + warnings")),
+                            Div(Span("02"), Strong("Review"), Small("Mappings + scope")),
+                            Div(Span("03"), Strong("Apply"), Small("Tenant-owned rows")),
+                            P("No provider write occurs during import review."),
+                            cls="m-migration-evidence",
+                        ),
+                        cls="m-migration-top",
                     ),
                     Div(
                         Div(
@@ -391,14 +519,28 @@ def marketing_page():
                 ),
                 Section(
                     Div(
-                        H2("Simple plans based on sites and AI generations."),
-                        P(
-                            "Free, Basic, and Pro scale site, AI-generation, product, and "
-                            "publishing limits. Start free, then manage paid upgrades in "
-                            "Billing when checkout is configured."
+                        Div(
+                            H2("Simple plans based on sites and AI generations."),
+                            P(
+                                "Free, Basic, and Pro scale site, AI-generation, product, and "
+                                "publishing limits. Start free, then manage paid upgrades in "
+                                "Billing when checkout is configured."
+                            ),
+                            cls="m-pricing-copy",
                         ),
+                        Span("No invented prices", cls="m-pricing-note"),
+                        cls="m-pricing-head",
                     ),
-                    A("Create your workspace", href="/signup", cls="m-button m-button-inverse"),
+                    Div(
+                        Div(
+                            _plan_limit(free),
+                            _plan_limit(basic),
+                            _plan_limit(pro),
+                            cls="m-plan-limits",
+                        ),
+                        A("Create your workspace", href="/signup", cls="m-button"),
+                        cls="m-pricing-body",
+                    ),
                     id="pricing",
                     cls="m-pricing m-shell",
                 ),
