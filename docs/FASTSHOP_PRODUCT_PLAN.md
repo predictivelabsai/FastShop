@@ -131,7 +131,7 @@ Slice order matters here: 5a–5c create the funnel, 5d–5e make it a business.
 - Wizard must be idempotent and resumable across sessions; generation failures never strand the account — the wizard falls back to a template with the brief saved for retry.
 - Shipped with durable tenant-scoped progress, an explicit clean-template exit, the existing Phase 2 plan/apply boundary on the signup-provisioned site, guarded retries, and desktop/mobile browser evidence. See `docs/PHASE5C_ONBOARDING_WIZARD.md`.
 
-#### 5d — Plans, quotas, and metering
+#### 5d — Plans, quotas, and metering — **Shipped**
 
 - Plan model per tenant (e.g. free / basic / pro): site count, AI-generation credits, publish limits, product count; enforced at the service boundary, not just the UI.
 - Metering built on the existing `OutboxEvent`/event patterns; operator console view of per-tenant usage.

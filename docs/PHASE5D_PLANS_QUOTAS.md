@@ -56,7 +56,7 @@ Post/Redirect/Get behavior:
 
 The operator console is `GET /admin/platform/plans`; the plan mutation is
 `POST /admin/platform/tenants/{tenant_id}/plan`. These routes are registered through
-`register_plan_routes(...)` in `app/site_routes.py:172-173`, rather than with decorators in
+`register_plan_routes(...)` in `app/site_routes.py:175-176`, rather than with decorators in
 `app/main.py`. Both routes call the same platform-operator gate. At
 `app/plans.py:301-311`, the gate normalizes the configured administrator address and the
 user address, compares them with `hmac.compare_digest`, and returns the same generic
@@ -65,18 +65,24 @@ configuration, or a non-operator account. The response is deliberately non-enume
 
 ## Enforcement seam inventory
 
-- **Normal site creation — `app/site_routes.py:272-294`.** The POST validates CSRF, opens
-  the transaction, and calls `ensure_sites` at line 281 before `content.create_site` at
-  line 282. It commits at line 286 and redirects with 303 at line 287. A quota refusal is
-  redirected back to the readable dashboard notice at lines 291-294, so no tenant or site
+- **Normal site creation — `app/site_routes.py:294-316`.** The POST validates CSRF, opens
+  the transaction, and calls `ensure_sites` at line 303 before `content.create_site` at
+  line 304. It commits at line 308 and redirects with 303 at line 309. A quota refusal is
+  redirected back to the readable dashboard notice at lines 310-316, so no tenant or site
   has been written.
-- **Generated site provisioning — `app/site_routes.py:231-269` and
+- **Generated site provisioning — `app/site_routes.py:253-291` and
   `app/site_generation.py:614-626`.** The route performs short-session site and AI
-  pre-flight checks at lines 254-255 before generation runs at line 256. The service
+  pre-flight checks at lines 276-277 before generation runs at line 278. The service
   rechecks the site limit at `app/site_generation.py:622`, before creating anything at
   line 623. The AI credit is recorded only after the draft exists, at
-  `app/site_routes.py:259`, and is committed with the draft at line 261. A failed
+  `app/site_routes.py:281`, and is committed with the draft at line 283. A failed
   generation therefore consumes no credit and leaves no partial site.
+- **Onboarding wizard generation — `app/onboarding_routes.py:367-511`.** The wizard checks
+  `ensure_ai_generations` at line 397 before setting its durable state to `generating` at
+  line 401. Exhaustion follows Post/Redirect/Get at lines 411-414 with a readable notice,
+  before the provider threadpool call at line 419. After the generated plan applies at
+  lines 455-464, the credit is recorded at lines 465-471 and committed with the completed
+  state at line 491. Provider and apply failures therefore leave the ledger unchanged.
 - **Full-site product generation — `app/site_generation.py:511-610`.** The service computes
   retry net growth at lines 535-536 and checks the entire additional product unit at line
   537, before locking and before any deletes or inserts at lines 538 onward. The caller
@@ -112,7 +118,7 @@ configuration, or a non-operator account. The response is deliberately non-enume
 ## Metering design
 
 The durable event kinds are `site_created`, `ai_generation`, `product_created`, and
-`published`. `UsageEvent` at `app/models.py:965-985` has a string primary key, required
+`published`. `UsageEvent` at `app/models.py:1001-1021` has a string primary key, required
 tenant foreign key with cascade delete, optional site foreign key with null-on-delete,
 optional indexed user id, bounded kind, integer quantity defaulting to one, and inherited
 created/updated timestamps. The composite
@@ -141,10 +147,11 @@ paths short-circuit or calculate net growth before charging capacity.
 
 ## Migration
 
-Migration `20261009_0026` chains from the real repository head,
-`20261009_0025`. The Phase 5c onboarding wizard never shipped, and
-`tests/test_onboarding_wizard.py` does not exist, so there was no Phase 5c `0026` revision
-to chain from despite the earlier brief/repository mismatch.
+Phase 5c merged as PR #23 and owns revision `20261009_0026` for the onboarding wizard.
+The Phase 5d migration is therefore
+`migrations/versions/20261009_0027_plans_quotas.py`, with revision
+`20261009_0027` chained from `20261009_0026`. The wizard's generate POST is included in
+the enforced AI-credit seam inventory above.
 
 The upgrade adds non-null `tenants.plan` as `String(20)` with server default `free`, updates
 the existing `fastshop-demo` and `h24you` fixture tenants to `pro`, and creates
@@ -182,7 +189,10 @@ does not expose tenant plan or quota state.
   and `test_ledger_records_and_usage_views`.
 
 Existing signup tests now assert that provisioning assigns `tenant.plan == "free"` and
-adds the first `site_created` ledger row. `tests/test_site_images.py` and
+adds the first `site_created` ledger row while both password and Google provisioning create
+their onboarding state. `tests/test_onboarding_wizard.py` verifies that guided generation
+meters one AI credit only after a successful apply and that an exhausted account redirects
+before claiming a run or calling the provider. `tests/test_site_images.py` and
 `evals/site_generation.py` add a Pro platform-tenant membership for their synthetic
 multi-site owners, matching the fixture precedent in `app/seed.py` so Free limits do not
 truncate unrelated image or generation coverage.
@@ -206,26 +216,22 @@ administrator-email override.
 
 ### Final results
 
-- Targeted regression command: exit 0; 27 passed through `[100%]`. The only warning was
+- Targeted signup/onboarding regression command: exit 0; 18 passed through `[100%]`. The only warning was
   the pre-existing Starlette `BlockingPortal` deprecation warning.
 - `DB_URL="" FASTSHOP_ENV=development uv run ruff check .`: exit 0, `All checks passed!`.
-- Full `uv run python -m pytest -q`: exit 0; 491 tests collected, 491 passed, 0 failed,
-  and progress completed at `[100%]`. No warning other than the pre-existing Starlette
-  `BlockingPortal` deprecation warning was emitted. A collection-only pass with pytest's
-  configured extra quiet flag disabled confirmed the numeric count and exited 0.
+- Full `uv run python -m pytest -q`: exit 0; 500 tests collected, 500 passed, 0 failed,
+  and the final progress line was
+  `....................................................................     [100%]`. The only warning was
+  the pre-existing Starlette `BlockingPortal` deprecation warning.
 - `uv run python -m compileall -q app scripts`: exit 0.
 - Disposable SQLite `uv run alembic upgrade head`: final exit 0; the final applied revision
-  is `20261009_0026`.
+  is `20261009_0027`.
 - Disposable SQLite `uv run alembic check`: exit 0,
   `No new upgrade operations detected.` Cleanup exited 0.
-- The first literal Git Bash Alembic attempt returned upgrade exit 1 before running any
-  migration because Windows Python could not open Git Bash's `/tmp/...` database path;
-  check was not run (recorded as 125), and cleanup exited 0. Converting that same `mktemp`
-  directory with `cygpath` resolved the host-path mismatch; the successful results above
-  are from the rerun. No source or migration change was required.
-- `git diff --check`: exit 0. It emitted only the accepted notice that `app/models.py` will
-  be converted from LF to CRLF when Git next touches it.
+- `scripts/verify_site_browser.py --onboarding`: exit 0, 18 checks and zero failures;
+  `scripts/verify_site_browser.py --plans`: exit 0, one check and zero failures. Both
+  screenshot directories were refreshed.
+- `git diff --check`: exit 0. It emitted only accepted LF/CRLF conversion notices.
 - `git status --short --branch`: exit 0 on `phase-5d-plans-quotas`; every listed change was
   unstaged or untracked. Nothing was staged, committed, or pushed.
-- Existing `scripts/verify_site_browser.py --plans` evidence: exit 0, one check, zero
-  failures, with captures under `output/playwright/phase5d-plans/`.
+- The fresh verification data directory and disposable SQLite database were deleted.

@@ -465,7 +465,7 @@ def verify_plans(output: str):
                     "correct-horse-battery-staple"
                 )
                 page.get_by_role("button", name="Create workspace", exact=True).click()
-                page.wait_for_url("**/admin/sites/*")
+                page.wait_for_url("**/admin/onboarding/*")
 
                 # Second site creation succeeds and fills the free site quota.
                 page.goto(base + "/admin/sites")

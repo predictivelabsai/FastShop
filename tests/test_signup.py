@@ -220,6 +220,7 @@ def test_google_signup_provisions_verified_workspace_without_password_or_mail(
     with signup_workspace.sessions() as db:
         user = db.get(User, user_id)
         site = db.get(Site, site_id)
+        tenant = db.get(Tenant, site.tenant_id)
         membership = db.scalar(
             select(Membership).where(
                 Membership.user_id == user_id,
@@ -229,6 +230,15 @@ def test_google_signup_provisions_verified_workspace_without_password_or_mail(
         assert user.password_hash is None
         assert user.email_verified_at is not None
         assert membership.role == "admin"
+        assert tenant.plan == "free"
+        startup_usage = db.scalar(
+            select(UsageEvent).where(
+                UsageEvent.tenant_id == tenant.id,
+                UsageEvent.kind == "site_created",
+            )
+        )
+        assert startup_usage is not None and startup_usage.quantity == 1
+        assert startup_usage.site_id == site.id
         assert db.scalar(
             select(OnboardingState.status).where(OnboardingState.site_id == site_id)
         ) == "brief"

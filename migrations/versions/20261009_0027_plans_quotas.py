@@ -5,8 +5,8 @@ from alembic import op
 
 from app.models import UsageEvent
 
-revision = "20261009_0026"
-down_revision = "20261009_0025"
+revision = "20261009_0027"
+down_revision = "20261009_0026"
 branch_labels = None
 depends_on = None
 
