@@ -148,7 +148,7 @@ def test_commerce_settings_keep_fastshop_brand_and_require_csrf():
     assert response.status_code == 200
     assert "US commerce — FastShop" in response.text
     assert 'class="brand-mark"' in response.text
-    assert 'href="/static/site.css"' in response.text
+    assert re.search(r'href="/static/site\.css\?v=\d+"', response.text)
     assert TestClient(app).get(path).status_code == 400
     form = {"csrf_token": token, "version": "1", "mode": "disabled", "origin_country": "EE",
         "site_version": str(site.version), "shipping_minor": "",

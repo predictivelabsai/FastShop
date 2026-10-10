@@ -45,7 +45,8 @@ def seeded_render_hashes(render=storefront):
                         f"https://example.test{page.path}", preview=preview,
                     )
                     markup = "".join(str(to_xml(node)) for node in rendered if node is not None)
-                    # Database-generated IDs are the only volatile HTML data.
+                    # Database-generated IDs and asset mtimes are volatile HTML data.
+                    markup = re.sub(r"\?v=\d+", "", markup)
                     markup = re.sub(r'data-builder-section="[^"]*"', 'data-builder-section="BLOCK"', markup)
                     markup = re.sub(
                         r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32}",

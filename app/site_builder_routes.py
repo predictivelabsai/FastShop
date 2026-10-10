@@ -36,6 +36,7 @@ from app.platform_ui import platform_subnav
 from app.services import CommerceError, money
 from app.site_blocks import default_locale, resolve_document
 from app.site_theme import CHOICES, DEFAULTS, PRESETS, validate_theme
+from app.ui import static_asset
 
 
 def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
@@ -211,7 +212,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                         A("Try commerce demo", href=base + "/demo", cls="e-button"))),
                     aria_label=site.name + " builder tools")
                 return shell("Build " + site.name,
-                    Link(rel="stylesheet", href="/static/site-workspace.css"), Script(src="/static/site-workspace.js", defer=True),
+                    Link(rel="stylesheet", href=static_asset("site-workspace.css")), Script(src=static_asset("site-workspace.js"), defer=True),
                     P("Merchant fields awaiting review: " + ", ".join(pending), cls="e-note") if pending else None,
                     P("Changes save to a private draft. Review and publish through the classical editor."),
                     P(notice[:200], role="status") if notice else None,
