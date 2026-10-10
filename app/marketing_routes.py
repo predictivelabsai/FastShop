@@ -1,5 +1,4 @@
 """Static public SaaS marketing routes, independent of every tenant surface."""
-
 from __future__ import annotations
 
 import secrets
@@ -19,6 +18,7 @@ from fasthtml.common import (
     Head,
     Header,
     Html,
+    Img,
     Input,
     Label,
     Li,
@@ -50,15 +50,13 @@ from app.site_blocks import BLOCK_TYPES
 from app.site_generation import MAX_PAGES
 
 GITHUB_URL = "https://github.com/predictivelabsai/FastShop"
-
-
 def _head(title: str, description: str):
     return (
         Title(f"{title} — FastShop"),
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
         Meta(name="description", content=description),
         Meta(name="robots", content="index,follow"),
-        Meta(name="theme-color", content="#f4f1e9"),
+        Meta(name="theme-color", content="#ffffff"),
         Meta(property="og:title", content=f"{title} — FastShop"),
         Meta(property="og:description", content=description),
         Meta(property="og:type", content="website"),
@@ -67,8 +65,6 @@ def _head(title: str, description: str):
         Link(rel="stylesheet", href="/static/platform.css"),
         Link(rel="stylesheet", href="/static/marketing.css"),
     )
-
-
 def _document(title: str, description: str, *content, private: bool = False):
     markup = to_xml(
         Html(Head(*_head(title, description)), Body(*content), lang="en"),
@@ -80,8 +76,6 @@ def _document(title: str, description: str, *content, private: bool = False):
         else None
     )
     return HTMLResponse("<!doctype html>\n" + markup, headers=headers)
-
-
 def _brand():
     return A(
         Span("F", cls="m-brand-mark", aria_hidden="true"),
@@ -90,8 +84,6 @@ def _brand():
         cls="m-brand",
         aria_label="FastShop marketing home",
     )
-
-
 def _header():
     return Header(
         Div(
@@ -113,8 +105,6 @@ def _header():
         ),
         cls="m-header",
     )
-
-
 def _footer():
     return Footer(
         Div(
@@ -149,8 +139,6 @@ def _footer():
         ),
         cls="m-footer",
     )
-
-
 def _workflow_step(label: str, title: str, body: str, evidence: tuple[tuple[str, str], ...]):
     return Li(
         Span(label, cls="m-step-label"),
@@ -164,113 +152,132 @@ def _workflow_step(label: str, title: str, body: str, evidence: tuple[tuple[str,
             aria_label=f"{title} evidence",
         ),
     )
-
-
 def _proof_surface():
     return Div(
         Div(
             Div(
-                Span(cls="m-proof-dot"),
-                Span(cls="m-proof-dot"),
-                Span(cls="m-proof-dot"),
-                aria_hidden="true",
-                cls="m-proof-dots",
-            ),
-            Span("North & Pine / Builder"),
-            Span("Draft saved", cls="m-proof-status"),
-            cls="m-proof-bar",
-        ),
-        Div(
-            Div(
                 Div(
-                    Span("F", cls="m-builder-mark"),
-                    Div(Small("Store"), Strong("North & Pine")),
-                    cls="m-builder-identity",
-                ),
-                Div(
-                    Span("Home", cls="is-active"),
-                    Span("Shop"),
-                    Span("Journal"),
-                    Span("About"),
-                    cls="m-builder-pages",
-                ),
-                Div(
-                    Small("AI builder"),
-                    P("Tighten the home page around the new collection."),
-                    Span("Prepare update", cls="m-builder-prepare"),
-                    cls="m-builder-agent",
-                ),
-                cls="m-builder-rail",
-            ),
-            Div(
-                Div(
-                    Span("North & Pine", cls="m-proof-brand"),
                     Div(
-                        Span("Shop"),
-                        Span("Journal"),
-                        Span("About"),
-                        cls="m-proof-links",
+                        Span(cls="m-proof-dot"),
+                        Span(cls="m-proof-dot"),
+                        Span(cls="m-proof-dot"),
+                        aria_hidden="true",
+                        cls="m-proof-dots",
                     ),
-                    cls="m-proof-nav",
+                    Span("app.fastshop.dev/north-and-pine", cls="m-proof-url"),
+                    Span("Draft saved", cls="m-proof-status"),
+                    cls="m-proof-bar",
                 ),
                 Div(
                     Div(
-                        Small("NEW SEASON / DRAFT COPY"),
-                        P("Useful objects, made for unhurried homes.", cls="m-proof-title"),
-                        Span("Explore the collection", cls="m-proof-cta"),
-                        cls="m-proof-copy",
-                    ),
-                    Div(
-                        Span("Studio series 01", cls="m-product-code"),
                         Div(
-                            Span(cls="m-product-shape m-product-shape-tall"),
-                            Span(cls="m-product-shape m-product-shape-round"),
-                            aria_hidden="true",
-                            cls="m-product-still-life",
+                            Span("F", cls="m-builder-mark"),
+                            Div(Small("Store"), Strong("North & Pine")),
+                            cls="m-builder-identity",
                         ),
-                        Small("Art direction placeholder"),
-                        cls="m-proof-visual",
+                        Div(
+                            Span("Home", cls="is-active"),
+                            Span("Shop"),
+                            Span("Journal"),
+                            Span("About"),
+                            cls="m-builder-pages",
+                        ),
+                        Div(
+                            Small("AI builder"),
+                            P("Tighten the home page around the new collection."),
+                            Span("Prepare update", cls="m-builder-prepare"),
+                            cls="m-builder-agent",
+                        ),
+                        cls="m-builder-rail",
                     ),
-                    cls="m-proof-hero",
+                    Div(
+                        Div(
+                            Span("North & Pine", cls="m-proof-brand"),
+                            Div(
+                                Span("Shop"),
+                                Span("Journal"),
+                                Span("About"),
+                                cls="m-proof-links",
+                            ),
+                            cls="m-proof-nav",
+                        ),
+                        Div(
+                            Div(
+                                Small("New season · draft copy"),
+                                P("Useful objects, made for unhurried homes.", cls="m-proof-title"),
+                                Span("Explore the collection", cls="m-proof-cta"),
+                                cls="m-proof-copy",
+                            ),
+                            Img(
+                                src="/static/img/product-interior.jpg",
+                                alt="Bright living-room interior with an arc lamp and wooden table, from the store catalog",
+                                cls="m-proof-photo",
+                            ),
+                            cls="m-proof-hero",
+                        ),
+                        Div(
+                            Div(
+                                Img(
+                                    src="/static/img/product-cactus.jpg",
+                                    alt="Cactus in a terracotta pot on a pink ground",
+                                ),
+                                Strong("Terracotta planter"),
+                                Small("Draft item"),
+                                cls="m-product-card",
+                            ),
+                            Div(
+                                Img(
+                                    src="/static/img/product-armchair.jpg",
+                                    alt="Yellow armchair beside a brass floor lamp",
+                                ),
+                                Strong("Canary armchair"),
+                                Small("Draft item"),
+                                cls="m-product-card",
+                            ),
+                            Div(
+                                Img(
+                                    src="/static/img/storefront-object.jpg",
+                                    alt="Dried pampas arrangement in a ceramic vase on a leather sofa",
+                                ),
+                                Strong("Pampas arrangement"),
+                                Small("Draft item"),
+                                cls="m-product-card",
+                            ),
+                            cls="m-proof-products",
+                        ),
+                        cls="m-proof-page",
+                    ),
+                    cls="m-builder-workspace",
                 ),
-                Div(
-                    Div(Span(cls="m-product-thumb"), Strong("Oak catch-all"), Small("Draft item")),
-                    Div(Span(cls="m-product-thumb is-sage"), Strong("Linen shade"), Small("Draft item")),
-                    Div(Span(cls="m-product-thumb is-clay"), Strong("Low bowl"), Small("Draft item")),
-                    cls="m-proof-products",
-                ),
-                cls="m-proof-page",
+                cls="m-proof",
             ),
             Div(
-                Small("Update 03"),
+                Small("AI builder · Update 03"),
                 Strong("Home page refinement"),
                 P("Rebalance the hero and surface the studio collection."),
                 Div(Span("2 block edits"), Span("Review required")),
                 cls="m-agent-panel",
             ),
-            cls="m-builder-workspace",
-        ),
-        Div(
-            Small("Commerce go-live"),
-            Div(Span(cls="m-check-dot is-ready"), Span("Published pages"), Strong("Ready")),
-            Div(Span(cls="m-check-dot is-ready"), Span("Catalog + prices"), Strong("Ready")),
-            Div(Span(cls="m-check-dot"), Span("Live provider"), Strong("Review")),
-            cls="m-launch-chip",
+            Div(
+                Small("Commerce go-live"),
+                Div(Span(cls="m-check-dot is-ready"), Span("Published pages"), Strong("Ready")),
+                Div(Span(cls="m-check-dot is-ready"), Span("Catalog + prices"), Strong("Ready")),
+                Div(Span(cls="m-check-dot"), Span("Live provider"), Strong("Review")),
+                cls="m-launch-chip",
+            ),
+            cls="m-proof-stage m-stage",
+            role="group",
+            aria_label=(
+                "Illustrative FastShop builder showing a generated North and Pine storefront with "
+                "real product imagery, an AI-prepared update, and a commerce go-live checklist"
+            ),
         ),
         Div(
             Span("Generated storefront inside the FastShop builder"),
             Span("Illustrative interface"),
             cls="m-proof-caption",
         ),
-        cls="m-proof",
-        role="img",
-        aria_label=(
-            "Illustrative FastShop builder showing a generated North and Pine storefront, "
-            "an AI-prepared update, and a commerce go-live checklist"
-        ),
     )
-
-
 def _proof_layer():
     return Section(
         Div(
@@ -294,8 +301,6 @@ def _proof_layer():
         cls="m-proof-layer",
         aria_label="Verified FastShop integrations and capabilities",
     )
-
-
 def _plan_limit(plan: plans.Plan):
     return Div(
         Strong(plan.name),
@@ -304,8 +309,6 @@ def _plan_limit(plan: plans.Plan):
             f"{plan.products:,} products · {plan.published_sites} published sites"
         ),
     )
-
-
 def marketing_page():
     free = plans.PLANS["free"]
     basic = plans.PLANS["basic"]
@@ -401,6 +404,26 @@ def marketing_page():
                             "picture. Live acceptance remains a deliberate operator-reviewed gate."
                         ),
                         A("Review the commerce workflow", href="#faq", cls="m-text-link m-light-link"),
+                        Div(
+                            Div(
+                                Img(
+                                    src="/static/img/merchant-checkout.jpg",
+                                    alt="Merchant taking a card payment at a counter terminal",
+                                ),
+                                Span("Checkout"),
+                                cls="m-commerce-photo",
+                            ),
+                            Div(
+                                Img(
+                                    src="/static/img/workspace-lounge.jpg",
+                                    alt="Operator lounge workspace with seating and laptops",
+                                ),
+                                Span("Operations"),
+                                cls="m-commerce-photo",
+                            ),
+                            cls="m-commerce-photos",
+                            aria_label="Illustrative photography of merchants at work",
+                        ),
                         cls="m-dark-intro",
                     ),
                     Div(
@@ -612,12 +635,8 @@ def marketing_page():
             cls="m-page",
         ),
     )
-
-
 def _field_error(message: str, error_id: str):
     return P(message, id=error_id, cls="m-field-error", role="alert") if message else None
-
-
 def login_page(
     csrf: str,
     error: str = "",
@@ -696,8 +715,6 @@ def login_page(
         ),
         private=True,
     )
-
-
 def signup_page(
     *,
     signup_open: bool,
@@ -822,6 +839,10 @@ def signup_page(
                         ),
                     ),
                     _field_error(field_errors.get("password", ""), "password-error"),
+                    Small(
+                        f"At least {signup_services.SIGNUP_PASSWORD_MIN_LENGTH} characters.",
+                        id="password-help",
+                    ),
                     Label(
                         "Confirm password",
                         Input(
@@ -844,10 +865,6 @@ def signup_page(
                     _field_error(
                         field_errors.get("password_confirmation", ""),
                         "password-confirmation-error",
-                    ),
-                    Small(
-                        f"At least {signup_services.SIGNUP_PASSWORD_MIN_LENGTH} characters.",
-                        id="password-help",
                     ),
                     Button("Create workspace", type="submit", cls="m-button"),
                     method="post",
@@ -888,8 +905,6 @@ def signup_page(
         ),
         private=True,
     )
-
-
 def verification_page(csrf: str, *, status: str = ""):
     return _document(
         "Verify your email",
@@ -946,8 +961,6 @@ def verification_page(csrf: str, *, status: str = ""):
         ),
         private=True,
     )
-
-
 def verified_page():
     return _document(
         "Email verified",
@@ -971,35 +984,25 @@ def verified_page():
         ),
         private=True,
     )
-
-
 def _client_address(request) -> str:
     return request.client.host if request.client else "unknown"
-
-
 def _remember_failure(session, *, errors=None, name="", email=""):
     session["signup_errors"] = errors or {}
     session["signup_values"] = {
         "name": str(name)[: signup_services.SIGNUP_NAME_MAX_LENGTH],
         "email": str(email)[: signup_services.SIGNUP_EMAIL_MAX_LENGTH],
     }
-
-
 def _record_signup_failure(email: str, client_address: str) -> None:
     with SessionLocal() as db:
         signup_services.record_attempt(
             db, "signup", email, client_address, accepted=False
         )
         db.commit()
-
-
 def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
     """Register public platform routes without consulting tenant authentication state."""
-
     @rt("/marketing/", methods=["GET"])
     def get():
         return marketing_page()
-
     @rt("/signup", methods=["GET"])
     def get(session, status: str = ""):
         errors = session.pop("signup_errors", {})
@@ -1011,7 +1014,6 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
             field_errors=errors,
             values=values,
         )
-
     @rt("/signup", methods=["POST"])
     async def post(session, request):
         if not settings.signup_open:
@@ -1021,7 +1023,6 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
             require_csrf(session, str(form.get("csrf_token", "")))
         except CommerceError:
             return RedirectResponse("/signup?status=session#signup-form", status_code=303)
-
         raw_name = str(form.get("name", ""))
         raw_email = str(form.get("email", ""))
         password = str(form.get("password", ""))
@@ -1045,7 +1046,6 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
                 errors["password_confirmation"] = str(exc)
             else:
                 errors["password"] = str(exc)
-
         with SessionLocal() as db:
             limited = signup_services.rate_limited(db, "signup", email, address)
             existing = (
@@ -1066,7 +1066,6 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
                     email=raw_email,
                 )
                 return RedirectResponse("/signup?status=unable#signup-form", status_code=303)
-
         result = None
         for slug_start in range(1, 4):
             try:
@@ -1089,17 +1088,14 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
             _record_signup_failure(email, address)
             _remember_failure(session, name=raw_name, email=raw_email)
             return RedirectResponse("/signup?status=unable#signup-form", status_code=303)
-
         establish_session(session, result.user, "admin")
         session["csrf_token"] = secrets.token_urlsafe(32)
         if result.message_id:
             dispatch_mail(result.message_id)
         return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
-
     @rt("/signup/verify/{tenant_id}/{verification_id}", methods=["GET"])
     def get(session, tenant_id: str, verification_id: str, status: str = ""):
         return verification_page(csrf_token(session), status=status)
-
     @rt("/signup/verify/{tenant_id}/{verification_id}", methods=["POST"])
     async def post(session, request, tenant_id: str, verification_id: str):
         form = await request.form()
@@ -1116,7 +1112,6 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
                 f"/signup/verify/{tenant_id}/{verification_id}?status=invalid",
                 status_code=303,
             )
-
     @rt("/signup/verified", methods=["GET"])
     def get():
         return verified_page()

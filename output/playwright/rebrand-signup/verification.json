@@ -1,0 +1,41 @@
+{
+  "checks": [
+    {
+      "state": "closed",
+      "device": "desktop",
+      "width": 1440,
+      "status": 200,
+      "overflow": false,
+      "outbound_requests": 0,
+      "scripts": 0
+    },
+    {
+      "state": "closed",
+      "device": "mobile",
+      "width": 390,
+      "status": 200,
+      "overflow": false,
+      "outbound_requests": 0,
+      "scripts": 0
+    },
+    {
+      "state": "form",
+      "device": "desktop",
+      "width": 1440,
+      "status": 200,
+      "overflow": false,
+      "outbound_requests": 0,
+      "scripts": 0
+    },
+    {
+      "state": "form",
+      "device": "mobile",
+      "width": 390,
+      "status": 200,
+      "overflow": false,
+      "outbound_requests": 0,
+      "scripts": 0
+    }
+  ],
+  "failures": []
+}
