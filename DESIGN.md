@@ -107,10 +107,16 @@ components:
 
 # Design System: FastShop
 
-Scope note: this documents the token layer as shipped on the rebranded marketing
-landing and auth pages (`static/marketing.css` + `app/marketing_routes.py`). Its
-`:root` block is the rebrand's token source; PR 2 sweeps dashboard, billing,
-onboarding, and builder surfaces onto these same tokens.
+Scope note: this documents the rebrand token layer on its two shipped scopes —
+the marketing landing and auth pages (`static/marketing.css` +
+`app/marketing_routes.py`) and PR 2's platform surfaces (dashboard, billing,
+onboarding, builder workspace, plans console), which carry the same tokens
+through `static/platform.css`, aliased onto the legacy variable names
+(`--paper`, `--rule`, `--accent`, `--muted`, `--focus-blue`, `--shadow`, …) so
+`site.css`, `site-editor.css`, `site-workspace.css`, and `site-preview.css`
+inherit them without markup changes. Platform-scope restyles are prefixed
+`.e-main`; the public storefront and published sites never load platform.css
+and keep their legacy look.
 
 ## Overview
 
@@ -130,6 +136,14 @@ the primary pill, step labels, status, and verified numerals — and never shade
 background fields. The page demonstrates the same control it promises: reviewed
 gates stay visible from draft to go-live.
 
+The platform surfaces carry the same world to the Operate side. Dashboard, billing,
+the onboarding wizard, the builder workspace, and the plans console restyle on one
+token layer (`static/platform.css`) that re-points the legacy merchant variables at
+these canonical tokens and scopes every new rule under `.e-main`. The landing's
+display theatre steps down to dense, calm tool chrome; the vocabulary — white
+cards, hairlines, one green action pair — is the same product proving its promise
+from inside.
+
 **Key Characteristics:**
 
 - White canvas and green-tinted wash with near-black evergreen ink and 1px hairlines.
@@ -139,6 +153,10 @@ gates stay visible from draft to go-live.
 - Full-width Archivo (700–800) display over self-hosted Inter body.
 - Near-black-green night band for guarded commerce, the pricing head, and the footer.
 - Conversion pacing: proof layer, workflow, commerce, migration, CMS, pricing, and FAQ.
+- Operate-scope surfaces (dashboard, billing, onboarding, builder, plans console)
+  ride this token layer through platform.css, every restyle scoped under `.e-main`.
+- Outside marketing the body ground is the wash; white returns at the chrome bar,
+  cards, and fields, and status chips retint to Green Wash and the danger tint.
 
 ## Colors
 
@@ -162,13 +180,15 @@ night-green family reserved for guarded structure.
 - **Night Soft / Night Line / Night Text:** The dark-band copy, hairline, and text
   counterparts of the ink / line / night system.
 - **Green Wash:** A pale evergreen tint identifying green-system moments: input-hover
-  fills for the Google buttons and the email-verification notice.
+  fills for the Google buttons and the email-verification notice. On platform
+  surfaces it also marks checked onboarding choices and the onboarding state cards.
 
 ### Neutral
 
 - **Canvas:** The default page ground and the material cue for the whole world.
 - **Wash:** The recessive alternate plane — proof chrome, capability band, commerce
-  copy plate, and the auth page ground.
+  copy plate, and the auth page ground. Outside marketing it becomes the page ground
+  itself; the chrome bar and every card return to Canvas white.
 - **Ink / Ink Soft / Ink Faint:** Primary copy; secondary copy and ledes; metadata,
   captions, and placeholders.
 - **Line / Line Strong:** The 1px hairline structure for rows and tables; the firmer
@@ -184,7 +204,22 @@ night structures guarded surfaces. Nothing else becomes decoration, and no fourt
 accent exists.
 
 **The White Ground Rule.** White canvas is the default plane. Wash tints recessive or
-supporting fields, and Green Wash appears only where the system itself is green.
+supporting fields, and Green Wash appears only where the system itself is green. On
+platform surfaces the body ground is deliberately the wash; white returns at the
+chrome bar, the cards, and the form fields.
+
+**The Inherited Layer Rule.** Platform surfaces consume this token layer through
+`static/platform.css`, which redefines the legacy merchant variables (`--paper`,
+`--rule`, `--accent`, `--muted`, `--focus-blue`, `--shadow`, `--elevation-*`)
+to resolve against the canonical tokens and adds no second palette. Every platform
+restyle is scoped under `.e-main`; the public storefront and published sites never
+load platform.css and keep their legacy values untouched.
+
+**The State Tint Rule.** Platform status chips retint onto the system: neutral states
+sit in `#edf0ee` over Ink Soft, positive states (`o-state-positive`, `g-pass`) in
+Green Wash over Deep Evergreen, and negative states (`o-state-negative`, `g-fail`,
+`g-override`) in the danger tint `#fdece9` over `#8f2a1d`. Amber and blue state
+variants keep their legacy declarations instead of gaining retints.
 
 ## Typography
 
@@ -215,16 +250,26 @@ metadata — Step 1, Checkout, Commerce go-live — not miniature slogans.
 - **Label** (700, 0.72rem, 0.12em tracking, uppercase): Step tags, feature tags, proof
   captions, panel headers, and the "Works with" marker.
 
+**Platform type (PR 2).** Operate-scope pages keep Inter body — 400 at 15px / 1.55
+via `--type-body-*` — and pull headings down to a dense tool scale. `.e-main > h1` is
+Archivo 700 at `clamp(26px, 3vw, 36px)`, line-height 1.06, tracking −0.02em, with
+`font-stretch: 100%` pinned because `site-editor.css` still declares the retired 75%
+condensed width on raw `h1` and Archivo is a variable-width (62–125%) family whose
+width must be enforced, not inherited. Section `h2`s drop to 20px / 700 / −0.01em,
+and the billing plan numeral (`.b-current-plan`) renders in Archivo.
+
 ### Named Rules
 
 **The Local Type Rule.** The marketing page never makes an outbound font request.
 `static/fonts.css` loads `static/fonts/Archivo-Variable.woff2` (100–900 weight,
 62–125% width) and `static/fonts/Inter-Variable.woff2` (100–900 weight) before
-`static/marketing.css`.
+`static/marketing.css`; `platform_page` loads the same `fonts.css` before
+`site.css` / `platform.css` / `site-editor.css`, so both scopes render locally too.
 
 **The Uncondensed Display Rule.** Display type renders at Archivo's default width.
 The condensed 72% stretch belongs to the retired editorial world and is not carried
-onto rebranded surfaces.
+onto rebranded surfaces. The platform enforces this mechanically: `.e-main > h1`
+declares `font-stretch: 100%` over the legacy 75% declaration in `site-editor.css`.
 
 **The Metadata Label Rule.** Small type has a job — status, category, step, or proof
 caption. Do not use tiny labels as ornamental texture.
@@ -245,6 +290,16 @@ The commerce band is full-bleed night with a sticky intro column (`top: 96px`) b
 a ruled proof list and two photo cards. The footer repeats the night band. Auth pages
 center a 540px sheet on the wash ground; signup uses a two-column copy-and-form
 composition.
+
+On platform surfaces the shell is `platform_page` (`app/platform_ui.py`): a sticky
+chrome bar (`.e-top`, white at `rgba(255, 255, 255, 0.88)` with backdrop blur above
+a hairline) over one `.e-main` column — max 1550px, padded 30px / 4% / 100px — that
+hosts the dashboard, billing, the onboarding wizard, the builder workspace, and the
+plans console, along with the customer-account and sandbox checkout/subscription
+screens that mount the same shell. The platform re-stacks its editor and workspace
+grids at 900px and 520px and runs the 4/8/12/16/24/32/48/64px spacing scale
+(`--space-4`…`--space-64`). No platform page-entry motion was added; the landing's
+rise stays a marketing-scope device.
 
 Responsive behavior: at 1180px the hero rebalances; at 980px the shell tightens to
 `min(100% - 40px, 760px)`, anchor links disappear, paired columns stack, the sticky
@@ -274,7 +329,8 @@ close contact layer plus a tall diffuse layer — so lifts read as physical, not
 ### Shadow Vocabulary
 
 - **Card** (`--shadow-card: 0 1px 2px rgba(13, 23, 19, 0.05), 0 10px 28px rgba(13, 23, 19, 0.1)`):
-  Resting evidence cards, the CMS proof, the auth card, and signup/verification sheets.
+  Resting evidence cards, the CMS proof, the auth card, and signup/verification sheets;
+  on platform surfaces also `.e-card`, `.b-plan`, `.n-decision-grid`, and `.o-metric`.
 - **Float** (`--shadow-float: 0 2px 4px rgba(13, 23, 19, 0.06), 0 20px 44px rgba(13, 23, 19, 0.16)`):
   The browser-framed proof, the AI-update panel, and the go-live checklist chip.
 - **Bloom** (`--shadow-bloom: 0 2px 4px rgba(13, 23, 19, 0.07), 0 28px 60px rgba(13, 23, 19, 0.2)`):
@@ -283,6 +339,9 @@ close contact layer plus a tall diffuse layer — so lifts read as physical, not
   that appears under the primary pill on hover, alongside a 1px upward shift.
 - **Dark Photo Lift** (`0 14px 34px rgba(0, 0, 0, 0.34)`): Photography cards inside
   the night band, keyed to the dark ground rather than the page ink.
+- **Inherited aliases (PR 2):** the legacy elevation variables re-point so
+  `--elevation-hero` and `--elevation-workspace` resolve to `--shadow-float` and
+  `--shadow` to `--shadow-card` — every legacy consumer inherits the layered pair.
 
 ### Named Rules
 
@@ -307,12 +366,23 @@ chrome; `--line-strong` for input and chip outlines; `--night-line` on dark. The
 sticky header keeps a translucent white field (`rgba(255, 255, 255, 0.86)`) with a
 10px backdrop blur above a hairline.
 
+**Platform ladder (PR 2).** On merchant surfaces `--radius-control` itself becomes
+999px: `.e-button`, `.n-secondary-button`, `.e-button-inverse`, the secondary
+buttons inside `.e-actions`, and `.b-tabs` tabs are all pills. Fields stay
+rectangular at 12px (`--radius-field`) on Canvas white — inputs, selects, and
+textareas in `.e-main` forms, reversing the legacy editor's full-round fields.
+Notes and onboarding choice cards round at 14px; the order metric cards and the
+`.o-table-wrap` at 16px, with square 1px-ruled rows inside the rounded,
+overflow-hidden wrap; `.e-card` stays at 20px; the billing summary, the onboarding
+state cards, and the verify-email banner rise to 24px, with `.b-summary` restored
+to a white ground over the wash page.
+
 **Iconography.** No drawn icon set ships in this PR. Markers are CSS circles (brand
 mark, browser dots, checklist dots, FAQ toggle) and typographic glyphs — an arrow in
 the proof CTA and a plus/minus pair in the FAQ indicator. The direction brief
 anticipated minimal drawn SVG icons in one stroke weight; that set did not ship, and
-if it lands in PR 2 it must hold to a single stroke weight rather than being inferred
-from this file.
+if it lands in a later PR it must hold to a single stroke weight rather than being
+inferred from this file.
 
 **The Pill Command Rule.** If it can be clicked, it is a pill. Containers may round;
 internal divisions stay square hairlines.
@@ -368,6 +438,30 @@ row is 72px (64px mobile). The brand pairs a 32px Evergreen circle mark with an
 Archivo 750 wordmark. Links sit at 0.86rem / weight 620 and deepen to Deep Evergreen
 on hover rather than acquiring accent decoration; Sign in and the small pill CTA stay
 visible at every width. The footer repeats the night band with Night Accent hovers.
+
+### Platform Surfaces (PR 2)
+
+Dashboard, billing, onboarding, the builder workspace, and the plans console are
+restyled without markup changes: the token aliases carry the look into the legacy
+class names, and `.e-main`-scoped rules retune only where legacy hardcodes leak.
+
+- **Shell:** `.e-top` chrome bar with `.e-nav` links on 44px pill hit areas, hover
+  filling Green Wash; `.e-main` is the single scoping prefix for every platform rule.
+- **Buttons:** the whole platform control rail is pill-shaped per Buttons; text
+  links keep the legacy editor's Deep Evergreen, weight-750 styling.
+- **Forms:** 12px fields on Canvas white; the focus ring is 2px Focus Blue at a 2px
+  offset on every interactive element in `.e-main` (replacing the legacy 3px / 4px
+  ring there).
+- **Status chips:** neutral `#edf0ee` over Ink Soft; positive order states and
+  go-live passes in Green Wash / Deep Evergreen; failures and overrides in `#fdece9`
+  / `#8f2a1d` at weight 750. Amber and blue variants (`i-state-missing/pending/
+  applying`) keep their legacy declarations.
+- **Tables:** header row on Wash, 1px hairline rows, `#fafbf9` row hover, and
+  `tabular-nums` money columns inside the 16px rounded wrap.
+- **Cards and metrics:** `.e-card` at 20px with `--shadow-card`; order metric cards
+  at 16px; billing `.b-summary` on white at 24px; onboarding state cards and the
+  verify-email banner at 24px over Green Wash; choice cards at 14px with checked
+  states in Green Wash.
 
 ### Browser-Framed Builder Proof
 
@@ -432,32 +526,44 @@ machinery.
 
 ### Do:
 
-- Do keep Canvas white, hairline-ruled rows, and restrained accents as the default
+- **Do** keep Canvas white, hairline-ruled rows, and restrained accents as the default
   material; let the proof and the photography carry the color.
-- Do pair each product promise with an authored proof, explicit workflow, or visible
+- **Do** pair each product promise with an authored proof, explicit workflow, or visible
   review gate, and keep go-live state visible in the hero composition.
-- Do trace every capability number to a code constant, validation invariant, or live
+- **Do** trace every capability number to a code constant, validation invariant, or live
   plan catalog value.
-- Do keep photography license-documented in `static/img/` and every page asset
+- **Do** keep photography license-documented in `static/img/` and every page asset
   self-hosted so rendering makes no third-party requests.
-- Do use the night band only for guarded commerce, the pricing head, and the footer,
+- **Do** use the night band only for guarded commerce, the pricing head, and the footer,
   with Night Accent as the dark-side link color.
-- Do preserve global focus-visible rings, semantic disclosure, honest signup
+- **Do** preserve global focus-visible rings, semantic disclosure, honest signup
   availability, and the reduced-motion kill switch.
+- **Do** reach platform styling through the alias layer and the `.e-main` scope — legacy
+  classes inherit the rebrand without markup changes; new platform restyles follow the
+  same pattern, and new shells load the same `platform_page` stack.
+- **Do** keep platform forms at 12px white fields with the 2px Focus Blue ring, and
+  state chips at the sanctioned tints (`#edf0ee` neutral, Green Wash positive,
+  `#fdece9` negative).
 
 ### Don't:
 
-- Don't invent customer logos, testimonials, prices, benchmarks, or third-party
+- **Don't** invent customer logos, testimonials, prices, benchmarks, or third-party
   product screenshots.
-- Don't reintroduce the retired warm-paper editorial devices on rebranded surfaces —
+- **Don't** reintroduce the retired warm-paper editorial devices on rebranded surfaces —
   no paper `#f4f1e9`, registration crosshairs, dot-registration fields, condensed
-  72% Archivo, or coral. PR 2 removes the remaining warm-paper surfaces onto these
-  tokens; the legacy values in `static/platform.css` are not a license.
-- Don't cast shadows on full-bleed bands, ruled rows, or tables; elevation belongs to
+  72% Archivo, or coral. PR 2 completed that removal on merchant screens: every legacy
+  variable resolves to a canonical token, and the legacy values that remain in
+  `site.css` render only where platform.css does not load.
+- **Don't** load `static/platform.css` into the public storefront or published-site
+  pages, and don't place platform restyles outside the `.e-main` scope — the legacy
+  look survives there by design.
+- **Don't** cast shadows on full-bleed bands, ruled rows, or tables; elevation belongs to
   floating artifacts and sheets.
-- Don't exceed the motion budget: one entry rise, 180ms control feedback, and the
-  one hover bloom. No ambient loops or scroll-triggered spectacle.
-- Don't let green leave its acting roles for large background fields or body copy,
-  and don't add a fourth accent beyond evergreen, night, and semantic danger.
-- Don't fetch web fonts, trackers, analytics, or decorative assets from external
+- **Don't** exceed the motion budget: one entry rise, 180ms control feedback, and the
+  one hover bloom. No ambient loops or scroll-triggered spectacle, and no new entry
+  animation on platform surfaces.
+- **Don't** let green leave its acting roles for large background fields or body copy,
+  and don't add a fourth accent beyond evergreen, night, and semantic danger — amber
+  and blue state hues stay on their legacy chips instead of spreading.
+- **Don't** fetch web fonts, trackers, analytics, or decorative assets from external
   origins.

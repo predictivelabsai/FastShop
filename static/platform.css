@@ -1,36 +1,58 @@
-/* FastShop merchant/admin design tokens. This layer intentionally overrides the
-   legacy storefront variables from site.css without changing that storefront. */
+/* FastShop platform surfaces — the shipping rebrand token layer.
+   Same vocabulary as static/marketing.css (canvas #ffffff / wash #f5f7f6 /
+   evergreen #0e7d55), aliased onto the legacy variable names so
+   site.css + site-editor.css + site-workspace.css merchants inherit it
+   without markup changes. Public storefront pages and published sites do
+   NOT load platform.css and stay untouched. */
 :root {
   color-scheme: light;
 
-  /* Palette */
-  --paper: #f4f1e9;
-  --paper-bright: #fbfaf6;
-  --ink: #16201c;
-  --ink-soft: #49534e;
-  --rule: #c7c8be;
-  --fastshop-green: #087f5b;
-  --fastshop-green-dark: #05563e;
-  --mint-wash: #d9eadf;
-  --night: #13221c;
-  --focus-blue: #005fcc;
-  --white: #fff;
+  /* Canonical rebrand palette (mirrors marketing.css :root) */
+  --canvas: #ffffff;
+  --wash: #f5f7f6;
+  --ink: #0d1713;
+  --ink-soft: #4c5a53;
+  --ink-faint: #5f6b64;
+  --line: #e3e8e5;
+  --line-strong: #ccd5d0;
+  --green: #0e7d55;
+  --green-deep: #0a5f41;
+  --green-wash: #e9f3ee;
+  --night: #10201a;
+  --night-soft: #a9bab3;
+  --night-line: #2c3f37;
+  --night-accent: #7fd6ae;
+  --focus: #005fcc;
   --danger: #b42318;
 
-  /* Backwards-compatible platform aliases */
-  --soft: var(--paper-bright);
-  --muted: var(--ink-soft);
-  --line: var(--rule);
-  --accent: var(--fastshop-green);
-  --accent-dark: var(--fastshop-green-dark);
-  --tint: var(--mint-wash);
-  --green: var(--fastshop-green);
-  --green-dark: var(--fastshop-green-dark);
-  --mint: var(--mint-wash);
-  --focus: var(--focus-blue);
+  /* Legacy aliases kept so site.css / site-editor.css / site-workspace.css
+     resolve against the rebrand (see docs/PR2 brief). */
+  --paper: var(--wash);
+  --paper-bright: var(--canvas);
+  --soft: var(--wash);
+  --rule: var(--line);
+  --fastshop-green: var(--green);
+  --fastshop-green-dark: var(--green-deep);
+  --mint-wash: var(--green-wash);
+  --accent: var(--green);
+  --accent-dark: var(--green-deep);
+  --tint: var(--green-wash);
+  --muted: var(--ink-faint);
+  --green-dark: var(--green-deep);
+  --mint: var(--green-wash);
+  --focus-blue: var(--focus);
+  --warm: var(--green-wash);
+  --white: #fff;
+
+  /* Layered elevation (mirrors marketing.css) */
+  --shadow-card: 0 1px 2px rgba(13, 23, 19, 0.05), 0 10px 28px rgba(13, 23, 19, 0.1);
+  --shadow-float: 0 2px 4px rgba(13, 23, 19, 0.06), 0 20px 44px rgba(13, 23, 19, 0.16);
+  --elevation-hero: var(--shadow-float);
+  --elevation-workspace: var(--shadow-float);
+  --shadow: var(--shadow-card);
 
   /* Local type families retain system fallbacks for unsupported glyphs. */
-  --font-display: "Archivo", "Arial Narrow", "Aptos Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
   --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
   /* Spacing scale: 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64px */
@@ -43,15 +65,11 @@
   --space-48: 48px;
   --space-64: 64px;
 
-  /* Shape */
-  --radius-control: 8px;
-  --radius-card: 10px;
+  /* Shape: pill commands, twelve-pixel fields, twenty-pixel cards */
+  --radius-control: 999px;
+  --radius-field: 12px;
+  --radius-card: 20px;
   --radius-pill: 999px;
-
-  /* Proof elevation */
-  --elevation-hero: 0 24px 60px rgba(23, 35, 29, 0.14), 0 6px 16px rgba(23, 35, 29, 0.08);
-  --elevation-workspace: 0 22px 50px rgba(23, 35, 29, 0.12);
-  --shadow: var(--elevation-workspace);
 
   /* Type scale */
   --type-display-size: clamp(3.2rem, 5.6vw, 5.9rem);
@@ -74,4 +92,144 @@
   --type-label-weight: 800;
   --type-label-line-height: 1.55;
   --type-label-letter-spacing: 0.12em;
+}
+
+/* ---------- Platform-scope restorations where legacy hardcodes leak ---------- */
+
+/* Page ground is the wash; the sticky chrome bar stays white. */
+body {
+  background: var(--wash);
+}
+body .e-top {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+/* Archivo replaces the Georgia display face inside platform shells only. */
+.e-main > h1 {
+  font-family: var(--font-display);
+  font-stretch: 100%;
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.06;
+}
+.e-main .b-current-plan {
+  font-family: var(--font-display);
+}
+.e-main .e-plan-heading h2,
+.e-main .e-dashboard-section-heading h2,
+.e-main .b-section-heading h2,
+.e-main .n-wizard > div > h2,
+.e-main .n-failure-state > h2,
+.e-main .e-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Cards and panels rest on the wash with soft depth. */
+.e-main .e-card,
+.e-main .b-plan,
+.e-main .n-decision-grid,
+.e-main .o-metric {
+  box-shadow: var(--shadow-card);
+}
+.e-main .o-metric {
+  border-radius: 16px;
+}
+.e-main .o-table-wrap {
+  border-radius: 16px;
+  overflow: hidden;
+}
+/* Summaries rest back on white; their tinted divider structure stays. */
+.e-main .b-summary {
+  background: var(--canvas);
+}
+.e-main .b-summary,
+.e-main .n-state-card,
+.e-main .n-onboarding-banner {
+  border-radius: 24px;
+}
+.e-main .e-note {
+  border-radius: 14px;
+}
+
+/* Pill commands: every platform control group is a capsule. */
+.e-main .e-button,
+.e-main .n-secondary-button,
+.e-main .e-button-inverse,
+.e-main .e-actions button:not(.e-button):not(.n-secondary-button):not(.e-button-inverse),
+.e-main .b-tabs button {
+  border-radius: var(--radius-pill);
+}
+
+/* Twelve-pixel fields: forms, filters and choice cards stay rectangular. */
+.e-main form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.e-main form select,
+.e-main form textarea {
+  border-radius: var(--radius-field);
+  background: var(--canvas);
+}
+.e-main .n-choice {
+  border-radius: 14px;
+}
+
+/* Visible focus, always. */
+.e-main a:focus-visible,
+.e-main button:focus-visible,
+.e-main input:focus-visible,
+.e-main select:focus-visible,
+.e-main textarea:focus-visible {
+  outline: 2px solid var(--focus-blue);
+  outline-offset: 2px;
+}
+
+/* Status chips and table hovers retinted from the legacy palette to the
+   rebrand's green tint / danger tint. Variant rules follow the base so the
+   0-2-0 cascade keeps them; amber and blue states keep their legacy hues. */
+.e-main .i-state,
+.e-main .o-state,
+.e-main .i-state-missing,
+.e-main .i-state-applying {
+  background: #edf0ee;
+  color: var(--ink-soft);
+}
+/* Ready-to-apply integration states join the rebrand's green confirmation. */
+.e-main .i-state-ready,
+.e-main .i-state-applied {
+  background: var(--green-wash);
+  color: var(--green-deep);
+}
+.e-main .i-state-missing,
+.e-main .i-state-applying {
+  background: #fff5df;
+  color: #704b00;
+}
+.e-main .i-state-pending {
+  background: #edf2ff;
+  color: #23458a;
+}
+.e-main .g-state-live {
+  color: var(--green-deep);
+}
+.e-main .o-state-positive,
+.e-main .g-pass {
+  background: var(--green-wash);
+  color: var(--green-deep);
+}
+.e-main .o-state-negative,
+.e-main .g-fail,
+.e-main .g-override {
+  background: #fdece9;
+  color: #8f2a1d;
+}
+.e-main .o-state-negative,
+.e-main .g-override {
+  font-weight: 750;
+}
+.e-main .o-table-wrap tbody tr:hover {
+  background: #fafbf9;
+}
+.e-main th {
+  background: var(--soft);
 }

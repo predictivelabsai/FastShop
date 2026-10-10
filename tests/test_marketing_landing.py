@@ -112,6 +112,42 @@ def test_platform_rewrites_do_not_apply_to_a_non_platform_host(monkeypatch):
     assert demo_response.status_code == 404
 
 
+def test_loopback_hosts_reach_the_platform_landing_in_development(monkeypatch):
+    monkeypatch.setattr(
+        site_context,
+        "settings",
+        replace(
+            site_context.settings,
+            environment="development",
+            public_url="http://localhost:5025",
+        ),
+    )
+    for host in ("127.0.0.1", "localhost", "[::1]"):
+        response = _client().get("/", headers={"host": host})
+        assert response.status_code == 200
+        assert "/static/marketing.css" in response.text
+        assert "/static/site.css" not in response.text
+    demo_response = _client().get("/demo", headers={"host": "127.0.0.1"})
+    assert demo_response.status_code == 200
+    assert "/static/site.css" in demo_response.text
+
+
+def test_loopback_aliasing_is_development_only(monkeypatch):
+    monkeypatch.setattr(
+        site_context,
+        "settings",
+        replace(
+            site_context.settings,
+            environment="production",
+            public_url="https://platform.fastshop.example",
+        ),
+    )
+    response = _client().get("/", headers={"host": "127.0.0.1"})
+    assert response.status_code == 200
+    assert "/static/site.css" in response.text
+    assert "/static/marketing.css" not in response.text
+
+
 def test_demo_prefix_requires_an_exact_path_segment(monkeypatch):
     monkeypatch.setattr(
         site_context,

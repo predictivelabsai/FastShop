@@ -19,9 +19,20 @@ class SiteHostMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         headers = dict(scope.get("headers", []))
-        host = headers.get(b"host", b"").decode("latin-1").split(":", 1)[0].lower().rstrip(".")
+        host = headers.get(b"host", b"").decode("latin-1")
+        # A bracketed IPv6 host (e.g. "[::1]:5025") must not be cut at its
+        # first colon; the bracket delimiters carry the port.
+        if host.startswith("[") and "]" in host:
+            host = host[1:host.index("]")]
+        else:
+            host = host.split(":", 1)[0]
+        host = host.lower().rstrip(".")
         path = scope.get("path", "/")
         platform_host = (urlsplit(settings.public_url).hostname or "").lower().rstrip(".")
+        # In development the loopback aliases are the same platform host, so the
+        # landing rewrite applies however the merchant reaches the local app.
+        if settings.environment == "development" and host in ("localhost", "127.0.0.1", "::1"):
+            host = platform_host
         if host == platform_host and path == "/":
             scope = dict(scope)
             scope["path"] = "/marketing/"
