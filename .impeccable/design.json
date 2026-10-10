@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-10T10:16:38Z",
+  "generatedAt": "2026-10-10T13:46:39Z",
   "title": "Design System: FastShop",
   "extensions": {
     "colorMeta": {
@@ -286,12 +286,12 @@
       {
         "name": "shadow-card",
         "value": "0 1px 2px rgba(13, 23, 19, 0.05), 0 10px 28px rgba(13, 23, 19, 0.1)",
-        "purpose": "Resting evidence cards, CMS proof, auth card, signup and verification sheets."
+        "purpose": "Resting evidence cards, CMS proof, auth card, signup and verification sheets; on platform surfaces also .e-card, .b-plan, .n-decision-grid, .o-metric."
       },
       {
         "name": "shadow-float",
         "value": "0 2px 4px rgba(13, 23, 19, 0.06), 0 20px 44px rgba(13, 23, 19, 0.16)",
-        "purpose": "Browser-framed proof, AI-update panel, go-live checklist chip at rest."
+        "purpose": "Browser-framed proof, AI-update panel, go-live checklist chip at rest; aliased to the legacy --elevation-hero / --elevation-workspace variables."
       },
       {
         "name": "shadow-bloom",
@@ -328,7 +328,7 @@
       {
         "name": "entry-rise",
         "value": "m-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) both, 14px rise + fade; 90ms stagger on the proof stage",
-        "purpose": "The single page-entry animation on hero copy and proof stage."
+        "purpose": "The single page-entry animation on hero copy and proof stage; stays a marketing-scope device, no platform entry motion added."
       },
       {
         "name": "reduced-motion",
@@ -352,6 +352,14 @@
       {
         "name": "tight",
         "value": "400px"
+      },
+      {
+        "name": "editor",
+        "value": "900px"
+      },
+      {
+        "name": "editor-tight",
+        "value": "520px"
       }
     ]
   },
@@ -388,6 +396,14 @@
       "css": ".ds-chip { display: inline-flex; align-items: center; padding: 9px 15px; border: 1px solid var(--line-strong, #ccd5d0); border-radius: 999px; background: var(--canvas, #fff); color: var(--ink, #0d1713); font-family: var(--font-body, \"Inter\", ui-sans-serif, system-ui, sans-serif); font-size: 0.78rem; font-weight: 620; }"
     },
     {
+      "name": "State Chip",
+      "kind": "chip",
+      "refersTo": "state-chip",
+      "description": "Pill status chip across orders, integrations, and go-live checks; retinted onto the rebrand's green and danger tints.",
+      "html": "<span class=\"ds-state-chip\">Shipped</span> <span class=\"ds-state-chip ds-state-chip-positive\">Paid</span> <span class=\"ds-state-chip ds-state-chip-negative\">Failed</span>",
+      "css": ".ds-state-chip { display: inline-block; padding: 3px 9px; border-radius: 999px; background: #edf0ee; color: var(--ink-soft, #4c5a53); font-family: var(--font-body, \"Inter\", ui-sans-serif, system-ui, sans-serif); font-size: 11px; font-weight: 750; white-space: nowrap; } .ds-state-chip-positive { background: var(--green-wash, #e9f3ee); color: var(--green-deep, #0a5f41); } .ds-state-chip-negative { background: #fdece9; color: #8f2a1d; font-weight: 750; }"
+    },
+    {
       "name": "Evidence Card",
       "kind": "card",
       "refersTo": "evidence-card",
@@ -420,7 +436,7 @@
   ],
   "narrative": {
     "northStar": "The Working Storefront",
-    "overview": "FastShop's marketing surface is a light neutral SaaS world in which the product is shown actually working. The proof is a browser-framed builder framing a live-looking storefront, its product slots filled with real photography, with a floating AI-update panel and a go-live checklist oversailing the frame. White canvas, near-black evergreen ink, and one evergreen action color carry the page; a near-black-green night band structures commerce, pricing, and the footer.\n\nThe world alternates density on purpose: airy, photo-forward cards are followed by dense, ruled evidence tables. Evergreen green acts and never shades large background fields. The page demonstrates the same control it promises: reviewed gates stay visible from draft to go-live.",
+    "overview": "FastShop's marketing surface is a light neutral SaaS world in which the product is shown actually working. The proof is a browser-framed builder framing a live-looking storefront, its product slots filled with real photography, with a floating AI-update panel and a go-live checklist oversailing the frame. White canvas, near-black evergreen ink, and one evergreen action color carry the page; a near-black-green night band structures commerce, pricing, and the footer.\n\nThe world alternates density on purpose: airy, photo-forward cards are followed by dense, ruled evidence tables. Evergreen green acts and never shades large background fields. The page demonstrates the same control it promises: reviewed gates stay visible from draft to go-live.\n\nThe platform surfaces carry the same world to the Operate side. Dashboard, billing, the onboarding wizard, the builder workspace, and the plans console restyle on one token layer (static/platform.css) that re-points the legacy merchant variables at these canonical tokens and scopes every new rule under .e-main. The landing's display theatre steps down to dense, calm tool chrome; the vocabulary - white cards, hairlines, one green action pair - is the same product proving its promise from inside.",
     "keyCharacteristics": [
       "White canvas and green-tinted wash with near-black evergreen ink and 1px hairlines.",
       "Evergreen primary carried forward from the old brand, deepened for contrast.",
@@ -428,7 +444,9 @@
       "Pill CTAs at 999px; photo-forward cards at 16-24px with soft layered shadows.",
       "Full-width Archivo (700-800) display over self-hosted Inter body.",
       "Near-black-green night band for guarded commerce, the pricing head, and the footer.",
-      "Conversion pacing: proof layer, workflow, commerce, migration, CMS, pricing, and FAQ."
+      "Conversion pacing: proof layer, workflow, commerce, migration, CMS, pricing, and FAQ.",
+      "Operate-scope surfaces (dashboard, billing, onboarding, builder, plans console) ride this token layer through platform.css, every restyle scoped under .e-main.",
+      "Outside marketing the body ground is the wash; white returns at the chrome bar, cards, and fields, and status chips retint to Green Wash and the danger tint."
     ],
     "rules": [
       {
@@ -438,17 +456,27 @@
       },
       {
         "name": "The White Ground Rule",
-        "body": "White canvas is the default plane. Wash tints recessive or supporting fields, and Green Wash appears only where the system itself is green.",
+        "body": "White canvas is the default plane. Wash tints recessive or supporting fields, and Green Wash appears only where the system itself is green. On platform surfaces the body ground is deliberately the wash; white returns at the chrome bar, the cards, and the form fields.",
+        "section": "colors"
+      },
+      {
+        "name": "The Inherited Layer Rule",
+        "body": "Platform surfaces consume this token layer through static/platform.css, which redefines the legacy merchant variables (--paper, --rule, --accent, --muted, --focus-blue, --shadow, --elevation-*) to resolve against the canonical tokens and adds no second palette. Every platform restyle is scoped under .e-main; the public storefront and published sites never load platform.css and keep their legacy values untouched.",
+        "section": "colors"
+      },
+      {
+        "name": "The State Tint Rule",
+        "body": "Platform status chips retint onto the system: neutral states sit in #edf0ee over Ink Soft, positive states (o-state-positive, g-pass) in Green Wash over Deep Evergreen, and negative states (o-state-negative, g-fail, g-override) in the danger tint #fdece9 over #8f2a1d. Amber and blue state variants keep their legacy declarations instead of gaining retints.",
         "section": "colors"
       },
       {
         "name": "The Local Type Rule",
-        "body": "The marketing page never makes an outbound font request. static/fonts.css loads self-hosted Archivo and Inter variable fonts before static/marketing.css.",
+        "body": "The marketing page never makes an outbound font request. static/fonts.css loads self-hosted Archivo and Inter variable fonts before static/marketing.css; the platform_page shell loads the same fonts.css before site.css / platform.css / site-editor.css.",
         "section": "typography"
       },
       {
         "name": "The Uncondensed Display Rule",
-        "body": "Display type renders at Archivo's default width. The condensed 72% stretch belongs to the retired editorial world and is not carried onto rebranded surfaces.",
+        "body": "Display type renders at Archivo's default width. The condensed 72% stretch belongs to the retired editorial world and is not carried onto rebranded surfaces. The platform enforces this mechanically: .e-main > h1 declares font-stretch: 100% over the legacy 75% declaration in site-editor.css.",
         "section": "typography"
       },
       {
@@ -493,14 +521,17 @@
       "Do trace every capability number to a code constant, validation invariant, or live plan catalog value.",
       "Do keep photography license-documented in static/img/ and every page asset self-hosted so rendering makes no third-party requests.",
       "Do use the night band only for guarded commerce, the pricing head, and the footer, with Night Accent as the dark-side link color.",
-      "Do preserve global focus-visible rings, semantic disclosure, honest signup availability, and the reduced-motion kill switch."
+      "Do preserve global focus-visible rings, semantic disclosure, honest signup availability, and the reduced-motion kill switch.",
+      "Do reach platform styling through the alias layer and the .e-main scope - legacy classes inherit the rebrand without markup changes; new platform restyles follow the same pattern, and new shells load the same platform_page stack.",
+      "Do keep platform forms at 12px white fields with the 2px Focus Blue ring, and state chips at the sanctioned tints (#edf0ee neutral, Green Wash positive, #fdece9 negative)."
     ],
     "donts": [
       "Don't invent customer logos, testimonials, prices, benchmarks, or third-party product screenshots.",
-      "Don't reintroduce the retired warm-paper editorial devices on rebranded surfaces - no paper #f4f1e9, registration crosshairs, dot-registration fields, condensed 72% Archivo, or coral.",
+      "Don't reintroduce the retired warm-paper editorial devices on rebranded surfaces - no paper #f4f1e9, registration crosshairs, dot-registration fields, condensed 72% Archivo, or coral. PR 2 completed that removal on merchant screens: every legacy variable resolves to a canonical token, and the legacy values that remain in site.css render only where platform.css does not load.",
+      "Don't load static/platform.css into the public storefront or published-site pages, and don't place platform restyles outside the .e-main scope - the legacy look survives there by design.",
       "Don't cast shadows on full-bleed bands, ruled rows, or tables; elevation belongs to floating artifacts and sheets.",
-      "Don't exceed the motion budget: one entry rise, 180ms control feedback, and the one hover bloom. No ambient loops or scroll-triggered spectacle.",
-      "Don't let green leave its acting roles for large background fields or body copy, and don't add a fourth accent beyond evergreen, night, and semantic danger.",
+      "Don't exceed the motion budget: one entry rise, 180ms control feedback, and the one hover bloom. No ambient loops or scroll-triggered spectacle, and no new entry animation on platform surfaces.",
+      "Don't let green leave its acting roles for large background fields or body copy, and don't add a fourth accent beyond evergreen, night, and semantic danger - amber and blue state hues stay on their legacy chips instead of spreading.",
       "Don't fetch web fonts, trackers, analytics, or decorative assets from external origins."
     ]
   }
