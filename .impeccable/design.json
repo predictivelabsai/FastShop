@@ -1,129 +1,346 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-08T22:45:57.0738706Z",
-  "title": "Design System: FastShop Marketing",
+  "generatedAt": "2026-10-10T10:16:38Z",
+  "title": "Design System: FastShop",
   "extensions": {
     "colorMeta": {
-      "paper": {
+      "canvas": {
         "role": "neutral",
-        "displayName": "Warm Uncoated Paper",
-        "canonical": "#f4f1e9",
-        "tonalRamp": ["#444341", "#7a7874", "#b0aea8", "#f4f1e9", "#f7f4ee", "#faf8f4", "#fcfbf9", "#fefefd"]
+        "displayName": "Canvas",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#404040",
+          "#808080",
+          "#b8b8b8",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff"
+        ]
       },
-      "paper-bright": {
+      "wash": {
         "role": "neutral",
-        "displayName": "Bright Proof Paper",
-        "canonical": "#fbfaf6",
-        "tonalRamp": ["#464645", "#7e7d7b", "#b5b4b1", "#fbfaf6", "#fcfbf8", "#fdfcfa", "#fefefc", "#fffefe"]
+        "displayName": "Wash",
+        "canonical": "#f5f7f6",
+        "tonalRamp": [
+          "#3d3e3e",
+          "#7a7c7b",
+          "#b0b2b1",
+          "#f5f7f6",
+          "#f8f9f8",
+          "#fafbfb",
+          "#fdfefd",
+          "#ffffff"
+        ]
       },
       "ink": {
         "role": "neutral",
-        "displayName": "Botanical Ink",
-        "canonical": "#16201c",
-        "tonalRamp": ["#060908", "#0b100e", "#101714", "#16201c", "#505855", "#8a908e", "#bec1bf", "#e8e9e8"]
+        "displayName": "Ink",
+        "canonical": "#0d1713",
+        "tonalRamp": [
+          "#030605",
+          "#060c0a",
+          "#09110e",
+          "#0d1713",
+          "#4a514e",
+          "#929795",
+          "#d3d5d5",
+          "#f8f8f8"
+        ]
       },
       "ink-soft": {
         "role": "neutral",
-        "displayName": "Soft Ink",
-        "canonical": "#49534e",
-        "tonalRamp": ["#141716", "#242a27", "#353c38", "#49534e", "#767e7a", "#a4a9a6", "#cccfcd", "#edeeed"]
+        "displayName": "Ink Soft",
+        "canonical": "#4c5a53",
+        "tonalRamp": [
+          "#131615",
+          "#262d2a",
+          "#37413c",
+          "#4c5a53",
+          "#79837e",
+          "#aeb5b2",
+          "#dfe1e0",
+          "#fafafa"
+        ]
       },
-      "rule": {
+      "ink-faint": {
         "role": "neutral",
-        "displayName": "Press Rule",
-        "canonical": "#c7c8be",
-        "tonalRamp": ["#383835", "#64645f", "#8f9089", "#c7c8be", "#d5d6ce", "#e3e4de", "#eff0ed", "#f9faf8"]
+        "displayName": "Ink Faint",
+        "canonical": "#5f6b64",
+        "tonalRamp": [
+          "#181b19",
+          "#303632",
+          "#444d48",
+          "#5f6b64",
+          "#87908b",
+          "#b7bcb9",
+          "#e2e4e3",
+          "#fafbfa"
+        ]
       },
-      "fastshop-green": {
+      "line": {
+        "role": "neutral",
+        "displayName": "Line",
+        "canonical": "#e3e8e5",
+        "tonalRamp": [
+          "#393a39",
+          "#727472",
+          "#a3a7a5",
+          "#e3e8e5",
+          "#eaeeec",
+          "#f2f5f3",
+          "#fafbfa",
+          "#fefefe"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Line Strong",
+        "canonical": "#ccd5d0",
+        "tonalRamp": [
+          "#333534",
+          "#666a68",
+          "#939996",
+          "#ccd5d0",
+          "#d9e0dc",
+          "#e8ecea",
+          "#f6f7f7",
+          "#fdfefe"
+        ]
+      },
+      "green": {
         "role": "primary",
-        "displayName": "FastShop Green",
-        "canonical": "#087f5b",
-        "tonalRamp": ["#022419", "#04402e", "#065b42", "#087f5b", "#469f84", "#84bfad", "#badbd1", "#e6f2ef"]
+        "displayName": "Evergreen",
+        "canonical": "#0e7d55",
+        "tonalRamp": [
+          "#041f15",
+          "#073e2a",
+          "#0a5a3d",
+          "#0e7d55",
+          "#4a9e80",
+          "#93c4b2",
+          "#d4e8e0",
+          "#f8fbfa"
+        ]
       },
-      "fastshop-green-dark": {
+      "green-deep": {
         "role": "primary",
-        "displayName": "Deep FastShop Green",
-        "canonical": "#05563e",
-        "tonalRamp": ["#011811", "#022b1f", "#043e2d", "#05563e", "#44806e", "#82aa9e", "#b9d0c9", "#e6eeec"]
+        "displayName": "Deep Evergreen",
+        "canonical": "#0a5f41",
+        "tonalRamp": [
+          "#021810",
+          "#053020",
+          "#07442f",
+          "#0a5f41",
+          "#478770",
+          "#91b7aa",
+          "#d3e2dd",
+          "#f8faf9"
+        ]
       },
-      "mint-wash": {
+      "green-wash": {
         "role": "secondary",
-        "displayName": "Mint Wash",
-        "canonical": "#d9eadf",
-        "tonalRamp": ["#3d423e", "#6c7570", "#9ca8a1", "#d9eadf", "#e2efe7", "#ecf4ef", "#f4f9f6", "#fbfdfc"]
-      },
-      "coral-plate": {
-        "role": "secondary",
-        "displayName": "Coral Pricing Plate",
-        "canonical": "#e86f51",
-        "tonalRamp": ["#411f17", "#743828", "#a7503a", "#e86f51", "#ee937c", "#f4b7a8", "#f9d7ce", "#fdf1ee"]
+        "displayName": "Green Wash",
+        "canonical": "#e9f3ee",
+        "tonalRamp": [
+          "#3a3d3c",
+          "#747a77",
+          "#a8afab",
+          "#e9f3ee",
+          "#eef6f2",
+          "#f5faf7",
+          "#fbfdfc",
+          "#fefffe"
+        ]
       },
       "night": {
         "role": "neutral",
-        "displayName": "Night Ink",
-        "canonical": "#13221c",
-        "tonalRamp": ["#050a08", "#0a110e", "#0e1814", "#13221c", "#4e5955", "#89908e", "#bdc1bf", "#e7e9e8"]
+        "displayName": "Night Green",
+        "canonical": "#10201a",
+        "tonalRamp": [
+          "#040806",
+          "#08100d",
+          "#0c1713",
+          "#10201a",
+          "#4c5853",
+          "#939b98",
+          "#d4d7d6",
+          "#f8f8f8"
+        ]
       },
-      "focus-blue": {
+      "night-soft": {
+        "role": "neutral",
+        "displayName": "Night Soft",
+        "canonical": "#a9bab3",
+        "tonalRamp": [
+          "#2a2e2d",
+          "#545d5a",
+          "#7a8681",
+          "#a9bab3",
+          "#becbc6",
+          "#d8e0dd",
+          "#f0f3f1",
+          "#fcfdfd"
+        ]
+      },
+      "night-line": {
+        "role": "neutral",
+        "displayName": "Night Line",
+        "canonical": "#2c3f37",
+        "tonalRamp": [
+          "#0b100e",
+          "#16201c",
+          "#202d28",
+          "#2c3f37",
+          "#616f69",
+          "#a0a9a5",
+          "#d9dcdb",
+          "#f9f9f9"
+        ]
+      },
+      "night-accent": {
+        "role": "secondary",
+        "displayName": "Night Accent",
+        "canonical": "#7fd6ae",
+        "tonalRamp": [
+          "#20362c",
+          "#406b57",
+          "#5b9a7d",
+          "#7fd6ae",
+          "#9fe0c2",
+          "#c5eddb",
+          "#e8f8f0",
+          "#fbfefd"
+        ]
+      },
+      "night-text": {
+        "role": "neutral",
+        "displayName": "Night Text",
+        "canonical": "#eef4f1",
+        "tonalRamp": [
+          "#3c3d3c",
+          "#777a78",
+          "#abb0ae",
+          "#eef4f1",
+          "#f2f7f4",
+          "#f7faf9",
+          "#fcfdfc",
+          "#feffff"
+        ]
+      },
+      "focus": {
         "role": "tertiary",
         "displayName": "Focus Blue",
         "canonical": "#005fcc",
-        "tonalRamp": ["#001b39", "#003066", "#004493", "#005fcc", "#4087d9", "#80afe6", "#b8d2f1", "#e6effa"]
+        "tonalRamp": [
+          "#001833",
+          "#003066",
+          "#004493",
+          "#005fcc",
+          "#4087d9",
+          "#8cb7e8",
+          "#d1e2f6",
+          "#f7fafd"
+        ]
       },
-      "white": {
-        "role": "neutral",
-        "displayName": "White",
-        "canonical": "#ffffff",
-        "tonalRamp": ["#474747", "#808080", "#b8b8b8", "#ffffff", "#ffffff", "#ffffff", "#ffffff", "#ffffff"]
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Danger",
+        "canonical": "#b42318",
+        "tonalRamp": [
+          "#2d0906",
+          "#5a120c",
+          "#821911",
+          "#b42318",
+          "#c75a52",
+          "#dd9c97",
+          "#f2d7d5",
+          "#fdf8f8"
+        ]
       }
     },
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "Hero promises only; compressed, declarative, and held to a narrow measure."
+        "purpose": "The hero promise only, held to a 13ch measure; auth pages reuse it at their own scale."
       },
       "headline": {
         "displayName": "Headline",
-        "purpose": "Major section openings and the pricing proposition."
+        "purpose": "Section openings and the pricing proposition."
       },
       "title": {
         "displayName": "Title",
-        "purpose": "Workflow steps and commerce proof headings."
+        "purpose": "Workflow steps and commerce proofs, plus compact display-font entries (brand, plan names, capability numerals)."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Readable product explanation and evidence without outbound font requests."
+        "purpose": "Explanations and evidence, generally capped at 60-62ch."
       },
       "label": {
-        "displayName": "Specimen Label",
-        "purpose": "Uppercase production metadata: status, category, step, and proof caption."
+        "displayName": "Label",
+        "purpose": "Uppercase product metadata: step tags, feature tags, panel headers, proof captions."
       }
     },
     "shadows": [
       {
-        "name": "hero-proof-lift",
-        "value": "0 24px 60px rgba(23, 35, 29, 0.14), 0 6px 16px rgba(23, 35, 29, 0.08)",
-        "purpose": "Largest lift, reserved for the generated-store proof in the hero."
+        "name": "shadow-card",
+        "value": "0 1px 2px rgba(13, 23, 19, 0.05), 0 10px 28px rgba(13, 23, 19, 0.1)",
+        "purpose": "Resting evidence cards, CMS proof, auth card, signup and verification sheets."
       },
       {
-        "name": "workspace-proof-lift",
-        "value": "0 22px 50px rgba(23, 35, 29, 0.12)",
-        "purpose": "Physical-sheet lift for CMS and signup proof panels."
+        "name": "shadow-float",
+        "value": "0 2px 4px rgba(13, 23, 19, 0.06), 0 20px 44px rgba(13, 23, 19, 0.16)",
+        "purpose": "Browser-framed proof, AI-update panel, go-live checklist chip at rest."
+      },
+      {
+        "name": "shadow-bloom",
+        "value": "0 2px 4px rgba(13, 23, 19, 0.07), 0 28px 60px rgba(13, 23, 19, 0.2)",
+        "purpose": "Hover state of the two floating panels only - the single authored bloom."
+      },
+      {
+        "name": "action-lift",
+        "value": "0 6px 16px rgba(14, 125, 85, 0.24)",
+        "purpose": "Evergreen-tinted shadow under the primary pill on hover, with a 1px lift."
+      },
+      {
+        "name": "dark-photo-lift",
+        "value": "0 14px 34px rgba(0, 0, 0, 0.34)",
+        "purpose": "Photography cards inside the night band, keyed to the dark ground."
       }
     ],
     "motion": [
       {
-        "name": "control-lift",
-        "value": "background-color 180ms ease-out, transform 180ms ease-out",
-        "purpose": "Restrained CTA feedback; hover translates upward by 2px."
+        "name": "control-feedback",
+        "value": "background-color 180ms ease-out, transform 180ms ease-out, box-shadow 180ms ease-out",
+        "purpose": "Button hover: field deepens, 1px lift, evergreen Action Lift shadow."
+      },
+      {
+        "name": "field-focus",
+        "value": "border-color 160ms ease-out",
+        "purpose": "Input borders deepen to Evergreen on focus."
+      },
+      {
+        "name": "float-bloom",
+        "value": "box-shadow 220ms ease-out, transform 220ms ease-out",
+        "purpose": "Floating panels bloom to --shadow-bloom and lift 4px - the one authored hover moment."
+      },
+      {
+        "name": "entry-rise",
+        "value": "m-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) both, 14px rise + fade; 90ms stagger on the proof stage",
+        "purpose": "The single page-entry animation on hero copy and proof stage."
       },
       {
         "name": "reduced-motion",
         "value": "none",
-        "purpose": "Disable transitions and smooth scrolling when reduced motion is requested."
+        "purpose": "Global kill of transitions, animations, and smooth scrolling under prefers-reduced-motion: reduce."
       }
     ],
     "breakpoints": [
+      {
+        "name": "wide",
+        "value": "1180px"
+      },
       {
         "name": "stack",
         "value": "980px"
@@ -131,6 +348,10 @@
       {
         "name": "mobile",
         "value": "640px"
+      },
+      {
+        "name": "tight",
+        "value": "400px"
       }
     ]
   },
@@ -139,107 +360,125 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Main signup or next-step action with the system's only routine filled accent.",
-      "html": "<a class=\"ds-btn-primary\" href=\"#\">Check signup status</a>",
-      "css": ".ds-btn-primary { min-height: 50px; display: inline-flex; align-items: center; justify-content: center; padding: 13px 22px; border: 1px solid var(--green, #087f5b); border-radius: 12px; background: var(--green, #087f5b); color: #fff; font-family: var(--sans, ui-sans-serif, system-ui, sans-serif); font-size: .92rem; font-weight: 750; text-decoration: none; transition: background-color 180ms ease-out, transform 180ms ease-out; } .ds-btn-primary:hover { background: var(--green-dark, #05563e); transform: translateY(-2px); } .ds-btn-primary:focus-visible { outline: 3px solid var(--focus, #005fcc); outline-offset: 4px; } .ds-btn-primary:active { transform: translateY(0); } @media (prefers-reduced-motion: reduce) { .ds-btn-primary { transition: none; } }"
+      "description": "The system's main pill action: evergreen field, 50px height, single lift on hover.",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">Create workspace</a>",
+      "css": ".ds-btn-primary { min-height: 50px; display: inline-flex; align-items: center; justify-content: center; padding: 13px 26px; border: 1px solid var(--green, #0e7d55); border-radius: 999px; background: var(--green, #0e7d55); color: var(--canvas, #fff); font-family: var(--font-body, \"Inter\", ui-sans-serif, system-ui, sans-serif); font-size: 0.92rem; font-weight: 650; letter-spacing: -0.01em; text-decoration: none; transition: background-color 180ms ease-out, transform 180ms ease-out, box-shadow 180ms ease-out; } .ds-btn-primary:hover { background: var(--green-deep, #0a5f41); border-color: var(--green-deep, #0a5f41); box-shadow: 0 6px 16px rgba(14, 125, 85, 0.24); transform: translateY(-1px); } .ds-btn-primary:active { transform: translateY(0); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus, #005fcc); outline-offset: 2px; } @media (prefers-reduced-motion: reduce) { .ds-btn-primary { transition: none; } }"
     },
     {
-      "name": "Inverse Button",
+      "name": "Small Primary Button",
       "kind": "button",
-      "refersTo": "button-inverse",
-      "description": "Dark call to action used on the coral pricing plate.",
-      "html": "<a class=\"ds-btn-inverse\" href=\"#\">Check signup status</a>",
-      "css": ".ds-btn-inverse { min-height: 50px; display: inline-flex; align-items: center; justify-content: center; padding: 13px 22px; border: 1px solid var(--ink, #16201c); border-radius: 12px; background: var(--ink, #16201c); color: #fff; font-family: var(--sans, ui-sans-serif, system-ui, sans-serif); font-size: .92rem; font-weight: 750; text-decoration: none; transition: background-color 180ms ease-out, transform 180ms ease-out; } .ds-btn-inverse:hover { background: #000; transform: translateY(-2px); } .ds-btn-inverse:focus-visible { outline: 3px solid var(--focus, #005fcc); outline-offset: 4px; } .ds-btn-inverse:active { transform: translateY(0); } @media (prefers-reduced-motion: reduce) { .ds-btn-inverse { transition: none; } }"
+      "refersTo": "button-primary-small",
+      "description": "Compact pill for header actions; still an adequate touch target.",
+      "html": "<a class=\"ds-btn-primary-small\" href=\"#\">Create workspace</a>",
+      "css": ".ds-btn-primary-small { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; padding: 9px 20px; border: 1px solid var(--green, #0e7d55); border-radius: 999px; background: var(--green, #0e7d55); color: var(--canvas, #fff); font-family: var(--font-body, \"Inter\", ui-sans-serif, system-ui, sans-serif); font-size: 0.85rem; font-weight: 650; text-decoration: none; transition: background-color 180ms ease-out, box-shadow 180ms ease-out, transform 180ms ease-out; } .ds-btn-primary-small:hover { background: var(--green-deep, #0a5f41); border-color: var(--green-deep, #0a5f41); box-shadow: 0 6px 16px rgba(14, 125, 85, 0.24); transform: translateY(-1px); } .ds-btn-primary-small:focus-visible { outline: 2px solid var(--focus, #005fcc); outline-offset: 2px; } @media (prefers-reduced-motion: reduce) { .ds-btn-primary-small { transition: none; } }"
     },
     {
       "name": "Brand Mark",
       "kind": "custom",
-      "description": "Compact green registration-like mark paired with the product name.",
+      "description": "Evergreen circle mark paired with the Archivo wordmark.",
       "html": "<a class=\"ds-brand\" href=\"#\" aria-label=\"FastShop marketing home\"><span class=\"ds-brand-mark\" aria-hidden=\"true\">F</span><span>FastShop</span></a>",
-      "css": ".ds-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink, #16201c); font-family: var(--sans, ui-sans-serif, system-ui, sans-serif); font-size: 1rem; font-weight: 760; letter-spacing: -.02em; text-decoration: none; } .ds-brand-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: var(--green, #087f5b); color: #fff; font-size: .95rem; } .ds-brand:hover { text-decoration: underline; text-underline-offset: .2em; } .ds-brand:focus-visible { outline: 3px solid var(--focus, #005fcc); outline-offset: 4px; }"
+      "css": ".ds-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink, #0d1713); font-family: var(--font-display, \"Archivo\", \"Helvetica Neue\", Arial, sans-serif); font-size: 1.08rem; font-weight: 750; letter-spacing: -0.02em; text-decoration: none; } .ds-brand-mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--green, #0e7d55); color: var(--canvas, #fff); font-family: \"Inter\", ui-sans-serif, system-ui, sans-serif; font-size: 0.92rem; font-weight: 750; } .ds-brand:hover { color: var(--green-deep, #0a5f41); } .ds-brand:focus-visible { outline: 2px solid var(--focus, #005fcc); outline-offset: 2px; }"
     },
     {
-      "name": "CMS Index Chip",
+      "name": "Index Chip",
       "kind": "chip",
       "refersTo": "index-chip",
-      "description": "Outlined capability index item for concrete CMS functions.",
-      "html": "<span class=\"ds-index-chip\">Media library</span>",
-      "css": ".ds-index-chip { display: inline-flex; padding: 9px 13px; border: 1px solid var(--rule, #c7c8be); border-radius: 999px; background: transparent; color: var(--ink, #16201c); font-family: var(--sans, ui-sans-serif, system-ui, sans-serif); font-size: .78rem; font-weight: 700; }"
+      "description": "Pill-shaped capability index item with a firm hairline outline.",
+      "html": "<span class=\"ds-chip\">Media library</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; padding: 9px 15px; border: 1px solid var(--line-strong, #ccd5d0); border-radius: 999px; background: var(--canvas, #fff); color: var(--ink, #0d1713); font-family: var(--font-body, \"Inter\", ui-sans-serif, system-ui, sans-serif); font-size: 0.78rem; font-weight: 620; }"
     },
     {
-      "name": "Generated Store Proof",
-      "kind": "custom",
-      "refersTo": "proof-card",
-      "description": "Authored storefront specimen that makes generation, review state, and commerce readiness visible.",
-      "html": "<article class=\"ds-proof\"><header class=\"ds-proof-bar\"><span class=\"ds-proof-dots\" aria-hidden=\"true\"><i></i><i></i><i></i></span><span>Draft / Home</span><strong>Ready for review</strong></header><div class=\"ds-proof-sheet\"><small>NEW SEASON / DRAFT COPY</small><h3>Useful objects, made for unhurried homes.</h3><span class=\"ds-proof-link\">Explore the collection</span></div><footer class=\"ds-proof-caption\"><span>Generated draft</span><span>Illustrative interface</span></footer></article>",
-      "css": ".ds-proof { position: relative; max-width: 620px; border: 1px solid var(--ink, #16201c); background: var(--paper-bright, #fbfaf6); color: var(--ink, #16201c); font-family: var(--sans, ui-sans-serif, system-ui, sans-serif); box-shadow: 0 24px 60px rgba(23,35,29,.14), 0 6px 16px rgba(23,35,29,.08); } .ds-proof-bar { min-height: 48px; padding: 0 16px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid var(--rule, #c7c8be); color: var(--ink-soft, #49534e); font-size: .7rem; font-weight: 400; } .ds-proof-bar strong { justify-self: end; color: var(--green-dark, #05563e); font-weight: 750; } .ds-proof-dots { display: flex; gap: 6px; } .ds-proof-dots i { width: 7px; height: 7px; border: 1px solid var(--ink-soft, #49534e); border-radius: 50%; } .ds-proof-sheet { margin: 18px; min-height: 260px; padding: 42px; border: 1px solid var(--rule, #c7c8be); background: var(--mint, #d9eadf); } .ds-proof-sheet small { font-size: .58rem; font-weight: 800; letter-spacing: .12em; } .ds-proof-sheet h3 { max-width: 12ch; margin: 32px 0 40px; font-family: Georgia, serif; font-size: clamp(2rem, 5vw, 3.3rem); font-weight: 400; line-height: 1.02; letter-spacing: -.03em; } .ds-proof-link { padding-bottom: 4px; border-bottom: 1px solid currentColor; font-size: .7rem; font-weight: 750; } .ds-proof-caption { padding: 0 18px 15px; display: flex; justify-content: space-between; gap: 12px; color: var(--ink-soft, #49534e); font-size: .62rem; letter-spacing: .09em; text-transform: uppercase; }"
-    },
-    {
-      "name": "CMS Proof Card",
+      "name": "Evidence Card",
       "kind": "card",
-      "refersTo": "proof-card",
-      "description": "Dense reviewed-work surface for content status and publishing metadata.",
-      "html": "<article class=\"ds-cms-proof\"><header>CONTENT WORKSPACE</header><div><span>Page</span><strong>Journal / Materials</strong></div><div><span>Status</span><strong>Draft with 8 blocks</strong></div><div><span>Publishing</span><strong>Review required</strong></div><small>Illustrative content workspace</small></article>",
-      "css": ".ds-cms-proof { max-width: 480px; padding: 18px 24px 22px; border: 1px solid var(--ink, #16201c); background: var(--paper-bright, #fbfaf6); color: var(--ink, #16201c); font-family: var(--sans, ui-sans-serif, system-ui, sans-serif); box-shadow: 0 22px 50px rgba(23,35,29,.12); } .ds-cms-proof header { padding-bottom: 16px; border-bottom: 1px solid var(--ink, #16201c); color: var(--ink-soft, #49534e); font-size: .62rem; font-weight: 800; letter-spacing: .1em; } .ds-cms-proof div { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--rule, #c7c8be); font-size: .78rem; } .ds-cms-proof div span, .ds-cms-proof small { color: var(--ink-soft, #49534e); } .ds-cms-proof div strong { text-align: right; } .ds-cms-proof small { display: block; margin-top: 18px; }"
+      "refersTo": "evidence-card",
+      "description": "Ruled 20px-radius proof card: evergreen uppercase header over dense hairline rows.",
+      "html": "<article class=\"ds-evidence\"><small>Reviewed import path</small><div><span>01</span><strong>Preview</strong><small>Counts + warnings</small></div><div><span>02</span><strong>Review</strong><small>Mappings + scope</small></div><div><span>03</span><strong>Apply</strong><small>Tenant-owned rows</small></div><p>No provider write occurs during import review.</p></article>",
+      "css": ".ds-evidence { max-width: 420px; padding: 22px 24px; border: 1px solid var(--line, #e3e8e5); border-radius: 20px; background: var(--canvas, #fff); color: var(--ink, #0d1713); font-family: var(--font-body, \"Inter\", ui-sans-serif, system-ui, sans-serif); box-shadow: 0 1px 2px rgba(13, 23, 19, 0.05), 0 10px 28px rgba(13, 23, 19, 0.1); } .ds-evidence small { display: block; padding-bottom: 14px; border-bottom: 1px solid var(--line, #e3e8e5); color: var(--green, #0e7d55); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; } .ds-evidence > div { min-height: 56px; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 12px; border-bottom: 1px solid var(--line, #e3e8e5); } .ds-evidence > div > span { color: var(--green-deep, #0a5f41); font-size: 0.72rem; font-weight: 700; font-variant-numeric: tabular-nums; } .ds-evidence strong { font-size: 0.86rem; font-weight: 650; } .ds-evidence div small { color: var(--ink-faint, #5f6b64); font-size: 0.7rem; } .ds-evidence p { margin: 16px 0 0; color: var(--ink-soft, #4c5a53); font-size: 0.72rem; }"
+    },
+    {
+      "name": "Floating AI Panel",
+      "kind": "custom",
+      "refersTo": "floating-panel",
+      "description": "White 16px-radius proof panel floating over the builder frame; the hover bloom is the system's one authored moment (in the page it keys off the stage hover).",
+      "html": "<aside class=\"ds-panel\"><small>AI builder &middot; Update 03</small><strong>Home page refinement</strong><p>Rebalance the hero and surface the studio collection.</p><div><span>2 block edits</span><span>Review required</span></div></aside>",
+      "css": ".ds-panel { width: 236px; padding: 16px 18px; border: 1px solid var(--line, #e3e8e5); border-radius: 16px; background: var(--canvas, #fff); color: var(--ink, #0d1713); font-family: var(--font-body, \"Inter\", ui-sans-serif, system-ui, sans-serif); box-shadow: 0 2px 4px rgba(13, 23, 19, 0.06), 0 20px 44px rgba(13, 23, 19, 0.16); transition: box-shadow 220ms ease-out, transform 220ms ease-out; } .ds-panel small { color: var(--green, #0e7d55); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; } .ds-panel strong { display: block; margin: 10px 0 5px; font-size: 0.78rem; line-height: 1.3; } .ds-panel p { color: var(--ink-soft, #4c5a53); font-size: 0.7rem; line-height: 1.45; } .ds-panel div { margin-top: 12px; display: grid; gap: 7px; } .ds-panel div span { padding-top: 7px; border-top: 1px solid var(--line, #e3e8e5); color: var(--ink-soft, #4c5a53); font-size: 0.7rem; font-weight: 600; } .ds-panel:hover { box-shadow: 0 2px 4px rgba(13, 23, 19, 0.07), 0 28px 60px rgba(13, 23, 19, 0.2); transform: translateY(-4px); } @media (prefers-reduced-motion: reduce) { .ds-panel { transition: none; } }"
+    },
+    {
+      "name": "Auth Input",
+      "kind": "input",
+      "description": "48px input on a firm hairline outline; focus deepens the border to evergreen with a green caret.",
+      "html": "<input class=\"ds-input\" type=\"email\" placeholder=\"you@company.com\" aria-label=\"Email address\">",
+      "css": ".ds-input { width: 100%; min-height: 48px; padding: 11px 14px; border: 1px solid var(--line-strong, #ccd5d0); border-radius: 12px; background: var(--canvas, #fff); color: var(--ink, #0d1713); font-family: var(--font-body, \"Inter\", ui-sans-serif, system-ui, sans-serif); font-size: 1rem; caret-color: var(--green, #0e7d55); transition: border-color 160ms ease-out; } .ds-input::placeholder { color: var(--ink-faint, #5f6b64); } .ds-input:focus { border-color: var(--green, #0e7d55); outline: none; } .ds-input:focus-visible { outline: 2px solid var(--focus, #005fcc); outline-offset: 2px; }"
     },
     {
       "name": "FAQ Disclosure",
       "kind": "custom",
-      "description": "Native ruled disclosure with a clear plus-to-minus open state.",
-      "html": "<details class=\"ds-faq\"><summary>Can FastShop publish a generated site automatically?</summary><p>No. Generation creates a private draft. Review and explicit publication checks come first.</p></details>",
-      "css": ".ds-faq { border-top: 1px solid var(--ink, #16201c); border-bottom: 1px solid var(--rule, #c7c8be); color: var(--ink, #16201c); font-family: var(--sans, ui-sans-serif, system-ui, sans-serif); } .ds-faq summary { min-height: 84px; padding: 24px 46px 24px 0; display: flex; align-items: center; position: relative; list-style: none; cursor: pointer; font-size: clamp(1.05rem, 1.8vw, 1.35rem); font-weight: 720; } .ds-faq summary::-webkit-details-marker { display: none; } .ds-faq summary::after { content: '+'; position: absolute; right: 8px; font-size: 1.5rem; font-weight: 400; } .ds-faq[open] summary::after { content: '\u2212'; } .ds-faq p { max-width: 70ch; margin: -5px 0 30px; color: var(--ink-soft, #49534e); line-height: 1.55; } .ds-faq summary:hover { text-decoration: underline; text-underline-offset: .2em; } .ds-faq summary:focus-visible { outline: 3px solid var(--focus, #005fcc); outline-offset: 4px; }"
+      "description": "Native ruled disclosure whose circled plus fills evergreen and turns to a minus when open.",
+      "html": "<details class=\"ds-faq\"><summary>Can FastShop publish a generated site automatically?</summary><p>No. Generation creates a private draft. You review the content, accept or reject changes, and explicitly complete publication and commerce checks.</p></details>",
+      "css": ".ds-faq { border-top: 1px solid var(--line, #e3e8e5); color: var(--ink, #0d1713); font-family: var(--font-body, \"Inter\", ui-sans-serif, system-ui, sans-serif); } .ds-faq details { border-bottom: 1px solid var(--line, #e3e8e5); } .ds-faq summary { min-height: 80px; padding: 24px 46px 24px 0; display: flex; align-items: center; position: relative; list-style: none; cursor: pointer; font-size: clamp(1.02rem, 1.7vw, 1.26rem); font-weight: 650; } .ds-faq summary::-webkit-details-marker { display: none; } .ds-faq summary::after { content: \"+\"; position: absolute; right: 8px; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line-strong, #ccd5d0); border-radius: 50%; color: var(--green-deep, #0a5f41); font-size: 1.1rem; font-weight: 400; transition: background-color 180ms ease-out, color 180ms ease-out; } .ds-faq details[open] summary::after { content: \"\\2212\"; background: var(--green, #0e7d55); border-color: var(--green, #0e7d55); color: var(--canvas, #fff); } .ds-faq p { max-width: 70ch; margin: -5px 0 30px; color: var(--ink-soft, #4c5a53); line-height: 1.55; } .ds-faq summary:focus-visible { outline: 2px solid var(--focus, #005fcc); outline-offset: 2px; }"
     }
   ],
   "narrative": {
-    "northStar": "The Registration Proof",
-    "overview": "FastShop's marketing surface feels like an editorial production proof laid on warm, uncoated stock: direct, authored, and visibly checked before release. Condensed grotesque headlines carry the promise while compact specimen annotations, ink rules, registration crosshairs, and a quiet dot field make the act of review part of the visual language.\n\nThe world balances human warmth with operational evidence. Generated-store and CMS proofs are built from native HTML and CSS rather than borrowed screenshots, so the page demonstrates the same control it promises. Space is generous, accents are scarce, and the overall tone stays confident without hiding the gates between draft, review, and go-live.",
+    "northStar": "The Working Storefront",
+    "overview": "FastShop's marketing surface is a light neutral SaaS world in which the product is shown actually working. The proof is a browser-framed builder framing a live-looking storefront, its product slots filled with real photography, with a floating AI-update panel and a go-live checklist oversailing the frame. White canvas, near-black evergreen ink, and one evergreen action color carry the page; a near-black-green night band structures commerce, pricing, and the footer.\n\nThe world alternates density on purpose: airy, photo-forward cards are followed by dense, ruled evidence tables. Evergreen green acts and never shades large background fields. The page demonstrates the same control it promises: reviewed gates stay visible from draft to go-live.",
     "keyCharacteristics": [
-      "Warm paper planes with dark botanical ink and hairline rules.",
-      "Condensed system-grotesque display type paired with compact specimen annotations.",
-      "Registration crosshairs and dot-registration fields as a carried signature.",
-      "Restrained FastShop green for action and status, with one coral pricing plate.",
-      "Authored HTML/CSS product proof instead of third-party imagery or page assets.",
-      "Proof-led pacing: evidence first, then workflow, safeguards, migration, CMS, pricing, and FAQ."
+      "White canvas and green-tinted wash with near-black evergreen ink and 1px hairlines.",
+      "Evergreen primary carried forward from the old brand, deepened for contrast.",
+      "Browser-framed builder proof with real photography and two floating proof panels.",
+      "Pill CTAs at 999px; photo-forward cards at 16-24px with soft layered shadows.",
+      "Full-width Archivo (700-800) display over self-hosted Inter body.",
+      "Near-black-green night band for guarded commerce, the pricing head, and the footer.",
+      "Conversion pacing: proof layer, workflow, commerce, migration, CMS, pricing, and FAQ."
     ],
     "rules": [
       {
-        "name": "The Accent Restraint Rule",
-        "body": "Green signals action or trusted state; coral appears only as an editorial pricing plate. Neither becomes ambient decoration.",
+        "name": "The Green Acts Rule",
+        "body": "Green signals action, active state, or verified status; night structures guarded surfaces. Nothing else becomes decoration, and no fourth accent exists.",
         "section": "colors"
       },
       {
-        "name": "The Paper Is the Ground Rule",
-        "body": "Warm paper is the default plane. Bright white belongs inside a proof, not across the whole page.",
+        "name": "The White Ground Rule",
+        "body": "White canvas is the default plane. Wash tints recessive or supporting fields, and Green Wash appears only where the system itself is green.",
         "section": "colors"
       },
       {
         "name": "The Local Type Rule",
-        "body": "The marketing page never makes an outbound font request. Its condensed authority and body clarity must survive entirely on system and locally available fonts.",
+        "body": "The marketing page never makes an outbound font request. static/fonts.css loads self-hosted Archivo and Inter variable fonts before static/marketing.css.",
         "section": "typography"
       },
       {
-        "name": "The Specimen Scale Rule",
-        "body": "Small type is metadata with a job: status, category, or proof caption. Do not use tiny labels as ornamental texture.",
+        "name": "The Uncondensed Display Rule",
+        "body": "Display type renders at Archivo's default width. The condensed 72% stretch belongs to the retired editorial world and is not carried onto rebranded surfaces.",
+        "section": "typography"
+      },
+      {
+        "name": "The Metadata Label Rule",
+        "body": "Small type has a job - status, category, step, or proof caption. Do not use tiny labels as ornamental texture.",
         "section": "typography"
       },
       {
         "name": "The Proof Before Promise Rule",
-        "body": "Every major claim should meet evidence, workflow, or a visible review gate before the page asks for more trust.",
+        "body": "Every major claim meets evidence, workflow, or a visible review gate before the page asks for more trust.",
         "section": "layout"
       },
       {
-        "name": "The Flat Evidence Rule",
-        "body": "Structural sections remain flat; only a literal proof artifact may cast a shadow.",
+        "name": "The Single Rise Rule",
+        "body": "Page entry is one rise-and-fade animation (640ms, cubic-bezier(0.22, 1, 0.36, 1), 14px rise) applied to hero copy and proof stage with a 90ms stagger - everything else is static, and all motion stops under reduced motion.",
+        "section": "layout"
+      },
+      {
+        "name": "The Lifted Artifact Rule",
+        "body": "Shadows attach to product artifacts and floating panels, never to full-bleed bands or ruled rows; structure stays flat.",
         "section": "elevation"
       },
       {
-        "name": "The Restrained Lift Rule",
-        "body": "Interactive controls move upward by only 2px on hover and never acquire ornamental glow or bounce.",
+        "name": "The One Bloom Rule",
+        "body": "Beyond the 1px button lift, the only sanctioned hover elevation is the floating panels' bloom to --shadow-bloom with a 4px lift over 220ms. No glow, bounce, or ambient drift exists anywhere.",
         "section": "elevation"
       },
       {
-        "name": "The Press Geometry Rule",
-        "body": "Square editorial planes establish the system; rounded shapes are reserved for controls, small marks, and discrete index items.",
+        "name": "The Pill Command Rule",
+        "body": "If it can be clicked, it is a pill. Containers may round; internal divisions stay square hairlines.",
         "section": "shapes"
       },
       {
@@ -249,19 +488,19 @@
       }
     ],
     "dos": [
-      "Do use Warm Uncoated Paper, Botanical Ink, and hairline rules as the default material system.",
-      "Do pair each product promise with an authored proof, explicit workflow, or visible review gate.",
-      "Do carry registration crosshairs, specimen labels, and dot-registration fields across marketing surfaces.",
-      "Do keep signup availability visible in the first viewport and state honestly when collection is unavailable.",
-      "Do preserve keyboard focus, semantic disclosure, mobile recomposition, and reduced-motion behavior.",
-      "Do keep page assets local and system-font based so rendering makes no third-party requests."
+      "Do keep Canvas white, hairline-ruled rows, and restrained accents as the default material.",
+      "Do pair each product promise with an authored proof, explicit workflow, or visible review gate, and keep go-live state visible in the hero composition.",
+      "Do trace every capability number to a code constant, validation invariant, or live plan catalog value.",
+      "Do keep photography license-documented in static/img/ and every page asset self-hosted so rendering makes no third-party requests.",
+      "Do use the night band only for guarded commerce, the pricing head, and the footer, with Night Accent as the dark-side link color.",
+      "Do preserve global focus-visible rings, semantic disclosure, honest signup availability, and the reduced-motion kill switch."
     ],
     "donts": [
-      "Don't invent customer logos, testimonials, performance claims, or third-party product screenshots.",
-      "Don't turn green and coral into a broad multicolor palette or use coral for routine interaction.",
-      "Don't apply rounded cards and soft shadows to every section; most structure comes from paper and rules.",
-      "Don't animate registration marks, proof fields, or disclosures as ambient spectacle.",
-      "Don't replace the proof-led path with a generic feature grid or undifferentiated card wall.",
+      "Don't invent customer logos, testimonials, prices, benchmarks, or third-party product screenshots.",
+      "Don't reintroduce the retired warm-paper editorial devices on rebranded surfaces - no paper #f4f1e9, registration crosshairs, dot-registration fields, condensed 72% Archivo, or coral.",
+      "Don't cast shadows on full-bleed bands, ruled rows, or tables; elevation belongs to floating artifacts and sheets.",
+      "Don't exceed the motion budget: one entry rise, 180ms control feedback, and the one hover bloom. No ambient loops or scroll-triggered spectacle.",
+      "Don't let green leave its acting roles for large background fields or body copy, and don't add a fourth accent beyond evergreen, night, and semantic danger.",
       "Don't fetch web fonts, trackers, analytics, or decorative assets from external origins."
     ]
   }
