@@ -145,6 +145,27 @@ def test_open_marketing_page_has_live_signup_copy(signup_workspace):
     assert "Basic raises those limits to 10, 25, 250, and 5" in response.text
     assert "Pro to 50, 100, 1,000, and 25" in response.text
     assert 'href="/admin/billing"' in response.text
+    assert 'href="#how-it-works"' in response.text
+    assert 'href="#commerce"' in response.text
+    assert 'href="#pricing"' in response.text
+    assert 'href="#faq"' in response.text
+
+
+def test_auth_pages_keep_configuration_private_and_use_live_footer_links(monkeypatch):
+    login = marketing_routes.login_page("csrf", google_enabled=False, local_enabled=True)
+    login_text = login.body.decode()
+    assert "Google sign-in is not configured" not in login_text
+    assert 'class="m-auth-divider"' not in login_text
+    assert 'href="/marketing/#how-it-works"' in login_text
+    assert 'href="/signup"' in login_text
+
+    monkeypatch.setattr(marketing_routes.auth, "google_enabled", lambda: True)
+    signup = marketing_routes.signup_page(signup_open=True, csrf="csrf")
+    signup_text = signup.body.decode()
+    assert 'href="/auth/google?signup=1"' in signup_text
+    assert 'viewbox="0 0 24 24"' in signup_text
+    assert "#4285f4" in signup_text
+    assert 'href="/signup"' not in signup_text
 
 
 def test_signup_kill_switch_off_and_on(signup_workspace):
@@ -162,7 +183,14 @@ def test_signup_kill_switch_off_and_on(signup_workspace):
     workspace.settings.signup_open = True
     opened = workspace.client.get("/signup")
     assert opened.status_code == 200
-    assert "Create your FastShop workspace" in opened.text
+    assert "Create your workspace" in opened.text
+    assert 'minlength="12"' in opened.text
+    assert "At least 12 characters" in opened.text
+    assert 'href="/marketing/#how-it-works"' in opened.text
+    assert 'href="/marketing/#commerce"' in opened.text
+    assert 'href="/marketing/#pricing"' in opened.text
+    assert 'href="/marketing/#faq"' in opened.text
+    assert opened.text.count('href="/signup"') == 0
     assert 'name="csrf_token"' in opened.text
     assert 'action="/signup"' in opened.text
 

@@ -929,7 +929,13 @@ h1 {
   align-items: center;
   gap: clamp(56px, 9vw, 120px);
 }
-.m-signup-copy h1 { max-width: 11ch; }
+.m-signup-copy h1 {
+  max-width: 12ch;
+  font-size: clamp(1.7rem, 3vw, 2.2rem);
+  font-weight: 780;
+  line-height: 1.03;
+  letter-spacing: -0.032em;
+}
 .m-signup-copy > p { max-width: 58ch; color: var(--ink-soft); font-size: 1.04rem; line-height: 1.6; }
 .m-signup-path {
   padding: 26px 28px;
@@ -962,7 +968,16 @@ h1 {
   background: var(--canvas);
   box-shadow: var(--shadow-card);
 }
-.m-signup-form-sheet h2 { margin-bottom: 16px; }
+.m-signup-label {
+  display: block;
+  margin-bottom: 18px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.55;
+  text-transform: uppercase;
+}
 .m-signup-form { display: grid; gap: 10px; }
 .m-signup-form label { display: grid; gap: 7px; font-size: 0.8rem; font-weight: 650; }
 .m-signup-form input:not([type="hidden"]) {
@@ -1005,8 +1020,11 @@ h1 {
 .m-google-link {
   grid-column: 1 / -1;
   min-height: 48px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 11px 16px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   background: var(--canvas);
@@ -1016,7 +1034,9 @@ h1 {
   transition: background-color 180ms ease-out;
 }
 .m-google-link:hover { background: var(--green-wash); }
+.m-google-link svg { width: 18px; height: 18px; flex: 0 0 auto; }
 .m-signup-form-sheet > small { display: block; color: var(--ink-soft); line-height: 1.5; }
+.m-signup-form-sheet > .m-signup-note { margin-top: 16px; }
 .m-signup-single { max-width: 760px; grid-template-columns: 1fr; }
 .m-verification-sheet { width: min(100%, 620px); margin-inline: auto; }
 

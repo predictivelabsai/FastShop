@@ -33,7 +33,9 @@ from fasthtml.common import (
     Span,
     Strong,
     Summary,
+    Svg,
     Title,
+    ft,
     to_xml,
 )
 from sqlalchemy import select
@@ -106,7 +108,8 @@ def _header():
         ),
         cls="m-header",
     )
-def _footer():
+def _footer(*, on_marketing: bool = False, show_signup_link: bool = True):
+    page_prefix = "" if on_marketing else "/marketing/"
     return Footer(
         Div(
             Div(
@@ -115,14 +118,14 @@ def _footer():
                 cls="m-footer-intro",
             ),
             Nav(
-                A("How it works", href="#how-it-works"),
-                A("Features", href="#commerce"),
-                A("Pricing preview", href="#pricing"),
-                A("FAQ", href="#faq"),
+                A("How it works", href=f"{page_prefix}#how-it-works"),
+                A("Features", href=f"{page_prefix}#commerce"),
+                A("Pricing preview", href=f"{page_prefix}#pricing"),
+                A("FAQ", href=f"{page_prefix}#faq"),
                 aria_label="Page links",
             ),
             Nav(
-                A("Create workspace", href="/signup"),
+                A("Create workspace", href="/signup") if show_signup_link else None,
                 A(
                     "Documentation on GitHub",
                     href=GITHUB_URL,
@@ -139,6 +142,50 @@ def _footer():
             cls="m-footer-base",
         ),
         cls="m-footer",
+    )
+
+
+def _google_mark():
+    return Svg(
+        ft(
+            "path",
+            d=(
+                "M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92"
+                "c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57"
+                "c2.08-1.92 3.28-4.74 3.28-8.09z"
+            ),
+            fill="#4285f4",
+        ),
+        ft(
+            "path",
+            d=(
+                "M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77"
+                "c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53"
+                "H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+            ),
+            fill="#34a853",
+        ),
+        ft(
+            "path",
+            d=(
+                "M5.84 14.09A6.6 6.6 0 0 1 5.49 12c0-.73.13-1.43.35-2.09"
+                "V7.07H2.18A11 11 0 0 0 1 12c0 1.78.43 3.45 1.18 4.93"
+                "l2.85-2.22.81-.62z"
+            ),
+            fill="#fbbc05",
+        ),
+        ft(
+            "path",
+            d=(
+                "M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15"
+                "C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07"
+                "l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+            ),
+            fill="#ea4335",
+        ),
+        viewBox="0 0 24 24",
+        aria_hidden="true",
+        focusable="false",
     )
 def _workflow_step(label: str, title: str, body: str, evidence: tuple[tuple[str, str], ...]):
     return Li(
@@ -632,7 +679,7 @@ def marketing_page():
                 ),
                 id="content",
             ),
-            _footer(),
+            _footer(on_marketing=True),
             cls="m-page",
         ),
     )
@@ -672,12 +719,9 @@ def login_page(
                             cls="m-auth-google",
                         )
                         if google_enabled
-                        else P(
-                            "Google sign-in is not configured locally.",
-                            cls="m-auth-notice",
-                        ),
+                        else None,
                         Div(Span("or"), cls="m-auth-divider", aria_hidden="true")
-                        if local_enabled
+                        if google_enabled and local_enabled
                         else None,
                         Form(
                             Input(type="hidden", name="csrf_token", value=csrf),
@@ -712,6 +756,7 @@ def login_page(
                     cls="m-auth m-shell",
                 )
             ),
+            _footer(),
             cls="m-page m-auth-page",
         ),
         private=True,
@@ -761,20 +806,18 @@ def signup_page(
         generic_error = status in {"unable", "rate"}
         main_content = Section(
             Div(
-                H1("Create your FastShop workspace."),
+                H1("Create your workspace."),
                 P(
-                    "Your account opens with a private, structured storefront draft. "
-                    "You can edit every page before publication."
+                    "Create an account and a private store workspace in one step."
                 ),
                 P(
-                    "Email verification does not block building, and checkout stays disabled "
-                    "until the separate go-live checks are complete."
+                    "You get a free plan with real limits — no payment details required."
                 ),
                 A("Already have an account? Sign in", href="/login", cls="m-text-link"),
                 cls="m-signup-copy",
             ),
             Div(
-                H2("Set up your account"),
+                Span("Set up your account", cls="m-signup-label"),
                 P(
                     "We could not complete signup with these details. Review your entries "
                     "and try again later. If you may already have an account, ",
@@ -875,7 +918,8 @@ def signup_page(
                 Div(
                     Span("or", aria_hidden="true"),
                     A(
-                        "Continue with Google",
+                        _google_mark(),
+                        Span("Continue with Google"),
                         href="/auth/google?signup=1",
                         cls="m-google-link",
                     ),
@@ -884,8 +928,9 @@ def signup_page(
                 if auth.google_enabled()
                 else None,
                 Small(
-                    "Submitting creates a private workspace. Public-launch terms and consent "
-                    "will be presented separately when their reviewed copy is ready."
+                    "Free plan. No payment details required. We email you a verification link "
+                    "you can complete later.",
+                    cls="m-signup-note",
                 ),
                 id="signup-form",
                 tabindex="-1",
@@ -901,7 +946,7 @@ def signup_page(
         Div(
             Header(Div(_brand(), A("Back to overview", href="/marketing/", cls="m-text-link"), cls="m-nav"), cls="m-header"),
             Main(main_content),
-            _footer(),
+            _footer(show_signup_link=False),
             cls="m-page",
         ),
         private=True,
