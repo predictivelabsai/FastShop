@@ -49,6 +49,7 @@ from app.content import catalog_product, site_pages
 from app.models import Category, Product, ProductVariant, SiteMedia, VariantChannelListing
 from app.services import money
 from app.site_blocks import default_locale, resolve_document
+from app.ui import static_asset
 
 
 def paragraphs(value):
@@ -342,16 +343,16 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         Meta(property="og:title", content=document["title"]), Meta(property="og:description", content=document.get("description", "")),
         Meta(property="og:url", content=canonical), Link(rel="canonical", href=canonical),
         *head_snippets,
-        Link(rel="icon", href="/static/favicon.svg", type="image/svg+xml"), Link(rel="stylesheet", href="/static/site-builder.css"), Script(src="/static/site-builder.js", defer=True),
-        Script(src="/static/site-analytics.js", defer=True) if analytics_id else None,
-        Script(src="/static/site-snippets.js", defer=True) if has_gated_snippets else None,
+        Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml"), Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
+        Script(src=static_asset("site-analytics.js"), defer=True) if analytics_id else None,
+        Script(src=static_asset("site-snippets.js"), defer=True) if has_gated_snippets else None,
         Script(NotStr(json.dumps(ga4_item)), type="application/json", id="h-ga4-item") if ga4_item else None,
-        Link(rel="stylesheet", href="/static/site-theme.css"),
-        Link(rel="stylesheet", href="/static/site-blog.css") if blog_listing else None,
-        Script(src="/static/site-preview.js", defer=True) if preview else None,
-        Link(rel="stylesheet", href="/static/site-preview.css") if preview else None,
-        Link(rel="stylesheet", href="/static/cart-drawer.css") if customer_services_enabled and not preview else None,
-        Script(src="/static/cart-drawer.js", defer=True) if customer_services_enabled and not preview else None,
+        Link(rel="stylesheet", href=static_asset("site-theme.css")),
+        Link(rel="stylesheet", href=static_asset("site-blog.css")) if blog_listing else None,
+        Script(src=static_asset("site-preview.js"), defer=True) if preview else None,
+        Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
+        Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if customer_services_enabled and not preview else None,
+        Script(src=static_asset("cart-drawer.js"), defer=True) if customer_services_enabled and not preview else None,
         Div(
             A("Skip to content", href="#content", cls="h-skip"),
             Div("SANDBOX · Test purchases only" if customer_services_enabled and not preview else "PHASE 1 PREVIEW · Design & content · Purchasing opens after review", cls="h-preview-note") if site.status != "published" or preview or customer_services_enabled else None,

@@ -48,6 +48,7 @@ from app.models import User
 from app.services import CommerceError
 from app.site_blocks import BLOCK_TYPES
 from app.site_generation import MAX_PAGES
+from app.ui import static_asset
 
 GITHUB_URL = "https://github.com/predictivelabsai/FastShop"
 def _head(title: str, description: str):
@@ -60,10 +61,10 @@ def _head(title: str, description: str):
         Meta(property="og:title", content=f"{title} — FastShop"),
         Meta(property="og:description", content=description),
         Meta(property="og:type", content="website"),
-        Link(rel="icon", href="/static/favicon.svg", type="image/svg+xml"),
-        Link(rel="stylesheet", href="/static/fonts.css"),
-        Link(rel="stylesheet", href="/static/platform.css"),
-        Link(rel="stylesheet", href="/static/marketing.css"),
+        Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml"),
+        Link(rel="stylesheet", href=static_asset("fonts.css")),
+        Link(rel="stylesheet", href=static_asset("platform.css")),
+        Link(rel="stylesheet", href=static_asset("marketing.css")),
     )
 def _document(title: str, description: str, *content, private: bool = False):
     markup = to_xml(

@@ -27,6 +27,7 @@ from app import demo_commerce as demo
 from app.db import SessionLocal
 from app.models import DemoWorkspace
 from app.services import CommerceError, money
+from app.ui import static_asset
 
 
 def register_demo_routes(rt, actor, csrf, check_csrf, shell, error):
@@ -135,7 +136,7 @@ def register_demo_routes(rt, actor, csrf, check_csrf, shell, error):
                                 Small(contract["payment"]), *controls, cls="e-card"))
                 else:
                     raise CommerceError("Unknown demo view.")
-                return shell("Commerce demo — " + site.name, Link(rel="stylesheet", href="/static/demo-commerce.css"), banner,
+                return shell("Commerce demo — " + site.name, Link(rel="stylesheet", href=static_asset("demo-commerce.css")), banner,
                     Div(A("← Builder", href=f"/admin/sites/{site.id}/build"),
                         *[A(label, href=base + "?view=" + key, aria_current="page" if view == key else None) for key, label in (
                             ("shop", "Shop & bag"), ("checkout", "Checkout"), ("account", "My account"), ("inbox", "Local inbox"), ("fulfillment", "Tracking"))], cls="e-actions"),

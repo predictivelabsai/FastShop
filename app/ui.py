@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fasthtml.common import (
     H1,
     H2,
@@ -61,6 +63,16 @@ from app.models import (
 from app.services import CartSummary, ProductCard, available_stock, money, products, tenant_channel
 
 
+def static_asset(path: str) -> str:
+    """Return a versioned static URL so deployments invalidate browser caches."""
+    file = Path("static") / path
+    try:
+        version = int(file.stat().st_mtime)
+    except OSError:
+        version = 0
+    return f"/static/{path}?v={version}"
+
+
 def csrf_input(token: str):
     return Input(type="hidden", name="csrf_token", value=token)
 
@@ -76,9 +88,9 @@ def document_head(title: str, description: str = "Open, AI-assisted commerce for
         Meta(property="og:type", content="website"),
         Meta(property="og:url", content=canonical),
         Link(rel="canonical", href=canonical),
-        Link(rel="icon", href="/static/favicon.svg", type="image/svg+xml"),
-        Link(rel="stylesheet", href="/static/site.css"),
-        Script(src="/static/app.js", defer=True),
+        Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml"),
+        Link(rel="stylesheet", href=static_asset("site.css")),
+        Script(src=static_asset("app.js"), defer=True),
     )
 
 
