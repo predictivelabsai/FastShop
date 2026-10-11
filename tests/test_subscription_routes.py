@@ -23,8 +23,8 @@ def customer_session(contract, monkeypatch):
     monkeypatch.setattr(customer_routes, "dispatch_mail", lambda message_id: False)
     client = TestClient(app)
     base = "/sites/" + r.site.slug
-    page = client.get(base + "/account")
-    client.post(base + "/account/login", data={"csrf_token": csrf(page), "email": r.customer.email})
+    customer_services.request_email_challenge(r.db, r.site, r.customer.email, "login", "fixture")
+    r.db.commit()
     challenge = r.db.scalar(select(CustomerChallenge).where(CustomerChallenge.customer_id == r.customer.id))
     token = customer_services.challenge_token(challenge)
     page = client.get(base + "/account/verify/" + challenge.id)
@@ -63,7 +63,7 @@ def test_controls_remain_available_when_store_disabled(customer_session, monkeyp
     r.db.commit()
     monkeypatch.setattr(site_context, "SessionLocal", sessionmaker(bind=r.db.bind, expire_on_commit=False))
     host_client = TestClient(app, base_url="https://offline-fixture.example.test")
-    assert "Email me a sign-in link" in host_client.get("/account").text
+    assert "Customer accounts are not available right now." in host_client.get("/account").text
     assert host_client.get("/cart").status_code == 404
     page = client.get(base + "/account")
     assert page.status_code == 200 and "Manage your subscriptions" in page.text

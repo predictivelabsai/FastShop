@@ -24,7 +24,10 @@ def test_failed_notice_is_transactional_and_idempotent(failed):
     assert r.db.scalar(select(MarketingConsent)) is None
     subject, body = render_message(r.db, mail, r.site, r.customer)
     assert "Sandbox" in subject and "Future deliveries are paused" in body
-    assert "/account/subscriptions/" + sub.id in body
+    assert "/account" not in body and "sign-in" not in body and "Sign in" not in body
+    assert "No successful payment was recorded" in body
+    assert "Retrying the missed delivery does not automatically resume" in body
+    assert "transactional subscription notice, not marketing" in body
     assert "Powered by FastShop" in body and "pm_fixture" not in body and "pi_" not in body
 
 
@@ -86,6 +89,8 @@ def test_upcoming_reminder_uses_recurring_price_not_intro_offer_and_sends_once(c
     assert not dispatch_mail(mail.id, sessions=sessions, sender=sender)
     assert len(captured) == 1 and "$53.92" in captured[0] and "$48.53" not in captured[0]
     assert "not a final payment quote" in captured[0]
+    assert "/account" not in captured[0] and "My account" not in captured[0] and "sign-in" not in captured[0]
+    assert "transactional subscription notice, not marketing" in captured[0]
 
 
 @pytest.mark.parametrize("change", ["paused", "cancelled", "version", "due", "disabled", "foreign"])

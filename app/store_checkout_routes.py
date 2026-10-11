@@ -43,7 +43,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
         root = base(site, request)
         mode_label = "Live payments" if site._payment_mode == "live" else "Sandbox · No live payments"
         return FtResponse(platform_page(title, P(site.name + " · " + mode_label), *children,
-            navigation=[A("Store", href=root + "/"), A("Bag", href=root + "/cart"), A("My account", href=root + "/account")], customer=True),
+            navigation=[A("Store", href=root + "/"), A("Bag", href=root + "/cart")], customer=True),
             headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
                 "Content-Security-Policy": "frame-ancestors 'self'"})
 
@@ -273,12 +273,12 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                         P("Shipping: " + money(quote.shipping_minor, quote.currency)),
                         P("Sales tax (" + quote.snapshot_json["destination"]["state"] + "): " + money(quote.tax_minor, quote.currency)),
                         H2("Total: " + money(quote.total_minor, quote.currency)), cls="e-card"),
-                    P("Your payment has been verified. You can sign in by email to view this order.") if attempt.state == "paid" else P("A return from Stripe is not proof of payment. Payment is confirmed only after verification."),
+                    P("Your payment has been verified.") if attempt.state == "paid" else P("A return from Stripe is not proof of payment. Payment is confirmed only after verification."),
                     Form(csrf(session), Button("Continue to Stripe test checkout", cls="e-button"), method="post", action=action + "/pay") if attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Check payment status", cls="e-button"), method="post", action=action + "/refresh") if attempt.stripe_session_id and attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Cancel checkout", cls="e-button"), method="post", action=action + "/cancel") if attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Start a new bag", cls="e-button"), method="post", action=action + "/new") if attempt.state in ("paid", "expired") and cart.checkout_id == attempt.id else None,
-                    A("My account", href=root + "/account"))
+                    A("Back to store", href=root + "/"))
         except CommerceError:
             return Response("Checkout not found.", status_code=404)
 

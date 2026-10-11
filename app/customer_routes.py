@@ -64,11 +64,10 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 root = base(site, request)
                 customer = customers.signed_in_customer(db, site, session)
                 if not customer:
-                    return private_response(screen(site, request, "My account", Div(H2("Sign in with an email link"),
-                        P("No password needed. We’ll email a single-use sign-in link. Signing in does not subscribe you to marketing."),
-                        Form(csrf(session), Label("Email address", Input(name="email", type="email", required=True, autocomplete="email", maxlength=320)),
-                            Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
-                            Button("Email me a sign-in link", cls="e-button"), method="post", action=root + "/account/login", cls="e-form"), cls="e-card")))
+                    return private_response(platform_page("Customer accounts",
+                        P(site.name + " · Powered by FastShop"),
+                        P("Customer accounts are not available right now."),
+                        navigation=[A("Back to store", href=root + "/")], customer=True))
                 orders = customers.orders_for(db, site, customer)
                 consent = db.scalar(select(MarketingConsent).where(MarketingConsent.site_id == site.id,
                     MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.customer_id == customer.id))

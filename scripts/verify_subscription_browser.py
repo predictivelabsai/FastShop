@@ -126,11 +126,12 @@ def main():
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             page.route("https://checkout.stripe.com/**", lambda route: route.fulfill(content_type="text/html", body="<h1>Local card-update simulation</h1>"))
             page.goto(root + "/account")
-            page.locator('input[name="email"]').fill(email)
-            page.get_by_role("button", name="Email me a sign-in link").click()
-            page.wait_for_load_state("networkidle")
+            assert page.get_by_text("Customer accounts are not available right now.", exact=True).is_visible()
+            assert page.locator("form").count() == 0
             with SessionLocal() as db:
                 site = db.get(Site, site_id)
+                customer_services.request_email_challenge(db, site, email, "login", "local-browser")
+                db.commit()
                 customer = customer_services.customer_for(db, site, email)
                 challenge = db.scalar(select(CustomerChallenge).where(CustomerChallenge.customer_id == customer.id))
                 link = customer_services.confirmation_url(site, challenge)

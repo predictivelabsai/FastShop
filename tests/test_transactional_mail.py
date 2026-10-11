@@ -37,7 +37,8 @@ def test_confirmation_is_atomic_idempotent_and_independent_of_consent(ready):
     assert "Sandbox order confirmation" in subject
     assert "TEST ORDER" in body and "Powered by FastShop" in body
     assert "Sales tax: " + money(205, "USD") in body
-    assert "/account/orders/" + link.id in body and "#token=" not in body
+    assert "/account" not in body and "sign-in" not in body and "#token=" not in body
+    assert "transactional message about your order, not a marketing subscription" in body
     assert mail.reference_json == {"site_order_id": link.id}
     r.db.rollback()
     assert r.db.scalar(select(func.count(CommerceMail.id))) == 0
@@ -95,6 +96,9 @@ def test_shipment_email_is_scoped_to_exact_event_and_order(ready):
     assert customers.queue_order_mail(r.db, r.site, link, shipment=event).id == mail.id
     subject, body = render_message(r.db, mail, r.site, r.customer)
     assert "delivery update" in subject and "In Transit" in body and "TEST123" in body
+    assert "DHL" in body and "Test parcel update" in body
+    assert "/account" not in body and "sign-in" not in body
+    assert "transactional message about your order, not a marketing subscription" in body
     event.site_id = "different-site"
     r.db.flush()
     assert render_message(r.db, mail, r.site, r.customer) is None

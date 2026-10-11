@@ -68,11 +68,13 @@ def main():
         assert page.get_by_role("heading", name="Email confirmed", exact=True).is_visible()
 
         page.goto(base + "/sites/h24you/account")
-        assert page.get_by_role("button", name="Email me a sign-in link").is_visible()
-        page.screenshot(path=str(output / "desktop-account-sign-in.png"), full_page=True)
-        page.locator('input[name="email"]').fill(email)
-        page.get_by_role("button", name="Email me a sign-in link").click()
-        page.wait_for_load_state("networkidle")
+        assert page.get_by_text("Customer accounts are not available right now.", exact=True).is_visible()
+        assert page.locator("form").count() == 0
+        page.screenshot(path=str(output / "desktop-account-unavailable.png"), full_page=True)
+        # Seed an in-flight link to exercise the retained verification mechanism.
+        with SessionLocal() as db:
+            customers.request_email_challenge(db, db.get(Site, site_id), email, "login", "local-browser")
+            db.commit()
         verify_link(page, "login")
         assert page.get_by_role("heading", name="Your orders").is_visible()
 
@@ -119,7 +121,8 @@ def main():
             assert consent.status == "unsubscribed"
         page.get_by_role("button", name="Sign out", exact=True).click()
         page.wait_for_load_state("networkidle")
-        assert page.get_by_role("button", name="Email me a sign-in link").is_visible()
+        assert page.get_by_text("Customer accounts are not available right now.", exact=True).is_visible()
+        assert page.locator("form").count() == 0
         browser.close()
     assert not errors, errors
     print({"status": "passed", "flows": ["double opt-in", "single-use login", "owned order history", "merchant tracking", "unsubscribe", "logout"], "browser_errors": errors})

@@ -65,11 +65,13 @@ def storefront(ready, monkeypatch):
 
 def add_and_quote(r, client, base):
     page = client.get(base + "/cart")
+    assert f'href="{base}/account"' not in page.text
     assert page.status_code == 200 and "FastShop" in page.text
     assert page.headers["content-security-policy"] == "frame-ancestors 'self'"
     page = client.post(base + "/cart/add", data={"csrf_token": csrf(page), "variant_id": r.variant.id, "quantity": "1"})
     assert page.status_code == 200 and "Test tablets" in page.text
     page = client.get(base + "/checkout")
+    assert f'href="{base}/account"' not in page.text
     version = re.search(r'name="version" value="(\d+)"', page.text).group(1)
     data = DESTINATION | {"version": version, "csrf_token": csrf(page), "email": "guest@example.test", "full_name": "Guest Fixture"}
     review = client.post(base + "/checkout", data=data)
@@ -98,6 +100,9 @@ def test_guest_checkout_quote_handoff_and_verified_payment(storefront):
     provider.update(status="complete", payment_status="paid", payment_intent="pi_route_fixture")
     confirmed = client.post(attempt_url + "/refresh", data={"csrf_token": csrf(pending)})
     assert "Payment confirmed" in confirmed.text
+    assert "Your payment has been verified." in confirmed.text
+    assert "sign in by email" not in confirmed.text
+    assert f'href="{base}/account"' not in confirmed.text
     assert r.db.scalar(select(func.count(Order.id))) == 1
     customer = r.db.scalar(select(ShopCustomer).where(ShopCustomer.email == "guest@example.test"))
     assert customer.verified_at is None  # Payment does not silently authenticate a guest.

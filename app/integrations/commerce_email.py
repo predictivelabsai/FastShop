@@ -149,7 +149,6 @@ def render_order_message(db, row, site, customer):
             body += f"Carrier: {shipment.carrier}\nTracking number: {shipment.tracking_number}\n"
         if shipment.note:
             body += shipment.note + "\n"
-        # The account page validates ownership and presents the vetted carrier link.
     else:
         for line in order.lines:
             body += f"{line.product_name} · {line.variant_name} × {line.quantity}: {money(line.total_minor, order.currency)}\n"
@@ -158,9 +157,7 @@ def render_order_message(db, row, site, customer):
             f"Shipping: {money(order.shipping_minor, order.currency)}\n"
             f"Sales tax: {money(order.tax_minor, order.currency)}\n"
             f"Total paid: {money(order.total_minor, order.currency)}\n")
-    url = customers.customer_base(site) + "/account/orders/" + link.id
-    body += (f"\nView your order and delivery updates (sign-in required): {url}\n\n"
-        "This is a transactional message about your order, not a marketing subscription.\n\nPowered by FastShop.")
+    body += "\nThis is a transactional message about your order, not a marketing subscription.\n\nPowered by FastShop."
     return f"{heading} — {order.number} — {site.name}", body
 
 
@@ -192,8 +189,7 @@ def render_subscription_message(db, row, site, customer):
         subject = ("Delivery needs attention" if mode == "live" else "Sandbox delivery needs attention")
         body += (f"Your delivery scheduled for {cycle.due_at:%Y-%m-%d} UTC was not completed. "
             "Future deliveries are paused. No successful payment was recorded for this delivery.\n\n"
-            "Sign in to review a fresh one-time checkout for the missed delivery, update your saved card, "
-            "or manage future deliveries. Retrying the missed delivery does not automatically resume the subscription.\n")
+            "Retrying the missed delivery does not automatically resume the subscription.\n")
     else:
         if (contract.state != "active" or contract.version != reference.get("version") or
                 customers.utc(contract.next_due_at).isoformat() != reference.get("due_at") or
@@ -205,10 +201,8 @@ def render_subscription_message(db, row, site, customer):
         amount = sum(line["unit_minor"] * line["quantity"] for line in contract.lines_json)
         body += (f"Your next delivery is scheduled for {contract.next_due_at:%Y-%m-%d} UTC.\n"
             f"Recurring merchandise: {money(amount, 'USD')}. Shipping and destination sales tax are calculated per delivery; "
-            "this notice is not a final payment quote. The first-order offer does not repeat.\n\n"
-            "You can skip, pause, change or cancel future deliveries in My account before payment processing begins.\n")
-    url = customers.customer_base(site) + "/account/subscriptions/" + contract.id
-    body += f"\nManage subscription (sign-in required): {url}\n\nThis is a transactional subscription notice, not marketing.\n\nPowered by FastShop."
+            "this notice is not a final payment quote. The first-order offer does not repeat.\n")
+    body += "\nThis is a transactional subscription notice, not marketing.\n\nPowered by FastShop."
     return subject + " — " + site.name, body
 
 
