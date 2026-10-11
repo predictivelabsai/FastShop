@@ -17,6 +17,7 @@ from app.api import api
 from app.config import settings
 from app.db import SessionLocal, health, prepare_schema
 from app.integrations import fasterp
+from app.integrations.commerce_email import dispatch_mail
 from app.models import (
     Cart,
     CartLine,
@@ -333,8 +334,12 @@ def get(session, error: str = "", next: str = ""):
     destination = safe_next_path(next)
     if destination:
         session["login_next"] = destination
-    if current_user(session):
-        return RedirectResponse(destination or "/account", status_code=303)
+    user = current_user(session)
+    if user:
+        with SessionLocal() as db:
+            membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
+        if membership:
+            return RedirectResponse(destination or "/admin", status_code=303)
     return login_page(
         csrf_token(session),
         error,
@@ -362,7 +367,16 @@ def post(session, email: str, password: str, csrf_token: str = ""):
             and auth.verify_admin_password(password, user.password_hash)
         ):
             membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
-            role = membership.role if membership else "customer"
+            if not membership:
+                result = signup_services.provision_workspace_for_user(db, user, user.name)
+                db.commit()
+                establish_session(session, user, "admin")
+                session["csrf_token"] = secrets.token_urlsafe(32)
+                session.pop("login_next", None)
+                if result.message_id:
+                    dispatch_mail(result.message_id)
+                return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
+            role = membership.role
             establish_session(session, user, role)
             db.commit()
             default = "/admin" if role in {"admin", "merchant"} else "/account"
@@ -419,7 +433,9 @@ def get(session, request, code: str = "", state: str = "", error: str = ""):
         return RedirectResponse("/signup", status_code=303)
     with SessionLocal() as db:
         user = db.scalar(select(User).where(User.email == identity["email"]))
-        if mode == "signup" and not user:
+        if mode == "signup" and (
+            not user or not db.scalar(select(Membership.id).where(Membership.user_id == user.id))
+        ):
             address = request.client.host if request.client else "unknown"
             if signup_services.rate_limited(db, "signup", identity["email"], address):
                 db.commit()
@@ -445,10 +461,29 @@ def get(session, request, code: str = "", state: str = "", error: str = ""):
             session["csrf_token"] = secrets.token_urlsafe(32)
             return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
         user = user or find_or_create_user(db, identity["email"], identity["name"])
-        if mode == "signup" and not user.email_verified_at:
-            user.email_verified_at = datetime.now(UTC)
         membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
-        role = membership.role if membership else "customer"
+        if not membership:
+            if not settings.signup_open:
+                db.rollback()
+                session.clear()
+                return RedirectResponse("/signup?status=no-workspace", status_code=303)
+            user.email_verified_at = user.email_verified_at or datetime.now(UTC)
+            try:
+                result = signup_services.provision_workspace_for_user(
+                    db, user, signup_services.normalized_name(identity["name"])
+                )
+                db.commit()
+            except (CommerceError, IntegrityError, ValueError):
+                db.rollback()
+                return RedirectResponse(failure_path, status_code=303)
+            establish_session(session, result.user, "admin")
+            session["csrf_token"] = secrets.token_urlsafe(32)
+            session.pop("login_next", None)
+            if result.message_id:
+                dispatch_mail(result.message_id)
+            return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
+        user.email_verified_at = user.email_verified_at or datetime.now(UTC)
+        role = membership.role
         establish_session(session, user, role)
         db.commit()
     if mode == "signup" and membership:
