@@ -17,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, validates
@@ -618,6 +619,9 @@ class SiteCommerceSettings(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
     site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    customer_accounts_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     mode: Mapped[str] = mapped_column(String(20), default="disabled")
     origin_json: Mapped[dict] = mapped_column(JSON, default=lambda: {"country": "EE"})
     shipping_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -10,10 +10,16 @@ from starlette.responses import RedirectResponse, Response
 
 from app import commerce, content
 from app import customer_services as customers
+from app.customer_accounts import (
+    CustomerAccountsUnavailable,
+    require_customer_accounts,
+    unavailable_response,
+)
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
 from app.models import (
     CommerceMail,
+    CustomerChallenge,
     CustomerOffer,
     MarketingConsent,
     Order,
@@ -41,16 +47,31 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
     def base(site, request):
         return request.scope.get("site_base", "/sites/" + site.slug)
 
-    def account_site(db, slug):
+    def account_site(db, slug, *, accounts=True):
         site = resolve(db, slug, enabled=False)
         if not commerce.settings_for(db, site):
             raise CommerceError("Customer services are not configured for this store.")
+        if accounts:
+            require_customer_accounts(db, site)
         return site
 
-    def screen(site, request, title, *children):
+    def verification_site(db, slug, challenge_id):
+        site = account_site(db, slug, accounts=False)
+        purpose = db.scalar(select(CustomerChallenge.purpose).where(
+            CustomerChallenge.id == challenge_id,
+            CustomerChallenge.site_id == site.id,
+            CustomerChallenge.tenant_id == site.tenant_id,
+        ))
+        if purpose != "newsletter":
+            require_customer_accounts(db, site)
+        return site
+
+    def screen(db, site, request, title, *children):
         root = base(site, request)
+        config = commerce.settings_for(db, site)
+        accounts_enabled = bool(config and config.customer_accounts_enabled)
         return platform_page(title, P(site.name + " · Powered by FastShop"), *children,
-            navigation=[A("Back to store", href=root + "/"), A("My account", href=root + "/account")], customer=True)
+            navigation=[A("Back to store", href=root + "/"), *([A("My account", href=root + "/account")] if accounts_enabled else [])], customer=True)
 
     def private_response(response):
         from fasthtml.core import FtResponse
@@ -64,16 +85,17 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 root = base(site, request)
                 customer = customers.signed_in_customer(db, site, session)
                 if not customer:
-                    return private_response(platform_page("Customer accounts",
-                        P(site.name + " · Powered by FastShop"),
-                        P("Customer accounts are not available right now."),
-                        navigation=[A("Back to store", href=root + "/")], customer=True))
+                    return private_response(screen(db, site, request, "My account", Div(H2("Sign in with an email link"),
+                        P("No password needed. We will email a single-use sign-in link. Signing in does not subscribe you to marketing."),
+                        Form(csrf(session), Label("Email address", Input(name="email", type="email", required=True, autocomplete="email", maxlength=320)),
+                            Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
+                            Button("Email me a sign-in link", cls="e-button"), method="post", action=root + "/account/login", cls="e-form"), cls="e-card")))
                 orders = customers.orders_for(db, site, customer)
                 consent = db.scalar(select(MarketingConsent).where(MarketingConsent.site_id == site.id,
                     MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.customer_id == customer.id))
                 offer = db.scalar(select(CustomerOffer).where(CustomerOffer.site_id == site.id,
                     CustomerOffer.tenant_id == site.tenant_id, CustomerOffer.customer_id == customer.id))
-                return private_response(screen(site, request, "My account", P(customer.email),
+                return private_response(screen(db, site, request, "My account", P(customer.email),
                     Div(H2("Subscriptions"), A("Manage your subscriptions", href=root + "/account/subscriptions", cls="e-button"), cls="e-card"),
                     Div(H2("Your orders"), *[P(A(order.number, href=root + "/account/orders/" + link.id),
                         " · " + money(order.total_minor, order.currency) + " · " + order.payment_status) for link, order in orders],
@@ -83,25 +105,29 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                         P("Your first-order code: " + offer.code + " · expires " + offer.expires_at.strftime("%Y-%m-%d")) if offer and not offer.redeemed_order_id else None,
                         P("Transactional order and security messages are separate from marketing."), cls="e-card"),
                     Form(csrf(session), Button("Sign out", cls="e-button"), method="post", action=root + "/account/logout")))
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except CommerceError as exc:
             return error(exc)
 
     async def request_link(session, request, slug, purpose):
         form = await request.form()
         try:
-            check_csrf(session, form)
             with SessionLocal() as db:
                 site = account_site(db, slug) if purpose == "login" else resolve(db, slug)
+                check_csrf(session, form)
                 mail = None if form.get("website") else customers.request_email_challenge(db, site,
                     form.get("email", ""), purpose, request.client.host if request.client else "unknown",
                     consent=form.get("marketing_consent") == "on")
                 message_id = mail.id if mail else None
                 db.commit()
-                response = screen(site, request, "Check your email", Div(P("If your request can be processed, an email link will arrive shortly. Check your spam folder too. Repeated requests are limited."),
+                response = screen(db, site, request, "Check your email", Div(P("If your request can be processed, an email link will arrive shortly. Check your spam folder too. Repeated requests are limited."),
                     P("The link expires and can only be used once. No order has been placed."), cls="e-card"))
             if message_id:
                 dispatch_mail(message_id)
             return private_response(response)
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except CommerceError as exc:
             return error(exc)
 
@@ -117,11 +143,13 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
     def get(session, request, slug: str, challenge_id: str):
         try:
             with SessionLocal() as db:
-                site = account_site(db, slug)
-                return private_response(screen(site, request, "Confirm your email", Div(
+                site = verification_site(db, slug, challenge_id)
+                return private_response(screen(db, site, request, "Confirm your email", Div(
                     P("Select Confirm to finish the request. Opening the link alone does not sign you in or subscribe you."),
                     Form(csrf(session), Label("Verification code", Input(name="token", required=True, data_email_token="", autocomplete="off", maxlength=64)),
                         Button("Confirm", cls="e-button"), method="post", cls="e-form"), cls="e-card")))
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except CommerceError as exc:
             return error(exc)
 
@@ -129,9 +157,9 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
     async def post(session, request, slug: str, challenge_id: str):
         form = await request.form()
         try:
-            check_csrf(session, form)
             with SessionLocal() as db:
-                site = account_site(db, slug)
+                site = verification_site(db, slug, challenge_id)
+                check_csrf(session, form)
                 customer, purpose = customers.consume_challenge(db, site, challenge_id, form.get("token", ""))
                 if purpose != "login":
                     resolve(db, slug)
@@ -142,22 +170,27 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     return RedirectResponse(base(site, request) + "/account", status_code=303)
                 mails = list(db.scalars(select(CommerceMail.id).where(CommerceMail.site_id == site.id,
                     CommerceMail.tenant_id == site.tenant_id, CommerceMail.customer_id == customer.id, CommerceMail.status == "pending")))
-                response = screen(site, request, "Email confirmed", Div(P("Your marketing preference has been confirmed. If eligible, your first-order code will arrive by email. You can unsubscribe at any time."),
+                response = screen(db, site, request, "Email confirmed", Div(P("Your marketing preference has been confirmed. If eligible, your first-order code will arrive by email. You can unsubscribe at any time."),
                     A("Back to store", href=base(site, request) + "/"), cls="e-card"))
             for message_id in mails:
                 dispatch_mail(message_id)
             return private_response(response)
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except CommerceError as exc:
             return error(exc)
 
     @rt("/sites/{slug}/account/logout", methods=["POST"])
     async def post(session, request, slug: str):
         try:
-            check_csrf(session, await request.form())
+            form = await request.form()
             with SessionLocal() as db:
                 site = account_site(db, slug)
+                check_csrf(session, form)
                 session.pop("customer:" + site.id, None)
                 return RedirectResponse(base(site, request) + "/account", status_code=303)
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except CommerceError as exc:
             return error(exc)
 
@@ -166,7 +199,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         try:
             check_csrf(session, await request.form())
             with SessionLocal() as db:
-                site = account_site(db, slug)
+                site = account_site(db, slug, accounts=False)
                 customer = customers.signed_in_customer(db, site, session)
                 if not customer:
                     raise CommerceError("Sign in to update email preferences.")
@@ -181,7 +214,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         try:
             with SessionLocal() as db:
                 site = resolve(db, slug, enabled=False)
-                return private_response(screen(site, request, "Unsubscribe", Div(P("Confirm below to stop marketing emails. Order and account-security messages are unaffected."),
+                return private_response(screen(db, site, request, "Unsubscribe", Div(P("Confirm below to stop marketing emails. Order and account-security messages are unaffected."),
                     Form(csrf(session), Label("Confirmation code", Input(name="token", required=True, data_email_token="", maxlength=64, autocomplete="off")),
                         Button("Unsubscribe", cls="e-button"), method="post", cls="e-form"), cls="e-card")))
         except CommerceError as exc:
@@ -200,7 +233,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     raise CommerceError("Invalid unsubscribe link.")
                 customers.unsubscribe(db, site, customer)
                 db.commit()
-                return private_response(screen(site, request, "Unsubscribed", P("You will no longer receive marketing emails from this store.")))
+                return private_response(screen(db, site, request, "Unsubscribed", P("You will no longer receive marketing emails from this store.")))
         except CommerceError as exc:
             return error(exc)
 
@@ -219,7 +252,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     return Response("Order not found", status_code=404)
                 link, order = row
                 events = customers.tracking_for(db, site, link.id)
-                return private_response(screen(site, request, order.number,
+                return private_response(screen(db, site, request, order.number,
                     Div(H2("Order summary"), P("Payment: " + order.payment_status),
                         P("Sales tax: " + money(order.tax_minor, order.currency)), P("Total: " + money(order.total_minor, order.currency)),
                         *[P(f"{line.product_name} · {line.variant_name} × {line.quantity}") for line in order.lines], cls="e-card"),
@@ -227,6 +260,8 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                         Ul(*[Li(P(event.status.replace("_", " ").title()), P(event.carrier + " " + event.tracking_number),
                             P(event.note), A("Track with carrier ↗", href=event.tracking_url, target="_blank", rel="noopener noreferrer") if event.tracking_url else None,
                             Small(str(event.created_at))) for event in events]), cls="e-card")))
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except CommerceError as exc:
             return error(exc)
 

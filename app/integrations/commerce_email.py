@@ -6,8 +6,8 @@ from datetime import UTC, datetime, timedelta
 import httpx
 from sqlalchemy import select, update
 
+from app import commerce, signup_services
 from app import customer_services as customers
-from app import signup_services
 from app.db import SessionLocal
 from app.models import (
     BillingSubscription,
@@ -157,6 +157,10 @@ def render_order_message(db, row, site, customer):
             f"Shipping: {money(order.shipping_minor, order.currency)}\n"
             f"Sales tax: {money(order.tax_minor, order.currency)}\n"
             f"Total paid: {money(order.total_minor, order.currency)}\n")
+    config = commerce.settings_for(db, site)
+    if config and config.customer_accounts_enabled:
+        url = customers.customer_base(site) + "/account/orders/" + link.id
+        body += f"\nView your order and delivery updates (sign-in required): {url}\n"
     body += "\nThis is a transactional message about your order, not a marketing subscription.\n\nPowered by FastShop."
     return f"{heading} — {order.number} — {site.name}", body
 
@@ -202,6 +206,9 @@ def render_subscription_message(db, row, site, customer):
         body += (f"Your next delivery is scheduled for {contract.next_due_at:%Y-%m-%d} UTC.\n"
             f"Recurring merchandise: {money(amount, 'USD')}. Shipping and destination sales tax are calculated per delivery; "
             "this notice is not a final payment quote. The first-order offer does not repeat.\n")
+    if config and config.customer_accounts_enabled:
+        url = customers.customer_base(site) + "/account/subscriptions/" + contract.id
+        body += f"\nManage subscription (sign-in required): {url}\n"
     body += "\nThis is a transactional subscription notice, not marketing.\n\nPowered by FastShop."
     return subject + " — " + site.name, body
 

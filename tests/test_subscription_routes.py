@@ -17,6 +17,8 @@ from tests.test_us_commerce import shop  # noqa: F401
 @pytest.fixture
 def customer_session(contract, monkeypatch):
     r, sub = contract
+    commerce.settings_for(r.db, r.site).customer_accounts_enabled = True
+    r.db.commit()
     sessions = sessionmaker(bind=r.db.bind, expire_on_commit=False)
     monkeypatch.setattr(subscription_routes, "SessionLocal", sessions)
     monkeypatch.setattr(customer_routes, "SessionLocal", sessions)
@@ -63,7 +65,7 @@ def test_controls_remain_available_when_store_disabled(customer_session, monkeyp
     r.db.commit()
     monkeypatch.setattr(site_context, "SessionLocal", sessionmaker(bind=r.db.bind, expire_on_commit=False))
     host_client = TestClient(app, base_url="https://offline-fixture.example.test")
-    assert "Customer accounts are not available right now." in host_client.get("/account").text
+    assert "Sign in with an email link" in host_client.get("/account").text
     assert host_client.get("/cart").status_code == 404
     page = client.get(base + "/account")
     assert page.status_code == 200 and "Manage your subscriptions" in page.text

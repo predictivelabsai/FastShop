@@ -50,6 +50,7 @@ def main():
         product = db.scalar(select(Product).where(Product.tenant_id == site.tenant_id, Product.slug == "hydrogen-tablets"))
         variants = list(db.scalars(select(ProductVariant).where(ProductVariant.tenant_id == site.tenant_id, ProductVariant.product_id == product.id)))
         config = commerce.settings_for(db, site, create=True)
+        config.customer_accounts_enabled = True
         config.mode, config.shipping_minor, config.tax_registration_reviewed = "sandbox", 1000, True
         config.origin_json = {"country": "EE", "line1": "Local fixture warehouse", "city": "Tallinn", "postal_code": "10111"}
         config.product_tax_codes_json = {product.id: "txcd_00000000"}
@@ -126,8 +127,8 @@ def main():
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             page.route("https://checkout.stripe.com/**", lambda route: route.fulfill(content_type="text/html", body="<h1>Local card-update simulation</h1>"))
             page.goto(root + "/account")
-            assert page.get_by_text("Customer accounts are not available right now.", exact=True).is_visible()
-            assert page.locator("form").count() == 0
+            assert page.get_by_role("heading", name="Sign in with an email link").is_visible()
+            assert page.locator('form[action$="/account/login"]').count() == 1
             with SessionLocal() as db:
                 site = db.get(Site, site_id)
                 customer_services.request_email_challenge(db, site, email, "login", "local-browser")

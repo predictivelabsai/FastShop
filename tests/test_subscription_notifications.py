@@ -15,8 +15,11 @@ from tests.test_subscriptions import contract  # noqa: F401
 from tests.test_us_commerce import shop  # noqa: F401
 
 
-def test_failed_notice_is_transactional_and_idempotent(failed):
+@pytest.mark.parametrize("accounts_enabled", [False, True])
+def test_failed_notice_is_transactional_and_idempotent(failed, accounts_enabled):
     r, sub, cycle, gateway = failed
+    commerce.settings_for(r.db, r.site).customer_accounts_enabled = accounts_enabled
+    r.db.commit()
     mail = r.db.scalar(select(CommerceMail).where(CommerceMail.kind == "renewal_failed"))
     assert mail and notices.queue_failed(r.db, r.site, sub, cycle).id == mail.id
     subscription_renewals.run_cycle(r.site.id, cycle.id, **options(r, gateway))
@@ -24,7 +27,8 @@ def test_failed_notice_is_transactional_and_idempotent(failed):
     assert r.db.scalar(select(MarketingConsent)) is None
     subject, body = render_message(r.db, mail, r.site, r.customer)
     assert "Sandbox" in subject and "Future deliveries are paused" in body
-    assert "/account" not in body and "sign-in" not in body and "Sign in" not in body
+    assert ("/account/subscriptions/" + sub.id in body) == accounts_enabled
+    assert ("sign-in required" in body) == accounts_enabled
     assert "No successful payment was recorded" in body
     assert "Retrying the missed delivery does not automatically resume" in body
     assert "transactional subscription notice, not marketing" in body
@@ -75,8 +79,10 @@ def upcoming(r, sub):
     return sessions, mail
 
 
-def test_upcoming_reminder_uses_recurring_price_not_intro_offer_and_sends_once(contract):
+@pytest.mark.parametrize("accounts_enabled", [False, True])
+def test_upcoming_reminder_uses_recurring_price_not_intro_offer_and_sends_once(contract, accounts_enabled):
     r, sub = contract
+    commerce.settings_for(r.db, r.site).customer_accounts_enabled = accounts_enabled
     sessions, mail = upcoming(r, sub)
     assert notices.queue_upcoming(sessions=sessions) == 0
     captured = []
@@ -89,7 +95,8 @@ def test_upcoming_reminder_uses_recurring_price_not_intro_offer_and_sends_once(c
     assert not dispatch_mail(mail.id, sessions=sessions, sender=sender)
     assert len(captured) == 1 and "$53.92" in captured[0] and "$48.53" not in captured[0]
     assert "not a final payment quote" in captured[0]
-    assert "/account" not in captured[0] and "My account" not in captured[0] and "sign-in" not in captured[0]
+    assert ("/account/subscriptions/" + sub.id in captured[0]) == accounts_enabled
+    assert ("sign-in required" in captured[0]) == accounts_enabled
     assert "transactional subscription notice, not marketing" in captured[0]
 
 

@@ -7,6 +7,7 @@ from uuid import uuid4
 from playwright.sync_api import sync_playwright
 from sqlalchemy import select
 
+from app import commerce
 from app import customer_services as customers
 from app.config import settings
 from app.db import SessionLocal
@@ -68,11 +69,12 @@ def main():
         assert page.get_by_role("heading", name="Email confirmed", exact=True).is_visible()
 
         page.goto(base + "/sites/h24you/account")
-        assert page.get_by_text("Customer accounts are not available right now.", exact=True).is_visible()
+        assert page.get_by_text("Customer accounts are not available for this store", exact=True).is_visible()
         assert page.locator("form").count() == 0
         page.screenshot(path=str(output / "desktop-account-unavailable.png"), full_page=True)
-        # Seed an in-flight link to exercise the retained verification mechanism.
+        # Opt in explicitly before exercising customer account verification.
         with SessionLocal() as db:
+            commerce.settings_for(db, db.get(Site, site_id)).customer_accounts_enabled = True
             customers.request_email_challenge(db, db.get(Site, site_id), email, "login", "local-browser")
             db.commit()
         verify_link(page, "login")
@@ -121,8 +123,7 @@ def main():
             assert consent.status == "unsubscribed"
         page.get_by_role("button", name="Sign out", exact=True).click()
         page.wait_for_load_state("networkidle")
-        assert page.get_by_text("Customer accounts are not available right now.", exact=True).is_visible()
-        assert page.locator("form").count() == 0
+        assert page.get_by_role("heading", name="Sign in with an email link").is_visible()
         browser.close()
     assert not errors, errors
     print({"status": "passed", "flows": ["double opt-in", "single-use login", "owned order history", "merchant tracking", "unsubscribe", "logout"], "browser_errors": errors})
