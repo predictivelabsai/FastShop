@@ -110,4 +110,3 @@ def test_password_orphan_gets_workspace_and_verification(monkeypatch, verified):
     assert session(client)["role"] == "admin"
     assert session(client)["csrf_token"] != token
     assert bool(sent) == (not verified)
-
