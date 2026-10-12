@@ -228,3 +228,5 @@ __marimo__/
 
 # Older local gap-verifier output
 /output/playwright/admin-v2/gaps/
+.dispatch/
+.dispatch-done
