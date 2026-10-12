@@ -100,3 +100,4 @@ Google OIDC vars, `MODEL_PROVIDER`/`XAI_API_KEY` (grounded AI assistant, `app/ai
 ## Delegation
 
 Claude plans and writes prompts; Codex executes repo work. When you receive a task in this repo, scope it into a prompt and delegate via the codex MCP tool `spawn_agent` unless it needs tools Codex lacks (web search, Gmail, Drive, Calendar, Canva, image generation, artifacts). Never add AI attribution (no "Co-Authored-By: Claude" trailers, no "Generated with Claude Code" lines) in commits, PRs, or docs.
+@AGENTS.md
