@@ -83,7 +83,7 @@ def catalog_price(db, site, path, *, subscription=False, quantity=1):
             VariantChannelListing.currency == "USD",
             Product.is_published.is_(True),
         )
-        .order_by(VariantChannelListing.price_minor)
+        .order_by(ProductVariant.sort_order, ProductVariant.id)
     )
     if price is None:
         return None
@@ -183,6 +183,11 @@ def add_form(db, site, item, base, csrf, enabled, *, flavors=None, specs=None, c
 
 
 def render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
+    from app.site_ui_liquid_products import render_product_block
+
+    product_block = render_product_block(db, site, b, base, csrf, enabled)
+    if product_block is not None:
+        return product_block
     kind, heading = b["type"], b.get("heading", "")
     items = b.get("items", [])
     if kind == "liquid_hero":
@@ -213,6 +218,8 @@ def render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
                     href=url(base, b.get("link", "/#products")),
                     cls="metal-cta bg-metal-sheen",
                 ),
+                P(config.get("footer", ""), cls="liquid-hero-disclaimer")
+                if "*" in b.get("body", "") else None,
                 cls="metal-container hero-copy",
             ),
             Button(
@@ -324,6 +331,8 @@ def render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
                             icon(s["theme"], benefit=True),
                             H3(s["heading"], cls="font-display"),
                             P(s["body"], cls="text-muted-foreground"),
+                            P(b.get("body", ""), cls="liquid-card-disclaimer")
+                            if "*" in s["heading"] or "*" in s["body"] else None,
                             cls="metal-card metal-benefit-card",
                         )
                         for s in items
@@ -642,7 +651,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
 
     def logo():
         return Img(
-            src=config.get("logo_light", "/static/h24you/liquid/h24you_valge.svg"),
+            src=config.get("logo_light", "/static/h24you/liquid/logo-clean-light.png"),
             alt=site.name,
             width=1774,
             height=262,
@@ -685,6 +694,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         Link(rel="canonical", href=canonical),
         Link(rel="stylesheet", href=static_asset("site-theme-liquid.css")),
         Script(src=static_asset("site-liquid.js"), defer=True),
+        Link(rel="stylesheet", href=static_asset("site-theme-liquid-products.css")),
+        Script(src=static_asset("site-liquid-products.js"), defer=True),
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if enabled else None,
         Script(src=static_asset("cart-drawer.js"), defer=True) if enabled else None,
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
@@ -790,7 +801,10 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                 *blocks,
                 id="content",
                 tabindex="-1",
-                cls="shop-page" if page.path == "/shop" else "",
+                cls=("shop-page" if page.path == "/shop" else
+                     "bottle-page tablet-page range-page" if page.path == "/products/taste-the-range" else
+                     "bottle-page tablet-page" if page.path == "/products/hydrogen-tablets" else
+                     "bottle-page" if page.path == "/products/h2-4-you-one" else ""),
             ),
             Footer(
                 Div(
@@ -837,9 +851,21 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                             cls="liquid-socials",
                         ),
                         Div(
-                            *[Span(s) for s in footer["payments"]],
+                            *[
+                                Span(photo(
+                                    "/static/h24you/liquid/" + filename,
+                                    name, width=64, height=32,
+                                ))
+                                for name, filename in (
+                                    ("Visa", "payment-visa.svg"),
+                                    ("Mastercard", "payment-mastercard.svg"),
+                                    ("PayPal", "payment-paypal.svg"),
+                                    ("Apple Pay", "payment-applepay.svg"),
+                                    ("Google Pay", "payment-google-pay-on-white.svg"),
+                                )
+                            ],
                             cls="metal-payment-logos",
-                            aria_label="Payment methods, planned",
+                            aria_label="Payment methods",
                         ),
                     ),
                     cls="liquid-footer-grid",

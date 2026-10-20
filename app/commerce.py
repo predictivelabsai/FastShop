@@ -131,6 +131,11 @@ def price_lines(db, site, config, selections, *, first_order_discount=False):
         if not row:
             raise CommerceError("This product option is unavailable in this site's US catalog.")
         variant, product, listing = row
+        # Catalogue-owned minimums bound per-unit bundle variants. Never accept a
+        # posted price or minimum: cart rendering and checkout share this boundary.
+        minimum = (variant.attributes_json or {}).get("minimum_quantity", 1)
+        if type(minimum) is not int or not 1 <= minimum <= 25 or quantity < minimum:
+            raise CommerceError("Choose at least " + str(minimum) + " for this product option.")
         if subscription and product.id not in config.subscription_product_ids_json:
             raise CommerceError("This product is not eligible for subscriptions.")
         tax_code = config.product_tax_codes_json.get(product.id, "")

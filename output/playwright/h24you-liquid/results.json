@@ -1,5 +1,5 @@
 {
-  "passed": 83,
+  "passed": 191,
   "failed": 0,
   "checks": [
     {
@@ -52,6 +52,118 @@
     },
     {
       "check": "shop 375: local image assets",
+      "passed": true
+    },
+    {
+      "check": "one 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "one 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "one 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "one 375: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "one 375: local image assets",
+      "passed": true
+    },
+    {
+      "check": "one 375: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "one 375: gallery keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "one 375: gallery touch swipe",
+      "passed": true
+    },
+    {
+      "check": "one 375: mobile sticky purchase appears",
+      "passed": true
+    },
+    {
+      "check": "one 375: About accordion rows are exclusive",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: local image assets",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: gallery keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: gallery touch swipe",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: mobile sticky purchase appears",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: future FAQ destination retained",
+      "passed": true
+    },
+    {
+      "check": "range 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "range 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "range 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "range 375: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "range 375: local image assets",
+      "passed": true
+    },
+    {
+      "check": "range 375: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "range 375: gallery keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "range 375: gallery touch swipe",
       "passed": true
     },
     {
@@ -159,6 +271,98 @@
       "passed": true
     },
     {
+      "check": "one 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "one 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "one 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "one 768: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "one 768: local image assets",
+      "passed": true
+    },
+    {
+      "check": "one 768: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "one 768: gallery keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "one 768: About accordion rows are exclusive",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: local image assets",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: gallery keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: future FAQ destination retained",
+      "passed": true
+    },
+    {
+      "check": "range 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "range 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "range 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "range 768: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "range 768: local image assets",
+      "passed": true
+    },
+    {
+      "check": "range 768: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "range 768: gallery keyboard loops",
+      "passed": true
+    },
+    {
       "check": "768: carousel arrows loop both ways",
       "passed": true
     },
@@ -228,6 +432,98 @@
     },
     {
       "check": "shop 1024: local image assets",
+      "passed": true
+    },
+    {
+      "check": "one 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "one 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "one 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "one 1024: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "one 1024: local image assets",
+      "passed": true
+    },
+    {
+      "check": "one 1024: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "one 1024: gallery keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "one 1024: About accordion rows are exclusive",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: local image assets",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: gallery keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: future FAQ destination retained",
+      "passed": true
+    },
+    {
+      "check": "range 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "range 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "range 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "range 1024: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "range 1024: local image assets",
+      "passed": true
+    },
+    {
+      "check": "range 1024: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "range 1024: gallery keyboard loops",
       "passed": true
     },
     {
@@ -303,6 +599,98 @@
       "passed": true
     },
     {
+      "check": "one 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "one 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "one 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "one 1440: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "one 1440: local image assets",
+      "passed": true
+    },
+    {
+      "check": "one 1440: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "one 1440: gallery keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "one 1440: About accordion rows are exclusive",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: local image assets",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: gallery keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: future FAQ destination retained",
+      "passed": true
+    },
+    {
+      "check": "range 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "range 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "range 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "range 1440: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "range 1440: local image assets",
+      "passed": true
+    },
+    {
+      "check": "range 1440: gallery thumbnails and arrows loop",
+      "passed": true
+    },
+    {
+      "check": "range 1440: gallery keyboard loops",
+      "passed": true
+    },
+    {
       "check": "1440: carousel arrows loop both ways",
       "passed": true
     },
@@ -331,10 +719,54 @@
       "passed": true
     },
     {
+      "check": "no JavaScript: h2-4-you-one default purchase",
+      "passed": true
+    },
+    {
+      "check": "no JavaScript: hydrogen-tablets default purchase",
+      "passed": true
+    },
+    {
+      "check": "no JavaScript: taste-the-range default purchase",
+      "passed": true
+    },
+    {
+      "check": "h2-4-you-one: quantity 2 panel/cart parity at $450.00",
+      "passed": true
+    },
+    {
+      "check": "h2-4-you-one: quantity 3 panel/cart parity at $637.50",
+      "passed": true
+    },
+    {
+      "check": "h2-4-you-one: quantity 5 panel/cart parity at $1,000.00",
+      "passed": true
+    },
+    {
+      "check": "hydrogen-tablets: final-label placeholder remains visible in facts",
+      "passed": true
+    },
+    {
+      "check": "hydrogen-tablets: quantity 2 panel/cart parity at $50.40",
+      "passed": true
+    },
+    {
+      "check": "hydrogen-tablets: final-label placeholder remains visible in facts",
+      "passed": true
+    },
+    {
+      "check": "hydrogen-tablets: quantity 2 panel/cart parity at $56.00",
+      "passed": true
+    },
+    {
+      "check": "taste-the-range: quantity 1 panel/cart parity at $95.20",
+      "passed": true
+    },
+    {
       "check": "no browser JavaScript errors",
       "passed": true
     }
   ],
   "errors": [],
-  "comparison": "Source-based comparison against Lovable MetalPage, ShopPage and scoped styles. Asset substitutions are documented."
+  "comparison": "Locally running Lovable reference captures are stored alongside FastShop captures with the ref- prefix."
 }

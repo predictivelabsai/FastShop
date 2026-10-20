@@ -99,7 +99,7 @@ def test_catalog_and_sandbox_prices(liquid):
     assert config.subscription_product_ids_json == [products["hydrogen-tablets"].id]
     for slug, prices in [
         ("hydrogen-tablets", [2800] * 4),
-        ("h2-4-you-one", [25000]),
+        ("h2-4-you-one", [25000, 22500, 21250, 20000]),
         ("taste-the-range", [9520]),
     ]:
         variants = list(
@@ -138,7 +138,7 @@ def test_pages_render_canonical_copy_and_disclaimer(liquid, path, preview):
     assert CONTENT["fdaDisclaimer"] in markup
     assert 'data-pack="liquid"' in markup and "/static/site-theme-liquid.css" in markup
     assert ("Your water, upgraded." if path == "/" else CONTENT["shopContent"]["intro"]) in markup
-    assert "h24you_valge.svg" in markup and "/sites/h24you-liquid/shop" in markup
+    assert "logo-clean-light.png" in markup and "/sites/h24you-liquid/shop" in markup
     assert 'name="csrf_token" value="test-csrf"' in markup
     assert ("data-cart-open" in markup) is (not preview)
     if path == "/":
@@ -256,7 +256,7 @@ def test_http_pages_and_peach_subscription_use_site_cart(liquid, monkeypatch):
         data={"csrf_token": "wrong", "variant_id": peach.id, "quantity": "1"},
     )
     assert "session expired" in rejected.text.lower()
-    assert client.get("/sites/h24you-liquid/products/h2-4-you-one").status_code == 404
+    assert client.get("/sites/h24you-liquid/products/h2-4-you-one").status_code == 200
 
 
 def test_display_prices_follow_catalogue_changes(liquid):
@@ -290,3 +290,40 @@ def test_liquid_cart_rejects_foreign_tenant_variant(liquid):
             commerce.settings_for(db, site),
             [{"variant_id": foreign.id, "quantity": 1, "subscription": False}],
         )
+
+
+@pytest.mark.parametrize("path", [
+    "/products/h2-4-you-one", "/products/hydrogen-tablets", "/products/taste-the-range",
+])
+@pytest.mark.parametrize("preview", [False, True])
+def test_product_pages_are_canonical_scoped_and_qualified(liquid, path, preview):
+    db, site, _ = liquid
+    markup = html(db, site, path, preview)
+    assert CONTENT["fdaDisclaimer"] in markup
+    assert 'class="bottle-page' in markup
+    assert 'data-product-gallery' in markup
+    assert 'data-product-purchase' in markup
+    assert 'name="csrf_token" value="test-csrf"' in markup
+    assert ('data-cart-open' in markup) is (not preview)
+    assert 'Sample reviews' in markup
+    assert '\u00e2\u20ac' not in markup
+    assert '/sites/h24you-liquid/faq' in markup
+    if path.endswith('hydrogen-tablets'):
+        assert markup.count('benefit-disclaimer"') == 2
+
+
+
+def test_tablet_panel_uses_server_rounded_subscription_prices(liquid):
+    db, site, _ = liquid
+    product = db.scalar(select(Product).where(
+        Product.tenant_id == site.tenant_id, Product.slug == "hydrogen-tablets",
+    ))
+    listing = db.scalar(select(VariantChannelListing).join(ProductVariant).where(
+        ProductVariant.product_id == product.id,
+        VariantChannelListing.channel_id == site.channel_id,
+    ).order_by(ProductVariant.sort_order))
+    listing.price_minor = 2805
+    db.flush()
+    markup = html(db, site, "/products/hydrogen-tablets")
+    assert 'data-subscription-price="2525"' in markup
+    assert '$25.25' in markup

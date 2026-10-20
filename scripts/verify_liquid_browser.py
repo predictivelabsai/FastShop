@@ -1,4 +1,4 @@
-"""Liquid M1 browser evidence on a deliberately isolated local FastShop instance."""
+"""Liquid browser evidence on a deliberately isolated local FastShop instance."""
 
 from __future__ import annotations
 
@@ -44,7 +44,13 @@ def main():
             )
             page = context.new_page()
             page.on("pageerror", lambda e: errors.append(str(e)))
-            for route, name in (("/", "home"), ("/shop", "shop")):
+            for route, name in (
+                ("/", "home"),
+                ("/shop", "shop"),
+                ("/products/h2-4-you-one", "one"),
+                ("/products/hydrogen-tablets", "fizz"),
+                ("/products/taste-the-range", "range"),
+            ):
                 response = page.goto(base + route)
                 check(response.status == 200, f"{name} {width}: HTTP 200")
                 media(page)
@@ -83,6 +89,70 @@ def main():
                         page.locator(".metal-review-card:not([data-carousel-clone])").count() == 8,
                         f"home {width}: eight marked samples",
                     )
+                if name in {"one", "fizz", "range"}:
+                    gallery = page.get_by_role("group", name="Choose product photo", exact=True)
+                    photos = gallery.get_by_role("button")
+                    photos.last.click()
+                    expect(photos.last).to_have_attribute("aria-pressed", "true")
+                    page.get_by_role("button", name="Next product photo", exact=True).click()
+                    expect(photos.first).to_have_attribute("aria-pressed", "true")
+                    page.get_by_role("button", name="Previous product photo", exact=True).click()
+                    expect(photos.last).to_have_attribute("aria-pressed", "true")
+                    photos.first.click()
+                    check(True, f"{name} {width}: gallery thumbnails and arrows loop")
+                    gallery_view = page.locator(".bottle-gallery-viewport")
+                    gallery_view.focus()
+                    gallery_view.press("ArrowLeft")
+                    expect(photos.last).to_have_attribute("aria-pressed", "true")
+                    gallery_view.press("ArrowRight")
+                    expect(photos.first).to_have_attribute("aria-pressed", "true")
+                    check(True, f"{name} {width}: gallery keyboard loops")
+                    if width == 375:
+                        rect = gallery_view.bounding_box()
+                        start = rect["x"] + rect["width"] - 30
+                        end = rect["x"] + 30
+                        y = rect["y"] + rect["height"] / 2
+                        cdp = context.new_cdp_session(page)
+                        cdp.send("Input.dispatchTouchEvent", {
+                            "type": "touchStart", "touchPoints": [{"x": start, "y": y}]
+                        })
+                        for i in range(1, 9):
+                            cdp.send("Input.dispatchTouchEvent", {
+                                "type": "touchMove",
+                                "touchPoints": [{"x": start + (end - start) * i / 8, "y": y}],
+                            })
+                        cdp.send("Input.dispatchTouchEvent", {
+                            "type": "touchEnd", "touchPoints": []
+                        })
+                        expect(photos.nth(1)).to_have_attribute("aria-pressed", "true")
+                        photos.first.click()
+                        check(True, f"{name} 375: gallery touch swipe")
+                        if name != "range":
+                            page.locator("footer").scroll_into_view_if_needed()
+                            expect(page.locator("[data-product-sticky]")).to_be_visible()
+                            check(True, f"{name} 375: mobile sticky purchase appears")
+                    if name == "one":
+                        technology = page.locator('details[name="liquid-technology"]')
+                        technology.nth(0).locator("summary").click()
+                        technology.nth(1).locator("summary").click()
+                        expect(technology.nth(0)).not_to_have_attribute("open", "")
+                        expect(technology.nth(1)).to_have_attribute("open", "")
+                        technology.nth(1).locator("summary").click()
+                        check(True, f"one {width}: About accordion rows are exclusive")
+                    if name == "fizz":
+                        check(
+                            page.get_by_role("link", name="More questions? See all FAQs").count()
+                            == 1,
+                            f"fizz {width}: future FAQ destination retained",
+                        )
+                    page.evaluate("scrollTo(0,0)")
+                if name != "shop":
+                    page.locator('[data-liquid-dot="0"]').click()
+                    expect(page.locator('[data-liquid-dot="0"]')).to_have_attribute("aria-pressed", "true")
+                    if name in {"one", "fizz", "range"}:
+                        page.locator("#reviews").screenshot(path=str(out / f"{name}-reviews-{width}.png"))
+                    page.evaluate("scrollTo(0,0)")
+                    page.wait_for_timeout(200)
                 page.screenshot(path=str(out / f"{name}-{width}.png"), full_page=True)
             page.goto(base + "/")
             media(page)
@@ -221,6 +291,56 @@ def main():
         expect(page.locator("body")).to_contain_text("$250.00")
         check(page.url.endswith("/cart"), "no JavaScript: native cart form works")
         context.close()
+        for slug, amount in (("h2-4-you-one", "$250.00"), ("hydrogen-tablets", "$25.20"), ("taste-the-range", "$95.20")):
+            context = browser.new_context(java_script_enabled=False)
+            page = context.new_page()
+            page.goto(base + "/products/" + slug)
+            page.locator("[data-product-submit]").click()
+            expect(page.locator("body")).to_contain_text(amount)
+            check(page.url.endswith("/cart"), f"no JavaScript: {slug} default purchase")
+            context.close()
+        # Every purchase case gets a fresh cart, so another case cannot mask a wrong total.
+        for slug, variant_index, quantity, subscription, expected_price in (
+            ("h2-4-you-one", 1, 2, False, "$450.00"),
+            ("h2-4-you-one", 2, 3, False, "$637.50"),
+            ("h2-4-you-one", 3, 5, False, "$1,000.00"),
+            ("hydrogen-tablets", 3, 2, True, "$50.40"),
+            ("hydrogen-tablets", 1, 2, False, "$56.00"),
+            ("taste-the-range", 0, 1, False, "$95.20"),
+        ):
+            context = browser.new_context(viewport={"width": 375, "height": 1000})
+            page = context.new_page()
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            page.goto(base + "/products/" + slug)
+            purchase = page.locator("[data-product-purchase]")
+            if slug == "h2-4-you-one":
+                purchase.locator("[data-bundle-option]").nth(variant_index).click()
+                if variant_index == 3:
+                    purchase.get_by_role("button", name="Increase quantity", exact=True).click()
+            elif slug == "hydrogen-tablets":
+                purchase.locator(".metal-flavor-column").nth(variant_index).click()
+                if not subscription:
+                    purchase.locator('input[name="subscription"][value="off"]').check()
+                purchase.get_by_role("button", name="Increase quantity", exact=True).click()
+                facts = page.get_by_text("Ingredients & Supplement Facts", exact=True)
+                facts.click()
+                expect(page.locator(".tablet-facts")).to_contain_text("PLACEHOLDER")
+                check(True, f"{slug}: final-label placeholder remains visible in facts")
+            panel_price = purchase.locator("[data-product-total]").inner_text()
+            purchase.locator("[data-product-submit]").click()
+            expect(page.locator(".fs-cart-dialog")).to_be_visible()
+            cart = page.frame_locator(".fs-cart-dialog iframe").locator("body")
+            expect(cart).to_contain_text(expected_price)
+            if slug == "hydrogen-tablets":
+                expect(cart).to_contain_text("Peach" if variant_index == 3 else "Raspberry")
+                if subscription:
+                    expect(cart).to_contain_text("Monthly subscription")
+            check(
+                float(panel_price.replace("$", "").replace(",", ""))
+                == float(expected_price.replace("$", "").replace(",", "")),
+                f"{slug}: quantity {quantity} panel/cart parity at {expected_price}",
+            )
+            context.close()
         browser.close()
     check(not errors, "no browser JavaScript errors")
     report = {
@@ -228,7 +348,7 @@ def main():
         "failed": 0,
         "checks": checks,
         "errors": errors,
-        "comparison": "Source-based comparison against Lovable MetalPage, ShopPage and scoped styles. Asset substitutions are documented.",
+        "comparison": "Locally running Lovable reference captures are stored alongside FastShop captures with the ref- prefix.",
     }
     (out / "results.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"passed": len(checks), "failed": 0}))

@@ -1,4 +1,4 @@
-# H2 | 4 YOU Liquid Metal, milestone 1
+# H2 | 4 YOU Liquid Metal, milestones 1 and 2
 
 ## Delivered scope
 
@@ -10,8 +10,8 @@ Both share the offer bar, sticky header, desktop dropdowns, mobile menu and foot
 
 The new site has its own `h24you-liquid` tenant and US/USD channel, preview status,
 English default locale and sandbox commerce. The existing `h24you` fixture is
-unchanged. No M2 or M3 pages, production credentials, deployment or migrations
-were added.
+unchanged. M2 adds the three product pages described below. No M3 pages,
+production credentials, deployment or migrations were added.
 
 ## Architecture and editing
 
@@ -43,10 +43,9 @@ Liquid's cart icon while the existing text behaviour remains for other sites.
 With JavaScript disabled, product forms still post to the normal FastShop cart.
 
 `app/site_seed_liquid.py:seed_h24you_liquid` runs from bootstrap. It inserts the
-fixture once and returns immediately thereafter, preserving merchant changes to
-pages, products, settings, stock and commerce configuration. Deleting the entire
-fixture in a disposable database is the way to obtain a fresh reference seed.
-There is no automatic content refresh on restart.
+fixture once. Subsequent starts apply only bounded asset substitutions and missing
+M2 variants/pages, preserving merchant changes to pages, prices, settings, stock
+and commerce configuration. There is no automatic content refresh on restart.
 
 `app/site_liquid_content.json` is the initial M1 source-copy snapshot. Runtime page
 content comes from canonical `SitePage.draft_json` / `published_json` documents,
@@ -94,29 +93,23 @@ minor units:
 | Taste the Range | Fixed four-flavour pack | 9520 cents | Ineligible |
 
 Home's Fizz quick-add uses the prototype's default subscription. Shop's Fizz card
-links to the future flavour-selection page; One and Taste the Range add directly.
+links to the implemented flavour-selection page; One and Taste the Range add directly.
 The reference badge and subtitle copy is preserved in the page documents.
 
 ## Run and preview on Windows
 
-Run from `C:\Users\Joosep\h24you\fastshop-lovable` in PowerShell. These settings
-select a disposable local database without editing environment files:
+Run from `C:\Users\Joosep\h24you\fastshop-lovable` in PowerShell:
 
 ```powershell
 uv sync --extra dev
-$env:PYTHONUTF8 = '1'
-$env:DB_URL = ''
-$env:FASTSHOP_ENV = 'development'
-$env:FASTSHOP_AUTO_CREATE_SCHEMA = '1'
-$env:FASTSHOP_DATA_DIR = "$PWD/output/playwright/h24you-liquid/local-data"
-$env:FASTSHOP_PUBLIC_URL = 'http://127.0.0.1:5025'
-$env:XAI_API_KEY = ''
-$env:POSTMARK_API_TOKEN = ''
-$env:POSTMARK_SERVER_TOKEN = ''
-$env:STRIPE_SECRET_KEY = ''
-$env:STRIPE_WEBHOOK_SECRET = ''
-uv run python -m uvicorn app.main:app --host 127.0.0.1 --port 5025
+./scripts/run_liquid_local.ps1
 ```
+
+The script uses an explicit SQLite URL under
+`output/playwright/h24you-liquid/m2-preview-data/`, generates a process-local
+session signing key and binds only to `127.0.0.1:5025`. The database and server
+logs are ignored. An explicit SQLite URL is necessary on Windows: assigning an
+empty environment variable can remove it, allowing dotenv fallback.
 
 Preview [Home](http://127.0.0.1:5025/sites/h24you-liquid/) and
 [Shop](http://127.0.0.1:5025/sites/h24you-liquid/shop). From another PowerShell
@@ -129,46 +122,38 @@ uv run python scripts/verify_liquid_browser.py
 The browser script uses installed Chrome, fresh contexts and no saved browser
 session. Its default output is `output/playwright/h24you-liquid/`.
 
-## Assets and substitutions
+## Assets
 
-All 44 real `.jpg` files were copied from Lovable's `src/assets` into
-`static/h24you/liquid/`, preserving filenames. No `.asset.json` pointer was copied
-or treated as image data. Original supplied SVG logos are copied unchanged.
+The supplied Lovable CDN binaries are copied into `static/h24you/liquid/` with
+original filenames. `images.ts` actually renders the clean PNG logos; both are
+used unchanged at the reference's 144px width. The original SVG variants are also
+available. The five supplied payment SVGs replace M1's neutral text chips.
 
-| Missing/reference asset | M1 replacement or reserved local substitute |
-| --- | --- |
-| `logo-clean-dark.png.asset.json` | Supplied `assets/logo/h24you_must.svg` for light backgrounds |
-| `logo-clean-light.png.asset.json` | Supplied `assets/logo/h24you_valge.svg` for the dark header/footer |
-| `metal-lifestyle.jpg.asset.json` | `bottle-drink.jpg`, collection lifestyle panel |
-| `metal-bottle-square.jpg.asset.json` | `bottle-drink.jpg`, Home One card |
-| `studio-front.jpg.asset.json` | `bottle-desk.jpg`, Shop One card |
-| `studio-glow.jpg.asset.json` | Not rendered in M1; `bottle-press-close.jpg` is the available future substitute |
-| `held-out-face-hidden.jpg.asset.json` | Not rendered in M1; `bottle-drink.jpg` is the available future substitute |
-| `lifestyle-sofa.jpg.asset.json` | Not rendered in M1; `bottle-day-evening.jpg` is the available future substitute |
-| `helen-founder.jpg.asset.json` | Not rendered in M1; `review-avatar-1.jpg` is a reserved fictional portrait substitute only, with visible and alt-text placeholder labelling. An authentic Helen portrait is still required for M3 |
-| Five payment-artwork pointers | Neutral text chips: Visa, Mastercard, PayPal, Apple Pay, Google Pay; no copied payment-brand artwork |
+Home uses `metal-lifestyle.jpg` in the collection panel and
+`metal-bottle-square.jpg` on One. Shop uses `studio-front.jpg`. The product gallery
+uses studio-front, studio-glow and held-out-face-hidden, followed by the source's
+placeholder desk and bag photographs. The sofa section uses lifestyle-sofa.
+Helen's founder image is available for M3.
 
-All substituted rendered photos have alt text containing `placeholder`. Source
-placeholder alt text is retained for tablet packaging, reading cards and fictional
-review portraits. Founder, gallery and sofa sections are outside M1.
+Twenty-six oversized JPEGs were recompressed as progressive JPEGs at quality 95,
+with filenames, dimensions and crops preserved. They are all below 400 KB. The
+supplied CDN JPEGs already fit the budget. No source asset was modified.
 
-Italiana, Quicksand and regular/italic Fraunces are self-hosted from the upstream
-Google Fonts repository under `static/fonts/liquid/`, with each family's OFL text
-and a source README. The pack does not request third-party fonts or images.
-FastHTML's existing application-wide runtime script headers remain unchanged.
+Source placeholder labels remain on generated tablet/range packaging, editorial
+imagery, generated bottle lifestyle/step photographs and fictional review portraits.
+The missing-CDN substitution register from M1 no longer applies.
+
+Italiana, Quicksand and regular/italic Fraunces remain self-hosted with their OFL
+licences. Images and fonts require no third-party CDN.
 
 ## Placeholder register and known gaps
 
 - All eight reviews are source-provided samples with fictional portraits. Their
   copy is unchanged; a visible `Sample reviews` label makes that status explicit.
   Replace or remove them before a real launch.
-- Tablet/pack photography and editorial imagery retain the source's placeholder
-  status. The three missing M1 photos use the substitutions above, so crops and
-  subjects cannot be identical to the CDN-based reference.
-- Supplied SVG logos and neutral payment chips intentionally differ from the
-  unavailable pointer artwork.
-- Source policy and social links still point to `#`. All M2/M3 destinations can
-  return 404 until those milestones are implemented.
+- Tablet/pack photography and editorial imagery retain the source's placeholder status.
+- Source policy and social links still point to `#`. M3 destinations can
+  return 404 until that milestone is implemented.
 - Shipping below $75 is unconfirmed in the source. The seed uses a **test-only
   $10 shipping fee**, 100 units per variant, a fictional sandbox origin and generic
   test tax categories. These are not merchant-approved fulfilment/tax settings.
@@ -178,17 +163,17 @@ FastHTML's existing application-wide runtime script headers remain unchanged.
   attempted, and browser checks are not payment-provider acceptance evidence.
 - Native FastShop checkout, account and cart screens retain FastShop's existing
   layout. The drawer itself uses the existing implementation.
-- FastShop's current subscription cadence is monthly. The prototype's 2/4/6-week
-  selector, subscription management presentation and bottle bundle tiers belong
-  to M2. M1 preserves subscription eligibility and the 10% tablet price saving.
+- FastShop's supported subscription cadence is monthly. M2 exposes monthly only.
+  Weekly cadence would require changes to schema constraints, cart quotes, consent,
+  recovery, renewals and account UI beyond the permitted contained service change.
+  Tablet subscriptions retain the catalogue-derived 10% saving.
 - Newsletter forms use FastShop's consent and confirmation flow. Actual email
   delivery needs its configured transport. The prototype's simulated instant
   success is not reproduced.
 - Price values used by M1 are not marked PLACEHOLDER in `site.ts`. No placeholder
-  marker was removed. Supplement Facts and other M2 placeholders are not rendered.
-- The comparison was made against the reference source, including its late Home
-  Learn/header CSS refinements. The Lovable app was not run and no pixel-diff claim
-  is made. Native controls and scroll-snap replace React/Embla behaviour.
+  marker was removed. Supplement Facts retains the exact source placeholder text and unconfirmed label values.
+- Native controls and scroll-snap replace React/Embla while retaining the
+  reference interactions. Reference comparison details are recorded below.
 
 ## Verification
 
@@ -210,7 +195,97 @@ PostgreSQL or real payment-provider acceptance was performed.
 
 ## Open questions for later milestones
 
-Confirm final photography, genuine reviews, policy/social destinations, shipping
-fee, fulfilment origin and reviewed tax categories before launch. M2 must reconcile
-weekly subscription frequencies with the existing monthly commerce model and
-implement the advertised bottle bundle tiers. M3 needs an authentic founder image.
+Confirm final tablet photography, genuine reviews, policy/social destinations,
+shipping fee, fulfilment origin, shared bottle inventory and reviewed tax categories
+before launch. Weekly subscription cadences remain a future change. The authentic
+Helen image is now available for M3.
+
+## Milestone 2
+
+Three product paths are canonical block documents seeded additively:
+`/products/h2-4-you-one`, `/products/hydrogen-tablets`, and
+`/products/taste-the-range`. Existing merchant product pages are preserved.
+`app/site_liquid_products_content.py` and its JSON snapshot provide initial source
+content only. Runtime editing uses the stored draft/published documents.
+
+Product blocks register purchase, instructions, technology, daily timeline,
+lifestyle, flavours, benefits, disclosures and pairing sections. They reuse the
+existing localised fields and item editor, media checks and safe URL validation.
+Layout and item themes use closed allowlists. Product reviews reuse the marked
+sample review block with the reference's product-specific sample arrays.
+
+`app/site_ui_liquid_products.py`, `static/site-theme-liquid-products.css` and
+`static/site-liquid-products.js` provide the progressively enhanced product pages.
+The existing CSRF-protected site cart and drawer remain the mutation boundary.
+
+Bottle bundles use four catalogue variants with authoritative unit amounts of
+25000, 22500, 21250 and 20000 cents. Quantity means actual bottles. Discounted
+variants carry minimum quantities of 2, 3 and 4, enforced by `commerce.price_lines`,
+including checkout repricing. Client price fields never determine a charge.
+Each sandbox SKU has independent fixture stock; shared physical bottle inventory
+must be mapped before live use. No schema migration is required.
+
+The M1-to-M2 seed upgrade replaces only known exact M1 asset substitutions,
+inserts missing bundle variants and missing product pages, and preserves merchant
+content, prices and commerce settings. Home/Shop card prices use the first sorted
+variant so the base One price remains $250. Subscription amounts use FastShop's
+integer discount function. Range remains the fixed four-box set at 9520 cents.
+
+The Home hero now also shows its FDA qualification beside its starred claim.
+Mobile Home benefit cards and both starred Fizz benefit cards repeat the exact
+qualification beside the claims. These deliberate compliance additions, plus
+visible sample-review labelling, add space compared with the reference.
+
+Flavour-specific box and lifestyle gallery images and alt text are canonical item
+fields. JavaScript reads those fields from rendered data attributes rather than
+constructing asset filenames, so merchant image edits remain effective. The server
+renders per-variant subscription minor amounts for JavaScript to display, including
+half-up rounding after catalogue price edits. Quantity controls stop at FastShop's
+existing maximum of 25, including the four-plus bottle tier.
+
+## M2 verification
+
+The reference runs successfully at `http://127.0.0.1:5173/` from a scratch copy
+under `%TEMP%/h24you-lovable-ref-m2`. Its JSON asset pointers were replaced with
+local imports, including PayPal's separate footer import. `npm install` and
+`npm run dev -- --host 127.0.0.1 --port 5173` succeeded. Original reference files
+remain read-only and unchanged.
+
+`capture_liquid_reference.py` captures all five pages at 375, 768, 1024 and 1440,
+with a `ref-` prefix. The reference's fixed scrolling shell is temporarily expanded
+for full-page capture. `verify_liquid_browser.py` captures the matching FastShop
+pages, checks all local media, overflow and exact disclaimers, and exercises
+looping galleries with arrows, thumbnails, keyboard and mobile touch; exclusive
+technology rows; sticky purchase; cart parity for 2/3/5 bottles, Peach subscription,
+Raspberry one-time quantity two and the fixed Range pack. Native forms are checked
+with JavaScript disabled. The existing M1 menu, reviews and cart checks remain.
+
+Visual iteration corrected gallery sizing, responsive grids, source heading
+scale/leading, hero alignment, section colours, FAQ defaults, inline FAQ links,
+quality marks and real photo crops. The screenshots are review evidence rather
+than a claim of pixel identity: supported cadence, native controls and the
+qualification/sample labels are the documented differences.
+
+Release verification (20 October 2026):
+
+- Full isolated pytest: **629 passed, 1 skipped** in 210.05 seconds. The optional
+  PowerPoint user-guide test skips because `python-pptx` is not installed. The
+  existing Starlette/AnyIO deprecation warning remains.
+- Extended Playwright: **191 passed, 0 failures**, no JavaScript errors.
+- Reference: **20 captures**, no JavaScript errors. FastShop: **20 full-page
+  captures**, plus product review detail captures at all four widths and the M1
+  review/cart details. Native scroll-snap carousels can paint a different turn in
+  Chrome full-page captures; use the review detail captures to assess the viewport.
+- Ruff, compileall, JavaScript syntax check and `git diff --check`: passed.
+- Disposable SQLite Alembic upgrade to `20261011_0029`: passed. Alembic check
+  reports no new upgrade operations. No migration was added.
+- The final server remains at `http://127.0.0.1:5025/sites/h24you-liquid/`, using
+  the explicit disposable M2 preview database.
+
+Evidence: `output/playwright/h24you-liquid/`. Page names are `home`, `shop`,
+`one`, `fizz`, `range`; widths are `375`, `768`, `1024`, `1440`. Reference files
+use `ref-{page}-{width}.png`, storefront files `{page}-{width}.png`, and product
+review details `{page}-reviews-{width}.png`. `results.json`,
+`reference-results.json`, `browser-m2.txt` and `pytest-release-m2.txt` retain the
+verification results. No PostgreSQL or external payment-provider acceptance was
+performed, and nothing was pushed or deployed.

@@ -1,0 +1,146 @@
+{
+  "screenshots": 20,
+  "pages": [
+    {
+      "page": "home",
+      "width": 375,
+      "title": "Your water, upgraded.",
+      "image_count": 22,
+      "overflow": false
+    },
+    {
+      "page": "shop",
+      "width": 375,
+      "title": "Shop",
+      "image_count": 13,
+      "overflow": false
+    },
+    {
+      "page": "one",
+      "width": 375,
+      "title": "H2 | 4 YOU One",
+      "image_count": 33,
+      "overflow": false
+    },
+    {
+      "page": "fizz",
+      "width": 375,
+      "title": "H2 | 4 YOU Fizz",
+      "image_count": 32,
+      "overflow": false
+    },
+    {
+      "page": "range",
+      "width": 375,
+      "title": "Taste the Range",
+      "image_count": 32,
+      "overflow": false
+    },
+    {
+      "page": "home",
+      "width": 768,
+      "title": "Your water, upgraded.",
+      "image_count": 22,
+      "overflow": false
+    },
+    {
+      "page": "shop",
+      "width": 768,
+      "title": "Shop",
+      "image_count": 13,
+      "overflow": false
+    },
+    {
+      "page": "one",
+      "width": 768,
+      "title": "H2 | 4 YOU One",
+      "image_count": 33,
+      "overflow": false
+    },
+    {
+      "page": "fizz",
+      "width": 768,
+      "title": "H2 | 4 YOU Fizz",
+      "image_count": 32,
+      "overflow": false
+    },
+    {
+      "page": "range",
+      "width": 768,
+      "title": "Taste the Range",
+      "image_count": 32,
+      "overflow": false
+    },
+    {
+      "page": "home",
+      "width": 1024,
+      "title": "Your water, upgraded.",
+      "image_count": 22,
+      "overflow": false
+    },
+    {
+      "page": "shop",
+      "width": 1024,
+      "title": "Shop",
+      "image_count": 13,
+      "overflow": false
+    },
+    {
+      "page": "one",
+      "width": 1024,
+      "title": "H2 | 4 YOU One",
+      "image_count": 33,
+      "overflow": false
+    },
+    {
+      "page": "fizz",
+      "width": 1024,
+      "title": "H2 | 4 YOU Fizz",
+      "image_count": 32,
+      "overflow": false
+    },
+    {
+      "page": "range",
+      "width": 1024,
+      "title": "Taste the Range",
+      "image_count": 32,
+      "overflow": false
+    },
+    {
+      "page": "home",
+      "width": 1440,
+      "title": "Your water, upgraded.",
+      "image_count": 22,
+      "overflow": false
+    },
+    {
+      "page": "shop",
+      "width": 1440,
+      "title": "Shop",
+      "image_count": 13,
+      "overflow": false
+    },
+    {
+      "page": "one",
+      "width": 1440,
+      "title": "H2 | 4 YOU One",
+      "image_count": 33,
+      "overflow": false
+    },
+    {
+      "page": "fizz",
+      "width": 1440,
+      "title": "H2 | 4 YOU Fizz",
+      "image_count": 32,
+      "overflow": false
+    },
+    {
+      "page": "range",
+      "width": 1440,
+      "title": "Taste the Range",
+      "image_count": 32,
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

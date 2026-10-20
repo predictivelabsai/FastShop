@@ -1,4 +1,4 @@
-"""Independent, insert-only Liquid Metal preview fixture for M1."""
+"""Independent, insert-only Liquid Metal preview fixture for the Liquid storefront."""
 
 from __future__ import annotations
 
@@ -13,12 +13,15 @@ from app.content import create_page
 from app.models import (
     Channel,
     Membership,
+    Product,
     ProductVariant,
     Site,
     SiteMenu,
+    SitePage,
     Stock,
     Tenant,
     User,
+    VariantChannelListing,
     Warehouse,
 )
 from app.site_catalog import create_catalog_product
@@ -40,8 +43,8 @@ def documents():
         (
             "bottle",
             "h2-4-you-one",
-            "bottle-drink.jpg",
-            "placeholder: silver hydrogen water bottle held in a person’s hands",
+            "metal-bottle-square.jpg",
+            "Silver H2 | 4 YOU One hydrogen water bottle",
         ),
     ]:
         p = c["products"][key]
@@ -96,8 +99,8 @@ def documents():
             "liquid_collection",
             "products",
             heading="The collection",
-            image=ASSETS + "bottle-drink.jpg",
-            alt="placeholder: lifestyle photo, person holding hydrogen water bottle",
+            image=ASSETS + "metal-lifestyle.jpg",
+            alt="Lifestyle photo, person holding hydrogen water bottle",
             button="Shop all",
             link="/shop",
             items=product_items,
@@ -162,8 +165,9 @@ def documents():
                 "theme": card["badge"],
                 "value": card.get("priceLabel", "$95.20"),
                 "image": ASSETS
-                + ("bottle-desk.jpg" if card["id"] == "one" else "tablet-box-unflavoured.jpg"),
-                "alt": "placeholder: " + card["name"],
+                + ("studio-front.jpg" if card["id"] == "one" else "tablet-box-unflavoured.jpg"),
+                "alt": ("Silver H2 | 4 YOU One bottle, front view with crystal-pattern chamber"
+                        if card["id"] == "one" else "placeholder: " + card["name"]),
             }
         )
     catalog = [
@@ -190,10 +194,100 @@ def documents():
     return [("/", "Your water, upgraded.", "home", home), ("/shop", "Shop", "content", catalog)]
 
 
+def upgrade_liquid_assets_and_bundles(db, site):
+    """Apply only known M1 substitutions and add missing catalogue bundle options."""
+    image_updates = {
+        "products": {"image": ("bottle-drink.jpg", "metal-lifestyle.jpg")},
+        "catalog": {"image": ("bottle-desk.jpg", "studio-front.jpg")},
+    }
+    for page in db.scalars(select(SitePage).where(
+        SitePage.tenant_id == site.tenant_id, SitePage.site_id == site.id,
+    )):
+        for field in ("draft_json", "published_json"):
+            original = getattr(page, field)
+            doc = copy.deepcopy(original)
+            for entry in (doc or {}).get("blocks", []):
+                updates = image_updates.get(entry.get("id"), {})
+                for key, (old, new) in updates.items():
+                    if entry.get(key) == ASSETS + old:
+                        entry[key] = ASSETS + new
+                        if entry.get("alt", "").startswith("placeholder: "):
+                            entry["alt"] = entry["alt"].removeprefix("placeholder: ")
+                for item in entry.get("items", []):
+                    if item.get("url") != "/products/h2-4-you-one":
+                        continue
+                    target = "studio-front.jpg" if entry.get("id") == "catalog" else "metal-bottle-square.jpg"
+                    if item.get("image") in (ASSETS + "bottle-drink.jpg", ASSETS + "bottle-desk.jpg"):
+                        item["image"] = ASSETS + target
+                        item["alt"] = "Silver H2 | 4 YOU One hydrogen water bottle"
+            if doc != original:
+                setattr(page, field, doc)
+    for field in ("settings_json", "published_settings_json"):
+        config = copy.deepcopy(getattr(site, field))
+        for key, old, new in [("logo", "h24you_must.svg", "logo-clean-dark.png"),
+                              ("logo_light", "h24you_valge.svg", "logo-clean-light.png")]:
+            if config.get(key) == ASSETS + old:
+                config[key] = ASSETS + new
+        setattr(site, field, config)
+    product = db.scalar(select(Product).where(
+        Product.tenant_id == site.tenant_id, Product.slug == "h2-4-you-one",
+    ))
+    if not product:
+        return
+    if product.image_url == ASSETS + "bottle-desk.jpg":
+        product.image_url = ASSETS + "studio-front.jpg"
+    base = db.scalar(select(ProductVariant).where(
+        ProductVariant.tenant_id == site.tenant_id, ProductVariant.product_id == product.id,
+        ProductVariant.sku == "h2-4-you-one-0",
+    ))
+    if not base:
+        return
+    warehouse = db.scalar(select(Warehouse).where(
+        Warehouse.tenant_id == site.tenant_id, Warehouse.code == "LIQUID-SANDBOX",
+    ))
+    for tier, name, price in [(1, "Silver · 2 bottles", 22500),
+                              (2, "Silver · 3 bottles", 21250),
+                              (3, "Silver · 4+ bottles", 20000)]:
+        sku = "h2-4-you-one-" + str(tier)
+        if db.scalar(select(ProductVariant.id).where(
+            ProductVariant.tenant_id == site.tenant_id, ProductVariant.sku == sku,
+        )):
+            continue
+        variant = ProductVariant(tenant_id=site.tenant_id, product_id=product.id,
+            sku=sku, name=name, sort_order=tier, attributes_json={"minimum_quantity": tier + 1})
+        db.add(variant)
+        db.flush()
+        db.add(VariantChannelListing(variant_id=variant.id, channel_id=site.channel_id,
+            currency="USD", price_minor=price))
+        if warehouse:
+            db.add(Stock(warehouse_id=warehouse.id, variant_id=variant.id, quantity=100))
+    db.flush()
+
+
+def ensure_product_pages(db, site):
+    """Add missing M2 documents without overwriting merchant-authored pages."""
+    from app.site_liquid_products_content import product_documents
+
+    for path, title, kind, blocks in product_documents():
+        if db.scalar(select(SitePage.id).where(
+            SitePage.tenant_id == site.tenant_id, SitePage.site_id == site.id,
+            SitePage.path == path,
+        )):
+            continue
+        page = create_page(db, site, title, path, kind, {
+            "version": 1, "title": title,
+            "description": blocks[0].get("body", ""), "blocks": blocks,
+        })
+        page.published_json = copy.deepcopy(page.draft_json)
+    db.flush()
+
+
 def seed_h24you_liquid(db, admin_email):
-    """Never refresh existing documents, catalogue, commerce or merchant settings."""
+    """Insert the fixture, or apply only the bounded M1-to-M2 additions."""
     site = db.scalar(select(Site).where(Site.slug == "h24you-liquid"))
     if site:
+        upgrade_liquid_assets_and_bundles(db, site)
+        ensure_product_pages(db, site)
         return site
     tenant = Tenant(slug="h24you-liquid", name="H2 | 4 YOU Liquid")
     db.add(tenant)
@@ -215,8 +309,8 @@ def seed_h24you_liquid(db, admin_email):
     config = {
         "theme_pack": "liquid",
         "default_locale": "en",
-        "logo": ASSETS + "h24you_must.svg",
-        "logo_light": ASSETS + "h24you_valge.svg",
+        "logo": ASSETS + "logo-clean-dark.png",
+        "logo_light": ASSETS + "logo-clean-light.png",
         "footer": CONTENT["fdaDisclaimer"],
         "liquid_shell": {key: copy.deepcopy(CONTENT[key]) for key in ("offer", "footer", "nav")},
         "email": CONTENT["metalContent"]["contactEmail"],
@@ -241,7 +335,7 @@ def seed_h24you_liquid(db, admin_email):
                 2800,
                 [f["label"] for f in CONTENT["products"]["tablets"]["flavors"]],
             ),
-            ("h2-4-you-one", 25000, ["Silver"]),
+            ("h2-4-you-one", 25000, ["Silver", "Silver · 2 bottles", "Silver · 3 bottles", "Silver · 4+ bottles"]),
             ("taste-the-range", 9520, ["Unflavored, Raspberry, Pineapple, Peach"]),
         ]
     ):
@@ -255,12 +349,24 @@ def seed_h24you_liquid(db, admin_email):
                 "subtitle": card["label"],
                 "description": card["description"],
                 "image_url": ASSETS
-                + ("bottle-desk.jpg" if index == 1 else "tablet-box-unflavoured.jpg"),
+                + ("studio-front.jpg" if index == 1 else "tablet-box-unflavoured.jpg"),
                 "category_slug": "collection",
                 "category_name": "The collection",
-                "variants": [{"name": v, "price_minor": price} for v in variants],
+                "variants": [
+                    {"name": v, "price_minor": (
+                        [25000, 22500, 21250, 20000][i] if index == 1 else price
+                    )}
+                    for i, v in enumerate(variants)
+                ],
             },
         )
+        if index == 1:
+            bottle_variants = db.scalars(select(ProductVariant).where(
+                ProductVariant.tenant_id == site.tenant_id,
+                ProductVariant.product_id == product.id,
+            ).order_by(ProductVariant.sort_order))
+            for tier, variant in enumerate(bottle_variants, start=1):
+                variant.attributes_json = {"minimum_quantity": tier}
         products.append(product)
     warehouse = Warehouse(
         tenant_id=tenant.id, code="LIQUID-SANDBOX", name="Liquid sandbox fixture", country_code="EE"
@@ -300,6 +406,7 @@ def seed_h24you_liquid(db, admin_email):
             },
         )
         page.published_json = copy.deepcopy(page.draft_json)
+    ensure_product_pages(db, site)
     # Only implemented targets enter validated menus. M2/M3 links remain in shell settings.
     for name in ("header", "footer"):
         items = [{"id": "shop", "label": "Shop all", "kind": "page", "path": "/shop"}]

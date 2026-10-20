@@ -1,0 +1,768 @@
+{
+  "bottleProduct": {
+    "name": "H2 | 4 YOU One",
+    "subtitle": "Hydrogen Water Bottle",
+    "description": "Fill it with drinking water, press the button, and a fresh glass of hydrogen water is ready in 5–10 minutes, wherever your day takes you.",
+    "color": "Silver",
+    "specs": [
+      {
+        "label": "Cycles",
+        "value": "5 / 10 min"
+      },
+      {
+        "label": "Capacity",
+        "value": "290 ml / 9.8 fl oz"
+      },
+      {
+        "label": "Hydrogen content",
+        "value": "2,500–5,000 ppb"
+      }
+    ],
+    "bundles": [
+      {
+        "quantity": 1,
+        "label": "1 bottle",
+        "price": 250,
+        "discount": 0
+      },
+      {
+        "quantity": 2,
+        "label": "2 bottles",
+        "price": 225,
+        "discount": 10
+      },
+      {
+        "quantity": 3,
+        "label": "3 bottles",
+        "price": 212.5,
+        "discount": 15
+      },
+      {
+        "quantity": 4,
+        "label": "4+ bottles",
+        "price": 200,
+        "discount": 20
+      }
+    ],
+    "trust": [
+      "Free shipping over $75",
+      "30-day returns",
+      "1-year warranty"
+    ],
+    "stepsTitle": "Fill. Press. Drink.",
+    "steps": [
+      {
+        "title": "Fill",
+        "text": "Fill with clean drinking water."
+      },
+      {
+        "title": "Press",
+        "text": "Press the button once for a 5-minute cycle and twice for a 10-minute cycle."
+      },
+      {
+        "title": "Drink",
+        "text": "Drink it fresh, ideally within 15–30 minutes."
+      }
+    ],
+    "lifestyleTitle": "Made for your everyday",
+    "lifestyleText": "Light enough for your bag, simple enough for every day. Make a fresh glass at your desk, after a workout or on the go, then recharge it with USB-C.",
+    "dayTitle": "A day with the One",
+    "day": [
+      {
+        "time": "7:00 AM",
+        "title": "Start fresh",
+        "text": "Hydrogen escapes quickly, so the One makes it new every time."
+      },
+      {
+        "time": "10:30 AM",
+        "title": "Your desk ritual",
+        "text": "Many people describe hydrogen water as softer and lighter than ordinary water."
+      },
+      {
+        "time": "6:00 PM",
+        "title": "After training",
+        "text": "Researchers have studied hydrogen-rich water in the context of exercise, including muscle fatigue and recovery."
+      },
+      {
+        "time": "9:00 PM",
+        "title": "Wind down",
+        "number": "2,000+",
+        "label": "scientific articles on molecular hydrogen",
+        "text": "More than 2,000 scientific articles have been published on molecular hydrogen.",
+        "source": "Source: hydrogenclinicalresearch.com"
+      }
+    ],
+    "technologyTitle": "About the One",
+    "technology": [
+      {
+        "title": "PEM/SPE technology with a DuPont™ proton exchange membrane",
+        "explanation": "A proton exchange membrane separates the gases formed during electrolysis, so only molecular hydrogen is dissolved into your water. The DuPont™ 117 membrane ensures maximum safety and efficiency in the production of hydrogen-enriched water."
+      },
+      {
+        "title": "Platinum-coated titanium electrodes",
+        "explanation": "Titanium plates with a platinum coating stay stable during electrolysis, so no metal is released into your water."
+      },
+      {
+        "title": "Food-grade, BPA-free materials",
+        "explanation": "The crystal-cut water chamber is made of food-grade, BPA-free polycarbonate."
+      },
+      {
+        "title": "About –600 mV ORP / 2,500–5,000 ppb",
+        "explanation": "ORP (oxidation-reduction potential) shows how much dissolved hydrogen is in the water; a negative value means hydrogen is present. ppb (parts per billion) shows the concentration: a 5-minute cycle reaches 2,500–3,000 ppb, a 10-minute cycle 4,000–5,000 ppb."
+      },
+      {
+        "title": "One button, two cycles",
+        "explanation": "Press once for a 5-minute cycle, twice for a 10-minute cycle."
+      },
+      {
+        "title": "USB-C charging (5V 1A)",
+        "explanation": "Charge with any USB-C cable or phone adapter. Up to 3 hours of use per charge."
+      }
+    ],
+    "technologyNote": "Lab-tested: no ozone, chlorine or heavy-metal residues are formed during hydrogen production.",
+    "boxTitle": "What's in the box",
+    "box": [
+      "H2 | 4 YOU One bottle",
+      "USB-C cable",
+      "User manual"
+    ],
+    "faq": [
+      {
+        "q": "How does it work?",
+        "a": "Fill with drinking water, press the button, and in 5–10 minutes the water is enriched with molecular hydrogen using PEM electrolysis."
+      },
+      {
+        "q": "How soon should I drink it?",
+        "a": "Right after making it, ideally within 15–30 minutes, because hydrogen escapes quickly."
+      },
+      {
+        "q": "What water should I use?",
+        "a": "Filtered or bottled drinking water. Tap water with lots of minerals can leave limescale."
+      },
+      {
+        "q": "How long does the battery last and how do I charge it?",
+        "a": "Up to 3 hours per charge, via USB-C."
+      },
+      {
+        "q": "How do I clean it?",
+        "a": "Rinse regularly and follow the user manual."
+      },
+      {
+        "q": "Does it taste different?",
+        "a": "Many people describe it as softer and fresher than ordinary water."
+      },
+      {
+        "q": "What is your return policy and warranty?",
+        "a": "30-day returns and a 1-year warranty. See Returns and Refunds for details."
+      },
+      {
+        "q": "How much hydrogen does it make?",
+        "a": "Independent lab tests measured 2,500–5,000 ppb. At 5,000 ppb, a full 290 ml (9.8 fl oz) bottle holds about 1.45 mg of hydrogen. Read more about ppb in Hydrogen 101.",
+        "links": [
+          {
+            "text": "Hydrogen 101",
+            "to": "/why-hydrogen",
+            "hash": "fresh"
+          }
+        ]
+      },
+      {
+        "q": "How long does one cycle take?",
+        "a": "The One has two modes: a 5-minute cycle for a quick glass, and a 10-minute cycle for the highest concentration, up to 5,000 ppb. Press the button, wait for the cycle to finish, and your hydrogen water is ready."
+      },
+      {
+        "q": "What does the warranty cover?",
+        "a": "The One comes with a 1-year warranty against manufacturing defects. See Returns and warranty for details.",
+        "links": [
+          {
+            "text": "Returns and warranty",
+            "to": "/faq",
+            "hash": "returns-warranty"
+          }
+        ]
+      }
+    ],
+    "pairTitle": "Pair it with",
+    "pairText": "The One makes it fresh from plain water. Tablets add raspberry or pineapple and need no charging. Fresh hydrogen water, wherever the day takes you."
+  },
+  "tabletProduct": {
+    "label": "Hydrogen Tablets",
+    "factsLead": "Dietary supplement · 30 tablets",
+    "description": "Drop one into a glass of water, watch it fizz, and drink a fresh glass of hydrogen water wherever you are.",
+    "subscription": {
+      "badge": "BEST VALUE · SAVE 10%",
+      "title": "Subscribe & save",
+      "points": [
+        "Save 10% on every delivery",
+        "Pause, skip or cancel anytime"
+      ]
+    },
+    "oneTimeTitle": "One-time purchase",
+    "frequencies": [
+      2,
+      4,
+      6
+    ],
+    "defaultFrequency": 4,
+    "mixHint": "Mix flavors: add each one to your cart, and they'll arrive together.",
+    "rangeLink": {
+      "lead": "Can't decide?",
+      "text": "Try all four with Taste the Range →",
+      "href": "/products/taste-the-range"
+    },
+    "trust": [
+      "Free shipping over $75",
+      "Pause or cancel anytime",
+      "30-day returns"
+    ],
+    "ingredientsUnflavored": "Ingredients: Elemental magnesium, dextrose, malic acid, tartaric acid, adipic acid.",
+    "supplementFacts": [
+      {
+        "label": "Serving size",
+        "amount": "1 tablet",
+        "dv": ""
+      },
+      {
+        "label": "Servings per container",
+        "amount": "30",
+        "dv": ""
+      },
+      {
+        "label": "Calories",
+        "amount": "—",
+        "dv": "—"
+      },
+      {
+        "label": "Magnesium (as elemental magnesium)",
+        "amount": "—",
+        "dv": "—"
+      }
+    ],
+    "howToUse": "Drop one tablet into a glass of still drinking water and wait until it has fully dissolved, then drink it fresh. Enjoy 1–2 tablets a day, for example one in the morning and one in the afternoon. Many people like their first glass first thing in the morning.",
+    "box": [
+      "30 hydrogen tablets"
+    ],
+    "qualityTitle": "Quality you can trust",
+    "seals": [
+      {
+        "id": "tested",
+        "label": "Third-party tested"
+      },
+      {
+        "id": "gmo",
+        "label": "Non-GMO"
+      },
+      {
+        "id": "gmp",
+        "label": "GMP certified"
+      },
+      {
+        "id": "calories",
+        "label": "Zero calories"
+      },
+      {
+        "id": "sugar",
+        "label": "Zero sugar"
+      }
+    ],
+    "stepsTitle": "How it works",
+    "steps": [
+      {
+        "title": "Drop",
+        "text": "Drop one tablet into a glass of still drinking water. The magnesium meets the water."
+      },
+      {
+        "title": "Dissolve",
+        "text": "Watch it fizz as molecular hydrogen is released."
+      },
+      {
+        "title": "Drink",
+        "text": "The hydrogen dissolves into your water. Drink it fresh, while it's at its best."
+      }
+    ],
+    "fizzMoments": [
+      "Magnesium meets water",
+      "Hydrogen is released",
+      "It dissolves into your drink"
+    ],
+    "chemistry": "The chemistry: Mg + 2H₂O → Mg(OH)₂ + H₂",
+    "benefitsTitle": "Why people make it a part of their day",
+    "benefits": [
+      {
+        "id": "cellular-health",
+        "icon": "cell",
+        "title": "Cellular health*",
+        "text": "Supports cellular health.*",
+        "anchor": "cellular-health"
+      },
+      {
+        "id": "antioxidant",
+        "icon": "shield",
+        "title": "Antioxidant support*",
+        "text": "Helps neutralize free radicals and supports the body's response to oxidative stress.*",
+        "anchor": "antioxidant"
+      },
+      {
+        "id": "exercise-recovery",
+        "icon": "exercise",
+        "title": "Exercise & recovery",
+        "text": "Researchers have studied hydrogen-rich water in the context of exercise, including muscle fatigue and recovery.",
+        "anchor": "exercise-recovery"
+      },
+      {
+        "id": "digestive-balance",
+        "icon": "leaf",
+        "title": "Digestive balance",
+        "text": "Early research has looked at hydrogen and the body's natural balance in the digestive tract.",
+        "anchor": "digestive-balance"
+      },
+      {
+        "id": "taste",
+        "icon": "water",
+        "title": "A tastier daily glass",
+        "text": "Four flavors make drinking more water something to look forward to.",
+        "anchor": ""
+      }
+    ],
+    "researchLink": "Read the research →",
+    "learnLink": "Learn how a tablet makes hydrogen water →",
+    "flavorsTitle": "Pick your flavor",
+    "flavorLines": {
+      "unflavored": "Clean and simple, just fresh water with a light fizz.",
+      "raspberry": "Bright, berry and lightly tart.",
+      "pineapple": "Sunny and tropical, with a fresh finish.",
+      "peach": "Soft, juicy and gently sweet."
+    },
+    "research": {
+      "number": "2,000+",
+      "label": "scientific articles published on molecular hydrogen",
+      "source": "Source: hydrogenclinicalresearch.com",
+      "title": "The research behind it",
+      "text": "Researchers have studied molecular hydrogen in more than 2,000 published articles, including human studies on drinking hydrogen water. Early research is promising, and more is still being learned.",
+      "cta": "Explore the science →"
+    },
+    "shareTitle": "Share the routine",
+    "shareText": "Keep the One for yourself, and share tablets with family and friends. A box of 30 goes a long way, one fresh glass at a time.",
+    "shareLink": "Meet the One →",
+    "faq": [
+      {
+        "q": "How many tablets should I take a day?",
+        "a": "Enjoy 1–2 tablets a day, for example one in the morning and one in the afternoon."
+      },
+      {
+        "q": "How do I use them?",
+        "a": "Drop one tablet into a glass of still drinking water, wait until it has fully dissolved, and drink it fresh."
+      },
+      {
+        "q": "How does a tablet make hydrogen water?",
+        "a": "Each tablet contains elemental magnesium, which reacts with water and releases molecular hydrogen."
+      },
+      {
+        "q": "Can I mix flavors in my subscription?",
+        "a": "Yes. Add each flavor to your cart; they arrive together in one delivery."
+      },
+      {
+        "q": "How do I pause, skip or cancel my subscription?",
+        "a": "Anytime from your account."
+      },
+      {
+        "q": "Can I take them when I travel?",
+        "a": "Yes, they're light and need no charging; you just need a glass of water."
+      },
+      {
+        "q": "What is your return policy?",
+        "a": "30-day returns. See Returns and Refunds for details."
+      },
+      {
+        "q": "Can I put a tablet in a closed bottle?",
+        "a": "Please don't. The tablet releases gas as it dissolves, which can build pressure in a closed bottle. Always use an open glass."
+      },
+      {
+        "q": "Which flavors are there?",
+        "a": "Unflavored, Raspberry, Pineapple and Peach. Each flavor has its own Supplement Facts panel on its product page. Want to try them all? Taste the Range brings one box of each flavor at 15% off.",
+        "links": [
+          {
+            "text": "Taste the Range",
+            "to": "/products/taste-the-range"
+          }
+        ]
+      },
+      {
+        "q": "What's in the tablets?",
+        "a": "Each tablet contains magnesium, which reacts with water to release hydrogen. You'll find the full ingredient list and Supplement Facts for each flavor on its product page. [to confirm: vegan, gluten-free, sugar-free, sweeteners]"
+      },
+      {
+        "q": "Is a little cloudiness or residue normal?",
+        "a": "Yes. When magnesium reacts with water, a little cloudiness or fine residue can remain in the glass. It's harmless and part of the process. [to confirm]"
+      },
+      {
+        "q": "How should I store Fizz?",
+        "a": "Keep the box closed in a cool, dry place, away from moisture, and out of reach of children."
+      },
+      {
+        "q": "Can I choose which flavors are in Taste the Range?",
+        "a": "The pack always contains one box of each flavor. To pick your own mix, add single boxes on the Fizz page."
+      },
+      {
+        "q": "How long does Taste the Range last?",
+        "a": "120 tablets: at 1–2 tablets a day, about 2–4 months for one person."
+      }
+    ],
+    "pairTitle": "Pair it with",
+    "pairText": "Two ways to your daily glass. Tablets bring the flavor, and the One makes fresh hydrogen water from plain water at the press of a button. Fresh hydrogen water, wherever the day takes you.",
+    "ingredientsFlavored": {
+      "unflavored": "Ingredients: Elemental magnesium, dextrose, malic acid, tartaric acid, natural unflavored flavor, adipic acid.",
+      "raspberry": "Ingredients: Elemental magnesium, dextrose, malic acid, tartaric acid, natural raspberry flavor, adipic acid.",
+      "pineapple": "Ingredients: Elemental magnesium, dextrose, malic acid, tartaric acid, natural pineapple flavor, adipic acid.",
+      "peach": "Ingredients: Elemental magnesium, dextrose, malic acid, tartaric acid, natural peach flavor, adipic acid."
+    },
+    "ingredientsRange": "Ingredients: Elemental magnesium, dextrose, malic acid, tartaric acid, natural raspberry, pineapple or peach flavor, adipic acid."
+  },
+  "rangeProduct": {
+    "name": "Taste the Range",
+    "cartName": "Taste the Range – 4 boxes",
+    "label": "H2 | 4 YOU Fizz · Sample pack",
+    "description": "Can't decide? Try all four. One box of each flavor, so you can find your favorite, or keep switching.",
+    "includedLabel": "Included",
+    "perBox": "30 tablets",
+    "price": 95.2,
+    "originalPrice": 112,
+    "badge": "Save 15%",
+    "packLine": "4 boxes of 30 tablets · $23.80 per box",
+    "trust": [
+      "Free shipping included",
+      "30-day returns",
+      "One-time purchase"
+    ],
+    "subscribeLink": "Found your favorite? Subscribe and save 10% →",
+    "factsNote": "Each flavor has its own Supplement Facts panel. Values shown are placeholders until confirmed against the final labels.",
+    "box": "4 boxes of 30 hydrogen tablets: Unflavored, Raspberry, Pineapple, Peach",
+    "flavorsTitle": "One box of each flavor",
+    "flavorsLine": "Mix them up, compare them side by side, or share them with friends.",
+    "stepsTitle": "From tablet to hydrogen water",
+    "faq": [
+      {
+        "q": "Can I choose which flavors are in the pack?",
+        "a": "The pack always contains one box of each flavor. To pick your own mix, add single boxes on the Fizz page."
+      },
+      {
+        "q": "Can I subscribe to the sample pack?",
+        "a": "It's a one-time purchase. Once you've found your favorite, you can subscribe to it and save 10%."
+      },
+      {
+        "q": "How long does the pack last?",
+        "a": "120 tablets: at 1–2 tablets a day, about 2–4 months for one person."
+      },
+      {
+        "q": "How many tablets should I take a day?",
+        "a": "Enjoy 1–2 tablets a day, for example one in the morning and one in the afternoon."
+      },
+      {
+        "q": "Is shipping included?",
+        "a": "Yes, free shipping is included."
+      },
+      {
+        "q": "What is your return policy?",
+        "a": "30-day returns. See Returns and Refunds for details."
+      }
+    ]
+  },
+  "bottleReviews": [
+    {
+      "name": "David K.",
+      "location": "Portland, OR",
+      "rating": 5,
+      "product": "Hydrogen Water Bottle",
+      "text": "I was skeptical about the price, but the build quality is excellent and the one-button cycle is so simple that I actually use it every day at my desk. The water does taste noticeably softer.",
+      "photo": false,
+      "headline": "Worth the price"
+    },
+    {
+      "name": "Elaine M.",
+      "location": "Boston, MA",
+      "rating": 5,
+      "product": "Hydrogen Water Bottle",
+      "text": "I read a fair bit of the research before buying, and I appreciated that the company talks about it honestly. The ten-minute cycle runs while I get ready, and the bottle comes to work with me.",
+      "photo": false,
+      "headline": "Ready for the day"
+    },
+    {
+      "name": "Alex L.",
+      "location": "Seattle, WA",
+      "rating": 5,
+      "product": "Hydrogen Water Bottle",
+      "headline": "Always on my desk",
+      "text": "The bottle feels beautifully made. I fill it during my first break and let the cycle run while I answer emails. It is a small thing I look forward to every day."
+    },
+    {
+      "name": "Taylor C.",
+      "location": "Phoenix, AZ",
+      "rating": 4,
+      "product": "Hydrogen Water Bottle",
+      "headline": "Packed for every trip",
+      "text": "I take it on work trips and run a cycle once I settle into the hotel. It is easy to use; I just have to remember to pack the charging cable."
+    },
+    {
+      "name": "Chris M.",
+      "location": "Charlotte, NC",
+      "rating": 5,
+      "product": "Hydrogen Water Bottle",
+      "headline": "My post-gym routine",
+      "text": "I fill it after training and let it run while I put my things away. The simple button and solid feel are what won me over."
+    },
+    {
+      "name": "Jamie P.",
+      "location": "Minneapolis, MN",
+      "rating": 4,
+      "product": "Hydrogen Water Bottle",
+      "headline": "A quieter desk ritual",
+      "text": "The five-minute cycle fits nicely between meetings. I enjoy the fresh taste, though I wish the bottle held a little more water."
+    }
+  ],
+  "tabletReviews": [
+    {
+      "name": "Olivia H.",
+      "location": "Brooklyn, NY",
+      "rating": 5,
+      "product": "Hydrogen Tablets – Raspberry",
+      "headline": "My morning first glass",
+      "text": "One raspberry tablet while the coffee brews has become my favorite start to the day. Light, not too sweet, and so easy."
+    },
+    {
+      "name": "Marcus D.",
+      "location": "Atlanta, GA",
+      "rating": 5,
+      "product": "Hydrogen Tablets – Unflavored",
+      "headline": "Travel-friendly",
+      "text": "I keep a box in my carry-on. A glass of water in the hotel room and my routine comes with me, no charging needed."
+    },
+    {
+      "name": "Hannah L.",
+      "location": "Columbus, OH",
+      "rating": 4,
+      "product": "Hydrogen Tablets – Peach",
+      "headline": "Office favorite",
+      "text": "Peach at my desk around three o'clock is my little break. My colleagues keep asking where the fizz is coming from."
+    },
+    {
+      "name": "Ryan P.",
+      "location": "Salt Lake City, UT",
+      "rating": 5,
+      "product": "Hydrogen Tablets – Pineapple",
+      "headline": "After my long rides",
+      "text": "Pineapple after a weekend ride feels like a treat. Cold water, one tablet, done before I've even showered."
+    },
+    {
+      "name": "Sofia G.",
+      "location": "Miami, FL",
+      "rating": 5,
+      "product": "Hydrogen Tablets – Raspberry",
+      "headline": "Easy to share",
+      "text": "My partner and I share the subscription and mix flavors. Everything arrives together, which keeps things simple."
+    },
+    {
+      "name": "Ben A.",
+      "location": "Madison, WI",
+      "rating": 4,
+      "product": "Hydrogen Tablets – Unflavored",
+      "headline": "Clean and simple",
+      "text": "I like that the unflavored one tastes of nothing but fresh, lightly fizzy water. I just wish I'd started the subscription sooner."
+    }
+  ],
+  "rangeReviews": [
+    {
+      "name": "Jess M.",
+      "location": "Portland, OR",
+      "rating": 5,
+      "product": "Taste the Range",
+      "headline": "Found my favorite",
+      "text": "I tried a different flavor each day for a week. Peach won by a mile, so now I know exactly what to order next."
+    },
+    {
+      "name": "Daniel K.",
+      "location": "Austin, TX",
+      "rating": 5,
+      "product": "Taste the Range",
+      "headline": "A family tasting",
+      "text": "We lined up four glasses at dinner and everyone voted. The kids picked Raspberry, my wife and I both went for Pineapple."
+    },
+    {
+      "name": "Priya S.",
+      "location": "Seattle, WA",
+      "rating": 5,
+      "product": "Taste the Range",
+      "headline": "The perfect gift",
+      "text": "I gave a pack to my sister for her birthday. She loved trying them all and has already asked which one I'd recommend."
+    },
+    {
+      "name": "Tom R.",
+      "location": "Chicago, IL",
+      "rating": 4,
+      "product": "Taste the Range",
+      "headline": "Easy way to start",
+      "text": "I wasn't sure about flavored tablets, so this was the easy way in. Unflavored is my everyday glass, Pineapple my weekend treat."
+    },
+    {
+      "name": "Emma J.",
+      "location": "Boston, MA",
+      "rating": 5,
+      "product": "Taste the Range",
+      "headline": "Shared at the office",
+      "text": "I brought the pack to work and we compared them side by side. Now half the team has their own favorite."
+    },
+    {
+      "name": "Luis F.",
+      "location": "San Diego, CA",
+      "rating": 4,
+      "product": "Taste the Range",
+      "headline": "I keep switching",
+      "text": "I still can't pick just one, and that's fine. Having all four means there's a flavor for every mood."
+    }
+  ],
+  "products": {
+    "tablets": {
+      "id": "tablets",
+      "name": "H2 | 4 YOU Fizz",
+      "subtitle": "Hydrogen Tablets",
+      "price": 28,
+      "subscriptionDiscount": 10,
+      "priceFrom": 25.2,
+      "priceLabel": "from $25.20",
+      "blurb": "Drop a tablet into cold water, watch it fizz, and drink it while it's freshest.",
+      "flavors": [
+        {
+          "id": "unflavored",
+          "label": "Unflavored",
+          "swatch": "neutral"
+        },
+        {
+          "id": "raspberry",
+          "label": "Raspberry",
+          "swatch": "raspberry"
+        },
+        {
+          "id": "pineapple",
+          "label": "Pineapple",
+          "swatch": "pineapple"
+        },
+        {
+          "id": "peach",
+          "label": "Peach",
+          "swatch": "peach"
+        }
+      ]
+    },
+    "bottle": {
+      "id": "bottle",
+      "name": "Hydrogen Water Bottle",
+      "price": 250,
+      "priceLabel": "$250",
+      "blurb": "Fill, press the button, and a fresh glass of hydrogen water is ready in 5–10 minutes."
+    }
+  },
+  "metalContent": {
+    "benefitsTitle": "Why drink hydrogen water?",
+    "contactEmail": "hello@h24you.com",
+    "faqContactIntro": "Can't find an answer? Email us at",
+    "reviewsTitle": "In your words",
+    "headline": "Your water, upgraded.",
+    "subheadline": "A simple daily routine for cellular support.*",
+    "science": {
+      "counters": [
+        {
+          "value": 2000,
+          "suffix": "+",
+          "label": "published scientific articles on molecular hydrogen"
+        },
+        {
+          "value": 80,
+          "suffix": "+",
+          "label": "clinical trials on molecular hydrogen"
+        },
+        {
+          "value": 2007,
+          "suffix": "",
+          "label": "the year modern hydrogen research took off"
+        },
+        {
+          "value": 2014,
+          "suffix": "",
+          "label": "Hydrogen in drinks recognized as safe by the FDA's GRAS review",
+          "note": "(GRAS = Generally Recognized As Safe)"
+        }
+      ],
+      "source": [
+        "Sources: Molecular Hydrogen Institute; Johnsen et al., ",
+        {
+          "italic": "Molecules"
+        },
+        " (2023); Ohsawa et al., ",
+        {
+          "italic": "Nature Medicine"
+        },
+        " (2007); FDA GRAS Notice No. 520 (2014). Figures as of October 2026."
+      ]
+    },
+    "bottleSpecs": [
+      {
+        "label": "Cycles",
+        "value": "5 / 10 min"
+      },
+      {
+        "label": "Capacity",
+        "value": "290 ml / 9.8 fl oz"
+      },
+      {
+        "label": "Hydrogen content",
+        "value": "2,500–5,000 ppb"
+      }
+    ],
+    "palettes": [
+      {
+        "id": "ink",
+        "label": "A · Ink & silver"
+      },
+      {
+        "id": "rose",
+        "label": "B · Rose & blush"
+      },
+      {
+        "id": "pearl",
+        "label": "C · Pearl & blue"
+      }
+    ],
+    "benefits": [
+      {
+        "icon": "cell",
+        "title": "Cellular health*",
+        "text": "Supports cellular health.*"
+      },
+      {
+        "icon": "shield",
+        "title": "Antioxidant support*",
+        "text": "Helps neutralize free radicals and supports the body's response to oxidative stress.*"
+      },
+      {
+        "icon": "exercise",
+        "title": "Studied in exercise",
+        "text": "Researchers have studied hydrogen-rich water in the context of exercise, including muscle fatigue and post-workout recovery."
+      },
+      {
+        "icon": "leaf",
+        "title": "Digestive balance",
+        "text": "Early research has looked at hydrogen and the body's natural balance in the digestive tract."
+      },
+      {
+        "icon": "molecule",
+        "title": "The smallest molecule",
+        "text": "Hydrogen is the smallest, lightest molecule in the universe, which is one reason researchers are curious about how it moves through the body."
+      },
+      {
+        "icon": "water",
+        "title": "Softer, fresher taste",
+        "text": "Many people describe hydrogen water as tasting softer, fresher and lighter than ordinary water."
+      }
+    ]
+  },
+  "fdaDisclaimer": "*These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease."
+}

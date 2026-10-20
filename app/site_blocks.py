@@ -69,6 +69,49 @@ BLOCK_TYPES = {
     'liquid_catalog': BlockSpec('Liquid shop cards', ('heading', 'url', 'image', 'alt')),
     'liquid_choices': BlockSpec('Liquid product choices', ('heading', 'body', 'url', 'label')),
     'liquid_trust': BlockSpec('Liquid shopping assurances', ('label',)),
+    'liquid_product_purchase': BlockSpec('Liquid product purchase', ('theme',)),
+    'liquid_product_steps': BlockSpec('Liquid product instructions', ('theme', 'heading', 'body')),
+    'liquid_product_technology': BlockSpec('Liquid bottle technology', ('theme', 'heading', 'body')),
+    'liquid_product_day': BlockSpec('Liquid daily timeline', ('theme',)),
+    'liquid_product_lifestyle': BlockSpec('Liquid lifestyle image'),
+    'liquid_product_flavors': BlockSpec('Liquid flavour cards', ('theme',)),
+    'liquid_product_benefits': BlockSpec('Liquid product benefits', ('theme',)),
+    'liquid_product_faq': BlockSpec('Liquid product disclosures', ('theme',)),
+    'liquid_product_pair': BlockSpec('Liquid product pairing', ('theme',)),
+}
+LIQUID_PRODUCT_THEMES = {
+    'liquid_product_purchase': {
+        'gallery', 'trust', 'box', 'rating', 'spec', 'bundle', 'color', 'flavor', 'quality',
+        'fact', 'facts-lead', 'facts-placeholder', 'quality-title', 'ingredient',
+        'range-link', 'subscription', 'one-time', 'mix-hint', 'pack', 'subscribe-link',
+        'facts-note', 'ingredient-range',
+    },
+    'liquid_product_steps': {'step'},
+    'liquid_product_technology': {'technology'},
+    'liquid_product_day': {'day', 'day-stat', 'day-source'},
+    'liquid_product_lifestyle': set(),
+    'liquid_product_flavors': {'flavor', 'range-link'},
+    'liquid_product_benefits': {
+        'cell', 'shield', 'exercise', 'leaf', 'water', 'research', 'research-cta',
+    },
+    'liquid_product_faq': {'faq', 'faq-link'},
+    'liquid_product_pair': {'product', 'flavor', 'spec'},
+}
+LIQUID_PRODUCT_ITEM_FIELDS = {
+    'gallery': {'image', 'alt'}, 'bundle': {'label', 'value', 'body'},
+    'rating': {'label', 'value'}, 'spec': {'label', 'value'},
+    'flavor': {'value'}, 'trust': {'label'}, 'box': {'body'},
+    'quality': {'label', 'value'}, 'fact': {'label', 'value', 'body'},
+    'ingredient': {'value', 'body'}, 'day': {'heading', 'body', 'label', 'image', 'alt'},
+    'day-stat': {'heading', 'body', 'label', 'image', 'alt', 'value'},
+    'day-source': {'label', 'body'}, 'faq': {'heading', 'body'},
+    'product': {'heading', 'body'},
+}
+LIQUID_PRODUCT_LAYOUTS = {
+    'liquid_product_purchase': {'bottle', 'tablet', 'range'},
+    'liquid_product_steps': {'bottle-dark', 'tablet-dark', 'tablet-light'},
+    'liquid_product_flavors': {'tablet-light', 'range-dark'},
+    'liquid_product_pair': {'tablet-dark', 'bottle-light', 'bottle-dark'},
 }
 TEXT_FIELDS = {'heading', 'eyebrow', 'body', 'button', 'image', 'video', 'mobile_video',
                'poster', 'link', 'url', 'category', 'alt'}
@@ -130,6 +173,10 @@ def validate_block(block: dict) -> Block:
         for embed_url in urls:
             if embed_url and urlsplit(safe_url(embed_url)).scheme != 'https':
                 raise CommerceError('Embed URLs must use HTTPS.')
+    if result['type'] in LIQUID_PRODUCT_THEMES:
+        allowed_layouts = LIQUID_PRODUCT_LAYOUTS.get(result['type'], {'light', 'dark'})
+        if result.get('layout') not in allowed_layouts:
+            raise CommerceError('Choose a supported Liquid product layout.')
     if 'items' in result:
         if not isinstance(result['items'], list) or len(result['items']) > 200:
             raise CommerceError('Block entries must be a list of up to 200 objects.')
@@ -140,6 +187,29 @@ def validate_block(block: dict) -> Block:
                 raise CommerceError('Block entry is missing required fields.')
             for key, value in item.items():
                 _text(value, key)
+            if result['type'] in LIQUID_PRODUCT_THEMES:
+                theme = item.get('theme')
+                if not isinstance(theme, str) or theme not in LIQUID_PRODUCT_THEMES[result['type']]:
+                    raise CommerceError('Choose a supported Liquid product entry.')
+                if not LIQUID_PRODUCT_ITEM_FIELDS.get(theme, set()) <= item.keys():
+                    raise CommerceError('Complete the Liquid product entry fields.')
+                if theme == 'bundle' and (
+                    not isinstance(item['value'], str)
+                    or not isinstance(item['body'], str)
+                    or item['value'] not in {'1', '2', '3', '4'}
+                    or item['body'] not in {'0', '10', '15', '20'}
+                ):
+                    raise CommerceError('Choose a supported bottle bundle tier.')
+                if theme == 'rating':
+                    ratings = item['value'].values() if isinstance(item['value'], dict) else [item['value']]
+                    counts = item['label'].values() if isinstance(item['label'], dict) else [item['label']]
+                    try:
+                        valid = all(1 <= float(r) <= 5 for r in ratings)
+                        valid = valid and all(1 <= int(c) <= 200 for c in counts)
+                    except (ValueError, TypeError):
+                        raise CommerceError('Use a valid product sample rating.') from None
+                    if not valid:
+                        raise CommerceError('Use a valid product sample rating.')
             if result['type'] == 'liquid_reviews':
                 ratings = item['value'].values() if isinstance(item['value'], dict) else [item['value']]
                 if any(rating not in {'1', '2', '3', '4', '5'} for rating in ratings):

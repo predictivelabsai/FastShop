@@ -513,7 +513,7 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 .h-site[data-pack="liquid"] .liquid-cart { position:relative; min-width:36px; }
 .h-site[data-pack="liquid"] .liquid-cart-count { position:absolute; right:-2px; top:-2px; height:20px; min-width:20px; padding-inline:4px; border-radius:50%; font-size:11px; font-weight:700; }
 .h-site[data-pack="liquid"] .liquid-socials a { display:grid; place-items:center; width:38px; height:38px; border:1px solid color-mix(in oklch,var(--foreground) 30%,transparent); border-radius:50%; }
-.h-site[data-pack="liquid"] .metal-payment-logos > span { white-space:nowrap; padding:5px; }
+.h-site[data-pack="liquid"] .metal-payment-logos > span { white-space:nowrap; padding:7px; }
 .h-site[data-pack="liquid"] :focus-visible { outline:3px solid var(--ring); outline-offset:3px; }
 /* Later home and header refinements in the reference stylesheet. */
 .h-site[data-pack="liquid"] .metal-stat-note { color:#4B535F; line-height:1.5; }
@@ -528,3 +528,16 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 .h-site[data-pack="liquid"] .metal-light .bottle-one { background:linear-gradient(120deg,#1E6FE0,#0A3DC7); background-clip:text; -webkit-background-clip:text; color:transparent; }
 .h-site[data-pack="liquid"] .metal-header { position:relative; }
 @media(min-width:768px) { .h-site[data-pack="liquid"] .metal-header nav[aria-label="Main"] { position:absolute; left:50%; transform:translateX(-50%); } .h-site[data-pack="liquid"] .liquid-header-actions { grid-column:3; } }
+
+/* Keep the claim qualification visible beside the hero claim. */
+.h-site[data-pack="liquid"] .liquid-hero-disclaimer { position:absolute; top:calc(100% - 44px); left:32px; max-width:560px; margin:0; font-size:11px; line-height:1.5; color:var(--hero-muted); }
+
+@media(max-width:767px) { .h-site[data-pack="liquid"] .liquid-hero-disclaimer { left:20px; max-width:calc(100% - 40px); } .h-site[data-pack="liquid"] .metal-offer-line { min-height:30px; } }
+
+/* Reference Home heading scale and qualification leading. */
+@media(min-width:768px) { .h-site[data-pack="liquid"] .metal-collection-section > h2 { font-size:60px; line-height:1; } }
+.h-site[data-pack="liquid"] .metal-benefits-disclaimer { line-height:1.625; }
+
+.h-site[data-pack="liquid"] .metal-benefits-section h2 { line-height:1.25; }
+.h-site[data-pack="liquid"] .liquid-card-disclaimer { display:none; }
+@media(max-width:767px) { .h-site[data-pack="liquid"] .metal-benefit-card .liquid-card-disclaimer { display:block; font-size:10px; line-height:1.5; } }
