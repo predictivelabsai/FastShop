@@ -1,0 +1,442 @@
+{
+  "BRAND": "H2 | 4 YOU",
+  "products": {
+    "tablets": {
+      "id": "tablets",
+      "name": "H2 | 4 YOU Fizz",
+      "subtitle": "Hydrogen Tablets",
+      "price": 28,
+      "subscriptionDiscount": 10,
+      "priceFrom": 25.2,
+      "priceLabel": "from $25.20",
+      "blurb": "Drop a tablet into cold water, watch it fizz, and drink it while it's freshest.",
+      "flavors": [
+        {
+          "id": "unflavored",
+          "label": "Unflavored",
+          "swatch": "neutral"
+        },
+        {
+          "id": "raspberry",
+          "label": "Raspberry",
+          "swatch": "raspberry"
+        },
+        {
+          "id": "pineapple",
+          "label": "Pineapple",
+          "swatch": "pineapple"
+        },
+        {
+          "id": "peach",
+          "label": "Peach",
+          "swatch": "peach"
+        }
+      ]
+    },
+    "bottle": {
+      "id": "bottle",
+      "name": "Hydrogen Water Bottle",
+      "price": 250,
+      "priceLabel": "$250",
+      "blurb": "Fill, press the button, and a fresh glass of hydrogen water is ready in 5–10 minutes."
+    }
+  },
+  "metalContent": {
+    "benefitsTitle": "Why drink hydrogen water?",
+    "contactEmail": "hello@h24you.com",
+    "faqContactIntro": "Can't find an answer? Email us at",
+    "reviewsTitle": "In your words",
+    "headline": "Your water, upgraded.",
+    "subheadline": "A simple daily routine for cellular support.*",
+    "science": {
+      "counters": [
+        {
+          "value": 2000,
+          "suffix": "+",
+          "label": "published scientific articles on molecular hydrogen"
+        },
+        {
+          "value": 80,
+          "suffix": "+",
+          "label": "clinical trials on molecular hydrogen"
+        },
+        {
+          "value": 2007,
+          "suffix": "",
+          "label": "the year modern hydrogen research took off"
+        },
+        {
+          "value": 2014,
+          "suffix": "",
+          "label": "Hydrogen in drinks recognized as safe by the FDA's GRAS review",
+          "note": "(GRAS = Generally Recognized As Safe)"
+        }
+      ],
+      "source": [
+        "Sources: Molecular Hydrogen Institute; Johnsen et al., ",
+        {
+          "italic": "Molecules"
+        },
+        " (2023); Ohsawa et al., ",
+        {
+          "italic": "Nature Medicine"
+        },
+        " (2007); FDA GRAS Notice No. 520 (2014). Figures as of October 2026."
+      ]
+    },
+    "bottleSpecs": [
+      {
+        "label": "Cycles",
+        "value": "5 / 10 min"
+      },
+      {
+        "label": "Capacity",
+        "value": "290 ml / 9.8 fl oz"
+      },
+      {
+        "label": "Hydrogen content",
+        "value": "2,500–5,000 ppb"
+      }
+    ],
+    "palettes": [
+      {
+        "id": "ink",
+        "label": "A · Ink & silver"
+      },
+      {
+        "id": "rose",
+        "label": "B · Rose & blush"
+      },
+      {
+        "id": "pearl",
+        "label": "C · Pearl & blue"
+      }
+    ],
+    "benefits": [
+      {
+        "icon": "cell",
+        "title": "Cellular health*",
+        "text": "Supports cellular health.*"
+      },
+      {
+        "icon": "shield",
+        "title": "Antioxidant support*",
+        "text": "Helps neutralize free radicals and supports the body's response to oxidative stress.*"
+      },
+      {
+        "icon": "exercise",
+        "title": "Studied in exercise",
+        "text": "Researchers have studied hydrogen-rich water in the context of exercise, including muscle fatigue and post-workout recovery."
+      },
+      {
+        "icon": "leaf",
+        "title": "Digestive balance",
+        "text": "Early research has looked at hydrogen and the body's natural balance in the digestive tract."
+      },
+      {
+        "icon": "molecule",
+        "title": "The smallest molecule",
+        "text": "Hydrogen is the smallest, lightest molecule in the universe, which is one reason researchers are curious about how it moves through the body."
+      },
+      {
+        "icon": "water",
+        "title": "Softer, fresher taste",
+        "text": "Many people describe hydrogen water as tasting softer, fresher and lighter than ordinary water."
+      }
+    ]
+  },
+  "fdaDisclaimer": "*These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease.",
+  "metalReviews": [
+    {
+      "name": "Megan R.",
+      "location": "Austin, TX",
+      "rating": 5,
+      "product": "Hydrogen Tablets – Raspberry",
+      "text": "I keep a tube by the coffee maker and drop one in while the kettle heats up. The raspberry is gentle rather than sugary, and it has quietly become the first thing I drink every morning.",
+      "photo": true,
+      "headline": "My morning ritual"
+    },
+    {
+      "name": "David K.",
+      "location": "Portland, OR",
+      "rating": 5,
+      "product": "Hydrogen Water Bottle",
+      "text": "I was skeptical about the price, but the build quality is excellent and the one-button cycle is so simple that I actually use it every day at my desk. The water does taste noticeably softer.",
+      "photo": false,
+      "headline": "Worth the price"
+    },
+    {
+      "name": "Priya S.",
+      "location": "Chicago, IL",
+      "rating": 4,
+      "product": "Hydrogen Tablets – Unflavored",
+      "text": "I like that the unflavored one tastes of nothing but clean, slightly fizzy water. I knocked off a star only because I wish the tubes came in a bigger size for my gym bag.",
+      "photo": false,
+      "headline": "Gym-bag essential"
+    },
+    {
+      "name": "Jordan T.",
+      "location": "San Diego, CA",
+      "rating": 5,
+      "product": "Hydrogen Tablets – Pineapple",
+      "text": "Pineapple after a long run on the beach path is my new little ritual. It feels like a treat without being a soda, and my teenage kids keep stealing them.",
+      "photo": true,
+      "headline": "A little tropical moment"
+    },
+    {
+      "name": "Elaine M.",
+      "location": "Boston, MA",
+      "rating": 5,
+      "product": "Hydrogen Water Bottle",
+      "text": "I read a fair bit of the research before buying, and I appreciated that the company talks about it honestly. The ten-minute cycle runs while I get ready, and the bottle comes to work with me.",
+      "photo": false,
+      "headline": "Ready for the day"
+    },
+    {
+      "name": "Camille W.",
+      "location": "Denver, CO",
+      "rating": 5,
+      "product": "Hydrogen Tablets – Unflavored",
+      "headline": "Simple and refreshing",
+      "text": "A glass of cold water, one tablet, and a quiet minute before my day begins. I like the clean taste and how easy it is to keep the routine going."
+    },
+    {
+      "name": "Alex L.",
+      "location": "Seattle, WA",
+      "rating": 5,
+      "product": "Hydrogen Water Bottle",
+      "headline": "Always on my desk",
+      "text": "The bottle feels beautifully made. I fill it during my first break and let the cycle run while I answer emails. It is a small thing I look forward to every day."
+    },
+    {
+      "name": "Sam B.",
+      "location": "Nashville, TN",
+      "rating": 4,
+      "product": "Hydrogen Tablets – Raspberry",
+      "headline": "A fresh change",
+      "text": "The raspberry flavor is light and not too sweet. I bring a tube on trips now; my only wish is that I had ordered a second one for home."
+    }
+  ],
+  "articles": [
+    {
+      "category": "Basics",
+      "title": "What is molecular hydrogen? A plain-language introduction",
+      "image": "learn-1",
+      "alt": "PLACEHOLDER – water pouring into a clear glass with small bubbles",
+      "href": "/why-hydrogen",
+      "hash": "what-is-hydrogen"
+    },
+    {
+      "category": "Balance",
+      "title": "Free radicals and the art of balance: how your body keeps its defenses in check",
+      "image": "learn-2",
+      "alt": "PLACEHOLDER – a hydrogen tablet fizzing in a glass of water",
+      "href": "/why-hydrogen",
+      "hash": "free-radicals"
+    },
+    {
+      "category": "Research",
+      "title": "How to read hydrogen research: the myths, the facts and what's still unknown",
+      "image": "learn-3",
+      "alt": "PLACEHOLDER – an open notebook and printed research papers on a wooden desk",
+      "href": "/why-hydrogen/science"
+    }
+  ],
+  "learnSection": {
+    "heading": "Learn",
+    "intro": "The smallest molecule in the universe, explained in plain words."
+  },
+  "footer": {
+    "links": [
+      {
+        "label": "Shop all",
+        "href": "/shop"
+      },
+      {
+        "label": "Terms and Conditions",
+        "href": "#"
+      },
+      {
+        "label": "Privacy Policy",
+        "href": "#"
+      }
+    ],
+    "helpTitle": "Help",
+    "helpLinks": [
+      {
+        "label": "FAQ",
+        "href": "/faq",
+        "hash": ""
+      },
+      {
+        "label": "Contact us",
+        "href": "/contact",
+        "hash": ""
+      },
+      {
+        "label": "Shipping",
+        "href": "/faq",
+        "hash": "orders-shipping"
+      },
+      {
+        "label": "Returns and warranty",
+        "href": "/faq",
+        "hash": "returns-warranty"
+      }
+    ],
+    "company": "H2 | 4 YOU Ltd",
+    "address": "Turu 30, Tartu, Estonia",
+    "email": "helen@h24you.com",
+    "social": [
+      {
+        "label": "Instagram",
+        "href": "#"
+      },
+      {
+        "label": "Facebook",
+        "href": "#"
+      }
+    ],
+    "payments": [
+      "Visa",
+      "Mastercard",
+      "PayPal",
+      "Apple Pay",
+      "Google Pay"
+    ],
+    "newsletterTitle": "Notes from the glass",
+    "newsletterBody": "A short, unhurried email about new flavors and new research, roughly once a month."
+  },
+  "offer": {
+    "title": "10% off your first order",
+    "body": "Leave your email and we will send a welcome code, along with the occasional note on new flavors and what researchers are looking into.",
+    "placeholder": "Your email address",
+    "consent": "I agree to receive marketing emails from H2 | 4 YOU. Unsubscribe anytime.",
+    "privacyLabel": "Privacy Policy",
+    "privacyHref": "#",
+    "cta": "Send my code",
+    "thanks": "Thank you. Your code is on its way to your inbox."
+  },
+  "nav": {
+    "shop": {
+      "label": "Shop",
+      "items": [
+        {
+          "label": "Shop all",
+          "href": "/shop"
+        },
+        {
+          "label": "H2 | 4 YOU Fizz",
+          "href": "/products/hydrogen-tablets"
+        },
+        {
+          "label": "H2 | 4 YOU One",
+          "href": "/products/h2-4-you-one"
+        },
+        {
+          "label": "Taste the Range",
+          "href": "/products/taste-the-range"
+        }
+      ]
+    },
+    "why": {
+      "label": "Why hydrogen",
+      "items": [
+        {
+          "label": "Hydrogen 101",
+          "href": "/why-hydrogen"
+        },
+        {
+          "label": "The science",
+          "href": "/why-hydrogen/science"
+        }
+      ]
+    },
+    "helpLinks": [
+      {
+        "label": "FAQ",
+        "href": "/faq"
+      },
+      {
+        "label": "Contact us",
+        "href": "/contact"
+      }
+    ],
+    "about": {
+      "label": "About",
+      "href": "/about"
+    }
+  },
+  "shopContent": {
+    "title": "Shop",
+    "home": "Home",
+    "intro": "Fresh hydrogen water, your way: tablets for anywhere, a bottle for every day, or all four flavors to try.",
+    "view": "View product",
+    "add": "Add to cart",
+    "chooseFlavor": "Choose flavor",
+    "fizzNote": "4 flavors",
+    "added": "Added ✓",
+    "startTitle": "Not sure where to start?",
+    "trust": [
+      "Free shipping over $75",
+      "30-day returns",
+      "Subscriptions: pause or cancel anytime"
+    ],
+    "cards": [
+      {
+        "id": "fizz",
+        "name": "H2 | 4 YOU Fizz",
+        "label": "Hydrogen Tablets",
+        "description": "Drop one into a glass of water, watch it fizz, and drink it fresh.",
+        "priceLabel": "from $25.20",
+        "badge": "Subscribe & save 10%",
+        "href": "/products/hydrogen-tablets"
+      },
+      {
+        "id": "one",
+        "name": "H2 | 4 YOU One",
+        "label": "Hydrogen Water Bottle",
+        "description": "Fill, press the button, and fresh hydrogen water is ready in 5–10 minutes.",
+        "priceLabel": "$250",
+        "badge": "Save up to 20% on bundles",
+        "href": "/products/h2-4-you-one"
+      },
+      {
+        "id": "range",
+        "name": "Taste the Range",
+        "label": "H2 | 4 YOU Fizz · Sample pack",
+        "description": "One box of each flavor, so you can find your favorite.",
+        "price": 95.2,
+        "originalPrice": 112,
+        "discount": 15,
+        "badge": "Save 15%",
+        "href": "/products/taste-the-range"
+      }
+    ],
+    "choices": [
+      {
+        "title": "Love a little flavor",
+        "text": "Four flavors, ready in minutes. No charging, nothing to clean, and the easiest way to start.",
+        "product": "H2 | 4 YOU Fizz",
+        "href": "/products/hydrogen-tablets"
+      },
+      {
+        "title": "Pure and plain",
+        "text": "Plain water, glass after glass all day, with no tablets to keep buying.",
+        "product": "H2 | 4 YOU One",
+        "href": "/products/h2-4-you-one"
+      },
+      {
+        "title": "Still deciding?",
+        "text": "Not sure which flavor you'll like? Try all four in one pack.",
+        "product": "Taste the Range",
+        "href": "/products/taste-the-range"
+      }
+    ]
+  },
+  "bottleProduct": {
+    "name": "H2 | 4 YOU One",
+    "subtitle": "Hydrogen Water Bottle"
+  },
+  "FREE_SHIPPING_THRESHOLD": 75
+}

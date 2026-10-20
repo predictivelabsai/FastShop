@@ -1,0 +1,340 @@
+{
+  "passed": 83,
+  "failed": 0,
+  "checks": [
+    {
+      "check": "home 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "home 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "home 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "home 375: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "home 375: local image assets",
+      "passed": true
+    },
+    {
+      "check": "home 375: reduced motion",
+      "passed": true
+    },
+    {
+      "check": "home 375: reference section order",
+      "passed": true
+    },
+    {
+      "check": "home 375: eight marked samples",
+      "passed": true
+    },
+    {
+      "check": "shop 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "shop 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "shop 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "shop 375: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "shop 375: local image assets",
+      "passed": true
+    },
+    {
+      "check": "375: carousel arrows loop both ways",
+      "passed": true
+    },
+    {
+      "check": "375: carousel keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "375: native touch swipe loops from last review",
+      "passed": true
+    },
+    {
+      "check": "375: menu isolates background focus",
+      "passed": true
+    },
+    {
+      "check": "375: Escape returns mobile menu focus",
+      "passed": true
+    },
+    {
+      "check": "375: hero motion plays",
+      "passed": true
+    },
+    {
+      "check": "375: hero motion pauses",
+      "passed": true
+    },
+    {
+      "check": "375: offer form opens and receives focus",
+      "passed": true
+    },
+    {
+      "check": "375: offer dismissal survives reload",
+      "passed": true
+    },
+    {
+      "check": "375: Home adds Peach subscription to FastShop drawer at $25.20",
+      "passed": true
+    },
+    {
+      "check": "375: Shop adds One to the same FastShop cart",
+      "passed": true
+    },
+    {
+      "check": "375: Shop adds Taste the Range at $95.20",
+      "passed": true
+    },
+    {
+      "check": "home 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "home 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "home 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "home 768: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "home 768: local image assets",
+      "passed": true
+    },
+    {
+      "check": "home 768: reduced motion",
+      "passed": true
+    },
+    {
+      "check": "home 768: reference section order",
+      "passed": true
+    },
+    {
+      "check": "home 768: eight marked samples",
+      "passed": true
+    },
+    {
+      "check": "shop 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "shop 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "shop 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "shop 768: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "shop 768: local image assets",
+      "passed": true
+    },
+    {
+      "check": "768: carousel arrows loop both ways",
+      "passed": true
+    },
+    {
+      "check": "768: carousel keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "768: offer form opens and receives focus",
+      "passed": true
+    },
+    {
+      "check": "768: offer dismissal survives reload",
+      "passed": true
+    },
+    {
+      "check": "home 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "home 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "home 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "home 1024: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "home 1024: local image assets",
+      "passed": true
+    },
+    {
+      "check": "home 1024: reduced motion",
+      "passed": true
+    },
+    {
+      "check": "home 1024: reference section order",
+      "passed": true
+    },
+    {
+      "check": "home 1024: eight marked samples",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: local image assets",
+      "passed": true
+    },
+    {
+      "check": "1024: carousel arrows loop both ways",
+      "passed": true
+    },
+    {
+      "check": "1024: carousel keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "1024: offer form opens and receives focus",
+      "passed": true
+    },
+    {
+      "check": "1024: offer dismissal survives reload",
+      "passed": true
+    },
+    {
+      "check": "home 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "home 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "home 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "home 1440: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "home 1440: local image assets",
+      "passed": true
+    },
+    {
+      "check": "home 1440: reduced motion",
+      "passed": true
+    },
+    {
+      "check": "home 1440: reference section order",
+      "passed": true
+    },
+    {
+      "check": "home 1440: eight marked samples",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: FDA disclaimer",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: local image assets",
+      "passed": true
+    },
+    {
+      "check": "1440: carousel arrows loop both ways",
+      "passed": true
+    },
+    {
+      "check": "1440: carousel keyboard loops",
+      "passed": true
+    },
+    {
+      "check": "1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "1440: offer form opens and receives focus",
+      "passed": true
+    },
+    {
+      "check": "1440: offer dismissal survives reload",
+      "passed": true
+    },
+    {
+      "check": "no JavaScript: server-rendered Home copy",
+      "passed": true
+    },
+    {
+      "check": "no JavaScript: native cart form works",
+      "passed": true
+    },
+    {
+      "check": "no browser JavaScript errors",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "comparison": "Source-based comparison against Lovable MetalPage, ShopPage and scoped styles. Asset substitutions are documented."
+}

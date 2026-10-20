@@ -60,6 +60,15 @@ BLOCK_TYPES = {
     'product': BlockSpec('Product details'),
     'references': BlockSpec('Studies referenced', ('url',)),
     'embed': BlockSpec('Secure embed'),
+    'liquid_hero': BlockSpec('Liquid hero'),
+    'liquid_stats': BlockSpec('Liquid research figures', ('label', 'value')),
+    'liquid_collection': BlockSpec('Liquid collection', ('theme',)),
+    'liquid_benefits': BlockSpec('Liquid benefits', ('heading', 'body', 'theme')),
+    'liquid_reviews': BlockSpec('Liquid sample reviews', ('heading', 'body', 'label', 'value')),
+    'liquid_articles': BlockSpec('Liquid reading cards', ('heading', 'url', 'image', 'alt')),
+    'liquid_catalog': BlockSpec('Liquid shop cards', ('heading', 'url', 'image', 'alt')),
+    'liquid_choices': BlockSpec('Liquid product choices', ('heading', 'body', 'url', 'label')),
+    'liquid_trust': BlockSpec('Liquid shopping assurances', ('label',)),
 }
 TEXT_FIELDS = {'heading', 'eyebrow', 'body', 'button', 'image', 'video', 'mobile_video',
                'poster', 'link', 'url', 'category', 'alt'}
@@ -131,6 +140,21 @@ def validate_block(block: dict) -> Block:
                 raise CommerceError('Block entry is missing required fields.')
             for key, value in item.items():
                 _text(value, key)
+            if result['type'] == 'liquid_reviews':
+                ratings = item['value'].values() if isinstance(item['value'], dict) else [item['value']]
+                if any(rating not in {'1', '2', '3', '4', '5'} for rating in ratings):
+                    raise CommerceError('Sample review ratings must be between one and five.')
+            if result['type'] == 'liquid_benefits' and (not isinstance(item['theme'], str) or item['theme'] not in {
+                'cell', 'shield', 'exercise', 'leaf', 'molecule', 'water'
+            }):
+                raise CommerceError('Choose a supported Liquid benefit icon.')
+            if result['type'] == 'liquid_collection':
+                required = {
+                    'product': {'heading', 'label', 'body', 'url', 'image', 'alt', 'value'},
+                    'spec': {'label', 'value'}, 'flavor': {'label', 'value'},
+                }
+                if not isinstance(item['theme'], str) or item['theme'] not in required or not required[item['theme']] <= item.keys():
+                    raise CommerceError('Choose a complete Liquid collection entry.')
     if 'gallery' in result:
         if not isinstance(result['gallery'], list) or len(result['gallery']) > 12:
             raise CommerceError('A gallery accepts up to twelve image URLs.')

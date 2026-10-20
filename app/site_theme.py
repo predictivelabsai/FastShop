@@ -20,6 +20,14 @@ PRESETS = {
     "bold": DEFAULTS | {"accent": "#7e22ce", "background": "#faf5ff", "surface": "#eee0fb", "text": "#29163b", "headings": "modern", "hero": "center"},
 }
 
+# Packs are application-owned assets, never a merchant stylesheet URL.
+THEME_PACKS = frozenset({"liquid"})
+
+
+def theme_pack(config):
+    value = config.get("theme_pack")
+    return value if isinstance(value, str) and value in THEME_PACKS else ""
+
 
 def validate_theme(value):
     if not isinstance(value, dict) or set(value) - set(DEFAULTS):

@@ -43,11 +43,13 @@ from app.services import (
     update_cart_line,
 )
 from app.site_seed import seed_h24you
+from app.site_seed_liquid import seed_h24you_liquid
 
 prepare_schema()
 with SessionLocal() as bootstrap_session:
     seed(bootstrap_session, settings.admin_email)
     seed_h24you(bootstrap_session, settings.admin_email)
+    seed_h24you_liquid(bootstrap_session, settings.admin_email)
     bootstrap_session.commit()
 
 app, rt = fast_app(

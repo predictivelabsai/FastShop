@@ -685,8 +685,11 @@ def register_site_routes(rt):
             if key == "gallery" and section["type"] != "product":
                 continue
             fields.append(media_picker(f"section_{index}_{key}", key, library, f"section_{index}_alt"))
+        entry_fields = ("heading", "body", "url", "theme", "image", "alt")
+        if section["type"].startswith("liquid_"):
+            entry_fields += ("label", "value")
         for j, item in enumerate(section.get("items", [])):
-            fields.append(Div(H3(f"Entry {j + 1}"), *[Label(key.title(), Textarea(str(item.get(key, "")), name=f"section_{index}_item_{j}_{key}", rows=3 if key == "body" else 1)) for key in ("heading", "body", "url", "theme", "image", "alt")], media_picker(f"section_{index}_item_{j}_image", "entry image", library, f"section_{index}_item_{j}_alt"), Label(Input(type="checkbox", name=f"section_{index}_item_{j}_remove"), " Remove entry"), cls="e-entry"))
+            fields.append(Div(H3(f"Entry {j + 1}"), *[Label(key.title(), Textarea(str(item.get(key, "")), name=f"section_{index}_item_{j}_{key}", rows=3 if key == "body" else 1)) for key in entry_fields], media_picker(f"section_{index}_item_{j}_image", "entry image", library, f"section_{index}_item_{j}_alt"), Label(Input(type="checkbox", name=f"section_{index}_item_{j}_remove"), " Remove entry"), cls="e-entry"))
         if section["type"] in {"faq", "team", "research", "references"}:
             fields.append(Label(Input(type="checkbox", name=f"section_{index}_add_item"), " Add a new entry on save"))
         if section["type"] == "product":
@@ -780,7 +783,10 @@ def register_site_routes(rt):
                             if form.get(f"section_{i}_item_{j}_remove") == "on":
                                 continue
                             item = copy.deepcopy(original)
-                            for key in ("heading", "body", "url", "theme", "image", "alt"):
+                            entry_fields = ("heading", "body", "url", "theme", "image", "alt")
+                            if section["type"].startswith("liquid_"):
+                                entry_fields += ("label", "value")
+                            for key in entry_fields:
                                 field = f"section_{i}_item_{j}_{key}"
                                 if field in form:
                                     item[key] = merge_localized(original.get(key, ""), str(form[field])[:5000], locale)

@@ -272,6 +272,12 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
 
 
 def storefront(db, site, page, base, csrf, canonical, *, preview=False, message="", blog_listing=False, blog_category="", blog_tag=""):
+    from app.site_theme import theme_pack
+    config = site.settings_json if preview else site.published_settings_json
+    if theme_pack(config or {}) == "liquid":
+        from app.site_ui_liquid import storefront as liquid_storefront
+        return liquid_storefront(db, site, page, base, csrf, canonical,
+                                 preview=preview, message=message)
     from app.commerce import payments_enabled, settings_for
     from app.customer_services import consent_text
     from app.site_analytics import measurement_id

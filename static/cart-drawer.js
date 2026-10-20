@@ -28,7 +28,9 @@
       if (!result.ok) return;
       const data = await result.json();
       if (Number.isInteger(data.count) && data.count >= 0) {
-        link.textContent = `Bag (${data.count})`;
+        const count = link.querySelector('[data-cart-count]');
+        if (count) count.textContent = String(data.count);
+        else link.textContent = `Bag (${data.count})`;
         link.setAttribute('aria-label', `Open bag, ${data.count} items`);
       }
     } catch (_) { /* Keep the working normal cart link. */ }
