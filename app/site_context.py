@@ -1,5 +1,6 @@
 """Resolve a configured hostname to a tenant-owned site before route dispatch."""
 
+import os
 from urllib.parse import urlsplit
 
 from sqlalchemy import select
@@ -33,6 +34,11 @@ class SiteHostMiddleware:
         # landing rewrite applies however the merchant reaches the local app.
         if settings.environment == "development" and host in ("localhost", "127.0.0.1", "::1"):
             host = platform_host
+        demo_host = os.getenv("FASTSHOP_H24YOU_LIQUID_HOSTNAME", "").strip().lower().rstrip(".")
+        if demo_host:
+            demo_host = demo_host.encode("idna").decode("ascii")
+        if host == demo_host and path.startswith(("/signup", "/marketing")):
+            return await Response("Not found.", status_code=404)(scope, receive, send)
         if host == platform_host and path == "/":
             scope = dict(scope)
             scope["path"] = "/marketing/"
@@ -64,6 +70,18 @@ class SiteHostMiddleware:
                             (path.startswith(("/cart", "/checkout")) and
                              not commerce_service.payments_enabled(db, site, commerce))):
                         return await Response("Commerce is not open on this preview site.", status_code=404)(scope, receive, send)
+                    if (getattr(site, "published_settings_json", None) or {}).get("sandbox_demo"):
+                        original_send = send
+
+                        async def demo_send(message):
+                            if message["type"] == "http.response.start":
+                                message = dict(message)
+                                message["headers"] = list(message.get("headers", [])) + [
+                                    (b"x-robots-tag", b"noindex, nofollow")
+                                ]
+                            await original_send(message)
+
+                        send = demo_send
                     scope = dict(scope)
                     scope["site_base"] = ""
                     scope["site_canonical"] = "https://" + site.hostname

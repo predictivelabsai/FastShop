@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from pathlib import Path
 
 from sqlalchemy import select
@@ -322,6 +323,7 @@ def seed_h24you_liquid(db, admin_email):
         upgrade_liquid_assets_and_bundles(db, site)
         ensure_product_pages(db, site)
         ensure_content_pages(db, site)
+        bootstrap_liquid_demo(db, site)
         return site
     tenant = Tenant(slug="h24you-liquid", name="H2 | 4 YOU Liquid")
     db.add(tenant)
@@ -455,4 +457,58 @@ def seed_h24you_liquid(db, admin_email):
             )
         )
     db.flush()
+    bootstrap_liquid_demo(db, site)
     return site
+
+
+def bootstrap_liquid_demo(db, site):
+    """Explicit, repeatable demo cutover in the caller's bootstrap transaction.
+
+    This is a sandbox demo binding, not a go-live readiness approval. All site
+    rows are locked in ID order; release conflicting unique hostnames before
+    assigning the target. Existing content and credentials are never changed.
+    """
+    from sqlalchemy import func
+
+    from app.site_golive import normalize_hostname
+
+    hostname = os.getenv("FASTSHOP_H24YOU_LIQUID_HOSTNAME", "").strip()
+    if not hostname:
+        return
+    hostname = normalize_hostname(hostname)
+    if not hostname:
+        raise ValueError("FASTSHOP_H24YOU_LIQUID_HOSTNAME needs a hostname")
+    sites = list(db.scalars(select(Site).where(
+        (func.lower(Site.hostname) == hostname) | (Site.id == site.id)
+    ).order_by(Site.id).with_for_update().execution_options(populate_existing=True)))
+    for previous in sites:
+        if previous.id != site.id:
+            previous.hostname = None
+            previous.status = "draft"
+            previous.version += 1
+    db.flush()  # Respect the unique hostname constraint regardless of UPDATE order.
+    if site.hostname != hostname or site.status != "published":
+        site.hostname = hostname
+        site.status = "published"
+        site.version += 1
+    for field in ("settings_json", "published_settings_json"):
+        values = dict(getattr(site, field) or {})
+        values["sandbox_demo"] = True
+        setattr(site, field, values)
+    config = settings_for(db, site, create=True)
+    if config.mode != "sandbox" or not config.customer_accounts_enabled:
+        config.mode = "sandbox"
+        config.customer_accounts_enabled = True
+        config.version += 1
+    legacy = db.scalar(select(Tenant).where(Tenant.slug == "h24you-kinetic"))
+    if legacy:
+        for source in db.scalars(select(Membership).where(Membership.tenant_id == legacy.id)):
+            target = db.scalar(select(Membership).where(
+                Membership.tenant_id == site.tenant_id, Membership.user_id == source.user_id,
+            ))
+            if target:
+                target.role = source.role
+            else:
+                db.add(Membership(tenant_id=site.tenant_id,
+                    user_id=source.user_id, role=source.role))
+    db.flush()

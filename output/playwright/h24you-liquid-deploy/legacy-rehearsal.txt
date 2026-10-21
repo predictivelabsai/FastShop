@@ -1,0 +1,108 @@
+Using CPython 3.13.5
+Creating virtual environment at: .venv
+Resolved 63 packages in 0.68ms
+   Building fastshop @ file:///C:/Users/Joosep/AppData/Local/Temp/h24you-deploy-e4ot1qak/old
+      Built fastshop @ file:///C:/Users/Joosep/AppData/Local/Temp/h24you-deploy-e4ot1qak/old
+Prepared 1 package in 1.37s
+Installed 55 packages in 1.28s
+ + alembic==1.19.2
+ + annotated-doc==0.0.5
+ + annotated-types==0.8.0
+ + anyio==4.15.1
+ + beautifulsoup4==4.15.0
+ + brotli==1.2.0
+ + certifi==2026.7.22
+ + click==8.5.0
+ + colorama==0.4.6
+ + fastapi==0.141.1
+ + fastcore==2.2.22
+ + fastshop==0.1.0 (from file:///C:/Users/Joosep/AppData/Local/Temp/h24you-deploy-e4ot1qak/old)
+ + fonttools==4.66.1
+ + greenlet==3.5.5
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httpcore2==2.12.0
+ + httptools==0.8.0
+ + httpx==0.28.1
+ + httpx2==2.12.0
+ + idna==3.19
+ + iniconfig==2.3.0
+ + itsdangerous==2.2.0
+ + mako==1.4.1
+ + markupsafe==3.0.3
+ + oauthlib==3.3.1
+ + packaging==26.3
+ + pillow==11.3.0
+ + playwright==1.63.0
+ + pluggy==1.6.0
+ + psycopg==3.3.5
+ + psycopg-binary==3.3.5
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pyee==13.0.1
+ + pygments==2.21.0
+ + pytest==8.4.2
+ + python-dateutil==2.9.0.post0
+ + python-dotenv==1.2.3
+ + python-fasthtml==0.14.13
+ + python-multipart==0.0.32
+ + pyyaml==6.0.3
+ + ruff==0.16.6
+ + six==1.17.0
+ + soupsieve==2.9.2
+ + sqlalchemy==2.0.52
+ + starlette==1.6.0
+ + truststore==0.10.4
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+ + tzdata==2026.3
+ + uvicorn==0.52.4
+ + watchfiles==1.2.0
+ + websockets==17.1
+ + zopfli==0.4.3
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 20260908_0001, Create the FastShop commerce schema.
+INFO  [alembic.runtime.migration] Running upgrade 20260908_0001 -> 20260921_0002, Add tenant-owned sites, editorial revisions, media and contact inbox.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0002 -> 20260921_0003, Add site-owned US commerce configuration and immutable tax quotes.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0003 -> 20260921_0004, Site customer identity, consent, offers, mail queue and shipment events.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0004 -> 20260921_0005, Durable checkout attempts and expiring inventory reservations.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0005 -> 20260921_0006, Persist provider commands before sending them to Stripe.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0006 -> 20260921_0007, Tenant and site-owned browser carts.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0007 -> 20260921_0008, Physical-delivery subscription contracts, cycles and customer audit events.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0008 -> 20260921_0009, Durable customer-owned card-update sessions.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0009 -> 20260921_0010, Store scoped order/shipment references for transactional mail.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0010 -> 20260921_0011, Link missed subscription deliveries to auditable one-time recovery checkouts.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0011 -> 20260921_0012, Retain a customer's draft discount code on their site-owned cart.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0012 -> 20260921_0013, Durable site builder turns and reversible draft changes.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0013 -> 20260921_0014, Private, isolated commerce simulations; no real payment/order records.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0014 -> 20260923_0015, Customer reviews table (previously model-only; required for Postgres/Alembic).
+INFO  [alembic.runtime.migration] Running upgrade 20260923_0015 -> 20261007_0016, Per-user password hashes on users (multiple password accounts).
+LEGACY host / 200 kinetic stylesheet: True
+LEGACY shop/cart/account: PASS
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 20261007_0016 -> 20261008_0017, Site-scoped navigation with draft and published ordered items.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0017 -> 20261008_0018, Extend the existing blob-backed media table with reusable URL metadata.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0018 -> 20261008_0019, Site blog taxonomy; editorial metadata stays in versioned page documents.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0019 -> 20261008_0020, Site-scoped draft and published head/foot snippets.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0020 -> 20261008_0021, Site-scoped external mappings and one-time connector plans.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0021 -> 20261008_0022, Encrypted per-site Stripe live credentials and explicit acceptance state.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0022 -> 20261009_0023, Durable site-scoped Stripe refund commands.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0023 -> 20261009_0024, Bounded outbox retries and a payload-free Stripe webhook ledger.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0024 -> 20261009_0025, Self-serve signup rate limits, verification, and account mail targets.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0025 -> 20261009_0026, Durable tenant onboarding wizard progress.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0026 -> 20261009_0027, Phase 5d plan assignments and the durable usage-metering ledger.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0027 -> 20261009_0028, Phase 5e platform Stripe subscription billing.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0028 -> 20261011_0029, Customer accounts are an explicit per-site opt-in.
+NEW: 14 host routes, checkout, signup/marketing isolation, both logins, 11 admin routes each, repeat boot: PASS
+ROLLBACK host / 200 kinetic stylesheet: False
+RESTORE host / 200 kinetic stylesheet: True
+RESTORE shop/cart/account: PASS
+OLD entrypoint Alembic on upgraded DB: 4294967295
+FAILED: Can't locate revision identified by '20261011_0029'
+ INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+ERROR [alembic.util.messaging] Can't locate revision identified by '20261011_0029'
+
+Evidence directory: C:\Users\Joosep\AppData\Local\Temp\h24you-deploy-e4ot1qak

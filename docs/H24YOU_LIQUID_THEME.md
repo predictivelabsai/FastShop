@@ -454,6 +454,12 @@ FAQ answers remain verbatim source copy, rather than merchant policy approval.
 
 ## Deploy notes
 
+For the prepared sandbox demo cutover, follow
+[H24YOU_LIQUID_DEPLOY.md](H24YOU_LIQUID_DEPLOY.md). It documents the opt-in
+boot hostname/access migration, sandbox publication exception, environment
+settings and tested rollback. The original M3 notes below describe general
+go-live requirements; they are not the sandbox cutover procedure.
+
 No deployment, push, hostname change or production provisioning was performed.
 To serve a public hostname, an operator would need to run the app behind a
 TLS-enabled reverse proxy, point DNS at that service, bind the exact hostname to
