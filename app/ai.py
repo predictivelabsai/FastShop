@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Order, OutboxEvent, Product, Stock
+from app.models import Order, OutboxEvent, Product, ProductVariant, Stock
 from app.services import catalog_snapshot, money, products
 
 SHOPPER_PROMPT = """You are the FastShop shopping assistant for Northstar Goods.
@@ -22,7 +22,9 @@ facts. Explain catalog, stock, orders, promotions, and FastERP sync health. Neve
 performed a write; privileged actions require explicit confirmation in the normal UI."""
 
 
-def _deterministic(session: Session, question: str, merchant: bool) -> str | None:
+def _deterministic(session: Session, question: str, merchant: bool, tenant_ids=None) -> str | None:
+    scope = Order.tenant_id.in_(tenant_ids) if tenant_ids is not None else True
+    outbox_scope = OutboxEvent.tenant_id.in_(tenant_ids) if tenant_ids is not None else True
     command = question.strip().lower().split(maxsplit=1)[0]
     if command in {"/help", "help"}:
         return (
@@ -30,25 +32,25 @@ def _deterministic(session: Session, question: str, merchant: bool) -> str | Non
             "explain delivery, and help you choose a variant."
         )
     if command == "/products":
-        cards = products(session)
+        cards = products(session, tenant_ids=tenant_ids, admin_catalog=merchant)
         return "Available now: " + "; ".join(
-            f"{card.product.name} ({money(card.price_minor, card.currency)}, {card.available} in stock)"
+            f"{card.product.name} ({(money(card.price_minor, card.currency) if card.price_minor is not None else "Price to be confirmed")}, {card.available} in stock)"
             for card in cards
         )
     if command == "/stock":
-        cards = products(session)
+        cards = products(session, tenant_ids=tenant_ids, admin_catalog=merchant)
         low = [f"{card.product.name}: {card.available}" for card in cards if card.available < 15]
         return "Low-stock watch: " + (", ".join(low) if low else "no products are below 15 units.")
     if command == "/orders" and merchant:
-        count = session.scalar(select(func.count(Order.id))) or 0
-        paid = session.scalar(select(func.count(Order.id)).where(Order.payment_status == "paid")) or 0
+        count = session.scalar(select(func.count(Order.id)).where(scope)) or 0
+        paid = session.scalar(select(func.count(Order.id)).where(Order.payment_status == "paid", scope)) or 0
         return f"There are {count} orders in FastShop; {paid} are paid."
     if command == "/sync" and merchant:
         pending = session.scalar(
-            select(func.count(OutboxEvent.id)).where(OutboxEvent.status == "pending")
+            select(func.count(OutboxEvent.id)).where(OutboxEvent.status == "pending", outbox_scope)
         ) or 0
         failed = session.scalar(
-            select(func.count(OutboxEvent.id)).where(OutboxEvent.status == "failed")
+            select(func.count(OutboxEvent.id)).where(OutboxEvent.status == "failed", outbox_scope)
         ) or 0
         return f"FastERP outbox: {pending} pending and {failed} failed events."
     lowered = question.lower()
@@ -57,37 +59,41 @@ def _deterministic(session: Session, question: str, merchant: bool) -> str | Non
     if "return" in lowered:
         return "Unused items can be returned within 30 days. Start from your order page after signing in."
     if "recommend" in lowered or "suggest" in lowered:
-        cards = products(session, featured=True)
+        cards = products(session, featured=True, tenant_ids=tenant_ids, admin_catalog=merchant)
         return "A good place to start: " + ", ".join(card.product.name for card in cards[:3]) + "."
     return None
 
 
-def answer(session: Session, question: str, route: str, merchant: bool = False) -> str:
+def answer(session: Session, question: str, route: str, merchant: bool = False, *, tenant_ids: set[str] | None = None) -> str:
     question = question.strip()[:1000]
     if not question:
         return "Ask me about products, variants, delivery, stock, orders, or FastERP sync."
-    deterministic = _deterministic(session, question, merchant)
+    deterministic = _deterministic(session, question, merchant, tenant_ids)
     if deterministic:
         return deterministic
-    cards = products(session)
+    cards = products(session, tenant_ids=tenant_ids, admin_catalog=merchant)
     facts = {
         "route": route[:240],
         "catalog": [
             {
                 "name": card.product.name,
                 "description": card.product.subtitle,
-                "price": money(card.price_minor, card.currency),
+                "price": (money(card.price_minor, card.currency) if card.price_minor is not None else "Price to be confirmed"),
                 "available": card.available,
                 "variants": [variant.name for variant in card.product.variants],
             }
             for card in cards
         ],
-        "snapshot": catalog_snapshot(session),
+        "snapshot": {"product_count": len(cards)} if merchant else catalog_snapshot(session),
     }
     if merchant:
-        facts["orders"] = session.scalar(select(func.count(Order.id))) or 0
-        facts["stock_units"] = session.scalar(select(func.sum(Stock.quantity - Stock.allocated))) or 0
-        facts["products_total"] = session.scalar(select(func.count(Product.id))) or 0
+        scope = Order.tenant_id.in_(tenant_ids) if tenant_ids is not None else True
+        facts["orders"] = session.scalar(select(func.count(Order.id)).where(scope)) or 0
+        facts["stock_units"] = session.scalar(select(func.sum(Stock.quantity - Stock.allocated)).join(
+            ProductVariant, ProductVariant.id == Stock.variant_id).where(
+                ProductVariant.tenant_id.in_(tenant_ids) if tenant_ids is not None else True)) or 0
+        facts["products_total"] = session.scalar(select(func.count(Product.id)).where(
+            Product.tenant_id.in_(tenant_ids) if tenant_ids is not None else True)) or 0
     if not settings.xai_api_key:
         return (
             "I can answer deterministic questions without an AI key. Try `/products`, `/stock`, "

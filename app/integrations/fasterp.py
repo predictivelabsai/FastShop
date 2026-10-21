@@ -99,7 +99,8 @@ def _dispatch(session: Session, event: OutboxEvent) -> None:
 
 
 def deliver_pending(
-    session: Session, limit: int = 20, *, now: datetime | None = None
+    session: Session, limit: int = 20, *, now: datetime | None = None,
+    tenant_ids: set[str] | None = None
 ) -> tuple[int, int]:
     now = now or datetime.now(UTC)
     events = list(
@@ -107,6 +108,7 @@ def deliver_pending(
             select(OutboxEvent)
             .where(
                 OutboxEvent.status == "pending",
+                OutboxEvent.tenant_id.in_(tenant_ids) if tenant_ids is not None else True,
                 (OutboxEvent.next_attempt_at.is_(None) | (OutboxEvent.next_attempt_at <= now)),
             )
             .order_by(OutboxEvent.created_at, OutboxEvent.id)

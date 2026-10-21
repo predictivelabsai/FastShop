@@ -44,7 +44,7 @@ class CommerceError(ValueError):
 @dataclass(frozen=True)
 class ProductCard:
     product: Product
-    price_minor: int
+    price_minor: int | None
     compare_at_minor: int | None
     currency: str
     available: int
@@ -85,15 +85,24 @@ def products(
     query: str = "",
     category: str = "",
     featured: bool | None = None,
+    tenant_ids: set[str] | None = None,
+    admin_catalog: bool = False,
 ) -> list[ProductCard]:
-    tenant, channel = tenant_channel(session)
+    # Public callers retain the demo storefront's tenant and channel selection.
+    channel = None
+    if not admin_catalog:
+        tenant, channel = tenant_channel(session)
     statement = (
         select(Product)
         .options(selectinload(Product.variants))
         .join(Category, Category.id == Product.category_id)
-        .where(Product.tenant_id == tenant.id, Product.is_published.is_(True))
+        .where(Product.is_published.is_(True))
         .order_by(Product.is_featured.desc(), Product.created_at, Product.name)
     )
+    if not admin_catalog:
+        statement = statement.where(Product.tenant_id == tenant.id)
+    if tenant_ids is not None:
+        statement = statement.where(Product.tenant_id.in_(tenant_ids))
     if query:
         term = f"%{query.strip()}%"
         statement = statement.where(
@@ -107,23 +116,31 @@ def products(
     for product in session.scalars(statement).unique():
         first_variant = next((variant for variant in product.variants if variant.is_active), None)
         if not first_variant:
+            if admin_catalog:
+                result.append(ProductCard(product, None, None, "", 0))
             continue
-        listing = session.scalar(
-            select(VariantChannelListing).where(
-                VariantChannelListing.variant_id == first_variant.id,
-                VariantChannelListing.channel_id == channel.id,
-            )
-        )
-        if not listing:
+        listing_query = select(VariantChannelListing).where(VariantChannelListing.variant_id == first_variant.id)
+        if channel is not None:
+            listing_query = listing_query.where(VariantChannelListing.channel_id == channel.id)
+        else:
+            listing_query = listing_query.join(Channel, Channel.id == VariantChannelListing.channel_id).where(
+                Channel.tenant_id == product.tenant_id,
+            ).order_by(Channel.created_at, Channel.id)
+        listing = session.scalar(listing_query)
+        if not listing and not admin_catalog:
             continue
         available = session.scalar(
             select(func.coalesce(func.sum(Stock.quantity - Stock.allocated), 0)).where(
                 Stock.variant_id == first_variant.id
             )
         )
-        result.append(
-            ProductCard(product, listing.price_minor, listing.compare_at_minor, listing.currency, available)
-        )
+        if listing is None:
+            # Only the admin catalog reaches this fallback; storefront cards stay priced.
+            result.append(ProductCard(product, None, None, "", available))
+        else:
+            result.append(
+                ProductCard(product, listing.price_minor, listing.compare_at_minor, listing.currency, available)
+            )
     return result
 
 

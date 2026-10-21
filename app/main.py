@@ -163,6 +163,15 @@ def admin_guard(session: dict):
     return user, None
 
 
+def membership_tenants(db, user: dict) -> set[str] | None:
+    """Scope members to their tenants; membership-free operators retain global access."""
+    tenant_ids = set(db.scalars(select(Membership.tenant_id).where(Membership.user_id == user["id"])))
+    if tenant_ids:
+        return tenant_ids
+    operator = db.get(User, user["id"])
+    return None if operator and operator.email.lower() == settings.admin_email else set()
+
+
 def establish_session(session: dict, user: User, role: str) -> None:
     session["user_id"] = user.id
     session["role"] = role
@@ -339,14 +348,14 @@ def get(session, error: str = "", next: str = ""):
     user = current_user(session)
     if user:
         with SessionLocal() as db:
-            membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
-        if membership:
+            membership = db.scalar(select(Membership).where(Membership.user_id == user["id"]))
+        if membership or user["role"] in {"admin", "merchant"}:
             return RedirectResponse(destination or "/admin", status_code=303)
     return login_page(
         csrf_token(session),
         error,
         auth.google_enabled(),
-        auth.local_login_allowed(),
+        auth.local_login_allowed() or settings.allow_password_login,
     )
 
 
@@ -589,7 +598,8 @@ def post(session, message: str, route: str = "/", surface: str = "shopper", csrf
     user = current_user(session)
     merchant = bool(user and user["role"] in {"admin", "merchant"} and (surface == "merchant" or route.startswith("/admin")))
     with SessionLocal() as db:
-        response = ai.answer(db, message, route, merchant)
+        response = ai.answer(db, message, route, merchant,
+            tenant_ids=membership_tenants(db, user) if merchant else None)
     return JSONResponse({"answer": response, "surface": "merchant" if merchant else "shopper"})
 
 
@@ -599,7 +609,7 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.dashboard(db)
+        content = ui.dashboard(db, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("Commerce overview", "dashboard", *content, user=user, csrf=csrf_token(session), route="/admin")
 
 
@@ -609,7 +619,7 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.admin_products(db)
+        content = ui.admin_products(db, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("Products", "products", content, user=user, csrf=csrf_token(session), route="/admin/products")
 
 
@@ -619,7 +629,11 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        orders = list(db.scalars(select(Order).order_by(Order.created_at.desc())))
+        tenant_ids = membership_tenants(db, user)
+        statement = select(Order).order_by(Order.created_at.desc())
+        if tenant_ids is not None:
+            statement = statement.where(Order.tenant_id.in_(tenant_ids))
+        orders = list(db.scalars(statement))
         content = ui.panel("All orders", ui.order_table(orders))
     return ui.merchant_page("Orders", "orders", content, user=user, csrf=csrf_token(session), route="/admin/orders")
 
@@ -630,7 +644,7 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.admin_inventory(db)
+        content = ui.admin_inventory(db, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("Inventory", "inventory", content, user=user, csrf=csrf_token(session), route="/admin/inventory")
 
 
@@ -640,7 +654,7 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.admin_promotions(db)
+        content = ui.admin_promotions(db, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("Promotions", "promotions", content, user=user, csrf=csrf_token(session), route="/admin/promotions")
 
 
@@ -650,7 +664,7 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.admin_channels(db)
+        content = ui.admin_channels(db, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("Channels", "channels", content, user=user, csrf=csrf_token(session), route="/admin/channels")
 
 
@@ -696,7 +710,7 @@ def get(session, message: str = ""):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.integration_page(db, message)
+        content = ui.integration_page(db, message, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("FastERP integration", "integrations", *content, user=user, csrf=csrf_token(session), route="/admin/integrations/fasterp")
 
 
@@ -708,7 +722,7 @@ def post(session, csrf_token: str = ""):
     try:
         require_csrf(session, csrf_token)
         with SessionLocal() as db:
-            delivered, failed = fasterp.deliver_pending(db)
+            delivered, failed = fasterp.deliver_pending(db, tenant_ids=membership_tenants(db, user))
             db.commit()
         message = f"Sync finished: {delivered} delivered, {failed} deferred or failed."
     except CommerceError as exc:
@@ -731,7 +745,14 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        rows = list(db.scalars(select(User).order_by(User.created_at.desc())))
+        tenant_ids = membership_tenants(db, user)
+        statement = select(User).order_by(User.created_at.desc())
+        if tenant_ids is not None:
+            statement = statement.where(
+                User.id.in_(select(Membership.user_id).where(Membership.tenant_id.in_(tenant_ids)))
+                | User.id.in_(select(Order.user_id).where(Order.tenant_id.in_(tenant_ids)))
+            )
+        rows = list(db.scalars(statement))
         content = ui.panel("Customers and staff", ui.Div(ui.Table(ui.Thead(ui.Tr(ui.Th("Name"), ui.Th("Email"), ui.Th("Status"))), ui.Tbody(*[ui.Tr(ui.Td(row.name), ui.Td(row.email), ui.Td(ui.Span("Active", cls="pill green"))) for row in rows])), cls="table-scroll"))
     return ui.merchant_page("Customers", "customers", content, user=user, csrf=csrf_token(session), route="/admin/customers")
 
