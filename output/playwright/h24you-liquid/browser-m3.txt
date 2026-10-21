@@ -1,0 +1,15 @@
+{
+  "checks": 975,
+  "passed": 975,
+  "failed": [],
+  "screenshots": 48,
+  "internal_links": 47,
+  "placeholder_links": [
+    "H2 | 4 YOU on Facebook",
+    "H2 | 4 YOU on Instagram",
+    "Privacy Policy",
+    "Privacy policy",
+    "Terms and Conditions"
+  ],
+  "errors": []
+}

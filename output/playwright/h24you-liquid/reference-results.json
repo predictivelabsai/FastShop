@@ -1,5 +1,5 @@
 {
-  "screenshots": 20,
+  "screenshots": 48,
   "pages": [
     {
       "page": "home",
@@ -37,6 +37,55 @@
       "overflow": false
     },
     {
+      "page": "about",
+      "width": 375,
+      "title": "About H2 | 4 YOU",
+      "image_count": 8,
+      "overflow": false
+    },
+    {
+      "page": "faq",
+      "width": 375,
+      "title": "Your questions, answered",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "contact",
+      "width": 375,
+      "title": "Get in touch",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "learn",
+      "width": 375,
+      "title": "How a tablet makes hydrogen water",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "why-hydrogen",
+      "width": 375,
+      "title": "Hydrogen 101",
+      "image_count": 9,
+      "overflow": false
+    },
+    {
+      "page": "why-hydrogen-science",
+      "width": 375,
+      "title": "What the science says",
+      "image_count": 7,
+      "overflow": true
+    },
+    {
+      "page": "science",
+      "width": 375,
+      "title": "The science",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
       "page": "home",
       "width": 768,
       "title": "Your water, upgraded.",
@@ -72,6 +121,55 @@
       "overflow": false
     },
     {
+      "page": "about",
+      "width": 768,
+      "title": "About H2 | 4 YOU",
+      "image_count": 8,
+      "overflow": false
+    },
+    {
+      "page": "faq",
+      "width": 768,
+      "title": "Your questions, answered",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "contact",
+      "width": 768,
+      "title": "Get in touch",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "learn",
+      "width": 768,
+      "title": "How a tablet makes hydrogen water",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "why-hydrogen",
+      "width": 768,
+      "title": "Hydrogen 101",
+      "image_count": 9,
+      "overflow": false
+    },
+    {
+      "page": "why-hydrogen-science",
+      "width": 768,
+      "title": "What the science says",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "science",
+      "width": 768,
+      "title": "The science",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
       "page": "home",
       "width": 1024,
       "title": "Your water, upgraded.",
@@ -107,6 +205,55 @@
       "overflow": false
     },
     {
+      "page": "about",
+      "width": 1024,
+      "title": "About H2 | 4 YOU",
+      "image_count": 8,
+      "overflow": false
+    },
+    {
+      "page": "faq",
+      "width": 1024,
+      "title": "Your questions, answered",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "contact",
+      "width": 1024,
+      "title": "Get in touch",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "learn",
+      "width": 1024,
+      "title": "How a tablet makes hydrogen water",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "why-hydrogen",
+      "width": 1024,
+      "title": "Hydrogen 101",
+      "image_count": 9,
+      "overflow": false
+    },
+    {
+      "page": "why-hydrogen-science",
+      "width": 1024,
+      "title": "What the science says",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "science",
+      "width": 1024,
+      "title": "The science",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
       "page": "home",
       "width": 1440,
       "title": "Your water, upgraded.",
@@ -139,6 +286,55 @@
       "width": 1440,
       "title": "Taste the Range",
       "image_count": 32,
+      "overflow": false
+    },
+    {
+      "page": "about",
+      "width": 1440,
+      "title": "About H2 | 4 YOU",
+      "image_count": 8,
+      "overflow": false
+    },
+    {
+      "page": "faq",
+      "width": 1440,
+      "title": "Your questions, answered",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "contact",
+      "width": 1440,
+      "title": "Get in touch",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "learn",
+      "width": 1440,
+      "title": "How a tablet makes hydrogen water",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "why-hydrogen",
+      "width": 1440,
+      "title": "Hydrogen 101",
+      "image_count": 9,
+      "overflow": false
+    },
+    {
+      "page": "why-hydrogen-science",
+      "width": 1440,
+      "title": "What the science says",
+      "image_count": 7,
+      "overflow": false
+    },
+    {
+      "page": "science",
+      "width": 1440,
+      "title": "The science",
+      "image_count": 7,
       "overflow": false
     }
   ],

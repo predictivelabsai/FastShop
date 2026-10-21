@@ -14,6 +14,13 @@ PAGES = (
     ("/products/h2-4-you-one", "one"),
     ("/products/hydrogen-tablets", "fizz"),
     ("/products/taste-the-range", "range"),
+    ("/about", "about"),
+    ("/faq", "faq"),
+    ("/contact", "contact"),
+    ("/learn", "learn"),
+    ("/why-hydrogen", "why-hydrogen"),
+    ("/why-hydrogen/science", "why-hydrogen-science"),
+    ("/science", "science"),
 )
 
 
@@ -61,19 +68,25 @@ def main():
                         e.textContent.trim() === e.getAttribute('aria-label'))""")
                 # The reference uses a fixed scroll shell. Temporarily expose its full
                 # content for Chrome's full-page capture, preserving viewport width.
-                page.add_style_tag(content="""
+                page.add_style_tag(
+                    content="""
                     .direction-docked-shell { position: relative !important;
                         inset: auto !important; height: auto !important; overflow: visible !important; }
                     .direction-scroll-content { overflow: visible !important; flex: auto !important; }
-                """)
+                """
+                )
                 page.screenshot(path=str(out / f"ref-{name}-{width}.png"), full_page=True)
-                evidence.append({
-                    "page": name,
-                    "width": width,
-                    "title": page.get_by_role("heading", level=1).inner_text(),
-                    "image_count": page.locator("img").count(),
-                    "overflow": page.evaluate("document.documentElement.scrollWidth > innerWidth"),
-                })
+                evidence.append(
+                    {
+                        "page": name,
+                        "width": width,
+                        "title": page.get_by_role("heading", level=1).inner_text(),
+                        "image_count": page.locator("img").count(),
+                        "overflow": page.evaluate(
+                            "document.documentElement.scrollWidth > innerWidth"
+                        ),
+                    }
+                )
                 context.close()
         browser.close()
     report = {"screenshots": len(evidence), "pages": evidence, "errors": errors}

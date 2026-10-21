@@ -1,0 +1,289 @@
+{
+  "aboutPage": {
+    "label": "ABOUT US",
+    "heading": "Why we started H2 | 4 YOU",
+    "title": "About us | H2 | 4 YOU",
+    "description": "Why we started H2 | 4 YOU: the people behind the One and Fizz, and the values behind everything we make.",
+    "quote": "We didn't start H2 | 4 YOU because hydrogen is having a moment, but because we've used hydrogen ourselves, every day, for more than two years, and it has made a significant difference to our wellbeing.",
+    "attribution": "Helen & Andres",
+    "attributionTitle": "Co-founders",
+    "founders": [
+      {
+        "id": "helen",
+        "name": "Helen",
+        "text": "Hydrogen has been part of my daily routine for over two years, and I feel stronger and healthier in my 40s than I did in my 30s.",
+        "title": "Co-founder & CEO",
+        "placeholder": false
+      },
+      {
+        "id": "andres",
+        "name": "Andres",
+        "text": "[Andres's text coming soon]",
+        "title": "[Title to confirm]",
+        "placeholder": true
+      }
+    ],
+    "valuesHeading": "Our values",
+    "valuesIntro": "Our values reflect our commitment to science, quality and helping people take care of their wellbeing.",
+    "values": [
+      {
+        "icon": "quality",
+        "title": "Quality",
+        "text": "Every One is individually tested before it leaves the factory, and every batch of Fizz tablets goes through third-party testing. Quality matters to us because these products are part of our own daily lives."
+      },
+      {
+        "icon": "molecule",
+        "title": "Science-based",
+        "text": "We base our work on current science. We closely follow the latest research on molecular hydrogen, so that everything we offer is grounded in what the research supports."
+      },
+      {
+        "icon": "support",
+        "title": "Customer-centered",
+        "text": "We want to offer more than products: support, knowledge and inspiration for a healthier, more balanced lifestyle. If you have questions, whether before you buy or after, we're always happy to help."
+      }
+    ],
+    "closing": "Ready to try it yourself?",
+    "shop": "Shop the collection",
+    "learn": "Hydrogen 101"
+  },
+  "faqPage": {
+    "label": "HELP",
+    "title": "Your questions, answered",
+    "intro": "Everything about your orders, shipping, subscriptions and returns. Questions about the One or Fizz? You'll find them on each product page. Can't find what you're looking for? Just email us at hello@h24you.com, we're happy to help.",
+    "introLinks": [
+      {
+        "text": "the One",
+        "to": "/products/h2-4-you-one",
+        "hash": "faq"
+      },
+      {
+        "text": "Fizz",
+        "to": "/products/hydrogen-tablets",
+        "hash": "faq"
+      }
+    ],
+    "search": "Search questions",
+    "noResults": "No questions found.",
+    "contact": "Contact us",
+    "categories": [
+      {
+        "id": "hydrogen-basics",
+        "title": "Hydrogen basics",
+        "questions": [
+          {
+            "question": "What is hydrogen water?",
+            "answer": "Hydrogen water is ordinary drinking water with molecular hydrogen (H₂) gas dissolved in it. Researchers have studied it in a growing number of publications, and while early research is encouraging in several areas, more research is needed to understand it fully."
+          },
+          {
+            "question": "Is hydrogen water safe?",
+            "answer": "Hydrogen gas has GRAS status (\"generally recognized as safe\") for use in drinking water and beverages, and in human studies hydrogen water has been well tolerated. Your body even makes hydrogen itself, in your gut, every day."
+          },
+          {
+            "question": "Does hydrogen water taste different?",
+            "answer": "Hydrogen itself has no taste or smell, so water from the One simply tastes like fresh water. Fizz flavors taste lightly of fruit. [to confirm: taste note for Unflavored]"
+          },
+          {
+            "question": "Is hydrogen water the same as alkaline water?",
+            "answer": "No. The research is about dissolved hydrogen, not pH. Learn more in Myth or fact.",
+            "links": [
+              {
+                "text": "Myth or fact",
+                "to": "/why-hydrogen/science",
+                "hash": "myth-or-fact"
+              }
+            ]
+          },
+          {
+            "question": "Where can I learn more about hydrogen?",
+            "answer": "Start with Hydrogen 101 for the basics, then see The science for the myths, the facts and the studies.",
+            "links": [
+              {
+                "text": "Hydrogen 101",
+                "to": "/why-hydrogen"
+              },
+              {
+                "text": "The science",
+                "to": "/why-hydrogen/science"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "orders-shipping",
+        "title": "Orders and shipping",
+        "questions": [
+          {
+            "question": "Where do you ship?",
+            "answer": "We currently ship within the United States. [to confirm: other countries]"
+          },
+          {
+            "question": "How long does shipping take?",
+            "answer": "Orders are processed within [to confirm: 1–2] business days. Delivery then takes about [to confirm: number] business days. You'll get a tracking link by email as soon as your order ships."
+          },
+          {
+            "question": "How much does shipping cost?",
+            "answer": "Shipping is free on orders over $75. Below that, shipping costs [to confirm: rate]."
+          },
+          {
+            "question": "Will I pay customs or import fees?",
+            "answer": "[to confirm: whether orders ship from within the US, and whether any duties or fees can apply]"
+          },
+          {
+            "question": "How do I track my order?",
+            "answer": "Use the tracking link in your shipping email, or sign in to your account and open Orders."
+          },
+          {
+            "question": "Can I change or cancel my order?",
+            "answer": "Contact us as soon as possible at hello@h24you.com. We can usually make changes until your order ships. [to confirm: time window]"
+          },
+          {
+            "question": "My order arrived damaged or something is missing. What should I do?",
+            "answer": "We're sorry about that. Email us at hello@h24you.com within [to confirm: 7] days of delivery with your order number and a photo, and we'll make it right."
+          },
+          {
+            "question": "Do you ship to P.O. boxes or military addresses (APO/FPO)?",
+            "answer": "[to confirm]"
+          },
+          {
+            "question": "Is shipping included with Taste the Range?",
+            "answer": "Yes, free shipping is included."
+          }
+        ]
+      },
+      {
+        "id": "subscriptions",
+        "title": "Subscriptions",
+        "questions": [
+          {
+            "question": "How does the Fizz subscription work?",
+            "answer": "Subscribe to any Fizz flavor and save 10% on every box. Choose a delivery every 2, 4 or 6 weeks, and we'll send your tablets automatically."
+          },
+          {
+            "question": "Can I change my flavor or delivery interval, or skip a delivery?",
+            "answer": "Yes. Sign in to your account, open Subscriptions, and change your flavor, interval or next delivery date, or skip a delivery."
+          },
+          {
+            "question": "How do I cancel?",
+            "answer": "You can cancel anytime in your account under Subscriptions, with no fees. Cancel before your next billing date to stop the next delivery."
+          },
+          {
+            "question": "When will I be charged?",
+            "answer": "You're charged on each delivery date. We'll send a reminder email [to confirm: number] days before each renewal."
+          },
+          {
+            "question": "Can I subscribe to the One or to Taste the Range?",
+            "answer": "No. The One and Taste the Range are one-time purchases. Subscriptions are available for individual Fizz flavors."
+          },
+          {
+            "question": "Can I mix flavors in my subscription?",
+            "answer": "Yes. Add each flavor to your cart; they arrive together in one delivery."
+          }
+        ]
+      },
+      {
+        "id": "returns-warranty",
+        "title": "Returns and warranty",
+        "questions": [
+          {
+            "question": "What is your return policy?",
+            "answer": "You can return your order within 30 days of delivery. Fizz tablets can be returned unopened. The One can be returned in its original condition and packaging. [to confirm: conditions]"
+          },
+          {
+            "question": "How do I start a return?",
+            "answer": "Email hello@h24you.com with your order number, and we'll send you the return instructions."
+          },
+          {
+            "question": "Who pays for return shipping?",
+            "answer": "[to confirm]"
+          },
+          {
+            "question": "When will I get my refund?",
+            "answer": "Once your return arrives and has been checked, we refund your original payment method within [to confirm: number] business days."
+          },
+          {
+            "question": "What does the 1-year warranty cover?",
+            "answer": "The One's warranty covers manufacturing defects for 1 year from delivery. It doesn't cover accidental damage, misuse or normal wear. If something isn't working, email us with your order number and a short description or video, and we'll help."
+          }
+        ]
+      },
+      {
+        "id": "account-payment",
+        "title": "Account and payment",
+        "questions": [
+          {
+            "question": "Which payment methods do you accept?",
+            "answer": "[to confirm: e.g. Visa, Mastercard, American Express, Apple Pay, Google Pay, PayPal]"
+          },
+          {
+            "question": "Is checkout secure?",
+            "answer": "Yes. Payments are processed securely by our payment provider, and we never store your full card details."
+          },
+          {
+            "question": "Do I need an account to order?",
+            "answer": "No, you can check out as a guest. You'll need an account for subscriptions, and it makes tracking orders easier."
+          },
+          {
+            "question": "How do I get my first-order discount?",
+            "answer": "Request your code through the banner at the top of the site, and enter it at checkout. [to confirm: conditions]"
+          },
+          {
+            "question": "Do your prices include sales tax?",
+            "answer": "[to confirm: whether sales tax is added at checkout]"
+          },
+          {
+            "question": "I forgot my password. What should I do?",
+            "answer": "Choose \"Forgot password?\" on the sign-in page, and we'll email you a link to set a new one."
+          }
+        ]
+      }
+    ],
+    "closing": {
+      "heading": "Didn't find your answer?",
+      "text": "Send us a message and we'll reply within one business day.",
+      "button": "Contact us",
+      "emailLead": "Or email us at",
+      "email": "hello@h24you.com"
+    },
+    "moreLink": "More questions? See all FAQs →"
+  },
+  "contactPage": {
+    "label": "Help",
+    "title": "Get in touch",
+    "intro": "Questions about an order, a product or hydrogen in general? Send us a message and we'll reply within one business day.",
+    "email": "hello@h24you.com",
+    "privacyHref": "#",
+    "topics": [
+      "Orders and shipping",
+      "Subscriptions",
+      "Returns and warranty",
+      "The One",
+      "Fizz",
+      "Something else"
+    ],
+    "success": "We've got your message and will reply within one business day.",
+    "again": "Send another message",
+    "quick": [
+      {
+        "label": "Track my order",
+        "to": "/faq",
+        "hash": "orders-shipping"
+      },
+      {
+        "label": "FAQ",
+        "to": "/faq",
+        "hash": ""
+      },
+      {
+        "label": "Shipping",
+        "to": "/faq",
+        "hash": "orders-shipping"
+      },
+      {
+        "label": "Returns and warranty",
+        "to": "/faq",
+        "hash": "returns-warranty"
+      }
+    ]
+  }
+}

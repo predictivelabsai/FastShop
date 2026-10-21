@@ -78,6 +78,14 @@ BLOCK_TYPES = {
     'liquid_product_benefits': BlockSpec('Liquid product benefits', ('theme',)),
     'liquid_product_faq': BlockSpec('Liquid product disclosures', ('theme',)),
     'liquid_product_pair': BlockSpec('Liquid product pairing', ('theme',)),
+    'liquid_support_about_opening': BlockSpec('Liquid founder stories'),
+    'liquid_support_about_values': BlockSpec('Liquid values'),
+    'liquid_support_about_closing': BlockSpec('Liquid About links'),
+    'liquid_support_faq_hero': BlockSpec('Liquid FAQ search and categories'),
+    'liquid_support_faq_category': BlockSpec('Liquid FAQ category'),
+    'liquid_support_faq_closing': BlockSpec('Liquid FAQ contact links'),
+    'liquid_support_contact': BlockSpec('Liquid contact form'),
+    'liquid_editorial': BlockSpec('Liquid learning chapter', ('theme',)),
 }
 LIQUID_PRODUCT_THEMES = {
     'liquid_product_purchase': {
@@ -230,6 +238,12 @@ def validate_block(block: dict) -> Block:
             raise CommerceError('A gallery accepts up to twelve image URLs.')
         for value in result['gallery']:
             _text(value, 'image')
+    if result['type'].startswith('liquid_support_'):
+        from app.site_liquid_support_validation import validate_support
+        validate_support(result)
+    if result['type'] == 'liquid_editorial':
+        from app.site_liquid_editorial_content import validate_editorial
+        validate_editorial(result)
     return result
 
 

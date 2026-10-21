@@ -110,6 +110,8 @@ def documents():
             "why",
             heading=metal["benefitsTitle"],
             body=c["fdaDisclaimer"],
+            button="More questions? See all FAQs →",
+            link="/faq",
             items=[
                 {"heading": b["title"], "body": b["text"], "theme": b["icon"]}
                 for b in metal["benefits"]
@@ -282,12 +284,44 @@ def ensure_product_pages(db, site):
     db.flush()
 
 
+def ensure_content_pages(db, site):
+    """Add M3 pages without replacing existing merchant documents or settings."""
+    from app.site_liquid_editorial_content import editorial_documents
+    from app.site_liquid_support_content import support_documents
+
+    for path, title, kind, blocks in support_documents() + editorial_documents():
+        if db.scalar(select(SitePage.id).where(
+            SitePage.tenant_id == site.tenant_id, SitePage.site_id == site.id,
+            SitePage.path == path,
+        )):
+            continue
+        page = create_page(db, site, title, path, kind, {
+            "version": 1, "title": title, "description": blocks[0].get("body", ""),
+            "blocks": blocks,
+        })
+        page.published_json = copy.deepcopy(page.draft_json)
+    # Exact missing field additions only, preserving any merchant-supplied targets.
+    home = db.scalar(select(SitePage).where(
+        SitePage.tenant_id == site.tenant_id, SitePage.site_id == site.id, SitePage.path == "/",
+    ))
+    if home:
+        for field in ("draft_json", "published_json"):
+            document = copy.deepcopy(getattr(home, field))
+            for entry in (document or {}).get("blocks", []):
+                if entry.get("type") == "liquid_benefits" and entry.get("id") == "why":
+                    entry.setdefault("button", "More questions? See all FAQs →")
+                    entry.setdefault("link", "/faq")
+            setattr(home, field, document)
+    db.flush()
+
+
 def seed_h24you_liquid(db, admin_email):
-    """Insert the fixture, or apply only the bounded M1-to-M2 additions."""
+    """Insert the fixture, or apply only bounded M1/M2 asset and M3 page additions."""
     site = db.scalar(select(Site).where(Site.slug == "h24you-liquid"))
     if site:
         upgrade_liquid_assets_and_bundles(db, site)
         ensure_product_pages(db, site)
+        ensure_content_pages(db, site)
         return site
     tenant = Tenant(slug="h24you-liquid", name="H2 | 4 YOU Liquid")
     db.add(tenant)
@@ -407,7 +441,8 @@ def seed_h24you_liquid(db, admin_email):
         )
         page.published_json = copy.deepcopy(page.draft_json)
     ensure_product_pages(db, site)
-    # Only implemented targets enter validated menus. M2/M3 links remain in shell settings.
+    ensure_content_pages(db, site)
+    # Shell dropdowns retain the reference's grouped navigation.
     for name in ("header", "footer"):
         items = [{"id": "shop", "label": "Shop all", "kind": "page", "path": "/shop"}]
         db.add(

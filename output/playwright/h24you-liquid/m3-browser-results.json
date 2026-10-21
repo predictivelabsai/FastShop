@@ -1,0 +1,3917 @@
+{
+  "checks": 975,
+  "passed": 975,
+  "failed": [],
+  "screenshots": 48,
+  "internal_links": 47,
+  "placeholder_links": [
+    "H2 | 4 YOU on Facebook",
+    "H2 | 4 YOU on Instagram",
+    "Privacy Policy",
+    "Privacy policy",
+    "Terms and Conditions"
+  ],
+  "errors": [],
+  "results": [
+    {
+      "check": "home 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "home 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "home 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "home 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "home 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "home 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "home 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "home 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "shop 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "shop 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "shop 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "shop 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "shop 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "shop 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "shop 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "shop 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "one 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "one 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "one 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "one 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "one 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "one 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "one 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "one 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "fizz 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "range 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "range 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "range 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "range 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "range 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "range 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "range 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "range 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "about 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "about 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "about 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "about 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "about 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "about 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "about 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "about 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "faq 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "faq 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "faq 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "faq 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "faq 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "faq 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor hydrogen-basics exists",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor hydrogen-basics clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor hydrogen-basics scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor orders-shipping exists",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor orders-shipping clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor orders-shipping scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor subscriptions exists",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor subscriptions clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor subscriptions scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor returns-warranty exists",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor returns-warranty clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor returns-warranty scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor account-payment exists",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor account-payment clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 375: anchor account-payment scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 375: FAQPage JSON-LD populated",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question What is hydrogen water?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML What is hydrogen water?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Is hydrogen water safe?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Is hydrogen water safe?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Does hydrogen water taste different?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Does hydrogen water taste different?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Is hydrogen water the same as alkaline water?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Is hydrogen water the same as alkaline water?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Where can I learn more about hydrogen?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Where can I learn more about hydrogen?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Where do you ship?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Where do you ship?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question How long does shipping take?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML How long does shipping take?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question How much does shipping cost?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML How much does shipping cost?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Will I pay customs or import fees?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Will I pay customs or import fees?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question How do I track my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML How do I track my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Can I change or cancel my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Can I change or cancel my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question My order arrived damaged or something is missing. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML My order arrived damaged or something is missing. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Do you ship to P.O. boxes or military addresses (APO/FPO)?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Do you ship to P.O. boxes or military addresses (APO/FPO)?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Is shipping included with Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Is shipping included with Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question How does the Fizz subscription work?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML How does the Fizz subscription work?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Can I change my flavor or delivery interval, or skip a delivery?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Can I change my flavor or delivery interval, or skip a delivery?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question How do I cancel?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML How do I cancel?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question When will I be charged?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML When will I be charged?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Can I subscribe to the One or to Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Can I subscribe to the One or to Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Can I mix flavors in my subscription?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Can I mix flavors in my subscription?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question What is your return policy?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML What is your return policy?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question How do I start a return?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML How do I start a return?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Who pays for return shipping?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Who pays for return shipping?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question When will I get my refund?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML When will I get my refund?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question What does the 1-year warranty cover?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML What does the 1-year warranty cover?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Which payment methods do you accept?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Which payment methods do you accept?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Is checkout secure?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Is checkout secure?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Do I need an account to order?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Do I need an account to order?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question How do I get my first-order discount?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML How do I get my first-order discount?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question Do your prices include sales tax?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML Do your prices include sales tax?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: HTML question I forgot my password. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD answer matches HTML I forgot my password. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 375: JSON-LD and HTML question counts match",
+      "passed": true
+    },
+    {
+      "check": "faq 375: answer opens",
+      "passed": true
+    },
+    {
+      "check": "faq 375: answer closes",
+      "passed": true
+    },
+    {
+      "check": "faq 375: empty search exposes contact",
+      "passed": true
+    },
+    {
+      "check": "faq 375: live search restores matching question",
+      "passed": true
+    },
+    {
+      "check": "faq 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "contact 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "contact 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "contact 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "contact 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "contact 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "contact 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "contact 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "contact 375: CSRF token present",
+      "passed": true
+    },
+    {
+      "check": "contact 375: rejects invalid CSRF",
+      "passed": true
+    },
+    {
+      "check": "contact 375: validates empty submission",
+      "passed": true
+    },
+    {
+      "check": "contact 375: server validation error returned",
+      "passed": true
+    },
+    {
+      "check": "contact 375: no false success",
+      "passed": true
+    },
+    {
+      "check": "contact 375: invalid fields exposed",
+      "passed": true
+    },
+    {
+      "check": "contact 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "learn 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "learn 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "learn 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "learn 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "learn 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "learn 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "learn 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "learn 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor what-is-hydrogen exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor what-is-hydrogen clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor what-is-hydrogen scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor free-radicals exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor free-radicals clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor free-radicals scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor what-hydrogen-does exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor what-hydrogen-does clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor what-hydrogen-does scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor fresh exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor fresh clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor fresh scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor two-ways exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor two-ways clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: anchor two-ways scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why 375: reduced motion shows complete balance",
+      "passed": true
+    },
+    {
+      "check": "why 375: six source balance steps",
+      "passed": true
+    },
+    {
+      "check": "why 375: balance progresses and reverses through all six steps",
+      "passed": true
+    },
+    {
+      "check": "why 375: chapter index follows reading position",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: anchor myth-or-fact exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: anchor myth-or-fact clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: anchor myth-or-fact scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "science 375: myth arrows wrap, reveal, next and keyboard work",
+      "passed": true
+    },
+    {
+      "check": "science 375: myth touch swipe advances",
+      "passed": true
+    },
+    {
+      "check": "science 375: source research filter all",
+      "passed": true
+    },
+    {
+      "check": "science 375: source research filter exercise",
+      "passed": true
+    },
+    {
+      "check": "science 375: source research filter antioxidant",
+      "passed": true
+    },
+    {
+      "check": "science 375: source research filter aging",
+      "passed": true
+    },
+    {
+      "check": "science 375: source research filter mood",
+      "passed": true
+    },
+    {
+      "check": "science 375: study exposes external source",
+      "passed": true
+    },
+    {
+      "check": "science 375: research cards flip with keyboard and return",
+      "passed": true
+    },
+    {
+      "check": "science 375: study source matches source register",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "science 375: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "science 375: one h1",
+      "passed": true
+    },
+    {
+      "check": "science 375: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "science 375: all images load",
+      "passed": true
+    },
+    {
+      "check": "science 375: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "science 375: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "science 375: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "science 375: mobile menu closes and returns focus",
+      "passed": true
+    },
+    {
+      "check": "home 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "home 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "home 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "home 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "home 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "home 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "home 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "shop 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "shop 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "shop 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "shop 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "shop 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "shop 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "shop 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "one 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "one 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "one 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "one 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "one 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "one 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "one 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "fizz 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "range 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "range 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "range 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "range 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "range 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "range 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "range 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "about 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "about 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "about 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "about 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "about 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "about 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "about 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "faq 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "faq 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "faq 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "faq 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "faq 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "faq 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor hydrogen-basics exists",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor hydrogen-basics clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor hydrogen-basics scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor orders-shipping exists",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor orders-shipping clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor orders-shipping scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor subscriptions exists",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor subscriptions clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor subscriptions scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor returns-warranty exists",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor returns-warranty clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor returns-warranty scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor account-payment exists",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor account-payment clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 768: anchor account-payment scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 768: FAQPage JSON-LD populated",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question What is hydrogen water?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML What is hydrogen water?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Is hydrogen water safe?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Is hydrogen water safe?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Does hydrogen water taste different?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Does hydrogen water taste different?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Is hydrogen water the same as alkaline water?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Is hydrogen water the same as alkaline water?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Where can I learn more about hydrogen?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Where can I learn more about hydrogen?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Where do you ship?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Where do you ship?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question How long does shipping take?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML How long does shipping take?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question How much does shipping cost?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML How much does shipping cost?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Will I pay customs or import fees?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Will I pay customs or import fees?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question How do I track my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML How do I track my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Can I change or cancel my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Can I change or cancel my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question My order arrived damaged or something is missing. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML My order arrived damaged or something is missing. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Do you ship to P.O. boxes or military addresses (APO/FPO)?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Do you ship to P.O. boxes or military addresses (APO/FPO)?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Is shipping included with Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Is shipping included with Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question How does the Fizz subscription work?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML How does the Fizz subscription work?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Can I change my flavor or delivery interval, or skip a delivery?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Can I change my flavor or delivery interval, or skip a delivery?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question How do I cancel?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML How do I cancel?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question When will I be charged?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML When will I be charged?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Can I subscribe to the One or to Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Can I subscribe to the One or to Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Can I mix flavors in my subscription?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Can I mix flavors in my subscription?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question What is your return policy?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML What is your return policy?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question How do I start a return?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML How do I start a return?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Who pays for return shipping?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Who pays for return shipping?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question When will I get my refund?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML When will I get my refund?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question What does the 1-year warranty cover?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML What does the 1-year warranty cover?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Which payment methods do you accept?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Which payment methods do you accept?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Is checkout secure?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Is checkout secure?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Do I need an account to order?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Do I need an account to order?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question How do I get my first-order discount?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML How do I get my first-order discount?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question Do your prices include sales tax?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML Do your prices include sales tax?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: HTML question I forgot my password. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD answer matches HTML I forgot my password. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 768: JSON-LD and HTML question counts match",
+      "passed": true
+    },
+    {
+      "check": "faq 768: answer opens",
+      "passed": true
+    },
+    {
+      "check": "faq 768: answer closes",
+      "passed": true
+    },
+    {
+      "check": "faq 768: empty search exposes contact",
+      "passed": true
+    },
+    {
+      "check": "faq 768: live search restores matching question",
+      "passed": true
+    },
+    {
+      "check": "contact 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "contact 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "contact 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "contact 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "contact 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "contact 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "contact 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "contact 768: CSRF token present",
+      "passed": true
+    },
+    {
+      "check": "contact 768: rejects invalid CSRF",
+      "passed": true
+    },
+    {
+      "check": "contact 768: validates empty submission",
+      "passed": true
+    },
+    {
+      "check": "contact 768: server validation error returned",
+      "passed": true
+    },
+    {
+      "check": "contact 768: no false success",
+      "passed": true
+    },
+    {
+      "check": "contact 768: invalid fields exposed",
+      "passed": true
+    },
+    {
+      "check": "learn 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "learn 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "learn 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "learn 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "learn 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "learn 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "learn 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor what-is-hydrogen exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor what-is-hydrogen clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor what-is-hydrogen scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor free-radicals exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor free-radicals clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor free-radicals scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor what-hydrogen-does exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor what-hydrogen-does clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor what-hydrogen-does scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor fresh exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor fresh clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor fresh scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor two-ways exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor two-ways clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 768: anchor two-ways scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why 768: reduced motion shows complete balance",
+      "passed": true
+    },
+    {
+      "check": "why 768: six source balance steps",
+      "passed": true
+    },
+    {
+      "check": "why 768: balance progresses and reverses through all six steps",
+      "passed": true
+    },
+    {
+      "check": "why 768: chapter index follows reading position",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: anchor myth-or-fact exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: anchor myth-or-fact clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 768: anchor myth-or-fact scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "science 768: myth arrows wrap, reveal, next and keyboard work",
+      "passed": true
+    },
+    {
+      "check": "science 768: source research filter all",
+      "passed": true
+    },
+    {
+      "check": "science 768: source research filter exercise",
+      "passed": true
+    },
+    {
+      "check": "science 768: source research filter antioxidant",
+      "passed": true
+    },
+    {
+      "check": "science 768: source research filter aging",
+      "passed": true
+    },
+    {
+      "check": "science 768: source research filter mood",
+      "passed": true
+    },
+    {
+      "check": "science 768: study exposes external source",
+      "passed": true
+    },
+    {
+      "check": "science 768: research cards flip with keyboard and return",
+      "passed": true
+    },
+    {
+      "check": "science 768: study source matches source register",
+      "passed": true
+    },
+    {
+      "check": "science 768: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "science 768: one h1",
+      "passed": true
+    },
+    {
+      "check": "science 768: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "science 768: all images load",
+      "passed": true
+    },
+    {
+      "check": "science 768: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "science 768: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "science 768: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "home 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "home 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "home 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "home 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "home 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "home 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "home 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "shop 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "one 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "one 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "one 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "one 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "one 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "one 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "one 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "fizz 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "range 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "range 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "range 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "range 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "range 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "range 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "range 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "about 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "about 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "about 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "about 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "about 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "about 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "about 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor hydrogen-basics exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor hydrogen-basics clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor hydrogen-basics scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor orders-shipping exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor orders-shipping clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor orders-shipping scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor subscriptions exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor subscriptions clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor subscriptions scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor returns-warranty exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor returns-warranty clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor returns-warranty scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor account-payment exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor account-payment clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: anchor account-payment scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: FAQPage JSON-LD populated",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question What is hydrogen water?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML What is hydrogen water?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Is hydrogen water safe?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Is hydrogen water safe?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Does hydrogen water taste different?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Does hydrogen water taste different?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Is hydrogen water the same as alkaline water?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Is hydrogen water the same as alkaline water?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Where can I learn more about hydrogen?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Where can I learn more about hydrogen?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Where do you ship?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Where do you ship?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question How long does shipping take?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML How long does shipping take?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question How much does shipping cost?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML How much does shipping cost?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Will I pay customs or import fees?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Will I pay customs or import fees?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question How do I track my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML How do I track my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Can I change or cancel my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Can I change or cancel my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question My order arrived damaged or something is missing. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML My order arrived damaged or something is missing. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Do you ship to P.O. boxes or military addresses (APO/FPO)?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Do you ship to P.O. boxes or military addresses (APO/FPO)?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Is shipping included with Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Is shipping included with Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question How does the Fizz subscription work?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML How does the Fizz subscription work?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Can I change my flavor or delivery interval, or skip a delivery?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Can I change my flavor or delivery interval, or skip a delivery?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question How do I cancel?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML How do I cancel?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question When will I be charged?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML When will I be charged?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Can I subscribe to the One or to Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Can I subscribe to the One or to Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Can I mix flavors in my subscription?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Can I mix flavors in my subscription?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question What is your return policy?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML What is your return policy?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question How do I start a return?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML How do I start a return?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Who pays for return shipping?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Who pays for return shipping?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question When will I get my refund?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML When will I get my refund?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question What does the 1-year warranty cover?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML What does the 1-year warranty cover?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Which payment methods do you accept?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Which payment methods do you accept?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Is checkout secure?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Is checkout secure?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Do I need an account to order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Do I need an account to order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question How do I get my first-order discount?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML How do I get my first-order discount?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question Do your prices include sales tax?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML Do your prices include sales tax?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: HTML question I forgot my password. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD answer matches HTML I forgot my password. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: JSON-LD and HTML question counts match",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: answer opens",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: answer closes",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: empty search exposes contact",
+      "passed": true
+    },
+    {
+      "check": "faq 1024: live search restores matching question",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: CSRF token present",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: rejects invalid CSRF",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: validates empty submission",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: server validation error returned",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: no false success",
+      "passed": true
+    },
+    {
+      "check": "contact 1024: invalid fields exposed",
+      "passed": true
+    },
+    {
+      "check": "learn 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "learn 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "learn 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "learn 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "learn 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "learn 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "learn 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor what-is-hydrogen exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor what-is-hydrogen clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor what-is-hydrogen scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor free-radicals exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor free-radicals clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor free-radicals scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor what-hydrogen-does exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor what-hydrogen-does clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor what-hydrogen-does scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor fresh exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor fresh clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor fresh scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor two-ways exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor two-ways clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1024: anchor two-ways scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why 1024: reduced motion shows complete balance",
+      "passed": true
+    },
+    {
+      "check": "why 1024: six source balance steps",
+      "passed": true
+    },
+    {
+      "check": "why 1024: balance progresses and reverses through all six steps",
+      "passed": true
+    },
+    {
+      "check": "why 1024: chapter index follows reading position",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: anchor myth-or-fact exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: anchor myth-or-fact clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1024: anchor myth-or-fact scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "science 1024: myth arrows wrap, reveal, next and keyboard work",
+      "passed": true
+    },
+    {
+      "check": "science 1024: source research filter all",
+      "passed": true
+    },
+    {
+      "check": "science 1024: source research filter exercise",
+      "passed": true
+    },
+    {
+      "check": "science 1024: source research filter antioxidant",
+      "passed": true
+    },
+    {
+      "check": "science 1024: source research filter aging",
+      "passed": true
+    },
+    {
+      "check": "science 1024: source research filter mood",
+      "passed": true
+    },
+    {
+      "check": "science 1024: study exposes external source",
+      "passed": true
+    },
+    {
+      "check": "science 1024: research cards flip with keyboard and return",
+      "passed": true
+    },
+    {
+      "check": "science 1024: study source matches source register",
+      "passed": true
+    },
+    {
+      "check": "science 1024: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "science 1024: one h1",
+      "passed": true
+    },
+    {
+      "check": "science 1024: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "science 1024: all images load",
+      "passed": true
+    },
+    {
+      "check": "science 1024: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "science 1024: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "science 1024: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "home 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "home 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "home 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "home 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "home 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "home 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "home 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "shop 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "one 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "one 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "one 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "one 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "one 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "one 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "one 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "fizz 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "range 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "range 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "range 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "range 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "range 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "range 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "range 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "about 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "about 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "about 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "about 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "about 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "about 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "about 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor hydrogen-basics exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor hydrogen-basics clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor hydrogen-basics scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor orders-shipping exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor orders-shipping clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor orders-shipping scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor subscriptions exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor subscriptions clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor subscriptions scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor returns-warranty exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor returns-warranty clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor returns-warranty scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor account-payment exists",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor account-payment clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: anchor account-payment scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: FAQPage JSON-LD populated",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question What is hydrogen water?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML What is hydrogen water?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Is hydrogen water safe?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Is hydrogen water safe?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Does hydrogen water taste different?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Does hydrogen water taste different?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Is hydrogen water the same as alkaline water?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Is hydrogen water the same as alkaline water?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Where can I learn more about hydrogen?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Where can I learn more about hydrogen?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Where do you ship?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Where do you ship?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question How long does shipping take?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML How long does shipping take?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question How much does shipping cost?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML How much does shipping cost?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Will I pay customs or import fees?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Will I pay customs or import fees?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question How do I track my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML How do I track my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Can I change or cancel my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Can I change or cancel my order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question My order arrived damaged or something is missing. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML My order arrived damaged or something is missing. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Do you ship to P.O. boxes or military addresses (APO/FPO)?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Do you ship to P.O. boxes or military addresses (APO/FPO)?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Is shipping included with Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Is shipping included with Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question How does the Fizz subscription work?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML How does the Fizz subscription work?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Can I change my flavor or delivery interval, or skip a delivery?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Can I change my flavor or delivery interval, or skip a delivery?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question How do I cancel?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML How do I cancel?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question When will I be charged?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML When will I be charged?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Can I subscribe to the One or to Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Can I subscribe to the One or to Taste the Range?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Can I mix flavors in my subscription?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Can I mix flavors in my subscription?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question What is your return policy?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML What is your return policy?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question How do I start a return?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML How do I start a return?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Who pays for return shipping?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Who pays for return shipping?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question When will I get my refund?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML When will I get my refund?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question What does the 1-year warranty cover?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML What does the 1-year warranty cover?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Which payment methods do you accept?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Which payment methods do you accept?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Is checkout secure?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Is checkout secure?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Do I need an account to order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Do I need an account to order?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question How do I get my first-order discount?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML How do I get my first-order discount?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question Do your prices include sales tax?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML Do your prices include sales tax?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: HTML question I forgot my password. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD answer matches HTML I forgot my password. What should I do?",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: JSON-LD and HTML question counts match",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: answer opens",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: answer closes",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: empty search exposes contact",
+      "passed": true
+    },
+    {
+      "check": "faq 1440: live search restores matching question",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: CSRF token present",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: rejects invalid CSRF",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: validates empty submission",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: server validation error returned",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: no false success",
+      "passed": true
+    },
+    {
+      "check": "contact 1440: invalid fields exposed",
+      "passed": true
+    },
+    {
+      "check": "learn 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "learn 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "learn 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "learn 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "learn 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "learn 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "learn 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor what-is-hydrogen exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor what-is-hydrogen clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor what-is-hydrogen scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor free-radicals exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor free-radicals clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor free-radicals scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor what-hydrogen-does exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor what-hydrogen-does clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor what-hydrogen-does scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor fresh exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor fresh clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor fresh scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor two-ways exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor two-ways clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen 1440: anchor two-ways scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "why 1440: reduced motion shows complete balance",
+      "passed": true
+    },
+    {
+      "check": "why 1440: six source balance steps",
+      "passed": true
+    },
+    {
+      "check": "why 1440: balance progresses and reverses through all six steps",
+      "passed": true
+    },
+    {
+      "check": "why 1440: chapter index follows reading position",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: anchor myth-or-fact exists",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: anchor myth-or-fact clears sticky bars",
+      "passed": true
+    },
+    {
+      "check": "why-hydrogen-science 1440: anchor myth-or-fact scrolls to target",
+      "passed": true
+    },
+    {
+      "check": "science 1440: myth arrows wrap, reveal, next and keyboard work",
+      "passed": true
+    },
+    {
+      "check": "science 1440: source research filter all",
+      "passed": true
+    },
+    {
+      "check": "science 1440: source research filter exercise",
+      "passed": true
+    },
+    {
+      "check": "science 1440: source research filter antioxidant",
+      "passed": true
+    },
+    {
+      "check": "science 1440: source research filter aging",
+      "passed": true
+    },
+    {
+      "check": "science 1440: source research filter mood",
+      "passed": true
+    },
+    {
+      "check": "science 1440: study exposes external source",
+      "passed": true
+    },
+    {
+      "check": "science 1440: research cards flip with keyboard and return",
+      "passed": true
+    },
+    {
+      "check": "science 1440: study source matches source register",
+      "passed": true
+    },
+    {
+      "check": "science 1440: HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "science 1440: one h1",
+      "passed": true
+    },
+    {
+      "check": "science 1440: no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "science 1440: all images load",
+      "passed": true
+    },
+    {
+      "check": "science 1440: reduced motion pauses videos",
+      "passed": true
+    },
+    {
+      "check": "science 1440: reduced motion stops decorative animations",
+      "passed": true
+    },
+    {
+      "check": "science 1440: keyboard focus visible",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: questions present",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "FAQ without JS: answer reachable",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 375: correct chapter position what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 375: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 375: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 375: correct chapter position free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 375: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 375: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 375: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 375: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 768: correct chapter position what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 768: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 768: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 768: correct chapter position free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 768: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 768: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 768: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 768: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1024: correct chapter position what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1024: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1024: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1024: correct chapter position free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1024: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1024: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1024: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1024: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1440: correct chapter position what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1440: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1440: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1440: correct chapter position free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1440: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1440: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1440: Back restores reading position http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science",
+      "passed": true
+    },
+    {
+      "check": "Home Learn 1440: Forward restores chapter http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science",
+      "passed": true
+    },
+    {
+      "check": "Home has three working Learn cards",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/#products",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/#products",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/about",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/about#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/about#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/account",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/cart",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/contact",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/contact#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/contact#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/faq",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/faq#account-payment",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/faq#account-payment",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/faq#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/faq#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/faq#hydrogen-basics",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/faq#hydrogen-basics",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/faq#orders-shipping",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/faq#orders-shipping",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/faq#returns-warranty",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/faq#returns-warranty",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/faq#subscriptions",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/faq#subscriptions",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/learn",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/learn#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/learn#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/h2-4-you-one",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/h2-4-you-one#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/products/h2-4-you-one#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/h2-4-you-one#faq",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/products/h2-4-you-one#faq",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/h2-4-you-one#reviews",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/products/h2-4-you-one#reviews",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/hydrogen-tablets",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/hydrogen-tablets#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/products/hydrogen-tablets#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/hydrogen-tablets#faq",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/products/hydrogen-tablets#faq",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/hydrogen-tablets#reviews",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/products/hydrogen-tablets#reviews",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/taste-the-range",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/taste-the-range#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/products/taste-the-range#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/products/taste-the-range#reviews",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/products/taste-the-range#reviews",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/science",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/science#antioxidant",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/science#antioxidant",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/science#cellular-health",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/science#cellular-health",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/science#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/science#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/science#digestive-balance",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/science#digestive-balance",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/science#exercise-recovery",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/science#exercise-recovery",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/shop",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/shop#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/shop#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#free-radicals",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#fresh",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#fresh",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#two-ways",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#two-ways",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-hydrogen-does",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-hydrogen-does",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen#what-is-hydrogen",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science#content",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science#content",
+      "passed": true
+    },
+    {
+      "check": "internal link: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science#myth-or-fact",
+      "passed": true
+    },
+    {
+      "check": "internal fragment: http://127.0.0.1:5025/sites/h24you-liquid/why-hydrogen/science#myth-or-fact",
+      "passed": true
+    },
+    {
+      "check": "/4 redirects to Home",
+      "passed": true
+    }
+  ]
+}

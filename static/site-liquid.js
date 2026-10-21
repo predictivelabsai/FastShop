@@ -11,7 +11,10 @@
   const storageKey = 'h24you-liquid-offer-dismissed:' + root.dataset.site;
   const measure = () => {
     root.style.setProperty('--metal-top-height', bars.offsetHeight + 'px');
-    document.documentElement.style.scrollPaddingTop = (bars.offsetHeight + 20) + 'px';
+    const categories = root.querySelector('.faq-category-nav');
+    const clearance = bars.offsetHeight + (categories ? categories.offsetHeight : 0) + 20;
+    root.style.setProperty('--metal-anchor-offset', clearance + 'px');
+    document.documentElement.style.scrollPaddingTop = clearance + 'px';
   };
   try { offer.hidden = localStorage.getItem(storageKey) === 'true'; } catch (_) { /* Storage is optional. */ }
   root.querySelector('[data-liquid-dismiss]').addEventListener('click', () => {
@@ -28,6 +31,8 @@
   const onScroll = () => bars.classList.toggle('is-scrolled', scrollY > 24);
   window.addEventListener('scroll', onScroll, {passive: true});
   new ResizeObserver(measure).observe(bars);
+  const categoryStrip = root.querySelector('.faq-category-nav');
+  if (categoryStrip) new ResizeObserver(measure).observe(categoryStrip);
   onScroll(); measure();
 
   const menu = root.querySelector('#liquid-mobile-menu');

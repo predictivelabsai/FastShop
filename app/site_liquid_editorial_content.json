@@ -1,0 +1,695 @@
+{
+  "title": "Hydrogen 101: what molecular hydrogen is and how it works | H2 | 4 YOU",
+  "description": "What molecular hydrogen is, how it relates to free radicals and oxidative stress, why fresh matters and how to make hydrogen water, explained in plain words.",
+  "label": "WHY HYDROGEN",
+  "science": {
+    "title": "The science of hydrogen water: myths, facts and studies | H2 | 4 YOU",
+    "description": "Common myths about hydrogen water, and an honest look at what human studies have found, with links to every study.",
+    "label": "WHY HYDROGEN",
+    "h1": "What the science says",
+    "intro": "Hydrogen water attracts big claims. Here we separate the myths from the facts, and show what researchers have actually studied, honestly and in plain words.",
+    "facts": {
+      "myths": "myths, explained",
+      "studies": "human studies, linked",
+      "reviewed": "last reviewed"
+    }
+  },
+  "h1": "Hydrogen 101",
+  "intro": "You've probably heard about hydrogen water. But did you know your gut makes hydrogen every day, and your breath carries it out? Here's what molecular hydrogen is, what it does in your body, and why it has caught the attention of researchers around the world.",
+  "scroll": "Scroll to begin ↓",
+  "chapters": [
+    {
+      "id": "what-is-hydrogen",
+      "number": "01",
+      "short": "What is hydrogen?"
+    },
+    {
+      "id": "free-radicals",
+      "number": "02",
+      "short": "Free radicals"
+    },
+    {
+      "id": "what-hydrogen-does",
+      "number": "03",
+      "short": "What hydrogen does"
+    },
+    {
+      "id": "fresh",
+      "number": "04",
+      "short": "Why fresh matters"
+    },
+    {
+      "id": "two-ways",
+      "number": "05",
+      "short": "Two ways"
+    }
+  ],
+  "ch2": {
+    "title": "Free radicals, and the art of balance",
+    "intro": "To understand why hydrogen interests researchers, it helps to start with something that happens in your body every second.",
+    "left": "Free radicals",
+    "right": "Your defenses",
+    "steps": [
+      {
+        "title": "Every breath, every heartbeat",
+        "text": "Your cells use oxygen to make energy. That process naturally creates by-products called free radicals: unstable molecules that react quickly with whatever is around them."
+      },
+      {
+        "title": "Everyday life adds more",
+        "text": "Hard training, strong sun, air pollution, stress and short nights all increase the number of free radicals your body has to deal with."
+      },
+      {
+        "title": "Not all bad",
+        "text": "In small amounts, free radicals are useful. Your cells use them as signals, for example to adapt and grow stronger after exercise."
+      },
+      {
+        "title": "Your built-in defenses",
+        "text": "Your body keeps free radicals in check with its own antioxidant enzymes, such as superoxide dismutase and glutathione, helped by antioxidants from food."
+      },
+      {
+        "title": "When the balance tips",
+        "text": "When free radicals outpace your defenses for a long time, scientists call it oxidative stress. They can then damage fats, proteins and DNA in cells. That’s why researchers study oxidative stress in relation to how we recover, how we age and how we feel."
+      },
+      {
+        "title": "Where hydrogen fits",
+        "text": "This is where hydrogen comes in. It doesn't replace your defenses. Research suggests it supports them, helping your body's own antioxidant systems do their work.*"
+      }
+    ],
+    "closing": "Oxidative stress is part of being alive. That’s why so much research focuses on it, and why hydrogen is being studied in so many areas. A daily glass of hydrogen water is a simple way to support your body’s own antioxidant defenses, from the ground up.*"
+  },
+  "ch3": {
+    "title": "What hydrogen does: two ideas",
+    "intro": "Researchers are still working out exactly how hydrogen works in the body. Two ideas lead the way, and they point in the same direction.",
+    "ideas": [
+      {
+        "title": "A selective antioxidant",
+        "text": "The first studies suggested that hydrogen reacts mainly with the most aggressive free radicals, while leaving the useful signalling ones alone. That would make it different from many antioxidants, which act on everything they meet."
+      },
+      {
+        "title": "A gentle signal",
+        "text": "Newer research suggests hydrogen does even more as a messenger. It seems to nudge cells to switch on their own defense systems, including the ones that make the body’s antioxidant enzymes. In this view, hydrogen doesn’t do the work for your body. It helps your body do it better."
+      }
+    ],
+    "flow": [
+      {
+        "id": "h2",
+        "label": "H₂",
+        "caption": "The tiny molecule reaches the cell."
+      },
+      {
+        "id": "cell",
+        "label": "Cell",
+        "caption": "It passes easily through the cell membrane."
+      },
+      {
+        "id": "defenses",
+        "label": "Defenses switch on",
+        "caption": "Research suggests the cell’s own defense systems become more active."
+      },
+      {
+        "id": "balance",
+        "label": "Better balance",
+        "caption": "Supporting the balance between free radicals and defenses.*"
+      }
+    ],
+    "closing": "One small molecule, supporting your body’s own antioxidant defenses.*"
+  },
+  "ch1": {
+    "title": "What is molecular hydrogen?",
+    "text": "Molecular hydrogen, or H₂, is simply two hydrogen atoms joined together. It’s the smallest molecule in the universe: a gas with no color, smell or taste.",
+    "h2Caption": "H₂, molecular hydrogen: free to move.",
+    "waterCaption": "H₂O, water: the hydrogen is bound to oxygen.",
+    "note": "Hydrogen water is ordinary water with extra H₂ gas dissolved in it. That dissolved H₂ is what researchers study.",
+    "cards": [
+      {
+        "id": "small",
+        "title": "The smallest of all",
+        "text": "Because it’s so tiny, hydrogen passes easily through cell membranes and can reach every part of the cell."
+      },
+      {
+        "id": "you",
+        "title": "Already part of you",
+        "text": "Your gut bacteria make hydrogen every day as they digest fiber. Some of it even ends up in your breath."
+      },
+      {
+        "id": "field",
+        "title": "A growing field",
+        "text": "Scientific interest took off after a 2007 paper in Nature Medicine. Since then, researchers have published well over a thousand studies on molecular hydrogen."
+      }
+    ],
+    "more": [
+      {
+        "q": "How does hydrogen get into water?",
+        "a": "Hydrogen gas dissolves in water, much like the bubbles in sparkling water. A bottle can make it fresh by electrolysis, and a tablet can make it in your glass through a reaction of magnesium with water. Because it’s so small, hydrogen slowly escapes from water, which is why it’s best made fresh and drunk soon."
+      },
+      {
+        "q": "Is hydrogen water the same as alkaline water?",
+        "a": "No. The research is about the dissolved hydrogen gas, not the pH. Hydrogen water can be neutral, slightly alkaline or slightly acidic, depending on how it’s made."
+      },
+      {
+        "q": "Is hydrogen safe to drink?",
+        "a": "Hydrogen gas has GRAS status (‘generally recognized as safe’) for use in drinking water and beverages. In 2014, the FDA reviewed a GRAS notice for hydrogen gas in drinking water, flavored drinks and soft drinks, and had no questions. Hydrogen is also something your body already knows: your gut bacteria make it every day. In human studies, hydrogen water has been well tolerated."
+      }
+    ]
+  },
+  "ch7": {
+    "title": "Two ways to your daily glass",
+    "intro": "Both make fresh hydrogen water, right when you want it. The difference is how, and where your day takes you.",
+    "cards": [
+      {
+        "id": "one",
+        "label": "Hydrogen water bottle",
+        "name": "H2 | 4 YOU One",
+        "href": "/products/h2-4-you-one",
+        "steps": [
+          {
+            "icon": "bottle",
+            "text": "Fill with water"
+          },
+          {
+            "icon": "power",
+            "text": "Press the button"
+          },
+          {
+            "icon": "bottleBubbles",
+            "text": "Fresh hydrogen water"
+          }
+        ],
+        "text": "The One makes hydrogen by electrolysis. A small electric current splits some of the water into hydrogen and oxygen. A special membrane separates them, so the hydrogen dissolves into your water while the oxygen and other by-products are kept out. Independent lab tests measured 2,500–5,000 ppb.",
+        "good": [
+          "Refilling all day, at home, at work or on the go",
+          "No tablets to buy, just water and a USB-C charge",
+          "The highest concentration we offer"
+        ],
+        "price": "$250",
+        "priceNote": "From $200 per bottle when you buy 4 or more",
+        "cta": "Shop the One",
+        "image": "/static/h24you/liquid/studio-front.jpg",
+        "alt": "Silver H2 | 4 YOU One bottle, front view with crystal-pattern chamber"
+      },
+      {
+        "id": "fizz",
+        "label": "Hydrogen tablets",
+        "name": "H2 | 4 YOU Fizz",
+        "href": "/products/hydrogen-tablets",
+        "steps": [
+          {
+            "icon": "glass",
+            "text": "Fill a glass"
+          },
+          {
+            "icon": "tablet",
+            "text": "Drop in a tablet"
+          },
+          {
+            "icon": "glassBubbles",
+            "text": "Fresh hydrogen water"
+          }
+        ],
+        "text": "Each tablet contains magnesium. When it meets water, the magnesium reacts and releases fine bubbles of hydrogen right in your glass. Unflavored, or in Raspberry, Pineapple and Peach.",
+        "good": [
+          "Travel, the gym bag and busy days",
+          "No charging, nothing to clean",
+          "A little flavor in your routine"
+        ],
+        "price": "$28 per box of 30",
+        "priceNote": "$25.20 with a subscription",
+        "cta": "Choose your flavor",
+        "image": "/static/h24you/liquid/tablet-box-unflavoured.jpg",
+        "alt": "PLACEHOLDER – pearl Hydrogen Tablets box, Unflavored, with a light blue accent"
+      }
+    ],
+    "closing": "Can't decide? Many people use both: the One at home, Fizz on the go.",
+    "rangeLink": {
+      "text": "Or try all four flavors with Taste the Range →",
+      "href": "/products/taste-the-range"
+    }
+  },
+  "ch6": {
+    "title": "Why fresh matters",
+    "intro": "Hydrogen is the smallest molecule there is. That's what makes it interesting, and it's also why it doesn't stay in water for long.",
+    "glasses": [
+      {
+        "id": "fresh",
+        "label": "Freshly made"
+      },
+      {
+        "id": "while",
+        "label": "After a while"
+      },
+      {
+        "id": "later",
+        "label": "Hours later"
+      }
+    ],
+    "blocks": [
+      {
+        "title": "Small enough to slip away",
+        "text": "Because hydrogen is so tiny, it gradually escapes from water, especially from an open glass. It can even slip through many types of plastic, which is why ready-made hydrogen water tends to lose strength while it sits on a shelf."
+      },
+      {
+        "title": "So make it fresh",
+        "text": "The simplest answer is to make hydrogen water right before you drink it. That's the idea behind both H2 | 4 YOU products: the One makes it fresh in the bottle, and Fizz makes it fresh in your glass."
+      }
+    ],
+    "ppbLabel": "Measuring hydrogen",
+    "ppbTitle": "What does ppb mean?",
+    "ppbText": [
+      "The amount of hydrogen dissolved in water is measured in parts per billion (ppb). 1,000 ppb equals 1 part per million (ppm), or 1 milligram of hydrogen in a liter of water. It's measured with a dissolved hydrogen meter or special test drops. An ORP reading doesn't measure it (see ",
+      "Myth or fact",
+      ")."
+    ],
+    "ppbLink": "/why-hydrogen/science#myth-or-fact",
+    "ticks": [
+      0,
+      1000,
+      2000,
+      3000,
+      4000,
+      5000
+    ],
+    "markers": [
+      {
+        "id": "tap",
+        "kind": "dot",
+        "from": 0,
+        "label": "Tap water: 0 ppb"
+      },
+      {
+        "id": "max",
+        "kind": "dashed",
+        "from": 1600,
+        "label": "About 1,600 ppb: the most water can hold at room temperature and normal pressure"
+      },
+      {
+        "id": "one",
+        "kind": "band",
+        "from": 2500,
+        "to": 5000,
+        "label": "H2 | 4 YOU One: 2,500–5,000 ppb, independently lab-tested"
+      },
+      {
+        "id": "fizz",
+        "kind": "placeholder",
+        "from": 5000,
+        "label": "H2 | 4 YOU Fizz: [value to be confirmed] ppb"
+      }
+    ],
+    "ppbClosing": "Higher isn't automatically better. How much you drink, how often and how fresh it is matter just as much.",
+    "habits": [
+      {
+        "icon": "fresh",
+        "title": "Make it fresh",
+        "text": "Make your hydrogen water right before you drink it."
+      },
+      {
+        "icon": "soon",
+        "title": "Drink it soon",
+        "text": "Enjoy it within a few minutes, while the hydrogen is still there."
+      },
+      {
+        "icon": "closed",
+        "title": "Keep it closed",
+        "text": "A closed bottle holds on to hydrogen longer than an open glass."
+      },
+      {
+        "icon": "cool",
+        "title": "Start with cool water",
+        "text": "Cool water holds dissolved gas better than warm water."
+      }
+    ],
+    "amountTitle": "Concentration isn't the same as amount",
+    "amountText": "A ppb number tells you how concentrated the hydrogen is, not how much of it you actually drink. For that, you need to look at milligrams per serving.",
+    "amountCards": [
+      {
+        "label": "The One, in numbers",
+        "big": "About 1.45 mg per bottle",
+        "text": "At 5,000 ppb, water holds 5 mg of hydrogen per liter. One bottle holds 290 ml (9.8 fl oz), so a full bottle gives you about 1.45 mg (about 0.7 mg at 2,500 ppb). To drink 5 mg, you'd need about 3½ bottles, roughly one liter."
+      },
+      {
+        "label": "Why tablet numbers vary",
+        "big": "Same tablet, different ppb",
+        "text": "A tablet makes a set amount of hydrogen. Dissolve it in a small glass and the ppb number looks high. Use a larger glass and the number drops, but you drink about the same amount of hydrogen. That's why milligrams per serving is the fairer way to compare."
+      }
+    ]
+  },
+  "ch5": {
+    "title": "What researchers have studied",
+    "intro": "Hundreds of human studies have looked at molecular hydrogen. Here's an honest overview of what's well established, where the evidence is growing, and what's still an open question.",
+    "board": [
+      {
+        "id": "full",
+        "label": "Well established",
+        "title": "What we know",
+        "items": [
+          {
+            "t": "Quickly absorbed",
+            "d": "Hydrogen reaches the bloodstream within minutes and shows up in your breath."
+          },
+          {
+            "t": "Well tolerated",
+            "d": "Human studies report hydrogen water as well tolerated."
+          },
+          {
+            "t": "It's the hydrogen",
+            "d": "The research is about dissolved H₂, not alkaline water."
+          },
+          {
+            "t": "Recognized as safe",
+            "d": "Hydrogen gas has GRAS status for use in drinking water."
+          }
+        ]
+      },
+      {
+        "id": "half",
+        "label": "Growing evidence",
+        "title": "Where human research is building",
+        "items": [
+          {
+            "t": "Exercise and recovery",
+            "d": "Lactate, muscle fatigue and endurance."
+          },
+          {
+            "t": "Antioxidant defenses",
+            "d": "The body's own antioxidant capacity."
+          },
+          {
+            "t": "Healthy aging",
+            "d": "Physical function in older adults."
+          },
+          {
+            "t": "Mood and sleep",
+            "d": "Everyday wellbeing and sleep quality."
+          }
+        ]
+      },
+      {
+        "id": "few",
+        "label": "Open questions",
+        "title": "What researchers are still exploring",
+        "items": [
+          {
+            "t": "Gut, skin and focus",
+            "d": "Mostly early or lab research so far."
+          },
+          {
+            "t": "The ideal daily amount",
+            "d": "Dose and timing are still being worked out."
+          },
+          {
+            "t": "Specific products",
+            "d": "No trial has tested H2 | 4 YOU products yet."
+          }
+        ]
+      }
+    ],
+    "sourcesLabel": "Sources",
+    "extraSources": {
+      "fda": {
+        "text": "U.S. Food and Drug Administration · GRAS Notice No. 520: hydrogen gas in drinking water and beverages, 2014",
+        "href": "https://www.hfpappexternal.fda.gov/scripts/fdcc/index.cfm?id=520&set=grasnotices"
+      },
+      "deeper": [
+        "Want to go deeper? The ",
+        "Molecular Hydrogen Institute",
+        " is an independent non-profit that collects hydrogen research."
+      ],
+      "deeperHref": "https://molecularhydrogeninstitute.org/"
+    },
+    "lastReviewed": "October 2026",
+    "studiesNote": "These studies used hydrogen-rich water in general (one also included hydrogen baths and inhalation), not H2 | 4 YOU products. Small studies may not apply to everyone, and research is ongoing.* Last reviewed: October 2026.",
+    "boardNote": "Tap a study below to see what researchers did and found.",
+    "filters": [
+      {
+        "id": "all",
+        "label": "All"
+      },
+      {
+        "id": "exercise",
+        "label": "Exercise"
+      },
+      {
+        "id": "antioxidant",
+        "label": "Antioxidant defenses"
+      },
+      {
+        "id": "aging",
+        "label": "Healthy aging"
+      },
+      {
+        "id": "mood",
+        "label": "Mood and sleep"
+      }
+    ],
+    "studies": [
+      {
+        "id": "study-1",
+        "title": "Hydrogen-rich water improved ventilatory, perceptual and lactate responses to exercise",
+        "area": "EXERCISE",
+        "tags": [
+          "exercise"
+        ],
+        "result": "Lower lactate",
+        "line": "At high intensity, after one serving before exercise.",
+        "people": 12,
+        "design": "Randomized · placebo · crossover",
+        "citation": "Botek et al. · Int J Sports Med · 2019",
+        "journal": "International Journal of Sports Medicine",
+        "did": "12 healthy men drank 600 ml of hydrogen-rich water or placebo water within 30 minutes before a cycling test of rising intensity.",
+        "found": "Blood lactate was lower at the highest intensities (8.9 vs 10.6 mmol/L), and the effort felt slightly easier.",
+        "note": "A small study in young men, testing a single serving.",
+        "href": "https://researchprofiles.canberra.edu.au/en/publications/hydrogen-rich-water-improved-ventilatory-perceptual-and-lactate-r/"
+      },
+      {
+        "id": "study-2",
+        "title": "Effects of 8 days intake of hydrogen-rich water on muscular endurance performance and fatigue recovery",
+        "area": "STRENGTH TRAINING",
+        "tags": [
+          "exercise"
+        ],
+        "result": "78 vs 70 reps",
+        "line": "More repetitions in a strength-endurance test.",
+        "people": 18,
+        "design": "Randomized · double-blind · placebo",
+        "citation": "Zhou et al. · Frontiers in Physiology · 2024",
+        "journal": "Frontiers in Physiology",
+        "did": "18 trained young men drank hydrogen-rich water or placebo water for 8 days, then did six sets of half-squats.",
+        "found": "They completed more repetitions (78 vs 70) and produced more total power than with placebo.",
+        "note": "Recovery from soreness over the next two days was no different.",
+        "href": "https://www.frontiersin.org/articles/10.3389/fphys.2024.1458882/full"
+      },
+      {
+        "id": "study-3",
+        "title": "Effects of drinking hydrogen-rich water on muscle fatigue in elite athletes",
+        "area": "ATHLETES",
+        "tags": [
+          "exercise"
+        ],
+        "result": "Less muscle fatigue",
+        "line": "Strength held up better early in a hard test.",
+        "people": 10,
+        "design": "Double-blind · placebo · crossover",
+        "citation": "Aoki et al. · Medical Gas Research · 2012",
+        "journal": "Medical Gas Research",
+        "did": "10 male soccer players drank 1.5 liters of hydrogen-rich water or placebo water, then cycled hard for 30 minutes and did 100 maximal knee extensions.",
+        "found": "Blood lactate rose less during heavy exercise, and muscle strength didn't drop in the early part of the test, as it did with placebo.",
+        "note": "A small pilot study. Blood markers of oxidative stress didn't change.",
+        "href": "https://link.springer.com/article/10.1186/2045-9912-2-12"
+      },
+      {
+        "id": "study-4",
+        "title": "Molecular hydrogen and exercise-induced oxidative stress in healthy adults: a meta-analysis",
+        "area": "ANTIOXIDANT DEFENSES",
+        "tags": [
+          "antioxidant"
+        ],
+        "result": "Higher antioxidant capacity",
+        "line": "When the results of six studies were combined.",
+        "people": 76,
+        "peopleLabel": "76 people across 6 studies",
+        "design": "Meta-analysis",
+        "citation": "Li et al. · Frontiers in Nutrition · 2024",
+        "journal": "Frontiers in Nutrition",
+        "did": "Researchers combined six studies with 76 healthy adults who used hydrogen around exercise, as hydrogen water, a hydrogen bath or inhaled hydrogen.",
+        "found": "The body's antioxidant capacity in blood was higher with hydrogen than with placebo (p = 0.03).",
+        "note": "Markers of oxidative stress themselves didn't change. No study lasted longer than 14 days.",
+        "href": "https://www.frontiersin.org/journals/nutrition/articles/10.3389/fnut.2024.1328705/full"
+      },
+      {
+        "id": "study-5",
+        "title": "Hydrogen-rich water in healthy adults: a randomized, double-blind, controlled trial",
+        "area": "ANTIOXIDANT DEFENSES",
+        "tags": [
+          "antioxidant"
+        ],
+        "result": "A daily glass, four weeks",
+        "line": "Antioxidant capacity rose more in adults over 30.",
+        "people": 38,
+        "design": "Randomized · double-blind · placebo",
+        "citation": "Sim et al. · Scientific Reports · 2020",
+        "journal": "Scientific Reports",
+        "did": "Healthy adults aged 20 to 59 drank 1.5 liters of hydrogen-rich water or plain water every day for four weeks.",
+        "found": "Antioxidant capacity rose more in participants aged 30 and over, and immune cells showed calmer activity.",
+        "note": "Across all ages together, oxidative stress markers didn't differ between the groups.",
+        "href": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7376192/"
+      },
+      {
+        "id": "study-6",
+        "title": "Six months of hydrogen-rich water in adults aged 70 and over",
+        "area": "HEALTHY AGING · 70+",
+        "tags": [
+          "aging"
+        ],
+        "result": "Stronger chair stands",
+        "line": "After six months, in adults over 70.",
+        "people": 40,
+        "design": "Randomized · controlled · pilot",
+        "citation": "Zanini et al. · Experimental Gerontology · 2021",
+        "journal": "Experimental Gerontology",
+        "did": "40 adults aged 70 and over drank half a liter of hydrogen-rich water or a control drink every day for six months.",
+        "found": "Chair-stand performance improved more than in the control group, and telomere length held steady while it shortened in the control group.",
+        "note": "A small pilot study. Most other measures showed no difference.",
+        "href": "https://researchportal.lih.lu/en/publications/the-effects-of-6-month-hydrogen-rich-water-intake-on-molecular-an/"
+      },
+      {
+        "id": "study-7",
+        "title": "Six weeks of hydrogen-rich water during resistance training in adults over 50",
+        "area": "TRAINING AT 50+",
+        "tags": [
+          "exercise",
+          "aging"
+        ],
+        "result": "Less muscle damage",
+        "line": "In adults over 50 starting strength training.",
+        "people": 27,
+        "design": "Randomized · controlled · pilot",
+        "citation": "Kuzmanovic et al. · Research in Sports Medicine · 2025",
+        "journal": "Research in Sports Medicine",
+        "did": "27 adults aged 50 to 65, new to exercise, drank hydrogen-rich water or regular water for six weeks during a strength training program.",
+        "found": "Markers of muscle damage after training were lower than with regular water.",
+        "note": "Strength gains were no different between the groups.",
+        "href": "https://doi.org/10.1080/15438627.2025.2521474"
+      },
+      {
+        "id": "study-8",
+        "title": "Six weeks of hydrogen-rich water during resistance training in adults over 50",
+        "area": "SLEEP · 50+",
+        "tags": [
+          "mood",
+          "aging"
+        ],
+        "result": "Better sleep quality",
+        "line": "In 5 of 7 areas measured, after six weeks.",
+        "people": 27,
+        "design": "Randomized · controlled · pilot",
+        "citation": "Kuzmanovic et al. · Research in Sports Medicine · 2025",
+        "journal": "Research in Sports Medicine",
+        "did": "The same 27 adults aged 50 to 65 rated their sleep before and after six weeks of hydrogen-rich water or regular water.",
+        "found": "Sleep quality improved in 5 of the 7 areas measured. The regular-water group showed no change.",
+        "note": "Sleep was a secondary measure in a small pilot study.",
+        "href": "https://doi.org/10.1080/15438627.2025.2521474"
+      },
+      {
+        "id": "study-9",
+        "title": "Hydrogen-rich water for mood, anxiety and autonomic nerve function in daily life",
+        "area": "MOOD",
+        "tags": [
+          "mood"
+        ],
+        "result": "Calmer, brighter days",
+        "line": "Better mood in everyday life, after four weeks.",
+        "people": 26,
+        "design": "Double-blind · placebo · crossover",
+        "citation": "Mizuno et al. · Medical Gas Research · 2017",
+        "journal": "Medical Gas Research",
+        "did": "26 healthy adults drank 600 ml of hydrogen-rich water or placebo water a day, four weeks each.",
+        "found": "Scores for mood and anxiety improved more than with placebo, and resting nerve activity linked to stress was lower.",
+        "note": "A small study based partly on how people said they felt.",
+        "href": "https://pubmed.ncbi.nlm.nih.gov/29497485/"
+      }
+    ]
+  },
+  "ch4": {
+    "title": "Myth or fact?",
+    "intro": "Hydrogen water attracts big claims, and a few mix-ups. Here's what holds up, and what doesn't.",
+    "reveal": "Reveal the fact",
+    "next": "Next myth →",
+    "listToggle": "See all myths as a list",
+    "cards": [
+      {
+        "myth": "Hydrogen water is just H₂O.",
+        "fact": "All water contains hydrogen, but there it's bound to oxygen. Hydrogen water also carries dissolved H₂ gas: the free, tiny molecule that researchers study."
+      },
+      {
+        "myth": "It's the alkalinity that does the work.",
+        "fact": "The research is about dissolved hydrogen, not pH. Hydrogen water can be neutral, slightly alkaline or slightly acidic, depending on how it's made."
+      },
+      {
+        "myth": "Hydrogen water is related to hydrogen peroxide.",
+        "fact": "They're completely different. Hydrogen peroxide (H₂O₂) is a strong oxidizer used for bleaching and cleaning. Molecular hydrogen (H₂) is a gentle, stable gas."
+      },
+      {
+        "myth": "A negative ORP reading tells you how much hydrogen is in the water.",
+        "fact": "ORP is influenced by many things, such as pH and minerals. Only a dissolved hydrogen measurement, in ppb or ppm, tells you how much hydrogen is really there."
+      },
+      {
+        "myth": "Hydrogen is just another antioxidant.",
+        "fact": "Research suggests it's more selective than that. Hydrogen seems to react mainly with the most aggressive free radicals, and to act as a gentle signal that helps the body's own defenses. Read more in Hydrogen 101.",
+        "link": {
+          "text": "Read more in Hydrogen 101",
+          "href": "/why-hydrogen#what-hydrogen-does"
+        }
+      },
+      {
+        "myth": "All the research has been done in animals.",
+        "fact": "Much of the early research was, but hundreds of human studies have now been published, and new ones appear every year."
+      },
+      {
+        "myth": "More hydrogen is always better.",
+        "fact": "Concentration matters, but so do how much you drink, how often, and how fresh it is. Researchers are still working out the ideal daily amount."
+      },
+      {
+        "myth": "Hydrogen is explosive, so hydrogen water can't be safe.",
+        "fact": "Hydrogen gas is only flammable at high concentrations in air. The amount dissolved in a glass of water is far below that, and hydrogen gas has GRAS status for use in drinking water and beverages."
+      },
+      {
+        "myth": "Hydrogen is a cure-all.",
+        "fact": "No. Hydrogen is not a cure for anything, and it's no replacement for medical care. It's a simple daily habit that research suggests may support your body's own antioxidant defenses.*"
+      }
+    ],
+    "deeperBefore": "Want to go deeper? The ",
+    "deeperLink": {
+      "text": "Molecular Hydrogen Institute",
+      "href": "https://molecularhydrogeninstitute.org/"
+    },
+    "deeperAfter": " is an independent non-profit that collects hydrogen research and explains common misconceptions."
+  },
+  "closing": {
+    "label": "Your daily glass",
+    "heading": "Fresh hydrogen water, wherever the day takes you.",
+    "text": "Make it fresh with the One at home, or Fizz on the go.",
+    "primary": {
+      "text": "Shop the One",
+      "href": "/products/h2-4-you-one"
+    },
+    "secondary": {
+      "text": "Shop Fizz",
+      "href": "/products/hydrogen-tablets"
+    },
+    "faq": {
+      "text": "Still curious? Read our FAQ →",
+      "href": "/faq"
+    },
+    "cross": {
+      "basics": {
+        "text": "Curious about the evidence? See the science →",
+        "href": "/why-hydrogen/science"
+      },
+      "science": {
+        "text": "New to hydrogen? Start with Hydrogen 101 →",
+        "href": "/why-hydrogen"
+      }
+    }
+  },
+  "disclaimer": "*These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease."
+}

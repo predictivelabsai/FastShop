@@ -183,8 +183,15 @@ def add_form(db, site, item, base, csrf, enabled, *, flavors=None, specs=None, c
 
 
 def render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
+    from app.site_ui_liquid_editorial import render_editorial
     from app.site_ui_liquid_products import render_product_block
+    from app.site_ui_liquid_support import render_support
 
+    content_block = render_support(b, base, csrf, not preview)
+    if content_block is None:
+        content_block = render_editorial(b, base)
+    if content_block is not None:
+        return content_block
     product_block = render_product_block(db, site, b, base, csrf, enabled)
     if product_block is not None:
         return product_block
@@ -340,6 +347,8 @@ def render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
                     cls="liquid-benefits-grid",
                 ),
                 P(b.get("body", ""), cls="metal-benefits-disclaimer text-muted-foreground"),
+                P(A(b["button"], href=url(base, b["link"])), cls="faq-more")
+                if b.get("button") and b.get("link") else None,
                 cls="metal-container metal-section metal-benefits-section",
             ),
             id=b["id"],
@@ -669,20 +678,23 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         )
 
     blocks = []
+    from app.site_ui_liquid_support import faq_jsonld
+
     for b in document["blocks"]:
         if b.get("hidden"):
             continue
         node = render_block(db, site, page, config, b, base, csrf, enabled, preview)
-        if preview and node is not None:
-            node.attrs.update(
-                {
+        nodes = node if isinstance(node, (list, tuple)) else [node]
+        for child in nodes:
+            if preview and child is not None and hasattr(child, "attrs"):
+                child.attrs.update({
                     "data-builder-section": b["id"],
                     "data-builder-label": (b.get("heading") or b["type"])[:100],
-                }
-            )
-        blocks.append(node)
+                })
+            blocks.append(child)
     return (
-        Title(document["title"] + " | " + site.name),
+        Title(document["title"] if document["title"].endswith(" | " + site.name)
+              else document["title"] + " | " + site.name),
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
         Meta(name="description", content=document.get("description", "")),
         Meta(
@@ -692,10 +704,16 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         Meta(property="og:title", content=document["title"]),
         Meta(property="og:description", content=document.get("description", "")),
         Link(rel="canonical", href=canonical),
+        Link(rel="icon", type="image/png", href="/static/h24you/liquid/logo-clean-dark.png"),
+        faq_jsonld(document["blocks"]) if page.path == "/faq" else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid.css")),
         Script(src=static_asset("site-liquid.js"), defer=True),
         Link(rel="stylesheet", href=static_asset("site-theme-liquid-products.css")),
         Script(src=static_asset("site-liquid-products.js"), defer=True),
+        Link(rel="stylesheet", href=static_asset("site-theme-liquid-support.css")),
+        Script(src=static_asset("site-liquid-support.js"), defer=True),
+        Link(rel="stylesheet", href=static_asset("site-theme-liquid-editorial.css")),
+        Script(src=static_asset("site-liquid-editorial.js"), defer=True),
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if enabled else None,
         Script(src=static_asset("cart-drawer.js"), defer=True) if enabled else None,
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
@@ -802,6 +820,11 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                 id="content",
                 tabindex="-1",
                 cls=("shop-page" if page.path == "/shop" else
+                     "about-page metal-light" if page.path == "/about" else
+                     "faq-page metal-light" if page.path == "/faq" else
+                     "contact-page metal-light" if page.path == "/contact" else
+                     "why-page" if page.path == "/why-hydrogen" else
+                     "why-page why-science" if page.path == "/why-hydrogen/science" else
                      "bottle-page tablet-page range-page" if page.path == "/products/taste-the-range" else
                      "bottle-page tablet-page" if page.path == "/products/hydrogen-tablets" else
                      "bottle-page" if page.path == "/products/h2-4-you-one" else ""),

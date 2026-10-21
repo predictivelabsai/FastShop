@@ -876,6 +876,26 @@ def register_site_routes(rt):
                 site = db.scalar(select(Site).where(Site.slug == slug, Site.status.in_(["preview", "published"])))
                 if not site:
                     return Response("Not found", status_code=404)
+                from app.site_theme import theme_pack
+                liquid_contact = theme_pack(site.published_settings_json or {}) == "liquid"
+                if liquid_contact:
+                    from app.site_blocks import default_locale, resolve_document
+                    from app.site_liquid_support_content import contact_topics
+                    contact_page = db.scalar(select(SitePage).where(
+                        SitePage.tenant_id == site.tenant_id, SitePage.site_id == site.id,
+                        SitePage.path == "/contact", SitePage.published_json.is_not(None),
+                    ))
+                    topic = str(form.get("topic", "")).strip()
+                    order = str(form.get("order", "")).strip()
+                    topics = contact_topics(resolve_document(contact_page.published_json,
+                        default_locale(site, preview=False))) if contact_page else set()
+                    if topic not in topics:
+                        raise CommerceError("Please choose a topic.")
+                    if len(order) > 160 or any(c in order for c in "\r\n"):
+                        raise CommerceError("Use an order number under 161 characters.")
+                    if len(email) > 255 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}", email):
+                        raise CommerceError("Please add a valid email address.")
+                    message = f"Topic: {topic}\n" + (f"Order number: {order}\n" if order else "") + "\n" + message
                 client_hash = hashlib.sha256((settings.session_secret + site.id + (request.client.host if request.client else "unknown")).encode()).hexdigest()
                 recent = db.scalar(select(SiteContact.id).where(SiteContact.site_id == site.id,
                     SiteContact.tenant_id == site.tenant_id, SiteContact.client_hash == client_hash,
@@ -888,7 +908,13 @@ def register_site_routes(rt):
                 entry.status = deliver(entry, site.published_settings_json)
                 entry.attempts += 1
                 db.commit()
-                return public(session, slug, "/pages/contact", request=request, message="Thank you. Your message is saved in our inbox." + (" Email delivery is pending setup." if entry.status == "awaiting_configuration" else ""))
+                notice = "Thank you. Your message is saved in our inbox."
+                if entry.status == "awaiting_configuration":
+                    notice += " Email delivery is pending setup."
+                elif liquid_contact and entry.status != "sent":
+                    notice += " Email delivery is pending; your message remains in our inbox."
+                return public(session, slug, "/contact" if liquid_contact else "/pages/contact",
+                              request=request, message=notice)
         except CommerceError as exc:
             return error(exc)
 
@@ -909,6 +935,10 @@ def register_site_routes(rt):
             from app.site_blog import articles_for, categories_for, is_listed, metadata
             category, tag = "", ""
             normalized_path = path.rstrip("/") or "/"
+            from app.site_theme import theme_pack
+            if normalized_path == "/4" and theme_pack(site.published_settings_json or {}) == "liquid":
+                base = request.scope.get("site_base", f"/sites/{site.slug}") if request else f"/sites/{site.slug}"
+                return RedirectResponse(base + "/", status_code=301)
             match = re.fullmatch(r"/blog/(category|tag)/([a-z0-9]+(?:-[a-z0-9]+)*)", normalized_path)
             if match or normalized_path == "/blog":
                 page = db.scalar(select(SitePage).where(SitePage.site_id == site.id,
