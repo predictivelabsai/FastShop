@@ -2,3 +2,7 @@
 *-768.png
 *-1024.png
 regression*/*.png
+# Keep the message-page polish evidence at all four requested widths.
+!404-*.png
+!checkout-error-*.png
+!generic-error-*.png

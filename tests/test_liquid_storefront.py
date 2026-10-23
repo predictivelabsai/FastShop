@@ -8,6 +8,7 @@ from starlette.testclient import TestClient
 
 from app import (
     customer_routes,
+    site_context,
     site_routes,
     store_checkout_routes,
     storefront_ui,
@@ -26,7 +27,7 @@ def browser(liquid, monkeypatch):
 
     db, site, _ = liquid
     sessions = sessionmaker(bind=db.bind, expire_on_commit=False)
-    for module in (site_routes, store_checkout_routes, customer_routes,
+    for module in (site_context, site_routes, store_checkout_routes, customer_routes,
                    subscription_routes, storefront_ui):
         monkeypatch.setattr(module, "SessionLocal", sessions)
     monkeypatch.setattr(store_checkout_routes, "StripeGateway", lambda site: Gateway())
@@ -54,6 +55,30 @@ def shell(response, status=200):
 def test_public_liquid_shell(browser, path, status):
     client, _, site = browser
     shell(client.get('/sites/' + site.slug + path), status)
+
+
+@pytest.mark.parametrize("mapped_host", [False, True])
+def test_liquid_404_message_and_recovery_links(browser, mapped_host):
+    client, db, site = browser
+    site.hostname, site.status = 'liquid.example.test', 'published'
+    site.published_settings_json = site.published_settings_json | {'sandbox_demo': True}
+    db.commit()
+    base = '' if mapped_host else '/sites/' + site.slug
+    response = client.get(
+        ('https://liquid.example.test' if mapped_host else '') + base + '/missing')
+    shell(response, 404)
+    main = re.search(r'<main\b.*?</main>', response.text, re.S)[0]
+    assert main.count('Page not found') == 1
+    assert 'The page you were looking for has moved or no longer exists.' in main
+    assert 'Sandbox · No live payments' not in main
+    assert 'href="' + base + '/shop" class="e-button metal-cta">Shop all</a>' in main
+    assert 'href="' + base + '/" class="liquid-message-home">Back to home</a>' in main
+    assert 'name="robots" content="noindex,nofollow"' in response.text
+    assert response.headers['cache-control'] == 'private, no-store'
+    if mapped_host:
+        assert response.headers['x-robots-tag'] == 'noindex, nofollow'
+    # The payment notice still belongs on commerce pages.
+    assert 'Sandbox · No live payments' in client.get('/sites/' + site.slug + '/cart').text
 
 
 def test_cart_checkout_native_forms_and_error_shell(browser):

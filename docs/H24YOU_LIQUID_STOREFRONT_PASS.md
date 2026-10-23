@@ -183,3 +183,39 @@ credentials. No migration was needed. The local preview is stopped and port
 5025 has no listener. No push or deployment was performed.
 
 Open questions: none.
+
+## Simple message page polish, 23 October 2026
+
+Liquid public errors now use the ComingSoonPage section pattern with a 50vh
+minimum height, a 48px display heading and one muted supporting paragraph with
+16px top spacing. Unknown pages no longer repeat the heading in that paragraph.
+The message section omits the sandbox payments tag; commerce pages retain it
+and the footer still carries the sandbox notice.
+
+Recovery actions use a content-sized Shop all CTA linking to `/shop` and a
+Back to home text link. The CTA reuses `metal-cta` sizing and the actions wrap
+with a 16px gap; mobile message sections have 16px side gutters. Host-mapped
+sites keep root-relative links, while merchant previews retain their site base.
+HTTP statuses, private cache headers and noindex behaviour are unchanged.
+
+Checkout-not-found and generic errors share this presentation and retain their
+specific messages. Checkout cancellation returns to the existing order-review
+screen, which has neither the repeated-heading problem nor a stretched recovery
+link, so its presentation and behaviour are unchanged.
+
+The browser verifier now checks message geometry, copy, recovery destinations,
+status and noindex at all four widths. Refreshed `404`, `checkout-error` and
+`generic-error` PNGs at 375, 768, 1024 and 1440px are retained in
+`output/playwright/h24you-liquid/storefront-pass/`, together with 65 font/page
+records. Visual review confirmed the mobile, tablet and desktop presentation.
+
+Completed checks: Ruff, the 14 focused storefront tests, full pytest (722 passed,
+1 skipped in 474.85 seconds), the full storefront browser verifier, Python
+compile checks, disposable SQLite Alembic upgrade and check, and
+`git diff --check`. The existing optional user-guide test skips because
+`python-pptx` is absent; the existing Starlette/AnyIO warning remains.
+Python checks use `PYTHONUTF8=1`, disabled local
+dotenv loading, disposable storage and cleared payment/mail credentials. The
+local preview has been stopped. No push or deployment was performed.
+
+Open questions: none.

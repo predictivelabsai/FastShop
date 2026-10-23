@@ -21,6 +21,25 @@ def main():
             context = browser.new_context(viewport={"width": width, "height": 1000},
                                           reduced_motion="reduce")
             page = context.new_page()
+            def check_message(status, page=page):
+                assert status in (400, 404)
+                main = page.locator('main')
+                assert 'Sandbox · No live payments' not in main.inner_text()
+                assert main.inner_text().count(main.locator('h1').inner_text()) == 1
+                primary = main.get_by_role('link', name='Shop all', exact=True)
+                expect(primary).to_have_attribute('href', BASE.removeprefix('http://127.0.0.1:5025') + '/shop')
+                expect(main.get_by_role('link', name='Back to home')).to_have_attribute(
+                    'href', BASE.removeprefix('http://127.0.0.1:5025') + '/')
+                style = primary.evaluate("""e => {
+                    const s = getComputedStyle(e);
+                    return [s.height, s.minWidth, s.fontSize, s.textTransform, s.borderRadius];
+                }""")
+                assert style == ['52px', '160px', '14px', 'uppercase', '8px'], style
+                assert primary.bounding_box()['width'] < 240
+                assert main.locator('p').evaluate('e => getComputedStyle(e).marginTop') == '16px'
+                assert main.locator('section').evaluate('e => e.offsetHeight >= innerHeight * .5')
+                assert page.locator('meta[name="robots"]').get_attribute('content') == 'noindex,nofollow'
+
             def capture(name, page=page, width=width, context=context):
                 page.evaluate("document.fonts.ready")
                 page.evaluate("document.querySelectorAll('img').forEach(i => i.loading='eager')")
@@ -62,8 +81,29 @@ def main():
             for path, name in [("/", "home"), ("/products/h2-4-you-one", "product"),
                                ("/cart", "cart-empty"), ("/account", "account"),
                                ("/account/subscriptions", "subscriptions"), ("/missing-page", "404")]:
-                page.goto(BASE + path)
+                response = page.goto(BASE + path)
+                if name == '404':
+                    assert response.status == 404
+                    assert response.headers['cache-control'] == 'private, no-store'
+                    check_message(response.status)
                 capture(name)
+            page.goto(BASE + '/cart')
+            with page.expect_navigation() as navigation:
+                page.evaluate("""base => {
+                    const form = document.createElement('form');
+                    form.method = 'post'; form.action = base + '/cart/update';
+                    for (const [name, value] of Object.entries({
+                        csrf_token: document.querySelector('[name="csrf_token"]').value,
+                        quantity: '26'
+                    })) {
+                        const input = document.createElement('input');
+                        input.name = name; input.value = value; form.append(input);
+                    }
+                    document.body.append(form); form.submit();
+                }""", BASE)
+            assert navigation.value.status == 400
+            check_message(navigation.value.status)
+            capture('generic-error')
             page.goto(BASE + "/")
             page.locator('[data-cart-open]').click()
             page.locator('.fs-cart-dialog[open]').wait_for()
@@ -157,7 +197,9 @@ def main():
             page.goto(BASE + "/account/subscriptions")
             assert "Your subscriptions" in page.locator("h1").inner_text()
             capture("subscriptions")
-            page.goto(BASE + "/checkout/missing")
+            response = page.goto(BASE + "/checkout/missing")
+            assert response.status == 404
+            check_message(response.status)
             capture("checkout-error")
             context.close()
         context = browser.new_context(java_script_enabled=False,

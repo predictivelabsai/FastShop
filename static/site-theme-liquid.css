@@ -883,6 +883,15 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 .h-site[data-pack="liquid"] .review-stars .liquid-text-icon { width:16px; height:16px; }
 .h-site[data-pack="liquid"] .review-stars .liquid-glyph-text { gap:2px; }
 .h-site[data-pack="liquid"] .liquid-commerce h1 { font-size:48px; }
+.h-site[data-pack="liquid"] .liquid-message-page { min-height:50vh; }
+.h-site[data-pack="liquid"] .liquid-message-page h1 { font-size:48px; line-height:1; }
+.h-site[data-pack="liquid"] .liquid-message-page p { margin-top:16px; line-height:1.625; }
+.h-site[data-pack="liquid"] .liquid-message-actions { display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin-top:32px; }
+.h-site[data-pack="liquid"] .liquid-message-actions .metal-cta { margin-top:0; }
+.h-site[data-pack="liquid"] .liquid-message-home { display:inline-flex; align-items:center; min-height:44px; text-decoration:underline; text-underline-offset:4px; }
+@media(max-width:767px) {
+ .h-site[data-pack="liquid"] .liquid-message-page .metal-container { padding-inline:16px; }
+}
 @media(max-width:767px) { .h-site[data-pack="liquid"] .liquid-commerce h1 { font-size:40px; } }
 .liquid-cart-embedded .h-site[data-pack="liquid"] { background:var(--card); }
 .liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-cart-summary .e-form,

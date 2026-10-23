@@ -16,7 +16,7 @@ def is_liquid(site):
     return theme_pack(site.published_settings_json or {}) == "liquid"
 
 
-def liquid_page(site, request, title, *children):
+def liquid_page(site, request, title, *children, message_page=False):
     from app.site_ui_liquid import storefront
 
     request.session.setdefault("csrf_token", secrets.token_urlsafe(32))
@@ -58,6 +58,10 @@ def liquid_page(site, request, title, *children):
             if getattr(site, "_payment_mode", "sandbox") != "live" else None,
             Div(*children, cls="liquid-commerce-content", aria_live="polite"),
             cls="metal-container"), cls="metal-section liquid-commerce")
+    if message_page:
+        content = Section(
+            Div(H1(title, cls="font-display"), *children, cls="metal-container"),
+            cls="metal-section liquid-message-page")
     with SessionLocal() as db:
         cart = db.scalar(select(SiteCart).where(
             SiteCart.id == request.session.get("cart:" + site.id, ""),
@@ -76,9 +80,15 @@ def public_message(request, slug, message, *, status_code=400, plain=True):
         site = db.scalar(select(Site).where(Site.slug == slug))
         if site and is_liquid(site):
             root = request.scope.get("site_base", "/sites/" + slug)
+            title = "Page not found" if status_code == 404 else "Please check your details"
+            body = str(message)
+            if body.rstrip(".") == title:
+                body = "The page you were looking for has moved or no longer exists."
             return FtResponse(liquid_page(site, request,
-                "Page not found" if status_code == 404 else "Please check your details",
-                P(str(message)), A("Back to store", href=root + "/", cls="e-button")),
+                title, P(body, cls="text-muted-foreground"),
+                Div(A("Shop all", href=root + "/shop", cls="e-button metal-cta"),
+                    A("Back to home", href=root + "/", cls="liquid-message-home"),
+                    cls="liquid-message-actions"), message_page=True),
                 status_code=status_code, headers={"Cache-Control": "private, no-store"})
     return Response(str(message), status_code=status_code, media_type="text/plain" if plain else None)
 
