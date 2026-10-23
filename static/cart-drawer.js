@@ -5,13 +5,19 @@
   const cart = new URL(link.href, location.href);
   if (cart.origin !== location.origin) return;
   const dialog = document.createElement('dialog');
+  const liquid = document.querySelector('.h-site[data-pack="liquid"]');
   dialog.className = 'fs-cart-dialog';
-  dialog.setAttribute('aria-label', 'Your FastShop bag');
+  if (liquid) {
+    dialog.classList.add('h-site', 'theme-metal', 'liquid-cart-dialog');
+    dialog.dataset.pack = 'liquid'; dialog.dataset.tone = liquid.dataset.tone;
+  }
+  dialog.setAttribute('aria-label', liquid ? 'Your bag' : 'Your FastShop bag');
   const header = document.createElement('header');
   const title = document.createElement('span');
-  title.textContent = 'Your bag · FastShop';
+  title.textContent = liquid ? 'Your bag' : 'Your bag · FastShop';
   const close = document.createElement('button');
-  close.type = 'button'; close.textContent = 'Close bag';
+  close.type = 'button'; close.textContent = liquid ? '×' : 'Close bag';
+  close.setAttribute('aria-label', 'Close bag');
   const status = document.createElement('p');
   status.setAttribute('role', 'status');
   const frame = document.createElement('iframe');
@@ -51,6 +57,13 @@
     try {
       const doc = frame.contentDocument;
       if (!doc) return;
+      if (liquid) {
+        doc.documentElement.classList.add('liquid-cart-embedded');
+        doc.querySelector('main')?.classList.remove('metal-light');
+        doc.querySelectorAll('.cart-stepper input[type="number"]').forEach(input => {
+          input.addEventListener('change', () => { if (input.checkValidity()) input.form.requestSubmit(); });
+        });
+      }
       doc.querySelectorAll('a').forEach(a => { a.target = '_top'; });
       // Escape from inside the embedded document must close the outer dialog too.
       doc.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); dialog.close(); } });

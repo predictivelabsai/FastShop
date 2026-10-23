@@ -84,7 +84,7 @@
       hero.classList.toggle('motion-paused', stopped);
       motion.setAttribute('aria-pressed', String(stopped));
       motion.setAttribute('aria-label', stopped ? 'Play background motion' : 'Pause background motion');
-      motion.textContent = stopped ? '▷ Play' : 'Ⅱ Pause';
+      motion.textContent = stopped ? 'Play' : 'Pause';
     };
     motion.addEventListener('click', () => { paused = !paused; syncMotion(); });
     reduced.addEventListener('change', syncMotion);

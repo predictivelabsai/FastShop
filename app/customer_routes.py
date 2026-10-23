@@ -6,7 +6,7 @@ import secrets
 
 from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Li, P, Small, Ul
 from sqlalchemy import select
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import RedirectResponse
 
 from app import commerce, content
 from app import customer_services as customers
@@ -29,6 +29,7 @@ from app.models import (
 )
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
+from app.storefront_ui import is_liquid, liquid_page, public_message
 
 
 def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error):
@@ -70,6 +71,8 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         root = base(site, request)
         config = commerce.settings_for(db, site)
         accounts_enabled = bool(config and config.customer_accounts_enabled)
+        if is_liquid(site):
+            return liquid_page(site, request, title, *children)
         return platform_page(title, P(site.name + " · Powered by FastShop"), *children,
             navigation=[A("Back to store", href=root + "/"), *([A("My account", href=root + "/account")] if accounts_enabled else [])], customer=True)
 
@@ -108,7 +111,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     async def request_link(session, request, slug, purpose):
         form = await request.form()
@@ -129,7 +132,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/account/login", methods=["POST"])
     async def post(session, request, slug: str):
@@ -151,7 +154,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/account/verify/{challenge_id}", methods=["POST"])
     async def post(session, request, slug: str, challenge_id: str):
@@ -178,7 +181,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/account/logout", methods=["POST"])
     async def post(session, request, slug: str):
@@ -192,7 +195,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/account/unsubscribe", methods=["POST"])
     async def post(session, request, slug: str):
@@ -207,7 +210,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 db.commit()
                 return RedirectResponse(base(site, request) + "/account", status_code=303)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/unsubscribe/{customer_id}", methods=["GET"])
     def get(session, request, slug: str, customer_id: str):
@@ -218,7 +221,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     Form(csrf(session), Label("Confirmation code", Input(name="token", required=True, data_email_token="", maxlength=64, autocomplete="off")),
                         Button("Unsubscribe", cls="e-button"), method="post", cls="e-form"), cls="e-card")))
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/unsubscribe/{customer_id}", methods=["POST"])
     async def post(session, request, slug: str, customer_id: str):
@@ -235,7 +238,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 db.commit()
                 return private_response(screen(db, site, request, "Unsubscribed", P("You will no longer receive marketing emails from this store.")))
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/account/orders/{site_order_id}", methods=["GET"])
     def get(session, request, slug: str, site_order_id: str):
@@ -249,7 +252,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     SiteOrder.id == site_order_id, SiteOrder.site_id == site.id, SiteOrder.tenant_id == site.tenant_id,
                     SiteOrder.customer_id == customer.id, Order.tenant_id == site.tenant_id)).first()
                 if not row:
-                    return Response("Order not found", status_code=404)
+                    return public_message(request, slug, "Order not found", status_code=404, plain=False)
                 link, order = row
                 events = customers.tracking_for(db, site, link.id)
                 return private_response(screen(db, site, request, order.number,
@@ -263,7 +266,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/admin/sites/{site_id}/customers", methods=["GET"])
     def get(session, site_id: str):

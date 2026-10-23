@@ -5,7 +5,7 @@ import secrets
 from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Option, P, Select
 from fasthtml.core import FtResponse
 from sqlalchemy import select
-from starlette.responses import JSONResponse, RedirectResponse, Response
+from starlette.responses import JSONResponse, RedirectResponse
 
 from app import checkout_payments, commerce, customer_services, subscriptions
 from app import checkout_services as checkout
@@ -14,6 +14,7 @@ from app.integrations.stripe_commerce import StripeGateway, make_gateway
 from app.models import CheckoutAttempt, CommerceQuote, Site, SiteCart, SubscriptionCycle
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
+from app.storefront_ui import is_liquid, liquid_page, public_message
 
 
 def register_store_checkout_routes(rt, csrf, check_csrf, error):
@@ -42,6 +43,10 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
     def screen(site, request, title, *children):
         root = base(site, request)
         mode_label = "Live payments" if site._payment_mode == "live" else "Sandbox · No live payments"
+        if is_liquid(site):
+            return FtResponse(liquid_page(site, request, title, *children),
+                headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
+                         "Content-Security-Policy": "frame-ancestors 'self'"})
         return FtResponse(platform_page(title, P(site.name + " · " + mode_label), *children,
             navigation=[A("Store", href=root + "/"), A("Bag", href=root + "/cart")], customer=True),
             headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
@@ -72,6 +77,10 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     cart.version += 1
                 lines = commerce.price_lines(db, site, config, cart.lines_json) if cart.lines_json else []
                 db.commit()
+                if is_liquid(site):
+                    from app.storefront_ui import liquid_cart
+                    return screen(site, request, "Your bag",
+                        liquid_cart(root, cart, lines, csrf(session)))
                 return screen(site, request, "Your bag", csrf(session), *[Div(H2(line.name), P(money(line.amount_minor, "USD")),
                     P("Monthly subscription · 10% merchandise saving" if line.subscription else "One-time purchase"),
                     Form(csrf(session), Input(type="hidden", name="version", value=cart.version),
@@ -87,7 +96,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     A("Continue to checkout", href=root + "/checkout", cls="e-button") if lines else A("Browse the shop", href=root + "/shop"),
                     A("Resume existing checkout", href=root + "/checkout/" + cart.checkout_id) if cart.checkout_id else None)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/cart/summary", methods=["GET"])
     def get(session, request, slug: str):
@@ -123,7 +132,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 db.commit()
                 return RedirectResponse(base(site, request) + "/cart", status_code=303)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     async def change_cart(session, request, slug, *, add):
         form = await request.form()
@@ -163,7 +172,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 db.commit()
                 return RedirectResponse(base(site, request) + "/cart", status_code=303)
         except (CommerceError, ValueError) as exc:
-            return error(CommerceError(str(exc)))
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/cart/add", methods=["POST"])
     async def post(session, request, slug: str):
@@ -209,7 +218,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                             P("No payment is taken until you review the first delivery total and complete Stripe checkout.")) if recurring_lines else None,
                         Button("Review shipping & tax", cls="e-button"), method="post", action=root + "/checkout", cls="e-form e-card"))
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/checkout", methods=["POST"])
     async def post(session, request, slug: str):
@@ -240,7 +249,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 db.commit()
                 return RedirectResponse(base(site, request) + "/checkout/" + attempt.id, status_code=303)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/checkout/{attempt_id}", methods=["GET"])
     def get(session, request, slug: str, attempt_id: str):
@@ -272,7 +281,8 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                         P("Savings: " + money(quote.discount_minor, quote.currency)),
                         P("Shipping: " + money(quote.shipping_minor, quote.currency)),
                         P("Sales tax (" + quote.snapshot_json["destination"]["state"] + "): " + money(quote.tax_minor, quote.currency)),
-                        H2("Total: " + money(quote.total_minor, quote.currency)), cls="e-card"),
+                        H2("Total: " + money(quote.total_minor, quote.currency)),
+                        cls="e-card liquid-order-summary" if is_liquid(site) else "e-card"),
                     P("Your payment has been verified.") if attempt.state == "paid" else P("A return from Stripe is not proof of payment. Payment is confirmed only after verification."),
                     Form(csrf(session), Button("Continue to Stripe test checkout", cls="e-button"), method="post", action=action + "/pay") if attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Check payment status", cls="e-button"), method="post", action=action + "/refresh") if attempt.stripe_session_id and attempt.state in checkout.ACTIVE else None,
@@ -280,7 +290,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     Form(csrf(session), Button("Start a new bag", cls="e-button"), method="post", action=action + "/new") if attempt.state in ("paid", "expired") and cart.checkout_id == attempt.id else None,
                     A("Back to store", href=root + "/"))
         except CommerceError:
-            return Response("Checkout not found.", status_code=404)
+            return public_message(request, slug, "Checkout not found.", status_code=404, plain=False)
 
     @rt("/sites/{slug}/checkout/{attempt_id}/{action}", methods=["POST"])
     async def post(session, request, slug: str, attempt_id: str, action: str):
@@ -314,4 +324,4 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 raise CommerceError("Unknown checkout action.")
             return RedirectResponse(root + "/checkout/" + attempt_id, status_code=303)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)

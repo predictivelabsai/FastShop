@@ -1,8 +1,284 @@
 /* Application-owned Liquid Metal pack. All visual rules are opt-in. */
-@font-face { font-family: "Liquid Italiana"; src: url("/static/fonts/liquid/Italiana-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "Liquid Quicksand"; src: url("/static/fonts/liquid/Quicksand[wght].ttf") format("truetype"); font-weight: 300 700; font-display: swap; }
-@font-face { font-family: "Liquid Fraunces"; src: url("/static/fonts/liquid/Fraunces[SOFT,WONK,opsz,wght].ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
-@font-face { font-family: "Liquid Fraunces"; src: url("/static/fonts/liquid/Fraunces-Italic[SOFT,WONK,opsz,wght].ttf") format("truetype"); font-weight: 100 900; font-style: italic; font-display: swap; }
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUs8FyLNQOQZAnv9ZwNjucMHVn85Ni7emAe9lKqZTnbB-gzTK0K1ChJdt9vIVYX9G37lvd9mvIiQvTm.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUs8FyLNQOQZAnv9ZwNjucMHVn85Ni7emAe9lKqZTnbB-gzTK0K1ChJdt9vIVYX9G37lvd9mvMiQvTm.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUs8FyLNQOQZAnv9ZwNjucMHVn85Ni7emAe9lKqZTnbB-gzTK0K1ChJdt9vIVYX9G37lvd9mv0iQg.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUs8FyLNQOQZAnv9ZwNjucMHVn85Ni7emAe9lKqZTnbB-gzTK0K1ChJdt9vIVYX9G37lvd9mvIiQvTm.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUs8FyLNQOQZAnv9ZwNjucMHVn85Ni7emAe9lKqZTnbB-gzTK0K1ChJdt9vIVYX9G37lvd9mvMiQvTm.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUs8FyLNQOQZAnv9ZwNjucMHVn85Ni7emAe9lKqZTnbB-gzTK0K1ChJdt9vIVYX9G37lvd9mv0iQg.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUu8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib14c0qv86Rg.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUu8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib14c1qv86Rg.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUu8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib14c7qv8.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUu8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib14c0qv86Rg.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUu8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib14c1qv86Rg.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUu8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib14c7qv8.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUu8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib14c0qv86Rg.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUu8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib14c1qv86Rg.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Fraunces';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/fraunces-6NUu8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib14c7qv8.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Italiana';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/italiana-QldNNTtLsx4E__B0XQmWaXw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJFQNcOM.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJVQNcOM.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hK1QN.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJFQNcOM.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJVQNcOM.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hK1QN.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJFQNcOM.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJVQNcOM.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hK1QN.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJFQNcOM.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJVQNcOM.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hK1QN.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJFQNcOM.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hJVQNcOM.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Liquid Quicksand';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/static/fonts/liquid/google/quicksand-6xKtdSZaM9iE8KbpRA_hK1QN.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 .h-site[data-pack="liquid"] { --brand-from: #14A5EE; --brand-to: #0A3DC7; --brand-gradient: linear-gradient(120deg,var(--brand-from),var(--brand-to)); --ring: #14A5EE; font-size:16px; line-height:1.5; min-height:100vh; }
 .h-site[data-pack="liquid"] *, .h-site[data-pack="liquid"] *::before, .h-site[data-pack="liquid"] *::after { box-sizing:border-box; border-width:0; border-style:solid; border-color:var(--border); }
 .h-site[data-pack="liquid"] :is(h1,h2,h3,p,figure,blockquote,dl,dd,ul) { margin:0; }
@@ -541,3 +817,88 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 .h-site[data-pack="liquid"] .metal-benefits-section h2 { line-height:1.25; }
 .h-site[data-pack="liquid"] .liquid-card-disclaimer { display:none; }
 @media(max-width:767px) { .h-site[data-pack="liquid"] .metal-benefit-card .liquid-card-disclaimer { display:block; font-size:10px; line-height:1.5; } }
+/* Native commerce forms share the public Liquid tokens. */
+.h-site[data-pack="liquid"] .liquid-commerce { min-height:55vh; padding-block:64px; }
+.h-site[data-pack="liquid"] .liquid-commerce h1 { font-size:clamp(40px,5vw,60px); line-height:1.1; margin-bottom:16px; }
+.h-site[data-pack="liquid"] .liquid-commerce small { display:block; color:var(--muted-foreground); font-size:12px; margin-bottom:32px; }
+.h-site[data-pack="liquid"] .liquid-commerce-content { display:grid; gap:24px; max-width:100%; }
+.h-site[data-pack="liquid"] .liquid-commerce :is(h2,h3) { font-family:var(--display-family); font-size:28px; line-height:1.25; }
+.h-site[data-pack="liquid"] .liquid-commerce p { line-height:1.625; }
+.h-site[data-pack="liquid"] .e-card { border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--card-foreground); padding:24px; display:grid; gap:16px; min-width:0; }
+.h-site[data-pack="liquid"] .e-form { display:grid; gap:16px; }
+.h-site[data-pack="liquid"] .liquid-commerce label { display:grid; gap:8px; font-size:14px; }
+.h-site[data-pack="liquid"] .liquid-commerce label:has([type="checkbox"]) { display:flex; align-items:start; }
+.h-site[data-pack="liquid"] .liquid-commerce :is(input:not([type="hidden"]):not([type="checkbox"]),select,textarea) { width:100%; min-width:0; min-height:40px; padding:8px 12px; border:1px solid var(--input); border-radius:8px; background:var(--background); font:inherit; color:var(--foreground); }
+.h-site[data-pack="liquid"] .liquid-commerce [type="checkbox"] { width:18px; height:18px; flex-shrink:0; accent-color:var(--accent); }
+.h-site[data-pack="liquid"] .e-button { display:inline-flex; align-items:center; justify-content:center; border-radius:8px; padding:12px 20px; background:var(--primary); color:var(--primary-foreground); font-size:14px; font-weight:600; text-align:center; min-height:44px; }
+.h-site[data-pack="liquid"] .liquid-cart-page { display:grid; gap:24px; }
+.h-site[data-pack="liquid"] .cart-shipping { font-size:14px; }
+.h-site[data-pack="liquid"] .cart-shipping-track { height:6px; border-radius:99px; background:var(--muted); overflow:hidden; margin-top:8px; }
+.h-site[data-pack="liquid"] .cart-shipping-track span { display:block; height:100%; background:var(--primary); }
+.h-site[data-pack="liquid"] .liquid-cart-line { padding-block:24px; border-bottom:1px solid var(--border); }
+.h-site[data-pack="liquid"] .liquid-cart-line-title,.h-site[data-pack="liquid"] .liquid-cart-subtotal { display:flex; align-items:baseline; justify-content:space-between; gap:16px; font-weight:600; }
+.h-site[data-pack="liquid"] .liquid-cart-line-title h2 { font-family:var(--body-family); font-size:16px; font-weight:600; }
+.h-site[data-pack="liquid"] .liquid-cart-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
+.h-site[data-pack="liquid"] .cart-stepper { display:flex; align-items:center; border:1px solid var(--border); border-radius:8px; }
+.h-site[data-pack="liquid"] .cart-stepper button { padding:8px; min-height:40px; }
+.h-site[data-pack="liquid"] .cart-stepper input { width:52px !important; padding:4px !important; text-align:center; border:0 !important; background:transparent !important; }
+.h-site[data-pack="liquid"] .cart-stepper .liquid-cart-update { font-size:11px; }
+.h-site[data-pack="liquid"] .liquid-cart-controls .cart-select { width:auto; font-size:12px; }
+.h-site[data-pack="liquid"] .liquid-cart-remove { text-decoration:underline; font-size:12px; color:var(--muted-foreground); }
+.h-site[data-pack="liquid"] .liquid-checkout-button { width:100%; }
+.h-site[data-pack="liquid"] .liquid-cart-empty { display:grid; justify-items:start; gap:24px; padding-block:48px; max-width:440px; }
+.h-site[data-pack="liquid"] .liquid-empty-glass { position:relative; height:96px; width:64px; border:2px solid color-mix(in oklch,currentColor 40%,transparent); border-top:0; border-radius:0 0 16px 16px; }
+.h-site[data-pack="liquid"] .liquid-empty-glass span { position:absolute; bottom:8px; height:8px; width:8px; border-radius:50%; background:var(--highlight); animation:liquid-empty-rise 4s linear infinite; }
+@keyframes liquid-empty-rise { to { transform:translateY(-72px); opacity:0; } }
+@media(min-width:900px) {
+ .h-site[data-pack="liquid"] .liquid-cart-page { grid-template-columns:minmax(0,1fr) minmax(280px,380px); align-items:start; }
+ .h-site[data-pack="liquid"] .cart-shipping { grid-column:1/-1; }
+ .h-site[data-pack="liquid"] .liquid-commerce-content:has(> .e-card:nth-of-type(2)) { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+}
+.h-site[data-pack="liquid"].liquid-cart-dialog { width:min(100%,384px); background:var(--card); color:var(--card-foreground); min-height:0; }
+.h-site[data-pack="liquid"].liquid-cart-dialog > header { background:var(--card); color:var(--foreground); padding:20px 24px; border-bottom:1px solid var(--border); font:24px/1.33 var(--display-family); }
+.h-site[data-pack="liquid"].liquid-cart-dialog > header button { background:transparent; color:inherit; border-radius:50%; padding:4px 8px; }
+.h-site[data-pack="liquid"].liquid-cart-dialog > [role="status"] { font:14px/1.5 var(--body-family); }
+.h-site[data-pack="liquid"].liquid-cart-dialog iframe { background:var(--card); }
+.liquid-cart-embedded .metal-top-bars,.liquid-cart-embedded .liquid-mobile-menu,.liquid-cart-embedded .metal-footer,.liquid-cart-embedded .liquid-commerce h1,.liquid-cart-embedded .liquid-commerce small { display:none !important; }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-commerce { padding:0; background:var(--card); color:var(--card-foreground); }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-commerce .metal-container { padding:16px 24px; }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-cart-summary { padding:20px 0; border:0; }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .cart-shipping { padding-bottom:16px; border-bottom:1px solid var(--border); }
+@media(prefers-reduced-motion:reduce) { .h-site[data-pack="liquid"] .liquid-empty-glass span { animation:none; } }
+.h-site[data-pack="liquid"] .metal-light .e-button { color:var(--pearl-surface); }
+.h-site[data-pack="liquid"] .cart-stepper > form { display:flex; align-items:center; }
+.h-site[data-pack="liquid"] .cart-stepper .liquid-cart-update { max-width:60px; line-height:1.2; }
+.h-site[data-pack="liquid"] .liquid-checkout-grid,.h-site[data-pack="liquid"] .liquid-checkout-details,.h-site[data-pack="liquid"] .liquid-checkout-summary { display:grid; gap:24px; min-width:0; }
+.h-site[data-pack="liquid"] .liquid-checkout-summary .e-button { width:100%; }
+@media(min-width:900px) { .h-site[data-pack="liquid"] .liquid-checkout-grid { grid-template-columns:minmax(0,1fr) minmax(300px,420px); align-items:start; } }
+.h-site[data-pack="liquid"] svg.liquid-text-icon { display:inline-block; vertical-align:-.15em; width:1em; height:1em; }
+.h-site[data-pack="liquid"] .review-stars .liquid-glyph-text { display:inline-flex; gap:4px; }
+.h-site[data-pack="liquid"] .metal-header nav[aria-label="Main"] :is(a,summary,button) { font-family:var(--body-family); font-size:14px; font-weight:400; font-style:normal; text-transform:none; letter-spacing:0; }
+.h-site[data-pack="liquid"] .liquid-mobile-group ul { font-family:var(--display-family); font-size:24px; }
+.h-site[data-pack="liquid"] .liquid-commerce :is(input:not([type="hidden"]):not([type="checkbox"]),textarea) { font-size:16px; }
+.h-site[data-pack="liquid"] .liquid-commerce select { font-size:14px; }
+@media(min-width:768px) { .h-site[data-pack="liquid"] .liquid-commerce :is(input:not([type="hidden"]):not([type="checkbox"]),textarea) { font-size:14px; } }
+@media(min-width:768px) and (max-width:1023px) { .h-site[data-pack="liquid"] .metal-header nav[aria-label="Main"] :is(a,summary,button) { font-size:12px; } }
+.h-site[data-pack="liquid"] .review-stars .liquid-text-icon { width:16px; height:16px; }
+.h-site[data-pack="liquid"] .review-stars .liquid-glyph-text { gap:2px; }
+.h-site[data-pack="liquid"] .liquid-commerce h1 { font-size:48px; }
+@media(max-width:767px) { .h-site[data-pack="liquid"] .liquid-commerce h1 { font-size:40px; } }
+.liquid-cart-embedded .h-site[data-pack="liquid"] { background:var(--card); }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-cart-summary .e-form,
+.liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-cart-summary > p:not(.tablet-pills),
+.liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-cart-update { display:none; }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .tablet-pills { font-size:12px; }
+.h-site[data-pack="liquid"] .cart-shipping-track { height:4px; }
+.h-site[data-pack="liquid"] .cart-stepper button { display:grid; place-items:center; width:32px; height:32px; min-height:32px; padding:0; }
+.h-site[data-pack="liquid"] .cart-stepper input { width:24px !important; min-height:32px !important; font-size:14px !important; appearance:textfield; }
+.h-site[data-pack="liquid"] .cart-stepper input::-webkit-inner-spin-button { appearance:none; }
+.h-site[data-pack="liquid"] .cart-stepper .liquid-cart-update { width:60px; padding:4px; }
+.h-site[data-pack="liquid"] .liquid-cart-controls .cart-select { min-height:32px; font-size:12px; padding:5px 8px; background:var(--card); }
+.h-site[data-pack="liquid"].liquid-cart-dialog > [role="status"]:empty { display:none; }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-cart-page { display:flex; flex-direction:column; min-height:calc(100dvh - 32px); gap:16px; }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-cart-line { padding-block:16px; }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .liquid-cart-summary { margin-top:auto; }
+.liquid-cart-embedded .h-site[data-pack="liquid"] .e-button { font-size:16px; }
+.h-site[data-pack="liquid"] .liquid-cart-line-price { flex-shrink:0; text-align:right; }
+.h-site[data-pack="liquid"] .liquid-cart-line-price del { display:block; font-size:12px; font-weight:400; color:var(--muted-foreground); }

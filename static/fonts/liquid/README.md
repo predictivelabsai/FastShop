@@ -1,12 +1,17 @@
 # Liquid pack fonts
 
-Self-hosted upstream TrueType fonts from the Google Fonts repository, downloaded
-20 October 2026. Each family's SIL Open Font Licence is included alongside it.
-The CSS uses private `Liquid ...` family aliases to avoid changing existing sites.
+These unmodified WOFF2 subsets are the exact Google Fonts response supplied for
+Lovable's font URL, retrieved on 23 October 2026. The 31 font faces are inlined in
+`static/site-theme-liquid.css`, with private `Liquid ...` aliases and local URLs.
 
-- [Italiana](https://github.com/google/fonts/tree/main/ofl/italiana), regular.
-- [Quicksand](https://github.com/google/fonts/tree/main/ofl/quicksand), variable weight.
-- [Fraunces](https://github.com/google/fonts/tree/main/ofl/fraunces), variable regular and italic.
+- Italiana: regular 400.
+- Quicksand: 300, 400, 500, 600 and 700.
+- Fraunces: normal 300, 400 and 600; italic 300 and 400.
 
-The files are unmodified upstream font binaries. No Google Fonts HTTP requests
-are needed to render this pack.
+Unicode ranges and the served cuts are retained. Italic 600 is synthesised as in
+Lovable. No optical-size or variation-axis overrides are applied. The upstream
+full variable TTFs have been removed. Each family's SIL Open Font Licence remains
+alongside this directory. No Google Fonts HTTP requests are needed at runtime.
+
+Source URL:
+<https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Italiana&family=Quicksand:wght@300;400;500;600;700&display=swap>

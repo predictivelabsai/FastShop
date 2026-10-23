@@ -426,8 +426,9 @@ FAQ answers remain verbatim source copy, rather than merchant policy approval.
    and rate limit. Native invalid/success responses use FastShop feedback.
 5. Purchase controls expose the supported monthly subscription cadence, rather
    than unsupported source cadences. Catalogue prices, stock and integer
-   discount calculation remain authoritative. Native cart/drawer/checkout and
-   account screens retain FastShop's existing layout and workflows.
+   discount calculation remain authoritative. Cart, drawer, checkout and account
+   screens now share the Liquid shell; their existing server workflows remain.
+   See [the storefront pass](H24YOU_LIQUID_STOREFRONT_PASS.md).
 6. Application-owned fixed SVG paths and native control affordances can differ
    slightly from the reference's Lucide icons and React controls. The measured
    shared header at 768px is approximately 2.5px taller; 375/1024/1440 heights
@@ -513,3 +514,9 @@ remains `%TEMP%/h24you-lovable-ref-m2`, with only local asset-pointer patches.
 
 The local server remains at `http://127.0.0.1:5025/sites/h24you-liquid/` using
 the explicit disposable preview database from `run_liquid_local.ps1`.
+
+## Storefront presentation follow-up
+
+The 23 October font and commerce-shell changes, text-role audit, verification
+and remaining contract differences are recorded in
+[H24YOU_LIQUID_STOREFRONT_PASS.md](H24YOU_LIQUID_STOREFRONT_PASS.md).

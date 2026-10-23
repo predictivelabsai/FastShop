@@ -61,6 +61,7 @@ from app.site_blocks import (
     resolve_text,
 )
 from app.site_catalog import register_catalog_routes
+from app.storefront_ui import public_message
 
 
 def register_site_routes(rt):
@@ -901,7 +902,7 @@ def register_site_routes(rt):
                     SiteContact.tenant_id == site.tenant_id, SiteContact.client_hash == client_hash,
                     SiteContact.created_at > datetime.now(UTC) - timedelta(seconds=30)))
                 if recent:
-                    return Response("Please wait a moment before sending another message.", status_code=429)
+                    return public_message(request, slug, "Please wait a moment before sending another message.", status_code=429, plain=False)
                 entry = SiteContact(tenant_id=site.tenant_id, site_id=site.id, name=name, email=email, message=message, client_hash=client_hash)
                 db.add(entry)
                 db.commit()
@@ -916,7 +917,7 @@ def register_site_routes(rt):
                 return public(session, slug, "/contact" if liquid_contact else "/pages/contact",
                               request=request, message=notice)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/", methods=["GET"])
     def get(session, request, slug: str):
@@ -948,13 +949,13 @@ def register_site_routes(rt):
                     category = match[2] if match[1] == "category" else ""
                     tag = match[2] if match[1] == "tag" else ""
                     if category and category not in {c.slug for c in categories_for(db, site)}:
-                        return Response("Category not found", status_code=404)
+                        return public_message(request, slug, "Category not found", status_code=404, plain=False)
                     if tag and tag not in {t for p in articles_for(db, site) for t in metadata(p.published_json)["tags"]}:
-                        return Response("Tag not found", status_code=404)
+                        return public_message(request, slug, "Tag not found", status_code=404, plain=False)
             if not page or not page.published_json:
-                return Response("Page not found", status_code=404)
+                return public_message(request, slug, "Page not found", status_code=404, plain=False)
             if page.kind == "article" and not is_listed(page):
-                return Response("Page not found", status_code=404)
+                return public_message(request, slug, "Page not found", status_code=404, plain=False)
             csrf(session)
             base = request.scope.get("site_base", f"/sites/{site.slug}") if request else f"/sites/{site.slug}"
             canonical_base = request.scope.get("site_canonical", settings.public_url + base) if request else settings.public_url + base

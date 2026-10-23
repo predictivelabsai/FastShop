@@ -6,7 +6,7 @@ from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Option, P, S
 from fasthtml.core import FtResponse
 from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import RedirectResponse
 
 from app import (
     commerce,
@@ -30,6 +30,7 @@ from app.models import (
 )
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
+from app.storefront_ui import is_liquid, liquid_page, public_message
 
 
 def register_subscription_routes(rt, csrf, check_csrf):
@@ -47,6 +48,9 @@ def register_subscription_routes(rt, csrf, check_csrf):
 
     def screen(site, request, title, *children):
         root = base(site, request)
+        if is_liquid(site):
+            return FtResponse(liquid_page(site, request, title, *children),
+                headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer"})
         return FtResponse(platform_page(title, P(site.name + " · Powered by FastShop"), *children,
             navigation=[A("Store", href=root + "/"), A("My account", href=root + "/account"),
                 A("Subscriptions", href=root + "/account/subscriptions")], customer=True),
@@ -114,7 +118,7 @@ def register_subscription_routes(rt, csrf, check_csrf):
                         Label("Recipient's full name", Input(name="recipient_name", value=contract.recipient_name, required=True, maxlength=160)),
                         *address_fields, Label("State", Select(*[Option(label, value=code, selected=destination.get("state") == code) for code, label in commerce.US_STATES.items()], name="state")),
                         Input(type="hidden", name="country", value="US")), cls="e-card") if contract.state != "cancelled" else None,
-                    Div(H2("Payment"), P("Stripe securely stores your card. FastShop does not store card numbers. Updating your card does not automatically resume a paused subscription."),
+                    Div(H2("Payment"), P("Stripe securely stores your card. " + ("" if is_liquid(site) else "FastShop does not store card numbers. ") + "Updating your card does not automatically resume a paused subscription."),
                         form("payment", "Update payment method"),
                         *[P(A("Verify card update", href=root + "/payment/" + setup.id)) for setup in setups], cls="e-card") if contract.state != "cancelled" else None,
                     Div(H2("Recent deliveries"), *[P(cycle.due_at.strftime("%Y-%m-%d") + " · " + cycle.state) for cycle in cycles],
@@ -127,7 +131,7 @@ def register_subscription_routes(rt, csrf, check_csrf):
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError:
-            return Response("Subscription not found.", status_code=404)
+            return public_message(request, slug, "Subscription not found.", status_code=404, plain=False)
 
     @rt("/sites/{slug}/account/subscriptions/{contract_id}/{action}", methods=["POST"])
     async def post(session, request, slug: str, contract_id: str, action: str):
@@ -163,6 +167,11 @@ def register_subscription_routes(rt, csrf, check_csrf):
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except (CommerceError, ValueError) as exc:
+            if "/sites/" in request.url.path:
+                with SessionLocal() as db:
+                    site = db.scalar(select(Site).where(Site.slug == slug))
+                    if site and is_liquid(site):
+                        return public_message(request, slug, str(exc))
             return FtResponse(platform_page("Subscription needs attention", P(str(exc)),
                 A("Back to subscription", href=request.scope.get("site_base", "/sites/" + slug) + "/account/subscriptions/" + contract_id), navigation=[], customer=True),
                 status_code=400, headers={"Cache-Control": "private, no-store"})
@@ -192,4 +201,4 @@ def register_subscription_routes(rt, csrf, check_csrf):
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
-            return Response(str(exc), status_code=400)
+            return public_message(request, slug, exc, plain=False)

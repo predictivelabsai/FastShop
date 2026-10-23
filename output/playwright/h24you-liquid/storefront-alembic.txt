@@ -1,0 +1,40 @@
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 20260908_0001, Create the FastShop commerce schema.
+INFO  [alembic.runtime.migration] Running upgrade 20260908_0001 -> 20260921_0002, Add tenant-owned sites, editorial revisions, media and contact inbox.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0002 -> 20260921_0003, Add site-owned US commerce configuration and immutable tax quotes.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0003 -> 20260921_0004, Site customer identity, consent, offers, mail queue and shipment events.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0004 -> 20260921_0005, Durable checkout attempts and expiring inventory reservations.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0005 -> 20260921_0006, Persist provider commands before sending them to Stripe.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0006 -> 20260921_0007, Tenant and site-owned browser carts.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0007 -> 20260921_0008, Physical-delivery subscription contracts, cycles and customer audit events.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0008 -> 20260921_0009, Durable customer-owned card-update sessions.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0009 -> 20260921_0010, Store scoped order/shipment references for transactional mail.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0010 -> 20260921_0011, Link missed subscription deliveries to auditable one-time recovery checkouts.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0011 -> 20260921_0012, Retain a customer's draft discount code on their site-owned cart.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0012 -> 20260921_0013, Durable site builder turns and reversible draft changes.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0013 -> 20260921_0014, Private, isolated commerce simulations; no real payment/order records.
+INFO  [alembic.runtime.migration] Running upgrade 20260921_0014 -> 20260923_0015, Customer reviews table (previously model-only; required for Postgres/Alembic).
+INFO  [alembic.runtime.migration] Running upgrade 20260923_0015 -> 20261007_0016, Per-user password hashes on users (multiple password accounts).
+INFO  [alembic.runtime.migration] Running upgrade 20261007_0016 -> 20261008_0017, Site-scoped navigation with draft and published ordered items.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0017 -> 20261008_0018, Extend the existing blob-backed media table with reusable URL metadata.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0018 -> 20261008_0019, Site blog taxonomy; editorial metadata stays in versioned page documents.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0019 -> 20261008_0020, Site-scoped draft and published head/foot snippets.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0020 -> 20261008_0021, Site-scoped external mappings and one-time connector plans.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0021 -> 20261008_0022, Encrypted per-site Stripe live credentials and explicit acceptance state.
+INFO  [alembic.runtime.migration] Running upgrade 20261008_0022 -> 20261009_0023, Durable site-scoped Stripe refund commands.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0023 -> 20261009_0024, Bounded outbox retries and a payload-free Stripe webhook ledger.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0024 -> 20261009_0025, Self-serve signup rate limits, verification, and account mail targets.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0025 -> 20261009_0026, Durable tenant onboarding wizard progress.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0026 -> 20261009_0027, Phase 5d plan assignments and the durable usage-metering ledger.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0027 -> 20261009_0028, Phase 5e platform Stripe subscription billing.
+INFO  [alembic.runtime.migration] Running upgrade 20261009_0028 -> 20261011_0029, Customer accounts are an explicit per-site opt-in.
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.schemas
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.tables
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.types
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.constraints
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.defaults
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.comments
+No new upgrade operations detected.

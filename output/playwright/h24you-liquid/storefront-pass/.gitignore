@@ -1,0 +1,4 @@
+# Keep requested mobile/desktop evidence in git; optional regression/tablet PNGs remain local.
+*-768.png
+*-1024.png
+regression*/*.png

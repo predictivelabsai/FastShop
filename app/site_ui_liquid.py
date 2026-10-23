@@ -639,7 +639,7 @@ def newsletter(shell, base, csrf, identity, enabled):
     )
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=""):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, message="", content=None, cart_count=0):
     config = (site.settings_json if preview else site.published_settings_json) or {}
     document = resolve_document(
         page.draft_json if preview else page.published_json, default_locale(site, preview=preview)
@@ -692,15 +692,18 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                     "data-builder-label": (b.get("heading") or b["type"])[:100],
                 })
             blocks.append(child)
-    return (
+    if content is not None:
+        blocks = list(content)
+    result = (
         Title(document["title"] if document["title"].endswith(" | " + site.name)
               else document["title"] + " | " + site.name),
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
         Meta(name="description", content=document.get("description", "")),
         Meta(
             name="robots",
-            content="noindex,nofollow" if preview or site.status != "published" else "index,follow",
+            content="noindex,nofollow" if content is not None or preview or site.status != "published" else "index,follow",
         ),
+        Meta(name="referrer", content="no-referrer") if content is not None else None,
         Meta(property="og:title", content=document["title"]),
         Meta(property="og:description", content=document.get("description", "")),
         Link(rel="canonical", href=canonical),
@@ -708,6 +711,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         faq_jsonld(document["blocks"]) if page.path == "/faq" else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid.css")),
         Script(src=static_asset("site-liquid.js"), defer=True),
+        Script(src=static_asset("customer.js"), defer=True) if content is not None else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid-products.css")),
         Script(src=static_asset("site-liquid-products.js"), defer=True),
         Link(rel="stylesheet", href=static_asset("site-theme-liquid-support.css")),
@@ -766,7 +770,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                             A(
                                 icon("cart"),
                                 Span(
-                                    "0", data_cart_count="", cls="liquid-cart-count bg-metal-sheen"
+                                    str(cart_count), data_cart_count="", cls="liquid-cart-count bg-metal-sheen"
                                 ),
                                 href=base + "/cart",
                                 data_cart_open="" if enabled else None,
@@ -819,7 +823,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                 *blocks,
                 id="content",
                 tabindex="-1",
-                cls=("shop-page" if page.path == "/shop" else
+                cls=("liquid-storefront-page metal-light" if content is not None else
+                     "shop-page" if page.path == "/shop" else
                      "about-page metal-light" if page.path == "/about" else
                      "faq-page metal-light" if page.path == "/faq" else
                      "contact-page metal-light" if page.path == "/contact" else
@@ -909,3 +914,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
             data_builder_page=page.id if preview else "",
         ),
     )
+
+    from app.liquid_icons import glyphs
+
+    return glyphs(result)
