@@ -157,3 +157,29 @@ def test_signature_checks_raw_body_timestamp_and_multiple_signatures():
     for body, clock in [(payload + b" ", stamp), (payload, stamp + 301)]:
         with pytest.raises(CommerceError):
             verify_webhook(body, f"t={stamp},v1={digest}", secret, now=clock)
+
+
+@pytest.mark.parametrize("source,target", [(False, True), (True, False), (True, True)])
+def test_cart_purchase_conversion_is_pure(source, target):
+    selections = [{"variant_id": "tablets", "quantity": 3, "subscription": source},
+                  {"variant_id": "bottle", "quantity": 1, "subscription": False}]
+    result = commerce.convert_cart_purchase(selections, "tablets", source, target)
+    assert selections[0]["subscription"] is source
+    assert {"variant_id": "tablets", "quantity": 3, "subscription": target} in result
+    assert result[0] is not selections[1]
+    result[0]["quantity"] = 7
+    assert selections[1]["quantity"] == 1
+
+
+def test_cart_purchase_merges_and_rejects_over_cap_without_mutating():
+    selections = [{"variant_id": "tablets", "quantity": 3, "subscription": False},
+                  {"variant_id": "tablets", "quantity": 22, "subscription": True}]
+    assert commerce.convert_cart_purchase(selections, "tablets", False, True) == [
+        {"variant_id": "tablets", "quantity": 25, "subscription": True}]
+    assert selections[1]["quantity"] == 22
+    selections[0]["quantity"] = 4
+    with pytest.raises(CommerceError, match="quantity"):
+        commerce.convert_cart_purchase(selections, "tablets", False, True)
+    assert selections[1]["quantity"] == 22
+    with pytest.raises(CommerceError, match="bag changed"):
+        commerce.convert_cart_purchase(selections, "foreign", False, True)

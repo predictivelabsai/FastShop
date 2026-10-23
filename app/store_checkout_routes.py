@@ -134,7 +134,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
         except CommerceError as exc:
             return public_message(request, slug, exc)
 
-    async def change_cart(session, request, slug, *, add):
+    async def change_cart(session, request, slug, *, add, purchase=False):
         form = await request.form()
         try:
             check_csrf(session, form)
@@ -144,28 +144,38 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
             if form.get("subscription", "off") not in ("on", "off"):
                 raise CommerceError("Choose a valid purchase option.")
             subscription = form.get("subscription") == "on"
+            if purchase and form.get("target_subscription") not in ("on", "off"):
+                raise CommerceError("Choose a valid purchase option.")
             with SessionLocal() as db:
                 site, config = resolve(db, slug)
                 checkout.lock_site(db, site)
                 cart = cart_for(db, site, session)
+                paid_reset = False
                 if cart.checkout_id:
                     attempt = checkout.owned_attempt(db, site, cart.checkout_id)
                     if attempt.state in checkout.ACTIVE:
                         raise CommerceError("Cancel or finish the existing checkout before changing this bag.")
                     cart.checkout_id = None
                     if attempt.state == "paid":
+                        paid_reset = True
                         cart.lines_json = []
                         cart.discount_code = ""
                 if not add and str(cart.version) != form.get("version"):
                     raise CommerceError("Your bag changed in another tab. Reload before updating.")
                 variant_id = str(form.get("variant_id", ""))
                 lines = [dict(line) for line in cart.lines_json]
-                match = next((line for line in lines if line["variant_id"] == variant_id and line["subscription"] == subscription), None)
-                if add and match:
-                    quantity += match["quantity"]
-                lines = [line for line in lines if not (line["variant_id"] == variant_id and line["subscription"] == subscription)]
-                if quantity:
-                    lines.append({"variant_id": variant_id, "quantity": quantity, "subscription": subscription})
+                if purchase:
+                    # A late form must never restore items from a paid checkout.
+                    if not paid_reset:
+                        lines = commerce.convert_cart_purchase(lines, variant_id, subscription,
+                            form.get("target_subscription") == "on")
+                else:
+                    match = next((line for line in lines if line["variant_id"] == variant_id and line["subscription"] == subscription), None)
+                    if add and match:
+                        quantity += match["quantity"]
+                    lines = [line for line in lines if not (line["variant_id"] == variant_id and line["subscription"] == subscription)]
+                    if quantity:
+                        lines.append({"variant_id": variant_id, "quantity": quantity, "subscription": subscription})
                 if lines:
                     commerce.price_lines(db, site, config, lines)
                 cart.lines_json, cart.version, cart.request_key = lines, cart.version + 1, secrets.token_hex(16)
@@ -181,6 +191,10 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
     @rt("/sites/{slug}/cart/update", methods=["POST"])
     async def post(session, request, slug: str):
         return await change_cart(session, request, slug, add=False)
+
+    @rt("/sites/{slug}/cart/purchase", methods=["POST"])
+    async def post(session, request, slug: str):
+        return await change_cart(session, request, slug, add=False, purchase=True)
 
     @rt("/sites/{slug}/checkout", methods=["GET"])
     def get(session, request, slug: str):
@@ -251,6 +265,16 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
         except CommerceError as exc:
             return public_message(request, slug, exc)
 
+    def review_line(site, line, quote):
+        purchase = ("One-time delivery recovery" if quote.snapshot_json.get("recovery_cycle_id") else
+                    "Monthly subscription" if line["subscription"] else "One-time purchase")
+        if is_liquid(site):
+            from app.storefront_ui import liquid_order_line
+            return liquid_order_line(line["name"], line.get("variant_name", ""),
+                line["quantity"], line["amount_minor"], quote.currency, purchase)
+        return P(f"{line['name']} × {line['quantity']} · "
+                 + money(line["amount_minor"], quote.currency) + " · " + purchase)
+
     @rt("/sites/{slug}/checkout/{attempt_id}", methods=["GET"])
     def get(session, request, slug: str, attempt_id: str):
         try:
@@ -274,9 +298,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     Div(H2("Deliver to"), P(quote.snapshot_json.get("recipient_name", "")),
                         P(", ".join(str(quote.snapshot_json["destination"].get(key, "")) for key in
                             ("line1", "line2", "city", "state", "postal_code", "country") if quote.snapshot_json["destination"].get(key))), cls="e-card"),
-                    Div(*[P(f"{line['name']} × {line['quantity']} · " + money(line["amount_minor"], quote.currency)
-                        + (" · One-time delivery recovery" if quote.snapshot_json.get("recovery_cycle_id") else
-                            " · Monthly subscription" if line["subscription"] else " · One-time purchase")) for line in quote.snapshot_json["lines"]],
+                    Div(*[review_line(site, line, quote) for line in quote.snapshot_json["lines"]],
                         P("Merchandise: " + money(quote.subtotal_minor, quote.currency)),
                         P("Savings: " + money(quote.discount_minor, quote.currency)),
                         P("Shipping: " + money(quote.shipping_minor, quote.currency)),

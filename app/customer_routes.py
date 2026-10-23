@@ -29,7 +29,7 @@ from app.models import (
 )
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
-from app.storefront_ui import is_liquid, liquid_page, public_message
+from app.storefront_ui import is_liquid, liquid_order_line, liquid_page, public_message
 
 
 def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error):
@@ -258,7 +258,9 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 return private_response(screen(db, site, request, order.number,
                     Div(H2("Order summary"), P("Payment: " + order.payment_status),
                         P("Sales tax: " + money(order.tax_minor, order.currency)), P("Total: " + money(order.total_minor, order.currency)),
-                        *[P(f"{line.product_name} · {line.variant_name} × {line.quantity}") for line in order.lines], cls="e-card"),
+                        *[liquid_order_line(line.product_name, line.variant_name, line.quantity,
+                            line.total_minor, order.currency) if is_liquid(site) else
+                            P(f"{line.product_name} · {line.variant_name} × {line.quantity}") for line in order.lines], cls="e-card"),
                     Div(H2("Delivery tracking"), P("No shipment updates yet.") if not events else None,
                         Ul(*[Li(P(event.status.replace("_", " ").title()), P(event.carrier + " " + event.tracking_number),
                             P(event.note), A("Track with carrier ↗", href=event.tracking_url, target="_blank", rel="noopener noreferrer") if event.tracking_url else None,

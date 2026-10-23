@@ -36,8 +36,8 @@ def liquid_page(site, request, title, *children):
                 SiteCart.site_id == site.id, SiteCart.tenant_id == site.tenant_id))
             lines = commerce.price_lines(db, site, commerce.settings_for(db, site), cart.lines_json)
             summary = Div(H2("Order summary"),
-                *[P(line.name + " × " + str(line.quantity) + " · " + money(line.amount_minor, "USD"))
-                  for line in lines],
+                *[liquid_order_line(line.name, line.variant_name, line.quantity,
+                                     line.amount_minor, "USD") for line in lines],
                 P("Subtotal: " + money(sum(line.amount_minor for line in lines), "USD")),
                 P("Shipping and destination sales tax are calculated next."),
                 cls="e-card liquid-order-summary", aria_live="polite")
@@ -83,6 +83,26 @@ def public_message(request, slug, message, *, status_code=400, plain=True):
     return Response(str(message), status_code=status_code, media_type="text/plain" if plain else None)
 
 
+def product_title(name, variant):
+    # Support existing checkout/subscription snapshots as well as new labels.
+    for separator in (" \u2014 ", " · "):
+        name = name.removesuffix(separator + variant) if variant else name
+    return name.replace("\u2014", "·")
+
+
+def liquid_order_line(name, variant, quantity, amount, currency, purchase=""):
+    from fasthtml.common import Span
+
+    from app.services import money
+    from app.site_ui_liquid import product_name
+
+    return Div(Div(H2(product_name(product_title(name, variant))),
+                   P(money(amount, currency)), cls="liquid-cart-line-title"),
+               P(variant, cls="text-muted-foreground") if variant else None,
+               P(Span("Quantity: " + str(quantity)), " · " + purchase if purchase else ""),
+               cls="liquid-cart-line")
+
+
 def liquid_cart(root, cart, lines, csrf):
     from fasthtml.common import H2, Button, Del, Form, Input, Label, Option, Select, Span
 
@@ -109,8 +129,13 @@ def liquid_cart(root, cart, lines, csrf):
                      method="post", action=root + "/cart/update"),
                 step(line.quantity + 1, "+", "Increase quantity", line.quantity >= 25),
                 cls="cart-stepper"),
-            Select(Option("Subscribe & save 10%" if line.subscription else "One-time purchase"),
-                   aria_label="Purchase type", cls="cart-select"),
+            Form(*fields(),
+                 Select(Option("Subscribe & save 10%", value="on", selected=line.subscription),
+                        Option("One-time purchase", value="off", selected=not line.subscription),
+                        name="target_subscription", aria_label="Purchase type", cls="cart-select"),
+                 Button("Update", cls="liquid-cart-update"), method="post",
+                 action=root + "/cart/purchase", cls="liquid-cart-purchase")
+            if line.subscription_eligible else Span("One-time purchase", cls="text-muted-foreground"),
             Form(*fields(), Input(type="hidden", name="quantity", value=0),
                  Button("Remove", cls="liquid-cart-remove"), method="post", action=root + "/cart/update"),
             cls="liquid-cart-controls")
@@ -120,7 +145,7 @@ def liquid_cart(root, cart, lines, csrf):
             Div(Span(style=f"width:{progress}%"), cls="cart-shipping-track",
                 role="progressbar", aria_label="Free shipping progress", aria_valuemin=0,
                 aria_valuemax=100, aria_valuenow=progress), cls="cart-shipping"),
-        Div(*[Div(Div(H2(product_name(line.name.removesuffix(" — " + line.variant_name))),
+        Div(*[Div(Div(H2(product_name(product_title(line.name, line.variant_name))),
                          Div(Del(money(line.subtotal_minor, "USD")) if line.subscription else None,
                              P(money(line.amount_minor, "USD")), cls="liquid-cart-line-price"),
                          cls="liquid-cart-line-title"),

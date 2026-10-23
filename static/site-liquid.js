@@ -3,6 +3,60 @@
   'use strict';
   const root = document.querySelector('.h-site[data-pack="liquid"]');
   if (!root) return;
+  // Native forms remain usable without JavaScript, including inside the drawer.
+  let purchaseBusy = false;
+  root.addEventListener('change', event => {
+    const select = event.target.closest('.liquid-cart-purchase select');
+    if (select) select.form.requestSubmit();
+  });
+  root.addEventListener('submit', async event => {
+    const form = event.target.closest('.liquid-cart-purchase');
+    if (!form) return;
+    event.preventDefault();
+    if (purchaseBusy) return;
+    purchaseBusy = true;
+    const cart = form.closest('.liquid-cart-page');
+    const data = new FormData(form);
+    const controls = [...cart.querySelectorAll('button,input,select')].filter(el => !el.disabled);
+    cart.setAttribute('aria-busy', 'true');
+    controls.forEach(el => { el.disabled = true; });
+    try {
+      const response = await fetch(form.action, {method: 'POST', body: data, credentials: 'same-origin'});
+      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      if (!response.ok) throw new Error(doc.querySelector('.liquid-commerce-content p')?.textContent || 'We could not update your bag. Reload before trying again.');
+      const next = doc.querySelector('.liquid-cart-page');
+      if (!next) throw new Error('We could not confirm that update. Reload your bag before trying again.');
+      // Keep the shipping region in the document while replacing the other contents.
+      const shipping = cart.querySelector('.cart-shipping');
+      const nextShipping = next.querySelector('.cart-shipping');
+      if (shipping && nextShipping) {
+        const live = shipping.querySelector('[aria-live]');
+        const message = nextShipping.querySelector('[aria-live]').textContent;
+        shipping.querySelector('[role="progressbar"]').replaceWith(nextShipping.querySelector('[role="progressbar"]'));
+        [...cart.children].forEach(el => { if (el !== shipping) el.remove(); });
+        [...next.children].forEach(el => { if (el !== nextShipping) cart.append(el); });
+        live.textContent = message;
+      } else {
+        cart.replaceChildren(...next.childNodes);
+      }
+      const updated = [...cart.querySelectorAll('.liquid-cart-purchase')].find(el =>
+        el.elements.variant_id.value === data.get('variant_id') &&
+        el.elements.subscription.value === data.get('target_subscription'));
+      updated?.querySelector('select').focus({preventScroll: true});
+    } catch (error) {
+      form.elements.target_subscription.value = data.get('subscription');
+      let status = cart.querySelector('[data-purchase-status]');
+      if (!status) {
+        status = document.createElement('p'); status.dataset.purchaseStatus = '';
+        status.setAttribute('role', 'alert'); cart.prepend(status);
+      }
+      status.textContent = error.message;
+    } finally {
+      cart.removeAttribute('aria-busy');
+      controls.forEach(el => { el.disabled = false; });
+      purchaseBusy = false;
+    }
+  });
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const bars = root.querySelector('.metal-top-bars');
   const offer = root.querySelector('[data-liquid-offer]');

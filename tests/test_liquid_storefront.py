@@ -13,7 +13,7 @@ from app import (
     storefront_ui,
     subscription_routes,
 )
-from app.models import Site
+from app.models import CheckoutAttempt, CommerceQuote, Site
 from tests.test_checkout_services import Gateway
 from tests.test_liquid_bundle_commerce import variants_for
 from tests.test_site_seed_liquid import liquid  # noqa: F401
@@ -69,6 +69,9 @@ def test_cart_checkout_native_forms_and_error_shell(browser):
     assert 'cart-stepper' in response.text and 'cart-shipping-track' in response.text
     assert 'Remove' in response.text and 'Subtotal' in response.text
     assert '<del>$28.00</del>' in response.text
+    assert response.text.count('aria-label="Purchase type"') == 1
+    assert 'action="' + base + '/cart/purchase"' in response.text
+    assert "\u2014" not in response.text
     assert response.headers['content-security-policy'] == "frame-ancestors 'self'"
     summary = client.get(base + '/cart/summary')
     assert summary.json() == {'count': 2}
@@ -80,7 +83,23 @@ def test_cart_checkout_native_forms_and_error_shell(browser):
         'email': 'shopper@example.test', 'subscription_consent': 'on'})
     shell(response)
     assert 'Review your order' in response.text
+    assert 'Quantity: 1' in response.text and 'text-muted-foreground' in response.text
+    assert '\u2014' not in response.text
     assert response.headers['cache-control'] == 'private, no-store'
+    # Existing snapshots keep their stored labels but render without em dashes.
+    quote = db.scalar(select(CommerceQuote).where(CommerceQuote.site_id == site.id))
+    quote.snapshot_json = quote.snapshot_json | {"lines": [line | {
+        "name": line["name"].replace(" · ", " \u2014 ")}
+        for line in quote.snapshot_json["lines"]]}
+    db.commit()
+    attempt = db.scalar(select(CheckoutAttempt).where(CheckoutAttempt.quote_id == quote.id))
+    for state in ("prepared", "paid", "expired"):
+        attempt.state = state
+        db.commit()
+        summary = client.get(base + '/checkout/' + attempt.id)
+        shell(summary)
+        assert '\u2014' not in summary.text
+        assert 'Quantity: 1' in summary.text
     shell(client.post(base + '/cart/update', data={}), 400)
 
 
@@ -114,6 +133,24 @@ def test_authenticated_subscriptions_and_email_fragment_script(browser):
     response = client.get(base + '/account/subscriptions')
     shell(response)
     assert 'Your subscriptions' in response.text and 'No subscriptions yet.' in response.text
+
+    from app.models import Order, OrderLine, SiteOrder
+
+    order = Order(tenant_id=site.tenant_id, channel_id=site.channel_id,
+        number="LIQUID-LEGACY", idempotency_key="liquid-legacy-order",
+        email="reader@example.test", currency="USD", subtotal_minor=2800, total_minor=2800)
+    order.lines = [OrderLine(sku="LEGACY", product_name="H2 | 4 YOU Fizz \u2014 Unflavored",
+        variant_name="Unflavored", quantity=1, unit_price_minor=2800, total_minor=2800)]
+    db.add(order)
+    db.flush()
+    link = SiteOrder(tenant_id=site.tenant_id, site_id=site.id,
+                     customer_id=challenge.customer_id, order_id=order.id)
+    db.add(link)
+    db.commit()
+    response = client.get(base + '/account/orders/' + link.id)
+    shell(response)
+    assert '\u2014' not in response.text and 'Quantity: 1' in response.text
+    assert '$28.00' in response.text and 'text-muted-foreground' in response.text
 
 
 def test_google_faces_are_exactly_scoped_and_local():

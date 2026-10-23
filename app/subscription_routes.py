@@ -95,7 +95,7 @@ def register_subscription_routes(rt, csrf, check_csrf):
                     variants = db.scalars(select(ProductVariant).where(ProductVariant.product_id == line["product_id"],
                         ProductVariant.tenant_id == site.tenant_id, ProductVariant.is_active.is_(True))).all()
                     flavours.append(form("flavour", "Change flavour", Input(type="hidden", name="from_variant_id", value=line["variant_id"]),
-                        Label(line["name"] + " · " + str(line["quantity"]) + " per delivery",
+                        Label(line["name"].replace("\u2014", "·") + " · " + str(line["quantity"]) + " per delivery",
                             Select(*[Option(variant.name, value=variant.id, selected=variant.id == line["variant_id"]) for variant in variants], name="variant_id"))))
                 destination = contract.destination_json
                 recovery = subscription_recovery.pending(db, site, contract.id)

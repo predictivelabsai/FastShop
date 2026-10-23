@@ -98,6 +98,33 @@ class PricedLine:
     subscription: bool
     sku: str = ""
     variant_name: str = ""
+    subscription_eligible: bool = False
+
+
+def convert_cart_purchase(selections, variant_id, subscription, target_subscription):
+    """Return a converted/merged copy; never mutate the caller's cart on failure.
+
+    Catalogue ownership, eligibility and pricing are checked by price_lines before
+    the caller persists the result, within the same site lock and transaction.
+    """
+    if type(subscription) is not bool or type(target_subscription) is not bool:
+        raise CommerceError("Choose a valid purchase option.")
+    source = next((line for line in selections if line["variant_id"] == variant_id
+                   and line["subscription"] == subscription), None)
+    if source is None:
+        raise CommerceError("Your bag changed in another tab. Reload before updating.")
+    lines = [dict(line) for line in selections if line is not source]
+    target = next((line for line in lines if line["variant_id"] == variant_id
+                   and line["subscription"] == target_subscription), None)
+    quantity = source["quantity"] + (target["quantity"] if target else 0)
+    if type(quantity) is not int or not 1 <= quantity <= 25:
+        raise CommerceError("Choose a valid quantity and purchase option.")
+    if target:
+        target["quantity"] = quantity
+    else:
+        lines.append({"variant_id": variant_id, "quantity": quantity,
+                      "subscription": target_subscription})
+    return lines
 
 
 def price_lines(db, site, config, selections, *, first_order_discount=False):
@@ -142,8 +169,9 @@ def price_lines(db, site, config, selections, *, first_order_discount=False):
         if not re.fullmatch(r"txcd_\d+", tax_code):
             raise CommerceError(f"A reviewed Stripe tax category is required for {product.name}.")
         unit = discounted(listing.price_minor, 10) if subscription else listing.price_minor
-        lines.append(PricedLine(reference, product.id, variant.id, f"{product.name} — {variant.name}",
-            quantity, unit, listing.price_minor * quantity, unit * quantity, tax_code, subscription, variant.sku, variant.name))
+        lines.append(PricedLine(reference, product.id, variant.id, f"{product.name} · {variant.name}",
+            quantity, unit, listing.price_minor * quantity, unit * quantity, tax_code, subscription, variant.sku, variant.name,
+            product.id in config.subscription_product_ids_json))
     # Allocate the rounded first-order saving proportionally, using largest remainders.
     # A single cart-level rounding avoids depending on how the customer split lines.
     if first_order_discount:

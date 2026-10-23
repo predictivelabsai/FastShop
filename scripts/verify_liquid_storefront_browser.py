@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 BASE = "http://127.0.0.1:5025/sites/h24you-liquid"
 OUT = Path("output/playwright/h24you-liquid/storefront-pass")
@@ -36,6 +36,7 @@ def main():
                 assert page.evaluate("performance.getEntriesByType('resource').some(r=>r.name.includes('/fonts/liquid/google/') && r.name.includes('.woff2'))")
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth+1")
                 assert "FastShop" not in page.locator("body").inner_text()
+                assert "\u2014" not in page.locator("body").inner_text()
                 page.screenshot(path=str(OUT / f"{name}-{width}.png"), full_page=True)
                 cdp = context.new_cdp_session(page)
                 cdp.send("DOM.enable")
@@ -69,6 +70,40 @@ def main():
             page.wait_for_timeout(800)
             capture("drawer-empty")
             page.keyboard.press("Escape")
+            def switch_purchase(scope, document, expected_count=2):
+                line = scope.locator('.liquid-cart-line').filter(has=scope.locator('.cart-select'))
+                assert line.count() == 1
+                expect(line.locator('.liquid-cart-line-price p')).to_have_text('$25.20')
+                shipping = scope.locator('.cart-shipping [aria-live]')
+                original_shipping = shipping.inner_text()
+                original_subtotal = scope.locator('.liquid-cart-subtotal').inner_text()
+                version = int(line.locator('.liquid-cart-purchase [name="version"]').input_value())
+                document.evaluate("""() => {
+                    window.purchaseDocument = "preserved";
+                    window.purchaseShipping = document.querySelector('.cart-shipping [aria-live]');
+                }""")
+                for option, price, source in [('off', '$28.00', 'off'), ('on', '$25.20', 'on')]:
+                    line.get_by_label('Purchase type', exact=True).select_option(option)
+                    expect(line.locator('.liquid-cart-line-price p')).to_have_text(price)
+                    expect(line.locator('.liquid-cart-purchase [name="subscription"]')).to_have_value(source)
+                    expect(scope.locator('.liquid-cart-line')).to_have_count(expected_count)
+                    assert document.evaluate('window.purchaseDocument') == 'preserved'
+                    assert document.evaluate("window.purchaseShipping.isConnected && window.purchaseShipping === document.querySelector('.cart-shipping [aria-live]')")
+                    new_version = int(line.locator('.liquid-cart-purchase [name="version"]').input_value())
+                    assert new_version == version + 1
+                    version = new_version
+                    if option == 'off':
+                        assert line.locator('del').count() == 0
+                        if expected_count == 1:
+                            assert shipping.inner_text() != original_shipping
+                        else:
+                            expect(shipping).to_have_text("You've got free shipping")
+                        assert scope.locator('.liquid-cart-subtotal').inner_text() != original_subtotal
+                    else:
+                        expect(line.locator('del')).to_have_text('$28.00')
+                        expect(shipping).to_have_text(original_shipping)
+                        assert scope.locator('.liquid-cart-subtotal').inner_text() == original_subtotal
+
             # Native requests preserve the exact CSRF and server price boundaries.
             for path in ("/products/hydrogen-tablets", "/products/h2-4-you-one"):
                 page.goto(BASE + path)
@@ -78,12 +113,24 @@ def main():
                     data["subscription"] = "on"
                 response = context.request.post(BASE + "/cart/add", form=data)
                 assert response.ok, response.text()
+                if "tablets" in path:
+                    page.goto(BASE + '/cart')
+                    switch_purchase(page, page, expected_count=1)
             page.goto(BASE + "/cart")
+            switch_purchase(page, page)
             capture("cart-filled")
             page.locator('[data-cart-open]').click()
             page.wait_for_timeout(800)
             frame = page.frame_locator('.fs-cart-dialog iframe')
             assert frame.locator('.liquid-cart-line').count() == 2
+            drawer_document = page.frames[1]
+            switch_purchase(frame, drawer_document)
+            # Quantity enhancement must survive the purchase form's DOM refresh.
+            tablet = frame.locator('.liquid-cart-line').filter(has=frame.locator('.cart-select'))
+            for quantity, price in [('2', '$50.40'), ('1', '$25.20')]:
+                tablet.locator('.cart-stepper input[type="number"]').fill(quantity)
+                tablet.locator('.cart-stepper input[type="number"]').press('Tab')
+                expect(tablet.locator('.liquid-cart-line-price p')).to_have_text(price)
             capture("drawer-filled")
             page.keyboard.press("Escape")
             page.goto(BASE + "/checkout")
@@ -127,6 +174,15 @@ def main():
         page.get_by_role("button", name="Remove", exact=True).click()
         assert page.locator('.liquid-cart-line').count() == 0
         assert "first fizz" in page.locator('main').inner_text()
+        page.goto(BASE + "/products/hydrogen-tablets")
+        page.locator('form[action$="/cart/add"]').first.get_by_role("button", name="Add to cart").click()
+        line = page.locator('.liquid-cart-line')
+        for option, price in [('on', '$25.20'), ('off', '$28.00')]:
+            line.get_by_label('Purchase type', exact=True).select_option(option)
+            line.locator('.liquid-cart-purchase').get_by_role('button', name='Update', exact=True).click()
+            assert page.url == BASE + '/cart'
+            expect(line.locator('.liquid-cart-line-price p')).to_have_text(price)
+            expect(line.locator('.liquid-cart-purchase [name="subscription"]')).to_have_value(option)
         context.close()
         browser.close()
     (OUT / "font-results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")

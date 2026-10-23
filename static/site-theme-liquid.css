@@ -902,3 +902,7 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 .liquid-cart-embedded .h-site[data-pack="liquid"] .e-button { font-size:16px; }
 .h-site[data-pack="liquid"] .liquid-cart-line-price { flex-shrink:0; text-align:right; }
 .h-site[data-pack="liquid"] .liquid-cart-line-price del { display:block; font-size:12px; font-weight:400; color:var(--muted-foreground); }
+
+.h-site[data-pack="liquid"] .liquid-cart-purchase { display:flex; align-items:center; gap:6px; }
+.h-site[data-pack="liquid"] .liquid-cart-purchase .liquid-cart-update { font-size:11px; padding:4px; }
+.h-site[data-pack="liquid"] .liquid-cart-controls > .text-muted-foreground { font-size:12px; }

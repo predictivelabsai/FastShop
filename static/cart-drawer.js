@@ -60,8 +60,9 @@
       if (liquid) {
         doc.documentElement.classList.add('liquid-cart-embedded');
         doc.querySelector('main')?.classList.remove('metal-light');
-        doc.querySelectorAll('.cart-stepper input[type="number"]').forEach(input => {
-          input.addEventListener('change', () => { if (input.checkValidity()) input.form.requestSubmit(); });
+        doc.addEventListener('change', event => {
+          const input = event.target;
+          if (input.matches('.cart-stepper input[type="number"]') && input.checkValidity()) input.form.requestSubmit();
         });
       }
       doc.querySelectorAll('a').forEach(a => { a.target = '_top'; });

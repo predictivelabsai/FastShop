@@ -221,3 +221,106 @@ def test_saved_valid_discount_redeems_at_checkout_and_paid_cart_count_clears(sto
     client.post(review.url.path + "/refresh", data={"csrf_token": csrf(review)})
     assert client.get(base + "/cart/summary").json() == {"count": 0}
     assert "Your bag is empty" in client.get(base + "/cart").text
+
+
+@pytest.mark.parametrize("source,target", [("off", "on"), ("on", "off")])
+def test_cart_purchase_converts_and_reprices_atomically(storefront, source, target):
+    r, client, base, _ = storefront
+    page = client.get(base + "/cart")
+    page = client.post(base + "/cart/add", data={"csrf_token": csrf(page),
+        "variant_id": r.variant.id, "quantity": 2, "subscription": source})
+    cart = r.db.scalar(select(SiteCart))
+    version, key = cart.version, cart.request_key
+    response = client.post(base + "/cart/purchase", data={"csrf_token": csrf(page),
+        "version": version, "variant_id": r.variant.id, "subscription": source,
+        "target_subscription": target}, follow_redirects=False)
+    assert response.status_code == 303 and response.headers["location"] == base + "/cart"
+    r.db.refresh(cart)
+    assert cart.lines_json == [{"variant_id": r.variant.id, "quantity": 2,
+                                "subscription": target == "on"}]
+    assert cart.version == version + 1 and cart.request_key != key
+    assert ("$53.92" if target == "on" else "$59.90") in client.get(base + "/cart").text
+
+
+def test_cart_purchase_merges_existing_line_and_caps_quantity(storefront):
+    r, client, base, _ = storefront
+    page = client.get(base + "/cart")
+    for option, quantity in [("off", 2), ("on", 23)]:
+        page = client.post(base + "/cart/add", data={"csrf_token": csrf(page),
+            "variant_id": r.variant.id, "quantity": quantity, "subscription": option})
+    cart = r.db.scalar(select(SiteCart))
+    data = {"csrf_token": csrf(page), "version": cart.version,
+            "variant_id": r.variant.id, "subscription": "off", "target_subscription": "on"}
+    assert client.post(base + "/cart/purchase", data=data).status_code == 200
+    r.db.refresh(cart)
+    assert cart.lines_json == [{"variant_id": r.variant.id, "quantity": 25, "subscription": True}]
+    page = client.post(base + "/cart/add", data={"csrf_token": csrf(page),
+        "variant_id": r.variant.id, "quantity": 1, "subscription": "off"})
+    r.db.refresh(cart)
+    version, lines = cart.version, cart.lines_json
+    assert client.post(base + "/cart/purchase", data=data | {"version": version}).status_code == 400
+    r.db.refresh(cart)
+    assert cart.version == version and cart.lines_json == lines
+
+
+@pytest.mark.parametrize("invalid", ["csrf", "stale", "ineligible", "foreign", "option", "stranger"])
+def test_cart_purchase_rejections_leave_cart_unchanged(storefront, invalid):
+    from app.commerce import settings_for
+
+    r, client, base, _ = storefront
+    page = client.get(base + "/cart")
+    page = client.post(base + "/cart/add", data={"csrf_token": csrf(page),
+        "variant_id": r.variant.id, "quantity": 2})
+    cart = r.db.scalar(select(SiteCart))
+    version, lines, key = cart.version, cart.lines_json, cart.request_key
+    data = {"csrf_token": csrf(page), "version": version, "variant_id": r.variant.id,
+            "subscription": "off", "target_subscription": "on"}
+    if invalid == "csrf":
+        data.pop("csrf_token")
+    elif invalid == "stale":
+        data["version"] = version - 1
+    elif invalid == "ineligible":
+        settings_for(r.db, r.site).subscription_product_ids_json = []
+        r.db.commit()
+    elif invalid == "foreign":
+        data["variant_id"] = "another-tenant-variant"
+    elif invalid == "option":
+        data["target_subscription"] = "invalid"
+    elif invalid == "stranger":
+        client = TestClient(app)
+        data["csrf_token"] = csrf(client.get(base + "/cart"))
+    result = client.post(base + "/cart/purchase", data=data)
+    assert result.status_code == 400
+    if invalid == "ineligible":
+        assert "not eligible for subscriptions" in result.text
+    r.db.refresh(cart)
+    assert (cart.version, cart.lines_json, cart.request_key) == (version, lines, key)
+
+
+@pytest.mark.parametrize("state", ["prepared", "paid", "expired"])
+def test_cart_purchase_checkout_guards_and_paid_reset(storefront, state):
+    from app.models import CheckoutAttempt
+
+    r, client, base, _ = storefront
+    review, _ = add_and_quote(r, client, base)
+    cart = r.db.scalar(select(SiteCart))
+    attempt = r.db.get(CheckoutAttempt, cart.checkout_id)
+    attempt.state = state
+    cart.discount_code = "OLD-CODE"
+    r.db.commit()
+    version = cart.version
+    response = client.post(base + "/cart/purchase", data={"csrf_token": csrf(review),
+        "version": version, "variant_id": r.variant.id,
+        "subscription": "off", "target_subscription": "on"}, follow_redirects=False)
+    r.db.refresh(cart)
+    if state == "prepared":
+        assert response.status_code == 400 and cart.version == version
+        assert cart.checkout_id == attempt.id
+    else:
+        assert response.status_code == 303 and cart.version == version + 1
+        assert cart.checkout_id is None
+        if state == "paid":
+            assert cart.lines_json == [] and cart.discount_code == ""
+        else:
+            assert cart.lines_json[0]["subscription"] is True
+            assert cart.discount_code == "OLD-CODE"

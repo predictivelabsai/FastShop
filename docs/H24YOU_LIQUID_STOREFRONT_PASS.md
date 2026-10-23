@@ -71,12 +71,27 @@ The supplied `cartCopy.title` currently says “Your cart”; the requested draw
 heading “Your bag” takes precedence. The source's empty-state copy and CTA are
 reused, while the real checkout CTA retains its existing storefront wording.
 
-The purchase-type select displays the current contract. Changing between
-one-time and subscription in place is unsupported by the existing atomic cart
-update command, whose subscription field identifies the line being updated.
-This presentation pass does not add that commerce operation. Remove the line
-and add the desired type from the product page. Monthly delivery remains the
-supported frequency, rather than presenting unsupported 2/4/6-week controls.
+The purchase-type select now converts an eligible line through the atomic
+`POST /cart/purchase` operation. Its `subscription` field identifies the source
+line; `target_subscription` selects the destination type. Conversion removes the
+source and merges its quantity into the matching variant/type, capped at 25.
+The existing site lock, session cart scope, CSRF and version checks, checkout
+guards and paid-cart reset all apply. `commerce.price_lines` checks catalogue
+ownership, eligibility and prices before the transaction commits. Each accepted
+mutation increments the version and replaces the checkout request key.
+
+Only subscription-eligible lines show the two-option select. Native forms use
+an explicit Update button and redirect to the cart. JavaScript submits on
+change and replaces the cart contents from the server response, including
+inside the drawer, without navigating either document. The free-shipping live
+region remains mounted and receives the new balance; focus returns to the
+converted line. Errors retain the cart and announce the server rejection.
+Monthly delivery remains the supported frequency.
+
+New commerce labels use a middle dot between product and variant. Liquid cart,
+checkout, review and customer order summaries separate the product, muted
+variant, quantity and price. Old checkout/order snapshots and subscription
+labels render without em dashes, without rewriting stored snapshots.
 
 ## Evidence and checks
 
@@ -117,9 +132,8 @@ All Python checks use `PYTHONUTF8=1` and explicit disposable storage with paymen
 and email environment credentials cleared. The local preview started through
 `scripts/run_liquid_local.ps1` has been stopped; port 5025 is no longer listening.
 
-Open question: a functional purchase-type switch requires a separately scoped
-atomic cart operation. The visual select deliberately displays the current
-purchase type; existing Remove and product-page purchase controls remain usable.
+The purchase-type follow-up described above resolves the original open question.
+No purchase-type questions remain.
 
 
 Full isolated regression: `PYTHONUTF8=1 uv run python -m pytest -ra` completed with
@@ -129,3 +143,43 @@ remains. The final category/tag 404 and cart presentation refinements also pass
 the **12-test** focused storefront rerun. Test output is retained in
 `output/playwright/h24you-liquid/storefront-pytest-final.txt` and
 `storefront-focused-pytest.txt`.
+
+
+## Purchase-type follow-up verification, 23 October 2026
+
+The extended storefront browser script passes at 375, 768, 1024 and 1440px,
+with 61 font/page records. It switches tablets in both directions on the full
+cart and inside the drawer, checks the new source flag and version, prices,
+subtotal and free-shipping text, and verifies that neither document reloads.
+It checks that the shipping live node survives the refresh and that drawer
+quantity changes still work afterwards. Native purchase forms also pass with
+JavaScript disabled. Customer-page captures reject rendered em dashes.
+
+The 375px and 1440px cart, drawer, checkout and review/cancelled screenshots
+have been refreshed in the existing evidence directory. The checkout and
+customer order tests also cover old stored labels containing em dashes,
+including prepared, paid and expired checkout states.
+
+Completed checks:
+
+- `uv run ruff check .`: passed.
+- Full `PYTHONUTF8=1 uv run python -m pytest -ra`: 720 passed, 1 skipped
+  in 758.54 seconds. The optional user-guide test skips because `python-pptx`
+  is absent; the existing Starlette/AnyIO deprecation warning remains.
+- Commerce/cart/storefront focused tests: 45 passed.
+- Customer/subscription/storefront regression tests: 38 passed; final Liquid
+  rerun with the legacy customer order fixture: 12 passed.
+- `verify_liquid_storefront_browser.py`: passed, including purchase switching
+  and native forms.
+- `verify_liquid_browser.py`: 191 passed, 0 failed.
+- `verify_liquid_m3_browser.py`: 975 passed, 0 failed, no page errors.
+- Python compile checks, both JavaScript syntax checks and `git diff --check`:
+  passed.
+- Alembic upgrade and check against the explicitly selected disposable
+  `output/purchase-migration-check.sqlite3`: passed, no new upgrade operations.
+
+Python checks used `PYTHONUTF8=1`, disposable storage and cleared payment/mail
+credentials. No migration was needed. The local preview is stopped and port
+5025 has no listener. No push or deployment was performed.
+
+Open questions: none.
