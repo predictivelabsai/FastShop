@@ -1,0 +1,1 @@
+.editor-shell label.field-help:has([data-dynamic-for]){display:grid;gap:6px;margin-top:8px}.editor-shell [data-dynamic-for]{width:100%;min-width:0;box-sizing:border-box}

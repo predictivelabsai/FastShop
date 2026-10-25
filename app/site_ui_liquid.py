@@ -656,6 +656,11 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     document = resolve_document(
         page.draft_json if preview else page.published_json, default_locale(site, preview=preview)
     )
+    from app.custom_data import resolve_dynamic_document
+    from app.store_preferences import head_nodes
+    from app.store_preferences import metadata as preference_metadata
+    document = resolve_dynamic_document(db, site, page, document)
+    preferences = preference_metadata(db, site, page, document)
     shell = config.get("liquid_shell", {})
     # The pack is reusable; incomplete settings do not break another site's preview.
     if not shell:
@@ -715,6 +720,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(document["title"] if document["title"].endswith(" | " + site.name)
               else document["title"] + " | " + site.name),
+        *head_nodes(db, site, preferences, preview=preview or content is not None),
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
         Meta(name="description", content=document.get("description", "")),
         Meta(
@@ -725,7 +731,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Meta(property="og:title", content=document["title"]),
         Meta(property="og:description", content=document.get("description", "")),
         Link(rel="canonical", href=canonical),
-        Link(rel="icon", type="image/png", href="/static/h24you/liquid/logo-clean-dark.png"),
+        Link(rel="icon", type="image/png", href="/static/h24you/liquid/logo-clean-dark.png") if not preferences or not preferences.favicon_id else None,
         faq_jsonld(document["blocks"]) if page.path == "/faq" else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid.css")),
         Script(src=static_asset("site-liquid.js"), defer=True),

@@ -257,6 +257,9 @@ def order_detail(site, data, csrf_factory, notice=""):
     return Div(*assets(), page_header(order.number, back_href=base(site),
         badges=[state(order.payment_status), state(data["fulfilment_label"]),
                 badge("Archived") if link.is_archived else None], secondary_actions=[
+            A("Edit order", href=url + "/edit", cls="p3-button"),
+            A("Refund gift card", href=url + "/gift-card-refund", cls="p3-button")
+                if data.get("gift_only_payment") and order.payment_status != "refunded" else None,
             A("Packing slip", href=url + "/packing-slip", target="_blank", cls="p3-button"),
             A("←", href=base(site, data["prev_id"]), aria_label="Previous order", cls="p3-button")
                 if data.get("prev_id") else None,

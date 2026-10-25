@@ -314,6 +314,11 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
     document = resolve_document(page.draft_json if preview else page.published_json, default_locale(site, preview=preview))
+    from app.custom_data import resolve_dynamic_document
+    from app.store_preferences import head_nodes
+    from app.store_preferences import metadata as preference_metadata
+    document = resolve_dynamic_document(db, site, page, document)
+    preferences = preference_metadata(db, site, page, document)
     from app.site_blog import articles_for, categories_for, category_slug, metadata
     blog = metadata(document)
     listing_articles = articles_for(db, site, preview=preview, category=blog_category, tag=blog_tag) if blog_listing else None
@@ -367,7 +372,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Meta(property="og:title", content=document["title"]), Meta(property="og:description", content=document.get("description", "")),
         Meta(property="og:url", content=canonical), Link(rel="canonical", href=canonical),
         *head_snippets,
-        Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml"), Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
+        *head_nodes(db, site, preferences, preview=preview),
+        Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml") if not preferences or not preferences.favicon_id else None, Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
         Script(src=static_asset("site-analytics.js"), defer=True) if analytics_id else None,
         Script(src=static_asset("site-snippets.js"), defer=True) if has_gated_snippets else None,
         Script(NotStr(json.dumps(ga4_item)), type="application/json", id="h-ga4-item") if ga4_item else None,

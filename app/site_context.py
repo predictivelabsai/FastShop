@@ -87,4 +87,8 @@ class SiteHostMiddleware:
                     scope["site_canonical"] = "https://" + site.hostname
                     scope["path"] = f"/sites/{site.slug}" + path
                     scope["raw_path"] = scope["path"].encode()
+        from app.store_preferences import storefront_gate
+        gate = storefront_gate(scope)
+        if gate is not None:
+            return await gate(scope, receive, send)
         return await self.app(scope, receive, send)

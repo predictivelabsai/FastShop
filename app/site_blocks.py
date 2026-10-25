@@ -156,6 +156,8 @@ def _text(value, key, limit=30000):
     for text in values:
         if not isinstance(text, str) or len(text) > limit:
             raise CommerceError(f'{key} must be text under {limit + 1} characters.')
+        if key in {'image', 'poster'} and re.fullmatch(r'metafield:[a-z][a-z0-9_]{0,79}\.[a-z][a-z0-9_]{0,79}', text):
+            continue
         if key in URL_FIELDS and text:
             safe_url(text, media=key not in {'link', 'url'})
     return copy.deepcopy(value)

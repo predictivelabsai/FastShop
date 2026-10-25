@@ -261,6 +261,9 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                 prefix = f"/admin/sites/{site.id}"
                 entries = [
                     ("General", "/settings/general", "Store details and preferences"),
+                    ("Custom data", "/settings/custom-data", "Metafield definitions and validation"),
+                    ("Locations", "/settings/locations", "Inventory and fulfilment locations"),
+                    ("Activity", "/activity", "Changes made by your team"),
                     ("Plan and billing", "/settings/billing", "Your plan, usage and billing"),
                     ("Users and permissions", "/settings/users", "Staff access and roles"),
                     ("Payments", "/settings/payments", "Payment providers and commerce mode"),

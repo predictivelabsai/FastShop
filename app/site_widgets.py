@@ -189,7 +189,8 @@ def validate_style(style):
         elif key == "background_image":
             if not isinstance(value, str):
                 raise CommerceError("Choose a valid background image.")
-            safe_url(value, media=True)
+            if not re.fullmatch(r"metafield:[a-z][a-z0-9_]{0,79}\.[a-z][a-z0-9_]{0,79}", value):
+                safe_url(value, media=True)
         elif key == "alignment":
             if not isinstance(value, str) or value not in {"left", "centre", "center", "right"}:
                 raise CommerceError("Choose an alignment.")

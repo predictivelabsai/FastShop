@@ -168,3 +168,29 @@ def test_first_product_inventory_creates_a_default_location(catalogue):
                                                   Product.slug == "opening-stock"))
         assert db.scalar(select(Stock.quantity).where(
             Stock.variant_id == product.variants[0].id, Stock.warehouse_id == location.id)) == 6
+
+
+def test_retired_location_does_not_prevent_non_inventory_product_edits(catalogue):
+    w = catalogue
+    with w.sessions() as db:
+        product = db.scalar(select(Product).where(Product.tenant_id == w.site.tenant_id))
+        variant = product.variants[0]
+        stock = Stock(variant_id=variant.id, warehouse_id=w.warehouse.id, quantity=9, allocated=0)
+        db.add(stock)
+        db.get(Warehouse, w.warehouse.id).is_active = False
+        db.commit()
+        product_id, version, slug = product.id, product.version, product.slug
+        stock_id = stock.id
+    base = f"/admin/sites/{w.site.id}/products/{product_id}"
+    page = w.client.get(base)
+    assert page.status_code == 200
+    assert 'name="quantity_' + w.warehouse.id + '"' not in page.text
+    result = w.client.post(base, data={"csrf_token": w.csrf, "version": version,
+        "name": "Renamed with a retired location", "slug": slug, "status": "draft",
+        "sku": variant.sku, "price": "12.00", "options_json": "[]",
+        "variants_json": "[]", "images_json": "[]"}, follow_redirects=False)
+    assert result.status_code == 303, result.text
+    with w.sessions() as db:
+        assert db.get(Product, product_id).name == "Renamed with a retired location"
+        assert db.get(Stock, stock_id).quantity == 9
+        assert len(list(db.scalars(select(Warehouse).where(Warehouse.tenant_id == w.site.tenant_id)))) == 1

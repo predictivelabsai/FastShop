@@ -63,13 +63,18 @@ def payment_command(site, attempt, quote, customer):
         lines.append({"quantity": 1, "price_data": {"currency": "usd",
             "unit_amount": quote.tax_minor, "tax_behavior": "exclusive",
             "product_data": {"name": "Sandbox sales tax"}}})
+    gift_tender = quote.snapshot_json.get("gift_card")
+    if gift_tender:
+        lines = [{"quantity": 1, "price_data": {"currency": quote.currency.lower(),
+            "unit_amount": quote.total_minor, "tax_behavior": "exclusive",
+            "product_data": {"name": "Sandbox order balance after gift card"}}}]
     metadata = {"site_id": site.id, "checkout_id": attempt.id, "quote_id": quote.id}
     return {
         "customer": {"email": customer.email, "name": recipient,
             "shipping": {"name": recipient, "address": quote.snapshot_json["destination"]},
             "metadata": metadata},
         "session": {"mode": "payment", "payment_method_types": payment_methods_for(site, recurring), "currency": "usd",
-            "automatic_tax": {"enabled": not bool(local_tax)}, "line_items": lines,
+            "automatic_tax": {"enabled": not bool(local_tax) and not bool(gift_tender)}, "line_items": lines,
             "customer_update": {"address": "never", "shipping": "never", "name": "never"},
             "client_reference_id": attempt.id, "metadata": metadata,
             "payment_intent_data": {"metadata": metadata, **({"setup_future_usage": "off_session"} if recurring else {})},
@@ -77,7 +82,7 @@ def payment_command(site, attempt, quote, customer):
             "cancel_url": root + "/checkout/" + attempt.id,
             "shipping_options": [{"shipping_rate_data": {"type": "fixed_amount",
                 "display_name": "US delivery", "tax_behavior": "exclusive",
-                "fixed_amount": {"amount": quote.shipping_minor, "currency": "usd"}}}]},
+                "fixed_amount": {"amount": 0 if gift_tender else quote.shipping_minor, "currency": "usd"}}}]},
     }
 
 
@@ -85,8 +90,16 @@ def matches_quote(result, attempt, quote, *, live_mode=False):
     details = result.get("total_details") or {}
     metadata = result.get("metadata") or {}
     local_tax = quote.snapshot_json.get("local_tax")
-    if local_tax and live_mode:
+    if (local_tax or quote.snapshot_json.get("gift_card")) and live_mode:
         return False
+    if quote.snapshot_json.get("gift_card"):
+        return (result.get("livemode") is False and result.get("mode") == "payment"
+            and result.get("client_reference_id") == attempt.id
+            and metadata.get("site_id") == attempt.site_id and metadata.get("quote_id") == quote.id
+            and result.get("currency") == quote.currency.lower()
+            and type(result.get("amount_total")) is int and result["amount_total"] == quote.total_minor
+            and details.get("amount_tax") == 0 and details.get("amount_shipping") == 0
+            and (result.get("automatic_tax") or {}).get("enabled") is False)
     automatic_tax = result.get("automatic_tax") or {}
     tax_matches = (details.get("amount_tax") == 0
         and automatic_tax.get("enabled") is False
@@ -122,6 +135,15 @@ def handoff(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_
         mode = commerce.payment_mode(db, site)
         if mode == "live" and quote.snapshot_json.get("local_tax"):
             raise CommerceError("Merchant tax rates are available in sandbox mode only. Request a new live Stripe Tax quote.")
+        if quote.snapshot_json.get("gift_card") and mode != "sandbox":
+            raise CommerceError("Gift cards are available in sandbox mode only.")
+        if quote.total_minor == 0 and quote.snapshot_json.get("gift_card"):
+            if attempt.state != "prepared":
+                raise CommerceError("This gift card checkout requires reconciliation.")
+            checkout._paid_order(db, site, attempt, quote, {"external_id": "gift-only:"+attempt.id}, manual=True)
+            db.commit()
+            root = "https://"+site.hostname if site.hostname else settings.public_url+"/sites/"+site.slug
+            return root+"/checkout/"+attempt.id
         gateway = make_gateway(gateway_factory, site, db)
         if not attempt.provider_payload_json:
             if attempt.state != "prepared":

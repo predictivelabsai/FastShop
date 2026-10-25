@@ -239,6 +239,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                             *[Option(rate.name + (" (local pickup)" if rate.local_pickup else ""), value=rate.id)
                               for rate in rates], name="shipping_rate_id")) if rates else None,
                         field("Discount code (optional)", "code", maxlength=40, value=cart.discount_code),
+                        field("Gift card code (optional, sandbox)", "gift_card_code", maxlength=64),
                         Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
                         P("US delivery only. This does not subscribe you to marketing."),
                         Div(H2("Monthly delivery subscription"),
@@ -273,6 +274,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 attempt = checkout.prepare(db, site, customer.id, cart.lines_json, dict(form),
                     make_gateway(StripeGateway, site, db),
                     request_key=cart.request_key, code=form.get("code", ""), recipient_name=name,
+                    gift_card_code=form.get("gift_card_code", ""),
                     subscription_consent=form.get("subscription_consent") == "on",
                     shipping_rate_id=form.get("shipping_rate_id") or None)
                 cart.checkout_id = attempt.id
@@ -319,10 +321,12 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                         P("Savings: " + money(quote.discount_minor, quote.currency)),
                         P("Shipping: " + money(quote.shipping_minor, quote.currency)),
                         P("Sales tax (" + quote.snapshot_json["destination"]["state"] + "): " + money(quote.tax_minor, quote.currency)),
+                        P("Gift card: " + money(quote.snapshot_json["gift_card"]["amount_minor"], quote.currency))
+                            if quote.snapshot_json.get("gift_card") else None,
                         H2("Total: " + money(quote.total_minor, quote.currency)),
                         cls="e-card liquid-order-summary" if is_liquid(site) else "e-card"),
                     P("Your payment has been verified.") if attempt.state == "paid" else P("A return from Stripe is not proof of payment. Payment is confirmed only after verification."),
-                    Form(csrf(session), Button("Continue to Stripe test checkout", cls="e-button"), method="post", action=action + "/pay") if attempt.state in checkout.ACTIVE else None,
+                    Form(csrf(session), Button("Pay with gift card" if quote.total_minor == 0 and quote.snapshot_json.get("gift_card") else "Continue to Stripe test checkout", cls="e-button"), method="post", action=action + "/pay") if attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Check payment status", cls="e-button"), method="post", action=action + "/refresh") if attempt.stripe_session_id and attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Cancel checkout", cls="e-button"), method="post", action=action + "/cancel") if attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Start a new bag", cls="e-button"), method="post", action=action + "/new") if attempt.state in ("paid", "expired") and cart.checkout_id == attempt.id else None,

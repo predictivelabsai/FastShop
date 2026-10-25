@@ -11,7 +11,7 @@ from fasthtml.common import NotStr, to_xml
 from sqlalchemy import select, update
 from starlette.responses import JSONResponse
 
-from app import content, site_ui
+from app import content, site_ui, theme_library
 from app.db import SessionLocal
 from app.models import Collection, Membership, Product, SiteMedia, SitePage, SiteRevision, new_id
 from app.services import CommerceError
@@ -102,6 +102,8 @@ def render_document(db, site, page, document, token, block_id=""):
     """Render unsaved content on a detached copy so preview cannot persist changes."""
     document = validate_editor_document(document)
     content.validate_media_ownership(db, site, document)
+    from app import custom_data
+    document = custom_data.resolve_dynamic_document(db, site, page, document)
     preview = SimpleNamespace(**{column.key: getattr(page, column.key)
                                  for column in SitePage.__table__.columns})
     preview.draft_json = document
@@ -162,6 +164,14 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
         except CommerceError as exc:
             raise EditorError(str(exc), 404) from exc
 
+    def editor_context(db, site, page_id, theme_id):
+        if theme_id:
+            try:
+                return theme_library.context(db, site, theme_id, page_id)
+            except CommerceError as exc:
+                raise EditorError(str(exc), 404) from exc
+        return site, page_for(db, site, page_id)
+
     def header_csrf(session, request):
         try:
             check_csrf(session, {"csrf_token": request.headers.get("X-CSRF-Token", "")})
@@ -199,11 +209,11 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
         return version
 
     @rt("/admin/sites/{site_id}/editor", methods=["GET"])
-    def editor(session, site_id: str, page: str = ""):
+    def editor(session, site_id: str, page: str = "", theme: str = ""):
         try:
             with SessionLocal() as db:
                 site, _ = access(db, session, site_id)
-                selected = page_for(db, site, page)
+                site, selected = editor_context(db, site, page, theme)
                 csrf(session)
                 from app.site_editor_ui import editor_page
                 return editor_page(site, selected, session["csrf_token"])
@@ -212,11 +222,12 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
 
     @rt("/admin/sites/{site_id}/editor/api", methods=["GET"])
     @rt("/admin/sites/{site_id}/editor/api/document", methods=["GET"])
-    def document(session, site_id: str, page: str = ""):
+    def document(session, site_id: str, page: str = "", theme: str = ""):
         try:
             with SessionLocal() as db:
                 site, user_id = access(db, session, site_id)
-                selected = page_for(db, site, page)
+                site, selected = editor_context(db, site, page, theme)
+                from app import custom_data
                 from app.site_block_schema import block_schema_registry
                 role = db.scalar(select(Membership.role).where(
                     Membership.tenant_id == site.tenant_id, Membership.user_id == user_id))
@@ -224,11 +235,15 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 return response({"document": normalize_document(selected.draft_json),
                     "version": selected.version, "site_version": site.version,
                     "default_locale": default_locale(site),
+                    "dynamic_sources": custom_data.compatible_sources(db, site),
                     "schema": block_schema_registry(), "pages": [
                         {"id": p.id, "title": p.title, "kind": p.kind, "path": p.path}
-                        for p in content.site_pages(db, site)],
+                        for p in ([theme_library.context(db, site, theme, saved["id"])[1]
+                            for saved in theme_library.theme_for(db, site, theme).snapshot_json["pages"]]
+                            if theme else content.site_pages(db, site))],
                     "site": {"id": site.id, "name": site.name, "slug": site.slug},
                     "page": {"id": selected.id, "title": selected.title, "kind": selected.kind,
+                        "product_id": custom_data.product_id_for_page(db, site, selected),
                              "path": selected.path},
                     "theme_settings": DEFAULTS | (site.settings_json or {}).get("design", {}),
                     "theme_choices": CHOICES, "can_publish": role in {"admin", "merchant"}})
@@ -236,23 +251,42 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
             return failure(exc)
 
     @rt("/admin/sites/{site_id}/editor/api/render", methods=["POST"])
-    async def render(session, request, site_id: str, page: str = ""):
+    async def render(session, request, site_id: str, page: str = "", theme: str = ""):
         try:
             values = await payload(session, request)
             with SessionLocal() as db:
                 site, _ = access(db, session, site_id)
-                selected = page_for(db, site, page)
+                site, selected = editor_context(db, site, page, theme)
                 return response({"html": render_document(db, site, selected,
                     values.get("document"), session.get("csrf_token", ""),
                     values.get("block_id", ""))})
         except (CommerceError, ValueError, TypeError) as exc:
             return failure(exc)
 
-    async def write(session, request, site_id, page_id, action, revision_id=""):
+    async def write(session, request, site_id, page_id, action, revision_id="", theme_id=""):
         try:
             values = await payload(session, request)
             with SessionLocal() as db:
                 site, user_id = access(db, session, site_id, publish=action == "publish")
+                if theme_id:
+                    _, selected = editor_context(db, site, page_id, theme_id)
+                    document = values.get("document", selected.draft_json)
+                    if action == "restore":
+                        saved = theme_library.theme_for(db, site, theme_id)
+                        revision = next((r for r in saved.snapshot_json.get("revisions", [])
+                            if r["id"] == (revision_id or values.get("revision_id"))
+                            and r["page_id"] == selected.id), None)
+                        if not revision:
+                            raise EditorError("Revision not found.", 404)
+                        document = revision["document"]
+                    saved = theme_library.edit(db, site, user_id, theme_id, selected.id,
+                        validate_editor_document(document), _version(values.get("version")))
+                    if action == "publish":
+                        theme_library.publish(db, site, user_id, theme_id, saved.version)
+                    result = {"version": saved.version, "site_version": saved.version,
+                        "document": document, "published": action == "publish"}
+                    db.commit()
+                    return response(result)
                 selected = page_for(db, site, page_id)
                 published_design = None
                 if action == "publish":
@@ -288,26 +322,33 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
             return failure(exc)
 
     @rt("/admin/sites/{site_id}/editor/api/draft", methods=["PUT"])
-    async def draft(session, request, site_id: str, page: str = ""):
-        return await write(session, request, site_id, page, "draft")
+    async def draft(session, request, site_id: str, page: str = "", theme: str = ""):
+        return await write(session, request, site_id, page, "draft", theme_id=theme)
 
     @rt("/admin/sites/{site_id}/editor/api/publish", methods=["POST"])
-    async def publish(session, request, site_id: str, page: str = ""):
-        return await write(session, request, site_id, page, "publish")
+    async def publish(session, request, site_id: str, page: str = "", theme: str = ""):
+        return await write(session, request, site_id, page, "publish", theme_id=theme)
 
     @rt("/admin/sites/{site_id}/editor/api/restore", methods=["POST"])
-    async def restore(session, request, site_id: str, page: str = ""):
-        return await write(session, request, site_id, page, "restore")
+    async def restore(session, request, site_id: str, page: str = "", theme: str = ""):
+        return await write(session, request, site_id, page, "restore", theme_id=theme)
 
     @rt("/admin/sites/{site_id}/editor/api/revisions/{revision_id}/restore", methods=["POST"])
-    async def restore_revision(session, request, site_id: str, revision_id: str, page: str = ""):
-        return await write(session, request, site_id, page, "restore", revision_id)
+    async def restore_revision(session, request, site_id: str, revision_id: str, page: str = "", theme: str = ""):
+        return await write(session, request, site_id, page, "restore", revision_id, theme)
 
     @rt("/admin/sites/{site_id}/editor/api/revisions", methods=["GET"])
-    def revisions(session, site_id: str, page: str = ""):
+    def revisions(session, site_id: str, page: str = "", theme: str = ""):
         try:
             with SessionLocal() as db:
                 site, _ = access(db, session, site_id)
+                if theme:
+                    _, selected = editor_context(db, site, page, theme)
+                    saved = theme_library.theme_for(db, site, theme)
+                    return response({"revisions": [{"id": r["id"], "action": r["action"],
+                        "created_at": saved.updated_at.isoformat(), "document": r["document"]}
+                        for r in reversed(saved.snapshot_json.get("revisions", []))
+                        if r["page_id"] == selected.id]})
                 selected = page_for(db, site, page)
                 rows = db.scalars(select(SiteRevision).where(
                     SiteRevision.tenant_id == site.tenant_id, SiteRevision.site_id == site.id,
@@ -319,21 +360,30 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
             return failure(exc)
 
     @rt("/admin/sites/{site_id}/editor/api/theme-settings", methods=["GET"])
-    def theme_get(session, site_id: str):
+    def theme_get(session, site_id: str, theme: str = ""):
         try:
             with SessionLocal() as db:
                 site, _ = access(db, session, site_id)
+                if theme:
+                    site, _ = editor_context(db, site, "", theme)
                 return response({"theme_settings": DEFAULTS | site.settings_json.get("design", {}),
                                  "theme_choices": CHOICES, "version": site.version})
         except CommerceError as exc:
             return failure(exc)
 
     @rt("/admin/sites/{site_id}/editor/api/theme-settings", methods=["PUT"])
-    async def theme_put(session, request, site_id: str):
+    async def theme_put(session, request, site_id: str, theme: str = ""):
         try:
             values = await payload(session, request)
             with SessionLocal() as db:
                 site, user_id = access(db, session, site_id)
+                if theme:
+                    saved = theme_library.edit(db, site, user_id, theme, "", None,
+                        _version(values.get("version")), design=values.get("theme_settings", {}))
+                    result = {"theme_settings": saved.snapshot_json["settings"]["design"],
+                              "version": saved.version}
+                    db.commit()
+                    return response(result)
                 from app import site_builder_services as builder
                 try:
                     site = builder.lock_site(db, site.id, user_id, _version(values.get("version")))

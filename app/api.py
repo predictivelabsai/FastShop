@@ -55,6 +55,7 @@ class ProductSummary(BaseModel):
     short_description: str = ""
     seo_title: str = ""
     seo_description: str = ""
+    metafields: dict = Field(default_factory=dict)
 
 
 class StockUpdate(BaseModel):
@@ -159,6 +160,7 @@ def list_products(
             short_description=card.product.short_description,
             seo_title=card.product.seo_title,
             seo_description=card.product.seo_description,
+            metafields=product_metafields(session, card.product),
         )
         for card in products(session, query=q, category=category)
     ]
@@ -185,6 +187,7 @@ def get_product(slug: str, session: Session = Depends(get_session)) -> dict:
                 "attributes": variant.attributes_json,
                 "available": available_stock(session, variant.id),
                 "barcode": variant.barcode,
+                "metafields": product_metafields(session, product, variant=variant),
                 "track_inventory": variant.track_inventory,
                 "continue_selling_when_out_of_stock": variant.continue_selling_when_out_of_stock,
                 "image_id": variant.image_id,
@@ -200,6 +203,7 @@ def get_product(slug: str, session: Session = Depends(get_session)) -> dict:
         "channel": channel.slug,
         "currency": channel.currency,
         "variants": variants,
+        "metafields": product_metafields(session, product),
         "handle": product.slug,
         "status": product.status,
         "vendor": product.vendor,
@@ -258,3 +262,21 @@ def propose_stock_update(payload: StockUpdate, session: Session = Depends(get_se
         "current_available": available_stock(session, variant.id),
         "proposed_quantity": payload.quantity,
     }
+
+
+def product_metafields(db, product, *, variant=None):
+    """Site keys preserve isolation when a catalogue product appears in several sites."""
+    from sqlalchemy import or_
+
+    from app.custom_data import values
+    from app.models import Site, SitePage
+    sites = db.scalars(select(Site).where(Site.tenant_id == product.tenant_id,
+        or_(select(SitePage.id).where(SitePage.site_id == Site.id,
+            SitePage.tenant_id == product.tenant_id, SitePage.product_id == product.id).exists(),
+            select(VariantChannelListing.id).join(ProductVariant,
+                ProductVariant.id == VariantChannelListing.variant_id).where(
+                VariantChannelListing.channel_id == Site.channel_id,
+                ProductVariant.tenant_id == product.tenant_id,
+                ProductVariant.product_id == product.id).exists())).order_by(Site.slug))
+    kind, owner_id = ("variant", variant.id) if variant else ("product", product.id)
+    return {site.slug: values(db, site, kind, owner_id) for site in sites}

@@ -194,3 +194,43 @@ def test_google_faces_are_exactly_scoped_and_local():
         if "Liquid Fraunces" in face and 'font-style: italic' in face:
             assert 'font-weight: 600' not in face
     assert not list(Path('static/fonts/liquid').glob('*.ttf'))
+
+
+def test_custom_data_leaves_synthetic_cart_and_checkout_pages_intact(browser):
+    from app import custom_data, store_preferences
+
+    client, db, site = browser
+    custom_data.save_definition(db, site, {"owner_type": "product", "namespace": "custom",
+        "key": "caption", "name": "Product caption", "value_type": "single_line_text"})
+    variant = variants_for(db, site, "h2-4-you-one")[0]
+    custom_data.save_values(db, site, "product", variant.product_id,
+                            {"custom.caption": "Product-only dynamic value"})
+    from app.api import product_metafields
+    from app.models import Product, SitePage
+    page = db.scalar(select(SitePage).where(SitePage.site_id == site.id,
+        SitePage.path == "/products/h2-4-you-one"))
+    assert page.product_id is None and page.kind == "content"
+    assert custom_data.product_id_for_page(db, site, page) == variant.product_id
+    resolved = custom_data.resolve_dynamic_document(db, site, page,
+        {"title": "Product template", "heading": "metafield:custom.caption"})
+    assert resolved["heading"] == "Product-only dynamic value"
+    product = db.get(Product, variant.product_id)
+    assert product_metafields(db, product)[site.slug]["custom.caption"] == "Product-only dynamic value"
+    db.commit()
+    site.status = "published"
+    store_preferences.save_preferences(db, site, {"analytics_id": "G-ABC1234567", "meta_pixel_id": "123456789"})
+    db.commit()
+    base = "/sites/" + site.slug
+    cart = client.get(base + "/cart")
+    shell(cart)
+    assert "Product-only dynamic value" not in cart.text
+    assert "store-preferences.js" not in cart.text
+    cart = client.post(base + "/cart/add", data={"csrf_token": token(cart),
+        "variant_id": variant.id, "quantity": "1", "subscription": "off"})
+    shell(cart)
+    checkout = client.get(base + "/checkout")
+    shell(checkout)
+    assert "US delivery &amp; checkout" in checkout.text
+    assert "Product-only dynamic value" not in checkout.text
+    assert "store-preferences.js" not in checkout.text
+    assert "store-preferences.js" in client.get(base + "/products/h2-4-you-one").text

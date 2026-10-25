@@ -250,7 +250,8 @@ def complete(db, site, draft_id, *, mark_as_paid=False):
         origin = dict(config.origin_json or {}) if config else {}
         if not origin.get("country"):
             origin["country"] = db.scalar(select(Warehouse.country_code).where(
-                Warehouse.tenant_id == site.tenant_id).order_by(Warehouse.id).limit(1)) or ""
+                Warehouse.tenant_id == site.tenant_id, Warehouse.is_active.is_(True),
+                Warehouse.fulfils_online_orders.is_(True)).order_by(Warehouse.is_default.desc(), Warehouse.id).limit(1)) or ""
         if any(line["track_inventory"] for line in snapshot_lines) and not origin["country"]:
             raise CommerceError("Configure a fulfilment origin or inventory location before completing this draft.")
         snapshot = {"lines": snapshot_lines, "destination": draft.destination_json or {},

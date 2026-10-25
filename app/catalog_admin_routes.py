@@ -11,6 +11,7 @@ from starlette.responses import RedirectResponse, Response
 from app import catalog_admin as catalog
 from app import catalog_admin_ui as ui
 from app import content
+from app.content_gap_routes import custom_data_card
 from app.db import SessionLocal
 from app.models import (
     CatalogueSettings,
@@ -79,7 +80,9 @@ def products_for(db, site, filters):
     quantities = dict(db.execute(select(ProductVariant.product_id,
         func.coalesce(func.sum(Stock.quantity - Stock.allocated), 0))
         .outerjoin(Stock, Stock.variant_id == ProductVariant.id)
-        .where(ProductVariant.tenant_id == site.tenant_id, ProductVariant.is_active.is_(True))
+        .outerjoin(Warehouse, Warehouse.id == Stock.warehouse_id)
+        .where(ProductVariant.tenant_id == site.tenant_id, ProductVariant.is_active.is_(True),
+               or_(Warehouse.id.is_(None), Warehouse.is_active.is_(True) & Warehouse.fulfils_online_orders.is_(True)))
         .group_by(ProductVariant.product_id)).all())
     settings = db.scalar(select(CatalogueSettings).where(
         CatalogueSettings.tenant_id == site.tenant_id, CatalogueSettings.site_id == site.id))
@@ -115,7 +118,8 @@ def variants_for(db, site, product):
             "compare_at_minor": listing.compare_at_minor if listing else None,
             "cost_minor": listing.cost_minor if listing else 0,
             "quantities": {s.warehouse_id: s.quantity for s in db.scalars(
-                select(Stock).where(Stock.variant_id == v.id))}})
+                select(Stock).join(Warehouse).where(Stock.variant_id == v.id,
+                    Warehouse.tenant_id == site.tenant_id, Warehouse.is_active.is_(True)))}})
     return rows
 
 
@@ -149,13 +153,17 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
             previous = ids[index - 1] if index else None
             following = ids[index + 1] if index < len(ids) - 1 else None
         warehouses = list(db.scalars(select(Warehouse).where(
-            Warehouse.tenant_id == site.tenant_id).order_by(Warehouse.name)))
-        if not warehouses:
+            Warehouse.tenant_id == site.tenant_id, Warehouse.is_active.is_(True)).order_by(Warehouse.name)))
+        if not warehouses and not db.scalar(select(Warehouse.id).where(
+                Warehouse.tenant_id == site.tenant_id).limit(1)):
             warehouses = [SimpleNamespace(id="default", name="Default location")]
         return shell("Edit product" if product else "Add product", ui.product_editor(
             site, product, variants, options, images, media_for(db, site),
             collections_for(db, site), selected, warehouses, csrf(session), previous, following,
-            currency=db.get(Channel, site.channel_id).currency))
+            currency=db.get(Channel, site.channel_id).currency),
+            custom_data_card(db, site, "product", product.id, csrf(session)) if product else None,
+            *([custom_data_card(db, site, "variant", variant["id"], csrf(session))
+               for variant in variants if variant.get("id")] if product else []))
 
     @rt("/admin/sites/{site_id}/products", methods=["GET"])
     def get(session, site_id: str, q: str = "", status: str = "", vendor: str = "",
@@ -198,7 +206,7 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                         "seo_description", "vendor", "product_type", "template", "country_of_origin",
                         "hs_code", "tax_code", "status")
                 data = {k: str(form.get(k, "")) for k in keys}
-                data.update(tags_json=[t.strip() for t in str(form.get("tags", "")).split(",") if t.strip()],
+                data.update(create_redirect=form.get("create_redirect", "on") == "on", tags_json=[t.strip() for t in str(form.get("tags", "")).split(",") if t.strip()],
                     is_published=form.get("published") == "on", charge_tax=form.get("charge_tax") == "on", requires_shipping=form.get("requires_shipping") == "on",
                     weight_grams=int(form.get("weight_grams") or 0),
                     dimensions_json={k: int(form.get("dimension_" + k) or 0) for k in ("length", "width", "height")},
@@ -208,9 +216,11 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                 if not data["slug"]:
                     import re
                     data["slug"] = re.sub(r"[^a-z0-9]+", "-", data["name"].lower()).strip("-")
-                warehouses = list(db.scalars(select(Warehouse).where(Warehouse.tenant_id == site.tenant_id)))
-                if not warehouses:
-                    warehouse = Warehouse(tenant_id=site.tenant_id, code="DEFAULT", name="Default location")
+                warehouses = list(db.scalars(select(Warehouse).where(
+                    Warehouse.tenant_id == site.tenant_id, Warehouse.is_active.is_(True))))
+                if not warehouses and not db.scalar(select(Warehouse.id).where(
+                        Warehouse.tenant_id == site.tenant_id).limit(1)):
+                    warehouse = Warehouse(tenant_id=site.tenant_id, code="DEFAULT", name="Default location", is_default=True)
                     db.add(warehouse)
                     db.flush()
                     warehouses = [warehouse]
@@ -265,6 +275,12 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
             user_id = actor(session)
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, user_id, publish=True)
+                if form.get("action") == "bulk_edit":
+                    selected = list(db.scalars(select(Product.id).where(
+                        Product.tenant_id == site.tenant_id,
+                        Product.id.in_(form.getlist("product_ids")))))
+                    return RedirectResponse(f"/admin/sites/{site.id}/products/bulk-edit?" +
+                        urlencode({"ids": ",".join(selected)}), status_code=303)
                 catalog.bulk_products(db, site, form.getlist("product_ids"), str(form.get("action", "")),
                     user_id=user_id, value=str(form.get("value_collection", "")) if form.get("action") == "add_to_collection" else str(form.get("value", "")))
                 db.commit()
@@ -379,7 +395,8 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
         products = list(db.scalars(select(Product).where(Product.tenant_id == site.tenant_id).order_by(Product.name)))
         selected = [p.id for p in catalog.collection_products(db, site, collection)] if collection else []
         return shell("Edit collection" if collection else "Create collection", ui.collection_editor(
-            site, collection, products, selected, csrf(session), len(selected)))
+            site, collection, products, selected, csrf(session), len(selected)),
+            custom_data_card(db, site, "collection", collection.id, csrf(session)) if collection else None)
 
     @rt("/admin/sites/{site_id}/collections/new", methods=["GET"])
     def get(session, site_id: str):
@@ -413,7 +430,7 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
                 data = {k: str(form.get(k, "")) for k in ("title", "handle", "description", "image_url", "seo_title", "seo_description", "kind", "sort_order")}
-                data.update(is_published=form.get("is_published") == "on",
+                data.update(create_redirect=form.get("create_redirect", "on") == "on", is_published=form.get("is_published") == "on",
                     product_ids=json_field(form, "product_ids_json", []), rules_json=json_field(form, "rules_json", {}))
                 if not data["handle"]:
                     import re
@@ -451,7 +468,7 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
-                warehouses = list(db.scalars(select(Warehouse).where(Warehouse.tenant_id == site.tenant_id).order_by(Warehouse.name)))
+                warehouses = list(db.scalars(select(Warehouse).where(Warehouse.tenant_id == site.tenant_id, Warehouse.is_active.is_(True)).order_by(Warehouse.name)))
                 settings = db.scalar(select(CatalogueSettings).where(CatalogueSettings.tenant_id == site.tenant_id, CatalogueSettings.site_id == site.id))
                 threshold = settings.low_stock_threshold if settings else 5
                 rows = []
@@ -460,7 +477,8 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                     ProductVariant.tenant_id == site.tenant_id, ProductVariant.is_active.is_(True)).order_by(Product.name, ProductVariant.sort_order)):
                     if q and q.casefold() not in (p.name + " " + v.name + " " + v.sku).casefold():
                         continue
-                    stocks = {s.warehouse_id: (s.quantity, s.allocated) for s in db.scalars(select(Stock).where(Stock.variant_id == v.id))}
+                    stocks = {s.warehouse_id: (s.quantity, s.allocated) for s in db.scalars(select(Stock).join(Warehouse).where(Stock.variant_id == v.id,
+                    Warehouse.tenant_id == site.tenant_id, Warehouse.is_active.is_(True)))}
                     if low_stock and sum(quantity - allocated for quantity, allocated in stocks.values()) > threshold:
                         continue
                     rows.append((p, v, stocks))

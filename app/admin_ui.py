@@ -169,15 +169,15 @@ def nav_section(path):
     return {
         "": "Home", "orders": "Orders", "drafts": "Orders", "abandoned-checkouts": "Orders",
         "deliveries": "Orders", "products": "Products", "collections": "Products",
-        "inventory": "Products", "customers": "Customers", "discounts": "Discounts",
+        "inventory": "Products", "gift-cards": "Products", "customers": "Customers", "discounts": "Discounts",
         "pages": "Content", "blog-posts": "Content", "menus": "Content", "media": "Content", "content": "Content",
-        "snippets": "Content", "reviews": "Content", "placeholders": "Content", "inbox": "Content",
+        "snippets": "Content", "redirects": "Content", "reviews": "Content", "placeholders": "Content", "inbox": "Content",
         "revenue": "Analytics", "analytics": "Analytics", "integrations": "Marketing/Integrations", "subscriptions": "Products",
         "build": "Online Store", "samples": "Online Store", "editor": "Online Store",
         "preferences": "Online Store", "settings": "Settings", "commerce": "Settings",
         "golive": "Settings", "live-credentials": "Settings", "billing": "Settings",
         "users": "Settings", "policies": "Settings", "notifications": "Settings",
-        "search": "Home",
+        "search": "Home", "activity": "Settings",
     }.get(key, "Online Store")
 
 
@@ -192,13 +192,13 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
     groups = [
         ("Home", base, []),
         ("Orders", base + "/orders", [("Drafts", base + "/drafts"), ("Abandoned checkouts", base + "/abandoned-checkouts")]),
-        ("Products", base + "/products", [("Collections", base + "/collections"), ("Inventory", base + "/inventory"), ("Subscriptions", base + "/subscriptions")]),
+        ("Products", base + "/products", [("Collections", base + "/collections"), ("Inventory", base + "/inventory"), ("Subscriptions", base + "/subscriptions"), ("Gift cards", base + "/gift-cards")]),
         ("Customers", base + "/customers", []),
         ("Discounts", base + "/discounts", []),
-        ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files")]),
+        ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files"), ("URL redirects", base + "/redirects"), ("Activity", base + "/activity")]),
         ("Analytics", base + "/analytics", []),
         ("Marketing/Integrations", base + "/integrations", []),
-        ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Preferences", base + "/settings/general")]),
+        ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Themes", base + "/themes"), ("Preferences", base + "/preferences")]),
     ]
     navigation = []
     for label, href, subs in groups if site else []:
@@ -274,5 +274,23 @@ def contextual_page(title, *children, subnavigation=None):
         query = parse_qs(scope.get("query_string", b"").decode())
         notice = query.get("notice", [""])[0]
         nav_path = path + "?view=design" if path.endswith("/build") and query.get("view") == ["design"] else path
+        if site and user:
+            from app.admin_gap_ui import activity_card, view_controls
+            from app.admin_views import COLUMNS
+            if len(parts) == 4 and parts[3] in COLUMNS:
+                controls = view_controls(db, site, user.id, parts[3],
+                    {k: values[-1] for k, values in query.items()},
+                    Input(type="hidden", name="csrf_token", value=session.get("csrf_token", "")))
+                children = (controls, *children)
+            objects = {"products": "product", "collections": "collection", "customers": "customer", "orders": "order", "pages": "page", "drafts": "draft", "discounts": "discount"}
+            if len(parts) == 5 and parts[3] in objects and parts[4] not in {"new", "import", "export", "bulk", "bulk-edit"}:
+                identifier = parts[4]
+                if parts[3] == "orders":
+                    from app.models import SiteOrder
+                    link = db.get(SiteOrder, identifier)
+                    identifier = link.order_id if link and link.site_id == site.id else identifier
+                children = (*children, activity_card(db, site, objects[parts[3]], identifier))
+            if len(parts) == 6 and parts[3] == "content" and parts[4] in {"pages", "blog-posts"} and parts[5] != "new":
+                children = (*children, activity_card(db, site, "page", parts[5]))
         return admin_page(title, *children, site=site, sites=sites, user=user,
                           path=nav_path, notice=notice, csrf_token=session.get("csrf_token", ""))
