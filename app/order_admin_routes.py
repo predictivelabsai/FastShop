@@ -36,7 +36,7 @@ def shipping_minor(value):
 
 def csv_response(csv):
     return Response(csv, media_type="text/csv; charset=utf-8", headers={
-        "Content-Disposition": 'attachment; filename="orders.csv"'})
+        "Content-Disposition": 'attachment; filename="orders.csv"', "Cache-Control": "private, no-store"})
 
 
 def register_order_admin_routes(rt, actor, csrf, check_csrf, shell, error):

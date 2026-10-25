@@ -153,7 +153,8 @@ def render_order_message(db, row, site, customer):
     if not link:
         return None
     order = db.scalar(select(Order).where(Order.id == link.order_id, Order.tenant_id == site.tenant_id))
-    if not order or order.payment_status != "paid":
+    if not order or (order.payment_status != "paid" and not (
+            row.kind == "shipment_update" and order.payment_status in {"partially_refunded", "refunded"})):
         return None
     from app.models import PaymentTransaction
     manual = db.scalar(select(PaymentTransaction.id).where(

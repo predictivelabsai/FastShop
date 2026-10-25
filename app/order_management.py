@@ -19,6 +19,8 @@ from app.models import (
     CheckoutAttempt,
     Membership,
     Order,
+    OrderComment,
+    OrderLine,
     OutboxEvent,
     PaymentTransaction,
     RefundCommand,
@@ -27,12 +29,15 @@ from app.models import (
     Site,
     SiteChangeSet,
     SiteOrder,
+    User,
+    new_id,
 )
-from app.services import CommerceError
+from app.services import CommerceError, money
 
-ORDER_STATES = ("unfulfilled", "fulfilled", "delivered", "cancelled")
+ORDER_STATES = ("unfulfilled", "partially_fulfilled", "fulfilled", "delivered", "cancelled")
 TRANSITIONS = {
     "unfulfilled": ("fulfilled", "cancelled"),
+    "partially_fulfilled": ("fulfilled", "cancelled"),
     "fulfilled": ("delivered", "cancelled"),
     "delivered": (),
     "cancelled": (),
@@ -176,6 +181,13 @@ def owned_order(db, site: Site, site_order_id: str, *, lock: bool = False):
     row = db.execute(query).first()
     if not row:
         raise CommerceError("Order not found.")
+    if lock:
+        # Reused sessions can retain old line counters even after the parent
+        # order is refreshed. Lock and refresh the quantitative state too.
+        db.expire(row[1], ["lines"])
+        list(db.scalars(select(OrderLine).where(OrderLine.order_id == row[1].id)
+            .order_by(OrderLine.id).with_for_update()
+            .execution_options(populate_existing=True)))
     return row
 
 
@@ -183,11 +195,24 @@ def transition_fulfillment(db, site: Site, user_id: str, site_order_id: str, tar
                            expected_status: str, *, carrier: str = "", tracking_number: str = "",
                            tracking_url: str = "", note: str = "") -> ShipmentEvent:
     content.owned_site(db, site.id, user_id, publish=True)
+    from app.checkout_services import lock_site
+    lock_site(db, site)
     link, order, _ = owned_order(db, site, site_order_id, lock=True)
     if order.status != expected_status:
         raise CommerceError("The order changed. Reload before updating fulfillment.")
     if target not in TRANSITIONS.get(order.status, set()):
         raise CommerceError(f"An order cannot move from {order.status} to {target}.")
+    carrier, tracking_number, note = carrier.strip(), tracking_number.strip(), note.strip()
+    if len(carrier) > 100 or len(tracking_number) > 100 or len(note) > 500:
+        raise CommerceError("Fulfillment details are too long.")
+    if target == "fulfilled" and order.lines:
+        from app.order_admin import fulfil_items
+        event = fulfil_items(db, site, user_id, link.id,
+            {line.id: max(0, line.quantity-line.fulfilled_quantity-line.unfulfilled_refunded_quantity)
+             for line in order.lines}, carrier=carrier, tracking_number=tracking_number,
+            tracking_url=tracking_url, notify=True, request_key="legacy-" + new_id())
+        event.note = note
+        return event
     carrier, tracking_number, note = carrier.strip(), tracking_number.strip(), note.strip()
     if target == "fulfilled" and (not carrier or not tracking_number):
         raise CommerceError("Carrier and tracking number are required when fulfilling an order.")
@@ -446,7 +471,8 @@ def _refund_result(result: dict) -> dict:
 
 
 def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, reason: str,
-           request_key: str, *, sessions=SessionLocal, gateway_factory=StripeGateway) -> RefundCommand:
+           request_key: str, *, sessions=SessionLocal, gateway_factory=StripeGateway,
+           selection: dict | None = None) -> RefundCommand:
     """Persist an exact refund before Stripe I/O and replay it with one stable key."""
     reason = reason.strip()
     if type(amount_minor) is not int or amount_minor <= 0:
@@ -455,9 +481,10 @@ def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, re
         raise CommerceError("Provide a refund reason between 10 and 500 characters.")
     if not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", request_key):
         raise CommerceError("Invalid refund request key.")
-    fingerprint = _refund_fingerprint(site_order_id, amount_minor, reason)
     with sessions() as db:
         site = _manager_site(db, site_id, user_id)
+        from app.checkout_services import lock_site
+        lock_site(db, site)
         link, order, _ = owned_order(db, site, site_order_id, lock=True)
         mode = commerce.payment_mode(db, site)
         command = db.scalar(select(RefundCommand).where(
@@ -465,6 +492,13 @@ def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, re
             RefundCommand.tenant_id == site.tenant_id,
             RefundCommand.request_key == request_key,
         ).with_for_update().execution_options(populate_existing=True))
+        # The exact item selection is part of the durable command fingerprint.
+        # Amount-only reconciliation of an existing command reuses its selection.
+        if command and command.selection_json and selection is None:
+            selection = command.selection_json
+        fingerprint = _refund_fingerprint(site_order_id, amount_minor, reason)
+        if selection:
+            fingerprint = hashlib.sha256((fingerprint + json.dumps(selection, sort_keys=True)).encode()).hexdigest()
         if command:
             if command.request_hash != fingerprint:
                 raise CommerceError("This refund request key was already used for different details.")
@@ -473,6 +507,13 @@ def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, re
             if (command.command_json.get("metadata") or {}).get("payment_mode") != mode:
                 raise CommerceError("This refund command was created for a different payment mode.")
         else:
+            if selection:
+                from app.order_admin import preview_refund
+                checked = preview_refund(db, site, site_order_id,
+                    {line["line_id"]: line["quantity"] for line in selection["lines_json"]},
+                    selection["shipping_minor"], selection["restock"], selection.get("return_id"))
+                if checked != selection or checked["amount_minor"] != amount_minor:
+                    raise CommerceError("The exact refund selection changed. Review it again.")
             if order.payment_status not in {"paid", "partially_refunded"}:
                 raise CommerceError("Only a captured Stripe payment can be refunded.")
             captured, refunded, available = refund_totals(db, site, link, order)
@@ -504,6 +545,7 @@ def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, re
                 state="creating",
                 provider_payment_id=charge.external_id,
                 command_json={},
+                selection_json=selection or {},
             )
             db.add(command)
             db.flush()
@@ -521,12 +563,15 @@ def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, re
         db.commit()
 
         result = gateway.create_refund(command_id, payload)
+        # Provider I/O commits release locks. Reacquire site, order, command in
+        # the same order as creation/retry to avoid cross-request deadlocks.
+        lock_site(db, site)
+        link, order, _ = owned_order(db, site, site_order_id, lock=True)
         command = db.scalar(select(RefundCommand).where(
             RefundCommand.id == command_id,
             RefundCommand.site_id == site.id,
             RefundCommand.tenant_id == site.tenant_id,
         ).with_for_update().execution_options(populate_existing=True))
-        link, order, _ = owned_order(db, site, site_order_id, lock=True)
         clean = _refund_result(result)
         exact = (
             isinstance(result.get("id"), str)
@@ -592,6 +637,9 @@ def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, re
                 PaymentTransaction.currency == order.currency,
             )) or 0
             order.payment_status = "refunded" if completed >= captured else "partially_refunded"
+            if command.selection_json:
+                from app.order_admin import apply_refund_selection
+                apply_refund_selection(db, site, command, order)
         db.commit()
         return command
 
@@ -610,7 +658,7 @@ def timeline(db, site: Site, link: SiteOrder, order: Order) -> list[dict]:
         PaymentTransaction.order_id == order.id,
     )))
     events.extend({"at": row.created_at, "kind": "payment", "title": row.kind.replace("_", " ").title(),
-                   "detail": f"{row.status.replace('_', ' ').title()} · {row.amount_minor} {row.currency} minor units."}
+                   "detail": f"{row.status.replace('_', ' ').title()} · {money(row.amount_minor, row.currency)}."}
                   for row in payments)
     shipments = list(db.scalars(select(ShipmentEvent).where(
         ShipmentEvent.site_order_id == link.id,
@@ -626,7 +674,7 @@ def timeline(db, site: Site, link: SiteOrder, order: Order) -> list[dict]:
         RefundCommand.tenant_id == site.tenant_id,
     )))
     events.extend({"at": row.updated_at, "kind": "refund", "title": "Refund " + row.state.replace("_", " "),
-                   "detail": f"{row.amount_minor} {row.currency} minor units · {row.reason}", "command": row}
+                   "detail": f"{money(row.amount_minor, row.currency)} · {row.reason}", "command": row}
                   for row in refunds)
     outbox = list(db.scalars(select(OutboxEvent).where(
         OutboxEvent.tenant_id == site.tenant_id,
@@ -634,4 +682,11 @@ def timeline(db, site: Site, link: SiteOrder, order: Order) -> list[dict]:
     )))
     events.extend({"at": row.updated_at, "kind": "outbox", "title": row.topic.replace(".", " ").title(),
                    "detail": f"Delivery state: {row.status}; attempts: {row.attempts}."} for row in outbox)
+    comments = db.execute(select(OrderComment, User.name).outerjoin(User,
+        User.id == OrderComment.author_id).where(OrderComment.site_order_id == link.id,
+        OrderComment.site_id == site.id, OrderComment.tenant_id == site.tenant_id))
+    events.extend({"at": row.created_at, "kind": "comment", "title":
+        ("Internal note" if row.internal else "Comment") + " · " + (name or "Staff"),
+        "detail": row.body, "internal": row.internal, "author_id": row.author_id}
+        for row, name in comments)
     return sorted(events, key=lambda item: _utc(item["at"]), reverse=True)
