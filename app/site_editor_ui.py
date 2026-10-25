@@ -9,6 +9,7 @@ from fasthtml.common import Link, Meta, Script, Title
 def editor_page(site, page, csrf_token):
     """Render the editor chrome; all owned data is loaded through its scoped API."""
     config = json.dumps({"site_id": str(site.id), "page_id": str(page.id),
+                         "theme_id": getattr(site, "theme_context_id", ""),
                          "csrf_token": csrf_token}, ensure_ascii=True).replace("<", "\\u003c")
     title = escape(str(getattr(site, "name", "Store")))
     markup = '''
@@ -36,6 +37,7 @@ def editor_page(site, page, csrf_token):
 </div>'''.replace("SITE", escape(str(site.id))).replace("PAGE", escape(str(page.id))).replace("STORE", title)
     return (Title(f"Theme editor · {title}"), Meta(name="viewport", content="width=device-width, initial-scale=1"),
             Link(rel="stylesheet", href="/static/admin/admin.css"),
-            Link(rel="stylesheet", href="/static/editor/editor.css"), NotStr(markup),
+            Link(rel="stylesheet", href="/static/editor/editor.css"),
+            Link(rel="stylesheet", href="/static/editor/dynamic-sources.css"), NotStr(markup),
             Script(NotStr(f"window.FASTSHOP_EDITOR={config};")),
             Script(src="/static/editor/editor.js", type="module"))

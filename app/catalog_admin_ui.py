@@ -4,7 +4,7 @@ import json
 from html import escape
 
 from fastcore.xml import NotStr, to_xml
-from fasthtml.common import A, Button, Div, Form, Input, Link, Script
+from fasthtml.common import A, Button, Div, Form, Input, Label, Link, Script
 
 from app.admin_ui import badge, card, empty_state, modal, page_header, two_column
 
@@ -183,6 +183,7 @@ def product_index(site, products, total, counts, filters, page, csrf, collection
                         "Bulk action",
                         "action",
                         [
+                            ("bulk_edit", "Bulk edit"),
                             ("draft", "Set as draft"),
                             ("active", "Set as active"),
                             ("archive", "Archive"),
@@ -423,6 +424,7 @@ def product_editor(
         field("SEO title", "seo_title", get("seo_title"), maxlength="70"),
         area("SEO description", "seo_description", get("seo_description"), maxlength="320"),
         field("URL handle", "slug", get("slug"), pattern=r"[a-z0-9\-]+"),
+        Label(Input(type="hidden", name="create_redirect", value="off"), Input(type="checkbox", name="create_redirect", value="on", checked=True), " Create a redirect when the handle changes"),
         title="Search engine listing",
     )
     main = Div(
@@ -660,6 +662,7 @@ def collection_editor(site, collection, products, selected, csrf, count=0):
             field("SEO title", "seo_title", get("seo_title")),
             area("SEO description", "seo_description", get("seo_description")),
             field("URL handle", "handle", get("handle")),
+            Label(Input(type="hidden", name="create_redirect", value="off"), Input(type="checkbox", name="create_redirect", value="on", checked=True), " Create a redirect when the handle changes"),
             title="Search engine listing",
         ),
         cls="c-stack",

@@ -476,10 +476,12 @@ def _import_group(db, site, handle, rows, user_id, result):
             if row.get('Variant Inventory Qty') not in ('', None):
                 quantity = _integer(row['Variant Inventory Qty'], 'Inventory quantity')
                 warehouses = list(db.scalars(select(Warehouse).where(
-                    Warehouse.tenant_id == site.tenant_id).order_by(Warehouse.id)))
+                    Warehouse.tenant_id == site.tenant_id, Warehouse.is_active.is_(True)).order_by(Warehouse.is_default.desc(), Warehouse.id)))
                 if not warehouses:
+                    if db.scalar(select(Warehouse.id).where(Warehouse.tenant_id == site.tenant_id).limit(1)):
+                        raise CommerceError('Activate a location in Settings before importing inventory.')
                     warehouse = Warehouse(tenant_id=site.tenant_id, code='default',
-                                          name='Default location')
+                                          name='Default location', is_default=True)
                     db.add(warehouse)
                     db.flush()
                     warehouses = [warehouse]
@@ -659,7 +661,8 @@ def regenerate_variants(db, site, product, options):
 
 
 def _details(db, site, product, data, *, user_id):
-    _site_page(db, site, product, 'product', product.slug, product.name, product.is_published)
+    _site_page(db, site, product, 'product', product.slug, product.name, product.is_published,
+               create_redirect=data.get('create_redirect', True))
     if 'images' in data:
         old = {image.id: image for image in product.images}
         images = []
@@ -748,7 +751,7 @@ def adjust_inventory(db, site, variant_id, warehouse_id, quantity, *, mode='adju
                                                     ProductVariant.tenant_id == site.tenant_id))
     warehouse = db.scalar(select(Warehouse).where(Warehouse.id == warehouse_id,
                                                  Warehouse.tenant_id == site.tenant_id))
-    if variant is None or warehouse is None:
+    if variant is None or warehouse is None or not warehouse.is_active:
         raise CommerceError('Inventory location or variant not found.')
     stocks = list(db.scalars(select(Stock).where(Stock.variant_id == variant_id)
                              .order_by(Stock.id).with_for_update()
@@ -775,7 +778,8 @@ def inventory_quantity(db, site, product):
     return sum(s.quantity - s.allocated for s in db.scalars(select(Stock).join(ProductVariant)
         .join(Warehouse).where(ProductVariant.product_id == product.id,
         ProductVariant.tenant_id == site.tenant_id, ProductVariant.is_active.is_(True),
-        Warehouse.tenant_id == site.tenant_id)))
+        Warehouse.tenant_id == site.tenant_id, Warehouse.is_active.is_(True),
+        Warehouse.fulfils_online_orders.is_(True))))
 
 
 def _collection(db, site, collection_id):
@@ -848,7 +852,7 @@ def save_collection(db, site, data, *, collection_id=None, expected_version=None
     db.add(collection)
     db.flush()
     _site_page(db, site, collection, 'collection', collection.handle, collection.title,
-               collection.is_published)
+               collection.is_published, create_redirect=data.get('create_redirect', True))
     if 'product_ids' in data:
         products = [get_product(db, site, i) for i in dict.fromkeys(data['product_ids'])]
         db.execute(delete(CollectionProduct).where(CollectionProduct.collection_id == collection.id,
@@ -860,7 +864,7 @@ def save_collection(db, site, data, *, collection_id=None, expected_version=None
     return collection
 
 
-def _site_page(db, site, entity, kind, handle, title, published):
+def _site_page(db, site, entity, kind, handle, title, published, *, create_redirect=True):
     """Associate catalogue entries with sites through the existing page boundary."""
     field = SitePage.product_id if kind == 'product' else SitePage.collection_id
     page = db.scalar(select(SitePage).where(SitePage.site_id == site.id,
@@ -874,6 +878,8 @@ def _site_page(db, site, entity, kind, handle, title, published):
     if db.scalar(select(SitePage.id).where(SitePage.site_id == site.id,
         SitePage.tenant_id == site.tenant_id, SitePage.path == path, SitePage.id != page.id)):
         raise CommerceError('A page already uses this catalogue handle.')
+    from app.url_redirects import automatic_redirect
+    automatic_redirect(db, site, page.path, path, enabled=create_redirect)
     page.path, page.title = path, title
     description = entity.seo_description or getattr(entity, 'short_description', '')
     for field in ('draft_json', 'published_json'):

@@ -76,7 +76,7 @@ def eligible_offer(db, site, customer, code):
     return offer
 
 
-def prepare(db, site, customer_id, selections, destination, gateway, *, request_key, code="", recipient_name="", subscription_consent=False, renewal_contract=None, recovery_cycle=None, shipping_rate_id=None):
+def prepare(db, site, customer_id, selections, destination, gateway, *, request_key, code="", recipient_name="", subscription_consent=False, renewal_contract=None, recovery_cycle=None, shipping_rate_id=None, gift_card_code=""):
     """Atomically quote and reserve. Retrying the same command returns the same attempt.
 
     A savepoint prevents partially allocated stock even if the caller catches errors
@@ -91,6 +91,8 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
         "subscription_consent": subscription_consent,
         "renewal_contract": renewal_contract.id if renewal_contract else None,
         "recovery_cycle": recovery_cycle.id if recovery_cycle else None}
+    if gift_card_code:
+        request_payload["gift_card_code"] = str(gift_card_code).strip().upper()
     # Keep existing request keys replayable when no new delivery option is chosen.
     if shipping_rate_id:
         request_payload["shipping_rate_id"] = shipping_rate_id
@@ -142,6 +144,8 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
                     quote.snapshot_json = quote.snapshot_json | {"recovery_cycle_id": recovery_cycle.id}
             else:
                 quote.snapshot_json = quote.snapshot_json | {"subscription_consent": consent_snapshot(subscription_consent)}
+        from app.gift_cards import apply_to_quote
+        apply_to_quote(db, site, customer, quote, gift_card_code)
         attempt = CheckoutAttempt(tenant_id=site.tenant_id, site_id=site.id, customer_id=customer.id,
             quote_id=quote.id, offer_id=offer.id if offer else None, request_key=request_key,
             request_hash=fingerprint, expires_at=datetime.now(UTC) + timedelta(minutes=35))
@@ -166,6 +170,7 @@ def _reserve_snapshot(db, site, attempt, snapshot):
         .join(ProductVariant, ProductVariant.id == Stock.variant_id).where(
             Warehouse.tenant_id == site.tenant_id, ProductVariant.tenant_id == site.tenant_id,
             Warehouse.country_code == snapshot["origin"]["country"],
+            Warehouse.is_active.is_(True), Warehouse.fulfils_online_orders.is_(True),
             Stock.variant_id.in_(quantities)).order_by(Stock.id).with_for_update(of=Stock)
         .execution_options(populate_existing=True)).all()
     for stock in stocks:
@@ -291,7 +296,7 @@ def _paid_order(db, site, attempt, quote, provider, *, manual=False):
         idempotency_key=("manual-" if manual else "stripe-") + attempt.id,
         email=customer.email, currency=quote.currency, subtotal_minor=quote.subtotal_minor,
         discount_minor=quote.discount_minor, shipping_minor=quote.shipping_minor,
-        tax_minor=quote.tax_minor, total_minor=quote.total_minor, payment_status="paid",
+        tax_minor=quote.tax_minor, total_minor=quote.snapshot_json.get("gross_total_minor", quote.total_minor), payment_status="paid",
         shipping_address_json=quote.snapshot_json["destination"] | {"name":
             attempt.provider_payload_json.get("customer", {}).get("shipping", {}).get("name", quote.snapshot_json.get("recipient_name") or customer.name)})
     db.add(order)
@@ -311,6 +316,8 @@ def _paid_order(db, site, attempt, quote, provider, *, manual=False):
     db.flush()
     from app.discounts import redeem
     redeem(db, site, order, quote.snapshot_json.get("discounts", []))
+    from app.gift_cards import redeem as redeem_gift_card
+    redeem_gift_card(db, site, order, quote)
     from app.customer_services import queue_order_mail
     queue_order_mail(db, site, link)
     db.add(PaymentTransaction(order_id=order.id,
@@ -331,7 +338,7 @@ def _paid_order(db, site, attempt, quote, provider, *, manual=False):
     # Allocated stock remains committed until fulfilment, as in the existing order model.
     db.add(OutboxEvent(tenant_id=site.tenant_id, topic="order.confirmed", aggregate_id=order.id,
         payload_json={"order_id": order.id, "site_id": site.id, "currency": quote.currency,
-            "total_minor": quote.total_minor}))
+            "total_minor": order.total_minor}))
     attempt.order_id, attempt.state = order.id, "paid"
     db.flush()
     return link

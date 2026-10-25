@@ -79,6 +79,7 @@ def _field(key, default="", *, choices=None):
         "type": kind,
         "default": copy.deepcopy(default),
         "help": "",
+        "dynamic_source": "image" if kind == "image" else "text" if not key.startswith("style.") and kind in {"text", "textarea", "richtext"} else None,
         **data,
     }
 

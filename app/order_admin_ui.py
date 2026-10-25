@@ -322,6 +322,8 @@ def order_detail(site, data, csrf_factory, notice="", operation=""):
             A("Refund", href=url + "/actions/refund", cls="p3-button") if refund else None,
             A("Return", href=url + "/actions/return", cls="p3-button"),
             A("Edit", href=data["edit_url"], cls="p3-button") if data.get("edit_url") else None,
+            A("Refund gift card", href=url + "/gift-card-refund", cls="p3-button")
+                if data.get("gift_only_payment") and order.payment_status != "refunded" else None,
             actions,
             A("←", href=base(site, data["prev_id"]), aria_label="Previous order", cls="p3-button")
                 if data.get("prev_id") else None,

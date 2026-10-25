@@ -62,7 +62,7 @@ async function api(path, method = "GET", data) {
     body = JSON.stringify(data);
   }
   const res = await fetch(
-    `${base}${path}?page=${encodeURIComponent(boot.page_id)}`,
+    `${base}${path}?page=${encodeURIComponent(boot.page_id)}&theme=${encodeURIComponent(boot.theme_id || '')}`,
     { method, headers, body, credentials: "same-origin" },
   );
   let result;
@@ -183,6 +183,8 @@ function send(payload) {
 }
 function select(id) {
   selected = id;
+  if (id && window.matchMedia("(max-width: 760px)").matches)
+    $("#editor").classList.remove("is-panel-open");
   $("#editor").classList.toggle("has-selection", Boolean(id));
   renderTree();
   renderSettings();
@@ -650,9 +652,12 @@ function fieldHTML(f, obj, prefix = "") {
         ? ""
         : `<button data-repeat-add="${esc(path)}">+ Add item</button>`);
   } else if (["image", "video"].includes(f.type))
-    html = `${f.type === "image" && v ? `<img class="field-media-preview" src="${esc(v)}" alt="Selected image">` : ""}<input ${attrs} value="${esc(v)}" placeholder="Media URL"><button data-media="${esc(path)}">Choose media</button>`;
+    html = `${f.type === "image" && v && !v.startsWith("metafield:") ? `<img class="field-media-preview" src="${esc(v)}" alt="Selected image">` : ""}<input ${attrs} value="${esc(v)}" placeholder="Media URL"><button data-media="${esc(path)}">Choose media</button>`;
   else
     html = `<div class="field-inline"><input ${attrs} type="${f.type === "number" ? "number" : "text"}" value="${esc(Array.isArray(v) ? v.join(", ") : v)}" ${f.min !== undefined ? `min="${f.min}"` : ""} ${f.max !== undefined ? `max="${f.max}"` : ""}>${["url", "link", "product", "collection"].includes(f.type) ? `<button data-link="${esc(path)}" aria-label="Choose ${esc(f.label)}">↗</button>` : ""}</div>`;
+  const dynamicKind = f.dynamic_source || (!f.id.startsWith("style.") && ["text", "textarea", "richtext"].includes(f.type) ? "text" : f.type === "image" ? "image" : "");
+  const sources = (state?.page?.kind === "product" || state?.page?.product_id) && dynamicKind ? (state.dynamic_sources?.[dynamicKind] || []) : [];
+  if (sources.length) html += `<label class="field-help">Connect dynamic source<select data-dynamic-for="${esc(id)}"><option value="">Choose a custom data definition</option>${sources.map(source => `<option value="${esc(source.source)}" ${v === source.source ? "selected" : ""}>${esc(source.name)}</option>`).join("")}</select></label>`;
   return `<div class="field"><label for="${esc(id)}">${esc(f.label || f.id)}</label>${html}${f.help ? `<span class="field-help">${esc(f.help)}</span>` : ""}</div>`;
 }
 function selectedFields() {
@@ -739,6 +744,16 @@ function findField(path, fields) {
   return {};
 }
 function wireFields(obj, update, root = "#settings-content") {
+  document.querySelectorAll(`${root} [data-dynamic-for]`).forEach(select => {
+    select.onchange = () => {
+      if (!select.value) return;
+      const input = document.getElementById(select.dataset.dynamicFor);
+      if (!input) return;
+      input.value = select.value;
+      input.dispatchEvent(new Event("input", {bubbles:true}));
+    };
+  });
+
   const host = $(root);
   host.querySelectorAll("[data-setting]").forEach(
     (el) =>
@@ -914,6 +929,7 @@ async function saveTheme() {
       version: state.site_version,
     });
     state.site_version = r.version;
+    if (boot.theme_id) state.version = r.version;
     themeDirty = JSON.stringify(state.theme_settings) !== submitted;
   } catch (e) {
     // Theme and page versions are distinct. Reload before retrying a theme conflict.
@@ -1012,6 +1028,7 @@ async function save() {
       version: state.version,
     });
     state.version = r.version;
+    if (boot.theme_id) state.site_version = r.version;
     lastSaved = submitted;
     dirty = JSON.stringify(state.document) !== lastSaved;
     status(dirty || themeDirty ? "Unsaved changes" : "Saved");
@@ -1037,7 +1054,7 @@ function renderPages(query = "") {
   $("#page-options").innerHTML = [...groups]
     .map(
       ([kind, pages]) =>
-        `<h3>${esc(kind.replaceAll("_", " "))}</h3>${pages.map((p) => `<a href="/admin/sites/${encodeURIComponent(boot.site_id)}/editor?page=${encodeURIComponent(p.id)}">${esc(p.title)}</a>`).join("")}`,
+        `<h3>${esc(kind.replaceAll("_", " "))}</h3>${pages.map((p) => `<a href="/admin/sites/${encodeURIComponent(boot.site_id)}/editor?page=${encodeURIComponent(p.id)}&theme=${encodeURIComponent(boot.theme_id || '')}">${esc(p.title)}</a>`).join("")}`,
     )
     .join("");
 }
@@ -1058,6 +1075,7 @@ async function load() {
     $("#canvas-page-title").textContent = state.page.title;
     $("#theme-name").textContent = state.site.name;
     $("#preview-link").href =
+      boot.theme_id ? `/admin/sites/${encodeURIComponent(boot.site_id)}/themes/${encodeURIComponent(boot.theme_id)}/preview?page=${encodeURIComponent(boot.page_id)}` :
       `/admin/sites/${encodeURIComponent(boot.site_id)}/preview/${encodeURIComponent(boot.page_id)}`;
     $("#publish").disabled = !state.can_publish;
     renderPages();

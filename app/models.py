@@ -251,6 +251,10 @@ class Warehouse(TimestampMixin, Base):
     code: Mapped[str] = mapped_column(String(40))
     name: Mapped[str] = mapped_column(String(140))
     country_code: Mapped[str] = mapped_column(String(2), default="EE")
+    address_json: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    fulfils_online_orders: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class Stock(TimestampMixin, Base):
@@ -1524,3 +1528,12 @@ class StaffInvite(TimestampMixin, Base):
     invited_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# Register additive admin feature tables with the shared metadata.
+from app import (  # noqa: E402,F401
+    admin_gap_models,
+    commerce_gap_models,
+    content_gap_models,
+    theme_bulk_models,
+)

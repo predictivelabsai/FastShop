@@ -341,19 +341,19 @@ def _payment_state(intent_status: str) -> str:
 def _order_payment_state(db, site: Site, order: Order, charge_status: str) -> str:
     if charge_status != "succeeded":
         return "pending" if charge_status == "pending" else "failed"
-    refunded = db.scalar(select(func.coalesce(func.sum(PaymentTransaction.amount_minor), 0))
-        .join(Order, Order.id == PaymentTransaction.order_id)
-        .where(
+    transactions = list(db.scalars(select(PaymentTransaction).join(Order,
+        Order.id == PaymentTransaction.order_id).where(
             PaymentTransaction.order_id == order.id,
-            PaymentTransaction.provider == "stripe:" + site.id,
-            PaymentTransaction.kind == "refund",
-            PaymentTransaction.status == "succeeded",
-            PaymentTransaction.currency == order.currency,
-            Order.tenant_id == site.tenant_id,
-        )) or 0
-    if refunded >= order.total_minor:
+            PaymentTransaction.provider.in_(["stripe:"+site.id, "gift_card:"+site.id, "manual:"+site.id]),
+            PaymentTransaction.status == "succeeded", PaymentTransaction.currency == order.currency,
+            Order.tenant_id == site.tenant_id)))
+    captured = sum(row.amount_minor for row in transactions if row.kind == "charge")
+    refunded = sum(row.amount_minor for row in transactions if row.kind == "refund")
+    if captured and refunded >= captured:
         return "refunded"
-    return "partially_refunded" if refunded else "paid"
+    if refunded:
+        return "partially_refunded"
+    return "unpaid" if order.total_minor > captured else "paid"
 
 
 def resync_order(
@@ -379,6 +379,15 @@ def resync_order(
                 Order.tenant_id == site.tenant_id,
             )
             .order_by(PaymentTransaction.created_at.desc()))
+        # The provider capture is immutable even when a gift tender or later
+        # merchant edit changes the order's gross amount.
+        provider_total = charge.amount_minor if charge else order.total_minor
+        if not charge and link.quote_id:
+            from app.models import CommerceQuote
+            quote = db.scalar(select(CommerceQuote).where(CommerceQuote.id == link.quote_id,
+                CommerceQuote.site_id == site.id, CommerceQuote.tenant_id == site.tenant_id))
+            if quote:
+                provider_total = quote.total_minor
         gateway = make_gateway(gateway_factory, site, db)
         live_mode = commerce.payment_mode(db, site) == "live"
         payment_intent_id = charge.external_id if charge else ""
@@ -391,7 +400,7 @@ def resync_order(
                 or metadata.get("site_id") != site.id
                 or checkout_result.get("currency") != order.currency.lower()
                 or type(checkout_result.get("amount_total")) is not int
-                or checkout_result["amount_total"] != order.total_minor
+                or checkout_result["amount_total"] != provider_total
             ):
                 raise CommerceError("Stripe checkout details do not match this order.")
             session_intent = checkout_result.get("payment_intent")
@@ -410,7 +419,7 @@ def resync_order(
             or metadata.get("site_id") != site.id
             or intent.get("currency") != order.currency.lower()
             or type(amount) is not int
-            or amount != order.total_minor
+            or amount != provider_total
         ):
             raise CommerceError("Stripe payment details do not match this order.")
         charge_status = _payment_state(str(intent.get("status", "")))
@@ -424,7 +433,7 @@ def resync_order(
         if existing and existing.order_id != order.id:
             raise CommerceError("Stripe payment is already linked to another order.")
         if existing:
-            if existing.kind != "charge" or existing.currency != order.currency or existing.amount_minor != order.total_minor:
+            if existing.kind != "charge" or existing.currency != order.currency or existing.amount_minor != provider_total:
                 raise CommerceError("The recorded Stripe charge does not match this order.")
             existing.status = charge_status
             charge = existing
@@ -436,7 +445,7 @@ def resync_order(
                 kind="charge",
                 status=charge_status,
                 currency=order.currency,
-                amount_minor=order.total_minor,
+                amount_minor=provider_total,
             )
             db.add(charge)
         order.payment_status = _order_payment_state(db, site, order, charge_status)
@@ -636,10 +645,15 @@ def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, re
                 PaymentTransaction.status == "succeeded",
                 PaymentTransaction.currency == order.currency,
             )) or 0
-            order.payment_status = "refunded" if completed >= captured else "partially_refunded"
             if command.selection_json:
                 from app.order_admin import apply_refund_selection
                 apply_refund_selection(db, site, command, order)
+            if completed >= captured:
+                from app.gift_cards import full_refund_selected, restore_full_refund
+                if full_refund_selected(db, site, link, order):
+                    restore_full_refund(db, site, order)
+            # Exhausting one tender does not refund the remaining gift tender.
+            order.payment_status = _order_payment_state(db, site, order, "succeeded")
             from app.customer_services import queue_mail
             customer = db.scalar(select(ShopCustomer).where(
                 ShopCustomer.id == link.customer_id,

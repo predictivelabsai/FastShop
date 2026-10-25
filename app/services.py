@@ -170,8 +170,9 @@ def variant_price(session: Session, variant_id: str, channel_id: str) -> Variant
 def available_stock(session: Session, variant_id: str) -> int:
     return int(
         session.scalar(
-            select(func.coalesce(func.sum(Stock.quantity - Stock.allocated), 0)).where(
-                Stock.variant_id == variant_id
+            select(func.coalesce(func.sum(Stock.quantity - Stock.allocated), 0)).join(Warehouse).where(
+                Stock.variant_id == variant_id, Warehouse.is_active.is_(True),
+                Warehouse.fulfils_online_orders.is_(True)
             )
         )
         or 0
@@ -331,7 +332,8 @@ def complete_checkout(
     tracked_ids = [item["variant"].id for item in summary.lines if item["variant"].track_inventory]
     stock_rows: dict[str, Stock] = {}
     for stock in session.scalars(select(Stock).join(Warehouse).where(
-            Stock.variant_id.in_(tracked_ids), Warehouse.tenant_id == cart.tenant_id)
+            Stock.variant_id.in_(tracked_ids), Warehouse.tenant_id == cart.tenant_id,
+            Warehouse.is_active.is_(True), Warehouse.fulfils_online_orders.is_(True))
             .order_by(Stock.id).with_for_update().execution_options(populate_existing=True)):
         stock_rows.setdefault(stock.variant_id, stock)
     for item in sorted(summary.lines, key=lambda row: row["variant"].id):

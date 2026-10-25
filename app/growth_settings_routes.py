@@ -19,7 +19,7 @@ from fasthtml.common import (
     Summary,
     Textarea,
 )
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from starlette.responses import RedirectResponse
 
 from app import commerce, content
@@ -237,8 +237,11 @@ def register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
                 if kind == "rates" and values.get("action") == "delete":
-                    db.execute(delete(ShippingRate).where(ShippingRate.id == values.get("rate_id"),
+                    rate = db.scalar(select(ShippingRate).where(ShippingRate.id == values.get("rate_id"),
                         ShippingRate.site_id == site.id, ShippingRate.tenant_id == site.tenant_id))
+                    if not rate:
+                        raise CommerceError("Shipping rate not found.")
+                    db.delete(rate)
                     db.commit()
                     return back(site, "shipping", "Rate deleted")
                 name = str(values.get("name", "")).strip()

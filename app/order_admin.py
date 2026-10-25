@@ -315,6 +315,9 @@ def fulfil_items(db, site, user_id, link_id, quantities, *, carrier, tracking_nu
             for stock in stocks:
                 if stock.variant_id != variant.id or not remaining:
                     continue
+                location = db.get(Warehouse, stock.warehouse_id)
+                if not location or not location.is_active or not location.fulfils_online_orders:
+                    continue
                 reserved = max(0, reserves.get(stock.id, 0) - used.get(stock.id, 0))
                 available = reserved if reserves else max(0, stock.quantity-stock.allocated)
                 take = min(remaining, available)
@@ -444,6 +447,21 @@ def preview_refund(db, site, link_id, quantities, shipping_minor=0, restock=Fals
         selections.append(dict(line_id=line.id, quantity=quantity, amount_minor=amount))
     amount = sum(row['amount_minor'] for row in selections)+shipping_minor
     _, _, available = orders.refund_totals(db, site, link, order)
+    # A gift card is a separate tender. A full item selection may exceed the
+    # remaining provider capture; refund that capture and restore the gift ledger
+    # after success rather than sending the gross order value to the provider.
+    if amount > available and available > 0 and all(
+            quantities.get(line.id, 0) == line.quantity-line.refunded_quantity-pending[line.id]
+            for line in order.lines):
+        from app.commerce_gap_models import GiftCardEntry
+        gift_payment = db.scalar(select(GiftCardEntry.id).where(
+            GiftCardEntry.site_id == site.id, GiftCardEntry.tenant_id == site.tenant_id,
+            GiftCardEntry.order_id == order.id, GiftCardEntry.kind == 'redemption'))
+        if gift_payment:
+            # Keep the purchased item/shipping allocation intact for quantity and
+            # restock accounting. Only the provider command is capped; the other
+            # tender is reversed by its own append-only ledger on completion.
+            amount = available
     if amount <= 0 or amount > available:
         raise CommerceError('Computed refund exceeds the available captured amount or has no value.')
     return dict(amount_minor=amount, lines_json=selections, shipping_minor=shipping_minor,
@@ -714,6 +732,9 @@ def detail(db, site, link_id):
         .order_by(ReturnRequest.created_at.desc())))
     return dict(link=link, order=order, customer=customer, timeline=orders.timeline(db, site, link, order),
         returns=returns, captured=captured, refunded=refunded, available=available, payment_provider=payment_provider,
+        gift_only_payment=any(p.provider == 'gift_card:'+site.id for p in paid_transactions)
+            and sum(p.amount_minor * (-1 if p.kind == 'refund' else 1) for p in paid_transactions
+                if p.provider != 'gift_card:'+site.id and p.kind in {'charge', 'refund'}) <= 0,
         prev_id=siblings[index-1] if index else None,
         next_id=siblings[index+1] if index+1 < len(siblings) else None,
         fulfilment_label=fulfilment_label(order))

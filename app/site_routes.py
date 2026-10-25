@@ -144,6 +144,14 @@ def register_site_routes(rt):
         except CommerceError:
             return RedirectResponse("/login?next=/admin/sites", status_code=303)
 
+    from app.admin_gap_routes import register_admin_gap_routes
+    register_admin_gap_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.content_gap_routes import register_content_gap_routes
+    register_content_gap_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.commerce_gap_routes import register_commerce_gap_routes
+    register_commerce_gap_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.theme_bulk_routes import register_theme_bulk_routes
+    register_theme_bulk_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_media_routes import register_media_routes
     register_media_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_editor_routes import register_site_editor_routes
@@ -679,6 +687,8 @@ def register_site_routes(rt):
                     A("Open visual editor", href=f"/admin/sites/{site.id}/editor?page={page.id}"),
                     A("Browse media library", href=f"/admin/sites/{site.id}/media", target="_blank"), cls="e-actions"),
                     Div(Form(csrf(session), Input(type="hidden", name="version", value=page.version),
+                        Label("URL path", Input(name="path", value=page.path, required=True)),
+                        Label(Input(type="hidden", name="create_redirect", value="off"), Input(type="checkbox", name="create_redirect", value="on", checked=True), " Create redirect when the path changes"),
                         Label("Page title", Input(name="title", value=document["title"], required=True, maxlength=240)),
                         Label("SEO description", Textarea(document.get("description", ""), name="description", rows=3, maxlength=320)),
                         Div(Label("Article image URL", Input(name="article_image", value=document.get("image", ""))),
@@ -696,6 +706,7 @@ def register_site_routes(rt):
                         method="post", action=f"/admin/sites/{site.id}/pages/{page.id}", cls="e-form e-editor-form"),
                         Div(A("Open draft preview ↗", href=f"/admin/sites/{site.id}/preview/{page.id}", target="_blank"),
                             Iframe(src=f"/admin/sites/{site.id}/preview/{page.id}", title="Draft page preview", cls="e-preview"), cls="e-preview-wrap"), cls="e-editor"),
+                    __import__("app.content_gap_routes", fromlist=["custom_data_card"]).custom_data_card(db, site, "page", page.id, csrf(session)),
                     Details(Summary("Revision history"), *[Form(csrf(session), Input(type="hidden", name="version", value=page.version),
                         Input(type="hidden", name="revision", value=r.id), P(str(r.created_at) + " · " + r.action),
                         Button("Restore as draft", cls="e-button"), method="post", action=f"/admin/sites/{site.id}/pages/{page.id}/restore") for r in revisions]))
@@ -713,6 +724,9 @@ def register_site_routes(rt):
                 site = builder.lock_site(db, site.id, user_id, site.version)
                 before = builder.snapshot(db, site)
                 page = content.site_page(db, site, page_id)
+                if "path" in form:
+                    from app.url_redirects import change_page_path
+                    change_page_path(db, site, page, str(form["path"]), create_redirect=form.get("create_redirect", "on") == "on")
                 document = normalize_document(page.draft_json)
                 locale = default_locale(site)
                 document["title"] = merge_localized(document.get("title", ""), str(form.get("title", "")), locale)
@@ -917,6 +931,12 @@ def register_site_routes(rt):
                         return public_message(request, slug, "Category not found", status_code=404, plain=False)
                     if tag and tag not in {t for p in articles_for(db, site) for t in metadata(p.published_json)["tags"]}:
                         return public_message(request, slug, "Tag not found", status_code=404, plain=False)
+            if not page:
+                from app.url_redirects import destination
+                target = destination(db, site, normalized_path)
+                if target:
+                    base = request.scope.get("site_base", f"/sites/{site.slug}") if request else f"/sites/{site.slug}"
+                    return RedirectResponse(base + target if target.startswith("/") else target, 301)
             if not page or not page.published_json:
                 return public_message(request, slug, "Page not found", status_code=404, plain=False)
             if page.product_id:

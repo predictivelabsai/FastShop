@@ -168,6 +168,27 @@ def _render_message(db, row, site, customer=None, user=None):
         )
     if not customer:
         return None
+    if row.kind == "order_edit_invoice":
+        from app.commerce_gap_models import OrderEdit
+        reference = row.reference_json or {}
+        edit = db.scalar(select(OrderEdit).join(SiteOrder, SiteOrder.id == OrderEdit.site_order_id).where(
+            OrderEdit.id == reference.get("order_edit_id"), OrderEdit.site_id == site.id,
+            OrderEdit.tenant_id == site.tenant_id, SiteOrder.customer_id == customer.id,
+            SiteOrder.id == reference.get("site_order_id"), SiteOrder.tenant_id == site.tenant_id,
+            SiteOrder.site_id == site.id))
+        if not edit or edit.settlement != "invoiced" or edit.difference_minor <= 0:
+            return None
+        latest = db.scalar(select(OrderEdit.id).where(OrderEdit.site_id == site.id,
+            OrderEdit.tenant_id == site.tenant_id, OrderEdit.site_order_id == edit.site_order_id)
+            .order_by(OrderEdit.created_at.desc(), OrderEdit.id.desc()))
+        if latest != edit.id:
+            return None
+        link = db.get(SiteOrder, edit.site_order_id)
+        order = db.get(Order, link.order_id)
+        return f"Order invoice - {site.name}", (
+            f"{site.name}\nOrder {order.number}\n\n"
+            f"Amount owing after your order edit: {money(edit.difference_minor, order.currency)}\n\n"
+            "Arrange payment directly with the merchant. This invoice does not charge a card.")
     if row.kind == "draft_invoice":
         from app import draft_orders
         reference = row.reference_json or {}

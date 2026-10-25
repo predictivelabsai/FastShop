@@ -11,6 +11,7 @@ from starlette.responses import RedirectResponse, Response
 from app import content
 from app import order_admin as orders
 from app import order_admin_ui as ui
+from app.content_gap_routes import custom_data_card
 from app.db import SessionLocal
 from app.integrations.stripe_commerce import StripeGateway
 from app.services import CommerceError
@@ -123,7 +124,8 @@ def register_order_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                        and "GET" in (getattr(route, "methods", None) or ())
                        for route in request.app.routes):
                     data["edit_url"] = edit_path
-                return shell(data["order"].number, ui.order_detail(site, data, lambda: csrf(session), notice))
+                return shell(data["order"].number, ui.order_detail(site, data, lambda: csrf(session), notice),
+                    custom_data_card(db, site, "order", site_order_id, csrf(session)))
         except CommerceError as exc:
             return error(exc)
 

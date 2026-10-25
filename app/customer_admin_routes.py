@@ -10,6 +10,7 @@ from starlette.responses import RedirectResponse, Response
 from app import content
 from app import customer_admin as customers
 from app import customer_admin_ui as ui
+from app.content_gap_routes import custom_data_card
 from app.customer_services import orders_for
 from app.db import SessionLocal
 from app.models import CommerceMail
@@ -172,7 +173,8 @@ def register_customer_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                 row = next(row for row in customers.customer_rows(db, site) if row.customer.id == customer.id)
                 return shell(customer.name or customer.email,
                     ui.customer_detail(site, customer, row, orders_for(db, site, customer),
-                        customers.addresses_for(db, site, customer), customers.timeline_for(db, site, customer), csrf(session)))
+                        customers.addresses_for(db, site, customer), customers.timeline_for(db, site, customer), csrf(session)),
+                    custom_data_card(db, site, "customer", customer.id, csrf(session)))
         except CommerceError as exc:
             return error(exc)
 

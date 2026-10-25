@@ -326,9 +326,9 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
                                         name="path",
                                         value=page.path if page else "/blog/",
                                         required=True,
-                                        readonly=bool(page),
                                     ),
                                 ),
+                                Label(Input(type="hidden", name="create_redirect", value="off"), Input(type="checkbox", name="create_redirect", value="on", checked=True), " Create redirect when the path changes"),
                                 Div(
                                     *[
                                         Button(
@@ -462,6 +462,9 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
                 )
                 if page.kind != "article":
                     raise CommerceError("Choose a blog post.")
+                if page_id != "new" and "path" in data:
+                    from app.url_redirects import change_page_path
+                    change_page_path(db, site, page, str(data["path"]), create_redirect=data.get("create_redirect", "on") == "on")
                 version = page.version if page_id == "new" else int(data.get("version", -1))
                 doc = growth_content.article_document(db, site, page, data)
                 action = str(data.get("action", "draft"))
