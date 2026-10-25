@@ -593,7 +593,7 @@ function fieldHTML(f, obj, prefix = "") {
       rows
         .map(
           (item, i) =>
-            `<details class="repeater-item" draggable="true" data-repeater="${esc(path)}" data-index="${i}"><summary>${esc(text(item.heading || item.label) || `Item ${i + 1}`)}</summary>${f.value_list ? `<div class="field-inline"><input data-setting="${esc(path)}.${i}" data-type="product" value="${esc(item)}" aria-label="Product ID"><button data-link="${esc(path)}.${i}" data-resource-type="product" aria-label="Choose product">↗</button></div>` : (f.fields || f.item_fields || []).map((sub) => fieldHTML(sub, item, `${path}.${i}.`)).join("")}<div class="repeater-actions"><button data-repeat-action="up" data-path="${esc(path)}" data-index="${i}" aria-label="Move item up">↑</button><button data-repeat-action="down" data-path="${esc(path)}" data-index="${i}" aria-label="Move item down">↓</button>${f.fixed ? "" : `<button data-repeat-action="remove" data-path="${esc(path)}" data-index="${i}">Remove</button>`}</div></details>`,
+            `<details class="repeater-item" draggable="true" data-repeater="${esc(path)}" data-index="${i}"><summary>${esc(text(item.heading || item.label) || `Item ${i + 1}`)}</summary>${f.value_list ? `<div class="field-inline"><input data-setting="${esc(path)}.${i}" data-type="${esc(f.fields[0].type)}" value="${esc(item)}" aria-label="${esc(f.fields[0].label)} ID"><button data-link="${esc(path)}.${i}" data-resource-type="${esc(f.fields[0].type)}" aria-label="Choose ${esc(f.fields[0].label)}">↗</button></div>` : (f.fields || f.item_fields || []).map((sub) => fieldHTML(sub, item, `${path}.${i}.`)).join("")}<div class="repeater-actions"><button data-repeat-action="up" data-path="${esc(path)}" data-index="${i}" aria-label="Move item up">↑</button><button data-repeat-action="down" data-path="${esc(path)}" data-index="${i}" aria-label="Move item down">↓</button>${f.fixed ? "" : `<button data-repeat-action="remove" data-path="${esc(path)}" data-index="${i}">Remove</button>`}</div></details>`,
         )
         .join("") +
       (f.fixed
@@ -929,7 +929,7 @@ async function openLink(callback, type = "url") {
         )
         .map(
           (p) =>
-            `<button class="link-result" data-link-url="${esc(["product", "collection"].includes(type) ? p.id : p.path)}">${esc(p.title || p.name)} <small>${esc(p.path || "Product category")}</small></button>`,
+            `<button class="link-result" data-link-url="${esc(["product", "collection"].includes(type) ? p.id : p.path)}">${esc(p.title || p.name)} <small>${esc(p.path || "Collection")}</small></button>`,
         )
         .join("") || '<p class="subtle">No matching resources.</p>';
     $$("[data-link-url]").forEach(

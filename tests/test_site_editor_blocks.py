@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.compliance import assert_document_compliant
-from app.content import create_site, site_pages
+from app.content import create_page, create_site, site_pages
 from app.models import Base, User
 from app.services import CommerceError
 from app.site_block_schema import BLOCK_SCHEMAS, default_block, editor_schema
@@ -288,3 +288,71 @@ def test_every_addable_repeater_entry_renders_in_both_themes(context):
                 block = validate_block(default_block(kind) | {"items": [entry]})
                 assert render_section(db, site, page, {}, block, "", "", True) is not None
                 assert render_block(db, site, page, {}, block, "", "", False, True) is not None
+
+
+@pytest.mark.parametrize("kind", ["manual", "automated", "legacy"])
+def test_product_grid_collection_membership_and_legacy_ids(context, kind):
+    from app.catalog_admin import save_collection
+    from app.models import Category, Product, ProductType
+
+    db, site, page = context
+    category = Category(tenant_id=site.tenant_id, name="Legacy", slug="legacy")
+    product_type = ProductType(tenant_id=site.tenant_id, name="Type", slug="type")
+    db.add_all([category, product_type])
+    db.flush()
+    products = [Product(tenant_id=site.tenant_id, category_id=category.id,
+        product_type_id=product_type.id, name=name, slug=name.lower(), is_published=True)
+        for name in ("Included", "Excluded")]
+    db.add_all(products)
+    db.flush()
+    for product in products:
+        published = create_page(
+            db, site, product.name, "/products/" + product.slug, "product")
+        published.product_id = product.id
+        published.published_json = dict(published.draft_json)
+    if kind == "legacy":
+        identifier = category.id
+    else:
+        collection = save_collection(db, site, {
+            "title": "Featured", "handle": "featured", "kind": kind,
+            "product_ids": [products[0].id],
+            "rules_json": {"match": "all", "rules": [
+                {"field": "title", "operator": "equals", "value": "Included"}]},
+        })
+        identifier = collection.id
+    block = default_block("product_grid") | {"collection": identifier, "limit": 1}
+    markup = to_xml(render_section(db, site, page, {}, block, "", "csrf", preview=True))
+    assert "Included" in markup and "Excluded" not in markup
+    if kind != "legacy":
+        block = default_block("collection_list") | {"collections": [identifier]}
+        markup = to_xml(render_section(db, site, page, {}, block, "", "csrf", preview=True))
+        assert "Featured" in markup and "/collections/featured" in markup
+
+
+def test_collection_list_schema_and_id_validation():
+    field = next(f for f in editor_schema()["collection_list"]["fields"] if f["id"] == "collections")
+    assert field["value_list"] and field["fields"][0]["type"] == "collection"
+    with pytest.raises(CommerceError, match="valid collections"):
+        validate_block(default_block("collection_list") | {"collections": ["../private"]})
+
+
+def test_collection_widgets_do_not_render_foreign_or_private_collections(context):
+    from app.models import Collection
+
+    db, site, page = context
+    foreign_user = User(email="foreign-widget@example.test", name="Other owner")
+    db.add(foreign_user)
+    db.flush()
+    other = create_site(db, foreign_user.id, "Foreign", "foreign-widget-store")
+    foreign = Collection(tenant_id=other.tenant_id, title="Foreign collection", handle="foreign")
+    private = Collection(tenant_id=site.tenant_id, title="Private collection", handle="private",
+                         is_published=False)
+    db.add_all([foreign, private])
+    db.flush()
+    for collection in (foreign, private):
+        for kind in ("product_grid", "collection_list"):
+            values = {"collection": collection.id} if kind == "product_grid" else {"collections": [collection.id]}
+            markup = to_xml(render_section(db, site, page, {}, default_block(kind) | values,
+                                           "", "csrf", preview=True))
+            assert "Choose " in markup
+            assert collection.title not in markup

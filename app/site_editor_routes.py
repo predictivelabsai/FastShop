@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse
 
 from app import content, site_ui
 from app.db import SessionLocal
-from app.models import Category, Membership, Product, SiteMedia, SitePage, SiteRevision, new_id
+from app.models import Collection, Membership, Product, SiteMedia, SitePage, SiteRevision, new_id
 from app.services import CommerceError
 from app.site_blocks import (
     default_locale,
@@ -361,24 +361,22 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     ("/products/" + Product.slug).in_(list(public)),
                 ).order_by(Product.name).limit(500)))
                 products = [p for p in products if not needle or needle in p.name.casefold()][:100]
-                category_ids = {p.category_id for p in products}
-                categories = list(db.scalars(select(Category).where(
-                    Category.tenant_id == site.tenant_id, Category.id.in_(category_ids),
-                ).order_by(Category.name)))
-                locale = default_locale(site)
-                def category_path(category):
-                    return next((p.path for p in public.values() if p.kind == "collection"
-                        and resolve_text(p.published_json.get("category", ""), locale) == category.slug), "")
+                collections = list(db.scalars(select(Collection).where(
+                    Collection.tenant_id == site.tenant_id, Collection.is_published.is_(True),
+                ).order_by(Collection.title)))
+                collections = [c for c in collections
+                               if not needle or needle in c.title.casefold()][:100]
+                collection_paths = {p.collection_id: p.path for p in public.values()
+                                    if p.collection_id}
                 return response({
                     "pages": [{"id": p.id, "title": p.title, "path": p.path, "kind": p.kind}
                               for p in pages if not needle or needle in p.title.casefold()][:100],
                     "products": [{"id": p.id, "title": p.name, "name": p.name,
                                   "path": "/products/" + p.slug, "image": p.image_url} for p in products],
-                    # Category is the current catalogue grouping model. A later catalogue
-                    # phase can adapt this response without changing stored widget ids.
-                    "collections": [{"id": c.id, "title": c.name, "name": c.name,
-                                     "path": category_path(c), "source": "category"} for c in categories],
-                    "collection_label": "Product category",
+                    "collections": [{"id": c.id, "title": c.title, "name": c.title,
+                                     "path": collection_paths.get(c.id, ""),
+                                     "source": "collection"} for c in collections],
+                    "collection_label": "Collection",
                 })
         except CommerceError as exc:
             return failure(exc)

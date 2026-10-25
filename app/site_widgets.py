@@ -77,6 +77,9 @@ WIDGETS = {
         "Commerce",
         {"products": [], "collection": "", "columns": 3, "limit": 6},
     ),
+    "collection_list": (
+        "Collection list", "Commerce", {"collections": [], "columns": 3, "limit": 6},
+    ),
     "newsletter": (
         "Newsletter signup",
         "Forms",
@@ -258,15 +261,12 @@ def validate_widget(block):
             if isinstance(body, dict)
             else sanitise_html(body)
         )
-    if "products" in block and (
-        not isinstance(block["products"], list)
-        or len(block["products"]) > 24
-        or any(
+    for key in {"products", "collections"} & block.keys():
+        if (not isinstance(block[key], list) or len(block[key]) > 24 or any(
             not isinstance(v, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", v)
-            for v in block["products"]
-        )
-    ):
-        raise CommerceError("Choose up to 24 valid products.")
+            for v in block[key]
+        )):
+            raise CommerceError(f"Choose up to 24 valid {key}.")
     if kind in {"video", "html"}:
         from app.content import safe_url
 
@@ -522,26 +522,57 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
             query = query.where(Product.id.in_(identifiers))
         elif kind == "product_card":
             query = query.where(Product.id == "")
-        if kind == "product_grid" and block.get("collection"):
-            from app.models import Category
-
-            query = query.join(Category).where(
-                Category.tenant_id == site.tenant_id, Category.id == block["collection"]
-            )
         from app.content import site_pages
 
         paths = {p.path for p in site_pages(db, site) if p.published_json}
-        products = db.scalars(query.limit(block.get("limit", 1 if kind == "product_card" else 6)))
+        query = query.where(("/products/" + Product.slug).in_(paths))
+        limit = block.get("limit", 1 if kind == "product_card" else 6)
+        if kind == "product_grid" and block.get("collection"):
+            from app.catalog_admin import collection_products
+            from app.models import Category, Collection
+
+            collection = db.scalar(select(Collection).where(
+                Collection.tenant_id == site.tenant_id, Collection.id == block["collection"],
+                Collection.is_published.is_(True),
+            ))
+            if collection:
+                selected = set(db.scalars(query.with_only_columns(Product.id)))
+                products = [p for p in collection_products(db, site, collection) if p.id in selected]
+            else:
+                # Stored category IDs predate P2 and must keep rendering existing pages.
+                products = list(db.scalars(query.join(Category).where(
+                    Category.tenant_id == site.tenant_id, Category.id == block["collection"],
+                ).limit(limit)))
+        else:
+            products = list(db.scalars(query.limit(limit)))
         children = [
             A(
                 Img(src=p.image_url, alt=p.name, loading="lazy") if p.image_url else None,
-                P(p.name),
-                href=base + "/products/" + p.slug,
+                P(p.name), href=base + "/products/" + p.slug,
             )
-            for p in products
-            if "/products/" + p.slug in paths
+            for p in products[:limit]
         ]
         children = children or [Div("Choose products to display", cls="fs-widget-placeholder")]
+        css = f"--fs-columns:{block.get('columns', 3)}"
+    elif kind == "collection_list":
+        from app.content import site_pages
+        from app.models import Collection
+
+        paths = {p.collection_id: p.path for p in site_pages(db, site)
+                 if p.published_json and p.collection_id}
+        query = select(Collection).where(Collection.tenant_id == site.tenant_id,
+                                         Collection.is_published.is_(True))
+        identifiers = block.get("collections", [])
+        if identifiers:
+            query = query.where(Collection.id.in_(identifiers))
+        collections = list(db.scalars(query.order_by(Collection.title)))
+        if identifiers:
+            collections.sort(key=lambda c: identifiers.index(c.id))
+        children = [A(
+            Img(src=c.image_url, alt=c.title, loading="lazy") if c.image_url else None,
+            P(c.title), href=base + paths[c.id],
+        ) for c in [c for c in collections if c.id in paths][:block.get("limit", 6)]]
+        children = children or [Div("Choose collections to display", cls="fs-widget-placeholder")]
         css = f"--fs-columns:{block.get('columns', 3)}"
     elif kind == "newsletter":
         from app.commerce import payments_enabled, settings_for
@@ -599,7 +630,7 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
             for i in block.get("items", [])
         ]
     classes = "fs-widget fs-widget-" + kind
-    if kind in {"container", "image_gallery", "product_grid"}:
+    if kind in {"container", "image_gallery", "product_grid", "collection_list"}:
         classes += " fs-widget-grid"
         if block.get("stack_mobile", True):
             classes += " fs-stack-mobile"

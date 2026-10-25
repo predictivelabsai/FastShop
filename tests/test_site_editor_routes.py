@@ -236,8 +236,8 @@ def test_restore_never_changes_publication_and_cannot_cross_pages(workspace):
         assert page.published_json == public_snapshot
         assert page.version == version + 1
 
-def test_resource_picker_scopes_public_products_and_adapts_categories(workspace):
-    from app.models import Category, Product, ProductType
+def test_resource_picker_scopes_products_and_uses_published_collections(workspace):
+    from app.models import Category, Collection, Product, ProductType
 
     w = workspace
     load(w)
@@ -260,13 +260,21 @@ def test_resource_picker_scopes_public_products_and_adapts_categories(workspace)
             document={"title": "Samples", "category": "samples", "sections": []})
         content.save_page(db, site, category_page.id, w.owner.id,
                           category_page.draft_json, category_page.version, "publish")
-        product_id, category_id = product.id, category.id
+        collection = Collection(tenant_id=site.tenant_id, title="Sample collection", handle="samples")
+        db.add_all([collection,
+            Collection(tenant_id=site.tenant_id, title="Private collection", handle="private", is_published=False),
+            Collection(tenant_id=w.other.tenant_id, title="Foreign collection", handle="foreign")])
+        db.flush()
+        category_page.collection_id = collection.id
+        product_id, collection_id = product.id, collection.id
         db.commit()
     result = w.client.get(w.base + "/resources").json()
     assert [p["id"] for p in result["products"]] == [product_id]
-    assert result["collections"] == [{"id": category_id, "title": "Sample grouping",
-        "name": "Sample grouping", "path": "/samples", "source": "category"}]
-    assert result["collection_label"] == "Product category"
+    assert result["collections"] == [{"id": collection_id, "title": "Sample collection",
+        "name": "Sample collection", "path": "/samples", "source": "collection"}]
+    assert result["collection_label"] == "Collection"
+    assert w.client.get(w.base + "/resources?q=not-found").json()["collections"] == []
+    assert len(w.client.get(w.base + "/resources?q=collection").json()["collections"]) == 1
     assert w.client.get(w.base + "/resources?q=not-found").json()["products"] == []
     assert w.client.get(f"/admin/sites/{w.other.id}/editor/api/resources").status_code == 403
 

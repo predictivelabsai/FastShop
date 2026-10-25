@@ -41,10 +41,11 @@ def _field(key, default="", *, choices=None):
         kind = "colour"
     elif bare in {"product", "collection"}:
         kind = bare
-    elif bare == "products":
+    elif bare in {"products", "collections"}:
+        resource = "product" if bare == "products" else "collection"
         kind = "repeater"
         data = {
-            "fields": [{"id": "product", "label": "Product", "type": "product", "default": ""}],
+            "fields": [{"id": resource, "label": resource.capitalize(), "type": resource, "default": ""}],
             "min": 0,
             "max": 24,
             "value_list": True,
@@ -281,8 +282,8 @@ def _registry():
                     "Safe formatting only. Scripts and inline event handlers are removed."
                 )
             if key == "collection":
-                field["label"] = "Collection / category"
-                field["help"] = "Uses this store’s existing catalogue categories."
+                field["label"] = "Collection"
+                field["help"] = "Choose a published catalogue collection."
             fields.append(field)
         fields += copy.deepcopy(STYLE_SCHEMA)
         schemas[kind] = {
