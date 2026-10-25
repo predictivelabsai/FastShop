@@ -9,7 +9,7 @@ from app import admin_gap_ui as ui
 from app import admin_views as views
 from app import content, locations
 from app.admin_activity import activities_for, activity_context
-from app.admin_ui import card, index_table
+from app.admin_ui import card, empty_state, index_table, page_header
 from app.db import SessionLocal
 from app.services import CommerceError
 
@@ -76,9 +76,10 @@ def register_admin_gap_routes(rt, actor, csrf, check_csrf, shell, error):
                 site = content.owned_site(db, site_id, actor(session))
                 rows = locations.locations_for(db, site)
                 base = f"/admin/sites/{site.id}/settings/locations"
-                return shell("Locations", index_table(["Location", "Address", "Status", "Online orders", "Default"], [
+                return shell("Locations", page_header("Locations", back_href=f"/admin/sites/{site.id}/settings"), index_table(["Location", "Address", "Status", "Online orders", "Default"], [
                     [A(r.name, href=base + "/" + r.id), ", ".join(v for v in (r.address_json or {}).values() if v),
-                     "Active" if r.is_active else "Inactive", "Yes" if r.fulfils_online_orders else "No", "Yes" if r.is_default else ""] for r in rows]),
+                     "Active" if r.is_active else "Inactive", "Yes" if r.fulfils_online_orders else "No", "Yes" if r.is_default else ""] for r in rows], search="Search locations") if rows else
+                    empty_state("Add your first location", "Manage where you store stock and fulfil online orders."),
                     card(ui.location_form(site, None, csrf(session)), title="Add location"))
         except CommerceError as exc:
             return error(exc)
@@ -89,7 +90,7 @@ def register_admin_gap_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
                 row = locations.location_for(db, site, location_id)
-                return shell("Edit location", card(ui.location_form(site, row, csrf(session))),
+                return shell("Edit location", page_header("Edit location", back_href=f"/admin/sites/{site.id}/settings/locations"), card(ui.location_form(site, row, csrf(session))),
                     card(Form(csrf(session), Button("Delete location"), method="post",
                          action=f"/admin/sites/{site.id}/settings/locations/{row.id}/delete")),
                     ui.activity_card(db, site, "location", row.id))

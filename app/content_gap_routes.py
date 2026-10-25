@@ -25,7 +25,7 @@ from fasthtml.common import (
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from app import content, custom_data, store_preferences, url_redirects
-from app.admin_ui import card, page_header
+from app.admin_ui import card, empty_state, page_header
 from app.auth import password_attempt_allowed
 from app.content_gap_models import CustomDataValue
 from app.db import SessionLocal
@@ -81,7 +81,7 @@ def custom_data_card(db, site, owner_type, owner_id, csrf_input):
         variant = custom_data.owner(db, site, owner_type, owner_id)
         title += ": " + (variant.name or variant.sku)
     return card(Link(rel="stylesheet", href="/static/content-gaps.css"), H2(title), Form(csrf_input, *fields,
-        Button("Save custom data", cls="a-button a-button-primary") if defs else P("No definitions yet."),
+        Button("Save custom data", cls="a-button a-button-primary") if defs else P("Add a definition to start storing custom data on this resource."),
         method="post", cls="e-form cg-form", action=f"/admin/sites/{site.id}/custom-data/{owner_type}/{owner_id}"),
         A("Manage definitions", href=f"/admin/sites/{site.id}/settings/custom-data"))
 
@@ -108,13 +108,13 @@ def register_content_gap_routes(rt, actor, csrf, check_csrf, shell, error):
                 def value(key, default=""):
                     return getattr(selected, key, default) if selected else default
                 action = base(site.id) + "/settings/custom-data"
-                return shell("Custom data", page_header("Custom data"), P(notice, role="status"),
+                return shell("Custom data", page_header("Custom data", back_href=base(site.id) + "/settings"), P(notice, role="status"),
                     card(scroll_table(Thead(Tr(*[Th(x) for x in ["Name", "Owner", "Namespace.key", "Type", "Order", "Actions"]])),
                         Tbody(*[Tr(Td(d.name), Td(d.owner_type.title()), Td(d.namespace + "." + d.key),
                             Td(d.value_type.replace("_", " ")), Td(d.pinned_order),
                             Td(A("Edit", href=action + "?definition=" + d.id),
                                Form(csrf(session), Input(name="definition_id", value=d.id, type="hidden"),
-                                    Button("Delete", name="action", value="delete"), method="post", action=action))) for d in defs]))),
+                                    Button("Delete", name="action", value="delete"), method="post", action=action))) for d in defs]))) if defs else empty_state("Add your first definition", "Define reusable fields for products, variants, collections and pages."),
                     card(H2("Edit definition" if selected else "Add definition"), Form(csrf(session),
                         Input(name="definition_id", value=value("id"), type="hidden"),
                         Label("Name", Input(name="name", value=value("name"), required=True, maxlength=160)),
@@ -189,7 +189,7 @@ def register_content_gap_routes(rt, actor, csrf, check_csrf, shell, error):
                 media = [m for m in media_for(db, site) if m.content_type.startswith("image/")]
                 def value(key):
                     return getattr(row, key, "") if row else ""
-                return shell("Preferences", page_header("Online Store preferences"), P(notice, role="status"),
+                return shell("Preferences", page_header("Online Store preferences", back_href=base(site.id) + "/editor"), P(notice, role="status"),
                     card(Form(csrf(session), H2("Search engine listing"),
                         Label("Homepage title", Input(name="homepage_title", value=value("homepage_title"), maxlength=240)),
                         Label("Meta description", Textarea(value("meta_description"), name="meta_description", maxlength=500)),
@@ -229,13 +229,12 @@ def register_content_gap_routes(rt, actor, csrf, check_csrf, shell, error):
                 path = base(site.id) + "/redirects"
                 rows = url_redirects.redirects(db, site, q)
                 selected = next((r for r in url_redirects.redirects(db, site) if r.id == edit), None)
-                return shell("URL redirects", page_header("URL redirects"), P(notice, role="status"),
-                    card(Form(Input(name="q", value=q, placeholder="Search redirects"), Button("Search"), method="get"),
-                        A("Export CSV", href=path + "/export"),
+                return shell("URL redirects", page_header("URL redirects", secondary_actions=[A("Export CSV", href=path + "/export", cls="a-button")]), P(notice, role="status"),
+                    card(Form(Label("Search redirects", Input(name="q", value=q, placeholder="Search redirects")), Button("Search"), method="get", action=path, cls="a-filter-bar"),
                         scroll_table(Thead(Tr(Th("From"), Th("To"), Th("Actions"))), Tbody(*[
                             Tr(Td(r.source), Td(r.target), Td(A("Edit", href=path + "?edit=" + r.id),
                                 Form(csrf(session), Input(name="redirect_id", value=r.id, type="hidden"),
-                                    Button("Delete", name="action", value="delete"), action=path, method="post"))) for r in rows]))),
+                                    Button("Delete", name="action", value="delete"), action=path, method="post"))) for r in rows]))) if rows else card(Form(Label("Search redirects", Input(name="q", value=q, placeholder="Search redirects")), Button("Search"), method="get", action=path, cls="a-filter-bar"), empty_state("No redirects found" if q else "Add your first redirect", "Keep old links working by redirecting visitors to the current page.")),
                     card(H2("Edit redirect" if selected else "Create redirect"), Form(csrf(session),
                         Input(name="redirect_id", value=selected.id if selected else "", type="hidden"),
                         Label("Redirect from", Input(name="source", value=selected.source if selected else "", required=True, placeholder="/old-path")),

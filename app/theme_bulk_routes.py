@@ -5,7 +5,7 @@ from fasthtml.common import H2, A, Button, Div, Form, Input, Label, NotStr, P, S
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from app import bulk_edit, content, theme_library
-from app.admin_ui import card
+from app.admin_ui import card, empty_state, page_header
 from app.db import SessionLocal
 from app.services import CommerceError
 
@@ -20,7 +20,7 @@ def register_theme_bulk_routes(rt, actor, csrf, check_csrf, shell, error):
                 csrf(session)
                 config = json.dumps({"site": site.id, "csrf": session["csrf_token"],
                     "rows": rows, "locations": locations}).replace("<", "\\u003c")
-                return shell("Bulk editor", P("Edit prices in minor currency units. Stock is on-hand stock."),
+                return shell("Bulk editor", page_header("Bulk editor", back_href=f"/admin/sites/{site.id}/products"), P("Edit prices in minor currency units. Stock is on-hand stock."),
                     card(Div(id="bulk-grid"),
                         NotStr('<script type="application/json" id="bulk-grid-data">' + config + '</script>'),
                         Script(src="/static/admin/bulk-editor.js", defer=True)))
@@ -67,11 +67,11 @@ def register_theme_bulk_routes(rt, actor, csrf, check_csrf, shell, error):
                         form(theme, "publish", "Roll back" if theme.kind == "revision" else "Publish"),
                         form(theme, "rename", "Rename", Label("Theme name", Input(name="name", value=theme.name,
                             maxlength=160, required=True))), form(theme, "delete", "Delete")))
-                return shell("Themes", card(H2("Current theme"), P("Published design and page drafts"),
+                return shell("Themes", page_header("Themes", primary_action=A("Customise current theme", href=f"/admin/sites/{site.id}/editor", cls="a-button")), card(H2("Current theme"), P("Published design and page drafts"),
                     A("Customise", href=f"/admin/sites/{site.id}/editor", cls="a-button"),
                     Form(csrf(session), Label("Copy name", Input(name="name", value="Theme copy",
                         maxlength=160, required=True)), Button("Duplicate current theme", cls="a-button"),
-                        method="post", action=base + "/duplicate", cls="e-actions")), *items)
+                        method="post", action=base + "/duplicate", cls="e-actions")), *(items or [empty_state("Build your theme library", "Duplicate the current theme to try changes before publishing.")]))
         except CommerceError as exc:
             return error(exc)
 

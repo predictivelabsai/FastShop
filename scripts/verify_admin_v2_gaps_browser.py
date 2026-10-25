@@ -204,6 +204,17 @@ def journey(browser, base, fixture, device, width, height):
             columns.locator("summary").click()
             columns.get_by_label(hidden, exact=True).uncheck()
             columns.get_by_role("button", name="Save columns", exact=True).click()
+            expect(page.locator(".a-filter-toolbar .a-view-controls")).to_be_visible()
+            # Fetch filtering must retain the saved column preference on desktop and mobile.
+            search = page.locator('.a-filter-bar input[name="q"]')
+            search.fill("no-matching-row-for-column-check")
+            expect(page.locator(".a-filter-status")).to_have_text("Results updated")
+            search.fill("")
+            page.wait_for_function("!new URL(location.href).searchParams.get('q')")
+            expect(page.locator(".a-filter-status")).to_have_text("Results updated")
+            expect(page.locator(".a-filter-toolbar .a-view-controls")).to_be_visible()
+            header = page.locator("main table thead th").filter(has_text=hidden).first
+            expect(header).to_be_hidden()
             capture(page, device, "06-saved-view-" + resource)
 
         # 7. Add, rename and retire an uncommitted location.

@@ -14,10 +14,10 @@
   ];
   const esc = value => String(value ?? '').replace(/[&<>"']/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  root.innerHTML = '<div class="e-actions"><details><summary>Columns</summary>' + columns.map(([key, label]) =>
+  root.innerHTML = '<div class="e-actions"><details class="a-view-popover"><summary class="a-button">Columns</summary><div class="a-filter-panel">' + columns.map(([key, label]) =>
     `<label><input type="checkbox" data-column="${esc(key)}" checked> ${esc(label)}</label>`).join('') +
-    '</details><button type="button" class="a-button" id="bulk-copy">Copy focused cell down</button>' +
-    '<button type="button" class="a-button" id="bulk-save">Save changes</button>' +
+    '</div></details><button type="button" class="a-button" id="bulk-copy">Copy focused cell down</button>' +
+    '<button type="button" class="a-button a-button-primary" id="bulk-save">Save changes</button>' +
     '<span role="status" aria-live="polite" id="bulk-status"></span></div>' +
     '<div class="a-table-wrap"><table role="grid" aria-label="Product bulk editor"><thead><tr><th>Product / variant</th>' +
     columns.map(([key,label]) => `<th data-col="${esc(key)}">${esc(label)}</th>`).join('') +
@@ -102,4 +102,11 @@
     finally {event.target.disabled = false;}
   };
   render();
+  if (!rows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'a-empty'; empty.textContent = 'No variants to edit. Add a product variant before using the bulk editor.';
+    root.append(empty);
+    root.querySelector('#bulk-save').disabled = true;
+    root.querySelector('#bulk-copy').disabled = true;
+  }
 })();

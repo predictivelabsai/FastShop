@@ -27,7 +27,7 @@ from starlette.responses import RedirectResponse
 
 from app import content, gift_cards, order_edits
 from app import order_management as orders
-from app.admin_ui import card, page_header
+from app.admin_ui import card, empty_state, index_table, page_header
 from app.commerce_gap_models import GiftCardEntry, OrderEdit
 from app.db import SessionLocal
 from app.models import ProductVariant
@@ -61,10 +61,10 @@ def register_commerce_gap_routes(rt, actor, csrf, check_csrf, shell, error):
                 rows = gift_cards.list_cards(db, site, q)
                 return shell('Gift cards', panel(page_header('Gift cards'), P(notice) if notice else None,
                     P('Sandbox gift cards reduce the payment due and keep a balance history.'),
-                    Form(field('Search codes', 'q', q), Button('Search'), method='get'),
-                    card(H2('Gift cards'), Table(Thead(Tr(Th('Code'), Th('Balance'), Th('Status'))),
-                        Tbody(*[Tr(Td(A(c.code, href=root+'/'+c.id)), Td(money(c.balance_minor, c.currency)),
-                            Td('Active' if c.enabled else 'Disabled')) for c in rows]))),
+                    card(Form(field('Search codes', 'q', q), Button('Search'), method='get', action=root, cls='a-filter-bar'),
+                        index_table(['Code', 'Balance', 'Status'], [[A(c.code, href=root+'/'+c.id), money(c.balance_minor, c.currency),
+                            'Active' if c.enabled else 'Disabled'] for c in rows]) if rows else
+                        empty_state('No gift cards found' if q else 'Issue your first gift card', 'Issue a gift card below, then track its balance and payment history.')),
                     card(H2('Issue gift card'), Form(token(session),
                         field('Code', 'code', required=True, minlength=8, maxlength=64),
                         field('Initial value (minor units)', 'amount_minor', type='number', min=1, required=True),

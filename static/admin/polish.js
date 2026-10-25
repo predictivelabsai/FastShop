@@ -140,7 +140,7 @@
       });
       form.addEventListener('change', () => setTimeout(update, 0)); update();
     });
-    const listPage = /\/(products|orders|customers|discounts|collections|inventory|drafts|subscriptions|pages|blog-posts|files)$/.test(location.pathname);
+    const listPage = /\/(products|orders|customers|discounts|collections|inventory|drafts|subscriptions|pages|blog-posts|files|redirects|gift-cards)$/.test(location.pathname);
     if (listPage) root.querySelectorAll('form[method=get]').forEach(form => {
       if (form.closest('dialog') || !form.querySelector('[name=q]') || form.dataset.filterReady) return;
       form.dataset.filterReady = 'true'; form.classList.add('a-filter-bar');
@@ -218,9 +218,9 @@
   };
   document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
-    document.querySelectorAll('.a-filter-popover[open], .a-sort-popover[open], .c-more[open], .p3-more-actions[open], .a-store-switcher[open], .a-user-menu[open]').forEach(details => { details.open = false; details.querySelector('summary')?.focus(); });
+    document.querySelectorAll('.a-filter-popover[open], .a-sort-popover[open], .a-view-popover[open], .c-more[open], .p3-more-actions[open], .a-store-switcher[open], .a-user-menu[open]').forEach(details => { details.open = false; details.querySelector('summary')?.focus(); });
   });
-  document.addEventListener('click', event => document.querySelectorAll('.a-filter-popover[open], .a-sort-popover[open], .c-more[open], .p3-more-actions[open]').forEach(details => { if (!details.contains(event.target)) details.open = false; }));
+  document.addEventListener('click', event => document.querySelectorAll('.a-filter-popover[open], .a-sort-popover[open], .a-view-popover[open], .c-more[open], .p3-more-actions[open]').forEach(details => { if (!details.contains(event.target)) details.open = false; }));
   // Window receives bubbling submits after page-specific document handlers.
   window.addEventListener('submit', async event => {
     const form = event.target;
