@@ -61,6 +61,7 @@ def isolate(data_dir: str, port: int) -> None:
         "FASTSHOP_ALLOW_PASSWORD_LOGIN": "1",
         "FASTSHOP_ENABLE_SCHEDULER": "0",
         "FASTSHOP_IMAGE_PROVIDER": "placeholders",
+        "FASTSHOP_SESSION_SECRET": uuid4().hex + uuid4().hex,
     })
     for key in (
         "XAI_API_KEY", "POSTMARK_API_TOKEN", "POSTMARK_SERVER_TOKEN",
@@ -69,24 +70,27 @@ def isolate(data_dir: str, port: int) -> None:
         "GOOGLE_CLIENT_SECRET", "FASTSHOP_BILLING_STRIPE_SECRET_KEY",
         "FASTSHOP_BILLING_STRIPE_WEBHOOK_SECRET", "FASTSHOP_ENCRYPTION_KEY",
         "FASTSHOP_STORE_KEY_ENCRYPTION_KEY",
+        "PAYPAL_CLIENT_ID", "PAYPAL_SECRET",
     ):
         os.environ[key] = ""
     # Site-specific provider credentials must also remain unavailable.
     for key in tuple(os.environ):
-        if key.startswith(("FASTSHOP_STRIPE_", "FASTSHOP_WOOCOMMERCE_")):
+        if key.startswith(("FASTSHOP_STRIPE_", "FASTSHOP_WOOCOMMERCE_",
+                           "FASTSHOP_PAYPAL_", "FASTSHOP_WORDPRESS_")):
             os.environ[key] = ""
 
 
 def seed_order() -> str:
     from sqlalchemy import select
 
-    from app import customer_services
+    from app import content, customer_services
     from app.db import SessionLocal
-    from app.models import Order, Site, SiteOrder
+    from app.models import Order, SiteOrder, User
 
     with SessionLocal() as db:
-        site = db.scalar(select(Site).where(Site.slug == "h24you"))
-        assert site is not None, "The existing h24you bootstrap site must exist"
+        user = db.scalar(select(User).where(User.email == EMAIL))
+        assert user is not None, "The disposable administrator must exist"
+        site = content.create_site(db, user.id, "Browser acceptance", "browser-foundation")
         customer = customer_services.customer_for(db, site, "buyer-p1@example.test", create=True)
         order = Order(
             tenant_id=site.tenant_id, channel_id=site.channel_id,
@@ -101,6 +105,17 @@ def seed_order() -> str:
         site_id = site.id
         db.commit()
         return site_id
+
+
+def login(page, destination: str, email: str = EMAIL, password: str = PASSWORD) -> None:
+    """Exercise password login with no explicit next destination."""
+    page.goto("/login")
+    assert page.url.endswith("/login"), page.url
+    page.get_by_label("Email address", exact=True).fill(email)
+    page.get_by_label("Password", exact=True).fill(password)
+    page.get_by_role("button", name="Sign in", exact=True).click()
+    page.wait_for_url("**" + destination)
+    expect(page.locator(".a-shell")).to_be_visible()
 
 
 def screenshot(page, device: str, name: str) -> None:
