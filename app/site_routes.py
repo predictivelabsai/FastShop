@@ -346,7 +346,7 @@ def register_site_routes(rt):
                         ),
                         cls="e-dashboard-section e-dashboard-action-section",
                     ),
-                    ))
+                    open=not sites))
         except CommerceError as exc:
             return error(exc)
 

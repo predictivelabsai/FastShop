@@ -40,7 +40,6 @@ from fasthtml.common import (
     Title,
     Tr,
 )
-from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import User
