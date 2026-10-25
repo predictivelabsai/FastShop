@@ -69,6 +69,7 @@ legacy `Order` IDs and foreign or sibling-store links cannot reveal an order.
 | Browser exceptions, console errors and unexpected failures | Zero | Zero |
 | Server event-loop errors | Zero; clean shutdown | Zero; clean shutdown |
 | Provider-isolation sentinel smoke check | Passed | Passed |
+| Final migration hygiene checks | Not applicable | 16 focused tests; populated legacy upgrade/check passed |
 
 The downstream skip is the optional PowerPoint documentation module because
 `python-pptx` is absent from that virtual environment. The application suite has
@@ -102,11 +103,18 @@ Only four generic entry screenshots per tree are selected for the commit.
 
 ## Port parity and working files
 
-Twelve changed files have identical contents in both trees. Five other changed
-files retain exactly their pre-existing baseline differences, verified by
+Within the generic application, test and verifier patch, twelve changed files
+have identical contents in both trees. Five other files retain exactly their
+pre-existing baseline differences, verified by
 comparing zero-context differences before and after the patch. All generic
 behaviour is identical. The upstream source, tests, scripts, docs and static
 assets were checked for prohibited customer references.
+
+The final whole-repository scan also found an inherited customer-specific plan
+seed in an old upstream migration. That upstream-only reference was removed,
+retaining the generic demonstration tenant. After the full application suite,
+the cleanup passed 16 plan/migration tests and a populated pre-plan schema upgrade
+to head followed by an Alembic drift check. No schema definition changed.
 
 The approved planning document is retained only in the downstream tree. No task
 working files are committed upstream. The four completed task working files were
@@ -115,7 +123,7 @@ worktrees containing generated verification artefacts.
 
 ## Implementation commits
 
-These lists precede the final verification-record commit.
+These lists precede the final verification-record update.
 
 ### Downstream
 
@@ -130,6 +138,7 @@ These lists precede the final verification-record commit.
 47de50a Expose store creation in the empty picker and tidy shell imports
 87817c3 Use shared components and isolate connector verification
 7afc9f3 Clear inherited connector configuration during verification
+f59198a Record merchant entry verification and route mapping
 ```
 
 ### Upstream
@@ -138,6 +147,8 @@ These lists precede the final verification-record commit.
 1ae67b8 Consolidate merchant entry points in store administration
 436296a Use shared components and isolate connector verification
 81e9212 Clear inherited connector configuration during verification
+b25ec95 Record merchant entry verification and route mapping
+5407138 Remove customer-specific migration seed
 ```
 
 Open questions: none. Remaining task-worktree artefacts are local cleanup only.
