@@ -102,8 +102,8 @@
 .a-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .a-shell button, .a-shell .a-button, .a-shell .e-button, .a-shell .e-button-inverse { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 7px 12px; border: 1px solid #bdbdc1; border-radius: 8px; background: #fff; color: var(--a-ink); font-size: 12px; font-weight: 600; line-height: 1.4; cursor: pointer; box-shadow: 0 1px 1px #0000000a; text-decoration: none; }
 .a-shell button:hover, .a-shell .a-button:hover, .a-shell .e-button:hover { background: #f0f0f1; }
-.a-shell .a-button-primary, .a-shell .e-button:not(.secondary), .a-shell button[type="submit"] { background: #303033; color: #fff; border-color: #252527; box-shadow: inset 0 1px #ffffff26, 0 1px 2px #0002; }
-.a-shell .a-button-primary:hover, .a-shell .e-button:not(.secondary):hover { background: #171719; }
+.a-shell .a-button-primary, .a-shell .a-primary, .a-shell .e-button.primary { background: #303033; color: #fff; border-color: #252527; box-shadow: inset 0 1px #ffffff26, 0 1px 2px #0002; }
+.a-shell .a-button-primary:hover, .a-shell .a-primary:hover, .a-shell .e-button.primary:hover { background: #171719; }
 .a-shell button:disabled { opacity: .5; cursor: not-allowed; }
 .a-shell input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), .a-shell select, .a-shell textarea { max-width: 100%; min-height: 36px; min-width: 0; padding: 8px 10px; border: 1px solid #a6a6ac; border-radius: 8px; background: #fff; color: var(--a-ink); font: inherit; box-shadow: inset 0 1px 2px #00000005; }
 .a-shell textarea { min-height: 100px; }
@@ -258,3 +258,98 @@
 
 .a-toast { display: flex; align-items: center; gap: 16px; }
 .a-shell .a-toast button { min-width: 28px; min-height: 28px; padding: 2px 6px; border: 0; background: transparent; color: inherit; box-shadow: none; font-size: 20px; }
+
+/* Shared control and index polish. Kept here so legacy screens use the same tokens. */
+.a-content a:not([class]), .a-shell .a-text-link { text-decoration: none; }
+.a-content a:not([class]):hover, .a-shell .a-text-link:hover { text-decoration: underline; }
+.a-shell .a-back-button { display: inline-grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 8px; color: var(--a-ink); text-decoration: none; }
+.a-shell .a-back-button:hover { background: #e7e7e9; text-decoration: none; }
+.a-shell .a-heading { gap: 10px; }
+.a-shell h1[tabindex='-1']:focus { outline: none; }
+.a-shell .a-table-wrap.a-card { padding: 0; }
+.a-shell form.e-form:has(> .a-index-table) { width: 100%; max-width: none; }
+.a-shell .a-table-tools:empty { display: none; }
+.a-shell .a-index-table { padding: 0; }
+.a-shell .a-index-table > .a-table-wrap { margin: 0; border: 0; }
+.a-shell .a-header > div:first-child { min-width: 0; }
+.a-shell .a-header h1 { overflow-wrap: anywhere; }
+.a-shell .a-actions { margin-left: auto; }
+.a-shell select:not([multiple]) { appearance: none; padding-right: 34px; min-height: 36px; border-radius: 8px; background-color: var(--a-surface); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23525258' stroke-width='1.8'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; background-size: 18px; cursor: pointer; }
+.a-shell input:is([type=date], [type=datetime-local], [type=time]) { min-height: 36px; border-radius: 8px; color-scheme: light; font-variant-numeric: tabular-nums; }
+.a-shell input::-webkit-calendar-picker-indicator { opacity: .65; cursor: pointer; padding: 2px; }
+.a-shell label { line-height: 1.5; }
+.a-content form > label, .a-content .e-field { margin-bottom: 12px; }
+.a-shell .a-dropzone { display: grid; gap: 8px; place-items: center; padding: 24px 16px; width: 100%; border: 1px dashed #96969d; border-radius: 10px; background: #fafafa; text-align: center; margin-block: 8px 16px; }
+.a-dropzone > span { color: var(--a-muted); font-size: 12px; overflow-wrap: anywhere; }
+.a-dropzone:focus-within, .a-dropzone.is-dragging { border-color: var(--a-accent); background: #edf4ff; }
+.a-shell input[type=file] { width: 100%; max-width: 360px; border: 0; box-shadow: none; background: transparent; }
+.a-shell input[type=file]::file-selector-button { padding: 7px 12px; border: 1px solid #bdbdc1; border-radius: 8px; background: #fff; color: var(--a-ink); font: inherit; font-weight: 600; cursor: pointer; margin-right: 10px; }
+.a-shell input.a-switch { appearance: none; width: 32px !important; height: 20px !important; min-height: 20px !important; flex: 0 0 32px; border: 1px solid #77777e; border-radius: 20px; background: #8a8a90; position: relative; cursor: pointer; padding: 0; }
+.a-shell input.a-switch::after { content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: transform .15s ease-out; box-shadow: 0 1px 2px #0003; }
+.a-shell input.a-switch:checked { background: #303033; border-color: #303033; }
+.a-shell input.a-switch:checked::after { transform: translateX(12px); }
+.a-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-block: 6px 12px; }
+.a-tag-list { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.a-shell .a-tags > input { flex: 1; width: 100px; }
+.a-tag { display: inline-flex; align-items: center; padding-left: 9px; border-radius: 6px; background: #ececef; font-size: 12px; gap: 4px; }
+.a-shell .a-tag button { border: 0; background: transparent; box-shadow: none; min-height: 28px; padding: 2px 7px; font-size: 16px; }
+.a-shell form.a-filter-bar { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; padding: 12px 16px; margin: 0; border-bottom: 1px solid var(--a-line); position: relative; }
+.a-shell .a-filter-bar > .a-filter-search { flex: 1 1 200px; min-width: 120px; margin: 0; width: auto; }
+.a-shell .a-filter-search input { width: 100%; }
+.a-filter-popover, .a-sort-popover { position: relative; align-self: end; }
+.a-shell :is(.a-filter-popover, .a-sort-popover) > summary { list-style: none; min-height: 36px; padding: 8px 12px; }
+:is(.a-filter-popover, .a-sort-popover) > summary::-webkit-details-marker { display: none; }
+.a-shell .a-filter-panel { display: grid; gap: 12px; width: 300px; max-width: calc(100vw - 64px); max-height: 60vh; overflow: auto; position: absolute; z-index: 45; top: calc(100% + 6px); right: 0; padding: 16px; background: #fff; border: 1px solid var(--a-line); box-shadow: 0 8px 30px #0002; border-radius: 10px; }
+.a-shell .a-filter-panel label { display: grid; gap: 5px; flex: none; width: 100%; margin: 0; }
+.a-shell .a-filter-bar .a-sort-control { flex: 0 1 180px; min-width: 120px; width: auto; margin: 0; display: grid; gap: 4px; }
+.a-shell .a-filter-bar .a-sort-control select { width: 100%; }
+.a-shell .a-filter-apply { display: none; }
+.a-filter-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.a-filter-status:empty { display: none; }
+.a-active-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; }
+.a-active-filters:empty { display: none; }
+.a-shell .a-filter-chip { font-weight: 500; background: #ededf0; border: 0; min-height: 28px; padding: 4px 8px; box-shadow: none; }
+.a-filter-bar ~ :is(.c-filter-chips, .p3-chips), .u-index:has(.a-filter-bar) > .u-chips:has(> span) { display: none; }
+.a-shell .c-index, .a-shell .p3-index { overflow: visible; }
+.a-shell .u-customers .u-index { overflow: visible; }
+.a-shell button[name=action][value=delete] { color: #9b2520; background: #fff; border-color: #d2b5b2; }
+.a-clickable-row { cursor: pointer; }
+.a-content[aria-busy=true] :is(.a-table-wrap, .p3-table-wrap, .a-index-table) { opacity: .45; pointer-events: none; background: #f1f1f3; }
+.a-content form[aria-busy=true] { opacity: .7; cursor: progress; }
+.a-shell .a-empty { border-radius: 12px; background: var(--a-surface); }
+.a-shell .a-empty svg { width: 36px; height: 36px; margin-bottom: 16px; color: #61616a; }
+.a-shell dialog { max-height: calc(100dvh - 48px); overflow-y: auto; }
+.a-shell .e-main > .e-card, .a-shell .e-dashboard-section { margin-block: 24px; }
+@media (max-width: 800px) {
+  .a-shell button, .a-shell .a-button, .a-shell summary.a-button, .a-shell .e-button { min-height: 44px; }
+  .a-shell input:not([type=hidden]):not([type=checkbox]):not([type=radio]), .a-shell select { min-height: 44px; font-size: 14px; }
+  .a-shell .a-header .a-actions { margin-left: 0; width: 100%; }
+  .a-shell .a-filter-bar { padding: 12px; align-items: end; }
+  .a-shell .a-filter-bar > .a-filter-search { flex-basis: 100%; }
+  .a-shell .a-filter-bar .a-sort-control { flex: 1; }
+  .a-shell .a-filter-panel { left: 0; right: auto; }
+  .a-shell .a-responsive-table, .a-shell .a-responsive-table tbody { display: block; width: 100%; min-width: 0; white-space: normal; }
+  .a-shell .a-responsive-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .a-shell .a-responsive-table thead:has(input[type=checkbox]) { display: block; position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .a-shell .a-responsive-table thead:has(input[type=checkbox]) tr { display: block; }
+  .a-shell .a-responsive-table thead:has(input[type=checkbox]) th { display: none; }
+  .a-shell .a-responsive-table thead:has(input[type=checkbox]) th:has(input) { display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 12px 16px; }
+  .a-shell .a-responsive-table thead:has(input[type=checkbox]) th:has(input)::after { content: 'Select all'; }
+  .a-shell .a-responsive-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr); position: relative; padding: 16px; gap: 8px; border-bottom: 1px solid var(--a-line); background: #fff; }
+  .a-shell .a-responsive-table tbody tr:last-child { border-bottom: 0; }
+  .a-shell .a-responsive-table tbody tr[hidden] { display: none; }
+  .a-shell .a-responsive-table td { display: flex; justify-content: space-between; gap: 16px; width: 100%; min-width: 0; padding: 0; border: 0; white-space: normal; overflow-wrap: anywhere; font-size: 14px; }
+  .a-shell .a-responsive-table td[data-label]:not([data-label=''])::before { content: attr(data-label); flex: 0 0 105px; color: var(--a-muted); font-size: 12px; font-weight: 500; padding-top: 2px; }
+  .a-shell .a-responsive-table td:has(> input[type=checkbox]) { justify-content: flex-start; padding: 4px 0 8px; }
+  .a-shell .a-responsive-table td:has(> input[type=checkbox])::before { display: none; }
+  .a-shell .a-responsive-table td:has(> a):has(> small) { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 4px 16px; }
+  .a-shell .a-responsive-table td:has(> a):has(> small)::before { grid-row: span 2; }
+  .a-shell .a-responsive-table td:has(> a):has(> small) small { grid-column: 2; margin: 0; }
+  .a-shell .a-responsive-table td:has(.c-product-link) { display: block; }
+  .a-shell .a-responsive-table td:has(.c-product-link)::before { display: none; }
+  .a-shell .a-responsive-table :is(input, select, details) { max-width: 100%; min-width: 0; }
+  .a-shell :is(.a-table-wrap, .p3-table-wrap, .o-table-wrap):has(.a-responsive-table) { overflow: visible; }
+  .a-shell .a-responsive-table .c-product-link { min-width: 0; }
+  .a-shell .c-bulk, .a-shell .u-bulk, .a-shell .p3-bulk { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .a-shell input.a-switch::after { transition: none; } }

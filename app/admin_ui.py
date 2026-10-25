@@ -65,10 +65,17 @@ class AdminContextMiddleware:
 
 def page_header(title, back_href=None, breadcrumbs=(), primary_action=None,
                 secondary_actions=(), badges=()):
+    if isinstance(primary_action, FT):
+        target = primary_action
+        if target.tag == "form":
+            target = next((child for child in target.children
+                           if isinstance(child, FT) and child.tag == "button"), target)
+        target.attrs["class"] = target.attrs.get("class", "") + " a-button-primary"
     return Header(
-        Div(Nav(*[A(label, href=href) for label, href in breadcrumbs],
-                aria_label="Breadcrumb") if breadcrumbs else None,
-            Div(A("←", href=back_href, aria_label="Back") if back_href else None,
+        Div(Div(A(NotStr('<svg viewBox="0 0 20 20" width="20" height="20" '
+                        'fill="none" stroke="currentColor" stroke-width="1.7" '
+                        'aria-hidden="true"><path d="m11 4-6 6 6 6M5 10h12"/></svg>'),
+                  href=back_href, aria_label="Back", cls="a-back-button") if back_href else None,
                 H1(title), *badges, cls="a-heading")),
         Div(*secondary_actions, primary_action, cls="a-actions"), cls="a-header")
 
@@ -92,7 +99,9 @@ def badge(text, tone="neutral"):
 
 
 def empty_state(title, description, action=None):
-    return Div(H2(title), P(description), action, cls="a-empty")
+    if isinstance(action, FT):
+        action.attrs["class"] = action.attrs.get("class", "") + " a-button-primary"
+    return Div(icon("Content"), H2(title), P(description), action, cls="a-empty")
 
 
 def index_table(columns, rows, tabs=None, search=None, filters=None, sort=None,
@@ -159,6 +168,23 @@ def _has_page_header(child):
         _has_page_header(item) for item in child.children)
 
 
+def _legacy_back_link(children):
+    """Move the older pages' leading back link into the shared page header."""
+    for child in children:
+        if not isinstance(child, FT) or child.tag in {"form", "dialog", "details"}:
+            continue
+        if {"e-card", "a-card"} & set(child.attrs.get("class", "").split()):
+            continue
+        label = "".join(str(item) for item in child.children if isinstance(item, str)).strip()
+        if child.tag == "a" and (label.startswith("←") or label.startswith("Back to ")):
+            child.attrs["hidden"] = True
+            return child.attrs.get("href")
+        found = _legacy_back_link(child.children)
+        if found:
+            return found
+    return None
+
+
 def nav_section(path):
     """Map existing detail and utility routes to their primary navigation section."""
     path = path.split("?", 1)[0]
@@ -208,6 +234,9 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
                                     for text, url in subs], cls="a-subnav"))
     name = site.name if site else "FastShop"
     initials = "".join(word[0] for word in name.split()[:2]).upper()
+    has_header = any(_has_page_header(child) for child in children)
+    legacy_back = None if has_header else _legacy_back_link(children)
+    display_title = title.replace("—", "·").removesuffix(" · " + name)
     return (
         Title(title.replace("—", "·") + " · FastShop"),
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
@@ -218,6 +247,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
           for asset in ("fonts.css", "site-editor.css", "admin/admin.css")],
         Script(src=static_asset("site-editor.js"), defer=True),
         Script(src=static_asset("admin/admin.js"), defer=True),
+        Script(src=static_asset("admin/polish.js"), defer=True),
         Div(A("Skip to content", href="#admin-main", cls="a-skip-link"),
             Aside(
                 Details(Summary(Span(initials, cls="a-avatar"), Span(name), Span("⌄")),
@@ -244,9 +274,8 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
             Main(Header(Button("☰", type="button", data_sidebar_toggle="",
                           aria_controls="admin-sidebar", aria_expanded="false", aria_label="Open navigation"),
                    Nav(A(name, href=base), Span("/", aria_hidden="true"),
-                       Span(title.replace("—", "·")), aria_label="Page breadcrumb"), cls="a-topbar"),
-                 Div(None if any(_has_page_header(child) for child in children)
-                     else page_header(title.replace("—", "·")),
+                       Span(display_title), aria_label="Page breadcrumb"), cls="a-topbar"),
+                 Div(None if has_header else page_header(display_title, back_href=legacy_back),
                      Div(Span(notice[:300]), Button("×", type="button", data_toast_dismiss="",
                          aria_label="Dismiss notification"), role="status", cls="a-toast") if notice else None,
                      *children, cls="a-content"), id="admin-main", cls="a-canvas"),

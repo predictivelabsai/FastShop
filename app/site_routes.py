@@ -34,6 +34,7 @@ from starlette.responses import RedirectResponse, Response
 
 from app import content, signup_services, site_ui
 from app import site_builder_services as builder
+from app.admin_ui import empty_state
 from app.config import settings
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
@@ -558,7 +559,9 @@ def register_site_routes(rt):
                     Div(A("← Back to site", href=f"/admin/sites/{site.id}"), cls="e-actions"),
                     H2(f"Customer reviews ({len(reviews)})"),
                     P("Only approved reviews appear on the storefront. No reviews are invented; the sample section shows until real ones are approved."),
-                    Div(*rows, cls="e-card") if rows else P("No reviews collected yet.", cls="e-note"))
+                    Div(*rows, cls="e-card") if rows else empty_state("No customer reviews yet",
+                        "Customer reviews will appear here for moderation before they are published.",
+                        A("Review storefront", href=f"/admin/sites/{site.id}/editor", cls="e-button")))
         except CommerceError as exc:
             return error(exc)
 
@@ -590,7 +593,9 @@ def register_site_routes(rt):
                     Div(A("← Back to site", href=f"/admin/sites/{site.id}"), cls="e-actions"),
                     H2(f"Placeholders and pending items ({len(items)})"),
                     P("Everything to replace or approve before launch, generated from the current content."),
-                    Div(*rows, cls="e-card") if rows else P("No outstanding placeholders found.", cls="e-note"))
+                    Div(*rows, cls="e-card") if rows else empty_state("No outstanding placeholders",
+                        "There are no outstanding placeholders in your store content.",
+                        A("Review go-live checklist", href=f"/admin/sites/{site.id}/golive", cls="e-button")))
         except CommerceError as exc:
             return error(exc)
 
@@ -812,8 +817,12 @@ def register_site_routes(rt):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
-                rows = db.scalars(select(SiteContact).where(SiteContact.site_id == site.id, SiteContact.tenant_id == site.tenant_id).order_by(SiteContact.created_at.desc()).limit(100))
-                return shell("Contact inbox", A("← Site", href=f"/admin/sites/{site.id}"), *[Div(H2(row.name), P(row.email), P(row.message), Small("Delivery: " + row.status), cls="e-card") for row in rows])
+                rows = list(db.scalars(select(SiteContact).where(SiteContact.site_id == site.id, SiteContact.tenant_id == site.tenant_id).order_by(SiteContact.created_at.desc()).limit(100)))
+                return shell("Contact inbox", A("← Site", href=f"/admin/sites/{site.id}"),
+                    *[Div(H2(row.name), P(row.email), P(row.message), Small("Delivery: " + row.status), cls="e-card") for row in rows],
+                    empty_state("Your inbox is clear",
+                        "Messages sent through your store contact form will appear here.",
+                        A("Open store editor", href=f"/admin/sites/{site.id}/editor", cls="e-button")) if not rows else None)
         except CommerceError as exc:
             return error(exc)
 

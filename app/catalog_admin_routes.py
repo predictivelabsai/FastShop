@@ -366,12 +366,16 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
             return error(exc)
 
     @rt("/admin/sites/{site_id}/collections", methods=["GET"])
-    def get(session, site_id: str):
+    def get(session, site_id: str, q: str = "", kind: str = "", sort: str = "title"):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
-                rows = [(c, len(catalog.collection_products(db, site, c))) for c in collections_for(db, site)]
-                return shell("Collections", ui.collection_index(site, rows))
+                rows = [(c, len(catalog.collection_products(db, site, c)))
+                        for c in collections_for(db, site)
+                        if (not q or q[:200].casefold() in c.title.casefold())
+                        and (not kind or c.kind == kind)]
+                rows.sort(key=lambda row: row[0].title.casefold(), reverse=sort == "title_desc")
+                return shell("Collections", ui.collection_index(site, rows, q, kind, sort))
         except CommerceError as exc:
             return error(exc)
 
@@ -447,7 +451,7 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
         return await save_collection(session, request, site_id, collection_id)
 
     @rt("/admin/sites/{site_id}/inventory", methods=["GET"])
-    def get(session, site_id: str, q: str = "", low_stock: str = ""):
+    def get(session, site_id: str, q: str = "", low_stock: str = "", sort: str = "title"):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
@@ -464,11 +468,17 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                     if low_stock and sum(quantity - allocated for quantity, allocated in stocks.values()) > threshold:
                         continue
                     rows.append((p, v, stocks))
+                if sort == "title_desc":
+                    rows.reverse()
+                elif sort in {"quantity", "quantity_desc"}:
+                    rows.sort(key=lambda row: sum(qty - reserved for qty, reserved in row[2].values()),
+                              reverse=sort == "quantity_desc")
                 history = list(db.execute(select(InventoryAdjustment, ProductVariant.name).join(ProductVariant,
                     InventoryAdjustment.variant_id == ProductVariant.id).where(
                     InventoryAdjustment.tenant_id == site.tenant_id)
                     .order_by(InventoryAdjustment.created_at.desc(), InventoryAdjustment.id.desc()).limit(100)))
-                return shell("Inventory", ui.inventory_page(site, rows, warehouses, history, csrf(session), threshold, q, bool(low_stock)))
+                return shell("Inventory", ui.inventory_page(site, rows, warehouses, history,
+                    csrf(session), threshold, q, bool(low_stock), sort))
         except CommerceError as exc:
             return error(exc)
 

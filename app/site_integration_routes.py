@@ -33,6 +33,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from app import connectors, content
+from app.admin_ui import empty_state
 from app.db import SessionLocal
 from app.models import SiteCommerceSettings
 from app.services import CommerceError
@@ -94,7 +95,9 @@ def _plan_view(plan, csrf):
         Ul(*[Li(Span(item.get("action", "").title(), cls="i-action"), " ",
             item.get("type", "item"), " · ", item.get("label", ""),
             Small(" External #" + item.get("external_id", ""))) for item in samples],
-            cls="i-list") if samples else P("No importable rows were returned.", cls="i-empty"),
+            cls="i-list") if samples else empty_state("No importable records",
+                "The preview found no records to import. Check the source data and run another preview.",
+                A("Review connections", href="#integration-connections", cls="e-button")),
         Details(Summary(f"Warnings and unmapped items ({len(warnings) + len(unmapped)})"),
             Ul(*[Li(message) for message in warnings],
                *[Li(f"{item.get('type', 'item')} #{item.get('external_id', '')}: {item.get('reason', '')}")
@@ -201,12 +204,14 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                       "Connection details are controlled by the operator and are never entered here.",
                       cls="i-intro"),
                     P(notice, role="status", cls="e-note") if notice else None,
-                    Div(*rows, cls="i-connectors"),
+                    Div(*rows, cls="i-connectors", id="integration-connections"),
                     _plan_view(selected, csrf(session)) if selected else None,
                     Details(Summary("Recent import plans"),
                         Ul(*[Li(A(f"{row.platform.title()} · {row.status} · plan {row.id[:8]}",
                             href=f"/admin/sites/{site.id}/integrations?plan={row.id}")) for row in history],
-                           cls="i-list")) if history else None)
+                           cls="i-list")) if history else empty_state("No import plans yet",
+                        "Preview an import from one of your connections to review changes before applying them.",
+                        A("Review connections", href="#integration-connections", cls="e-button")))
         except CommerceError as exc:
             return error(exc)
 

@@ -77,7 +77,7 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
             cls="a-actions",
         )
 
-    def page_index(session, site_id, q, kind, status, notice, articles=False):
+    def page_index(session, site_id, q, kind, status, notice, articles=False, sort=""):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
@@ -89,6 +89,10 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
                     and (not kind or p.kind == kind)
                     and (not status or bool(p.published_json) == (status == "published"))
                 ]
+                if sort in {"title", "title_desc"}:
+                    pages.sort(key=lambda page: page.title.casefold(), reverse=sort == "title_desc")
+                elif sort == "updated":
+                    pages.sort(key=lambda page: page.updated_at, reverse=True)
                 rows = [
                     Tr(
                         Td(
@@ -169,6 +173,10 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
                         )
                         if not articles
                         else None,
+                        Label("Sort", Select(*[Option(label, value=value, selected=sort == value)
+                            for value, label in (("", "Manual order"), ("title", "Title A to Z"),
+                                ("title_desc", "Title Z to A"), ("updated", "Recently updated"))],
+                            name="sort")),
                         Button("Filter", cls="a-button"),
                         method="get",
                         cls="gc-filters",
@@ -236,12 +244,13 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
             return error(exc)
 
     @rt("/admin/sites/{site_id}/content/pages", methods=["GET"])
-    def get(session, site_id: str, q: str = "", kind: str = "", status: str = "", notice: str = ""):
-        return page_index(session, site_id, q, kind, status, notice)
+    def get(session, site_id: str, q: str = "", kind: str = "", status: str = "", notice: str = "",
+            sort: str = ""):
+        return page_index(session, site_id, q, kind, status, notice, sort=sort)
 
     @rt("/admin/sites/{site_id}/content/blog-posts", methods=["GET"])
-    def get(session, site_id: str, q: str = "", status: str = "", notice: str = ""):
-        return page_index(session, site_id, q, "", status, notice, True)
+    def get(session, site_id: str, q: str = "", status: str = "", notice: str = "", sort: str = ""):
+        return page_index(session, site_id, q, "", status, notice, True, sort)
 
     @rt("/admin/sites/{site_id}/content/pages", methods=["POST"])
     async def post(session, request, site_id: str):

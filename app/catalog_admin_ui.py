@@ -570,7 +570,7 @@ def import_preview(result):
     return card(summary, table, error_table, title="Import results")
 
 
-def collection_index(site, rows):
+def collection_index(site, rows, q="", kind="", sort="title"):
     base = f"/admin/sites/{site.id}/collections"
     return Div(
         *assets(),
@@ -580,6 +580,12 @@ def collection_index(site, rows):
                 "Create collection", href=base + "/new", cls="a-button a-button-primary"
             ),
         ),
+        Form(field("Search collections", "q", q, "search"),
+             choice("Type", "kind", [("", "All types"), ("manual", "Manual"),
+                                      ("automated", "Automated")], kind),
+             choice("Sort", "sort", [("title", "Title A to Z"),
+                                      ("title_desc", "Title Z to A")], sort),
+             Button("Apply filters", cls="a-button"), method="get", cls="c-filters"),
         card(
             NotStr(
                 '<div class="a-table-wrap"><table><thead><tr><th>Title</th><th>Products</th><th>Type</th><th>Publishing</th></tr></thead><tbody>'
@@ -705,7 +711,8 @@ def collection_editor(site, collection, products, selected, csrf, count=0):
     )
 
 
-def inventory_page(site, rows, warehouses, history, csrf, threshold, q="", low_stock=False):
+def inventory_page(site, rows, warehouses, history, csrf, threshold, q="", low_stock=False,
+                   sort="title"):
     base = f"/admin/sites/{site.id}/inventory"
     rendered = []
     for product, variant, quantities in rows:
@@ -761,6 +768,9 @@ def inventory_page(site, rows, warehouses, history, csrf, threshold, q="", low_s
             Form(
                 field("Search inventory", "q", q, "search"),
                 check("Low stock only", "low_stock", low_stock),
+                choice("Sort", "sort", [("title", "Product A to Z"),
+                    ("title_desc", "Product Z to A"), ("quantity", "Lowest stock"),
+                    ("quantity_desc", "Highest stock")], sort),
                 Button("Filter", cls="a-button"),
                 method="get",
                 cls="c-filters",

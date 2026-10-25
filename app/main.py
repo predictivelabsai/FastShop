@@ -55,6 +55,8 @@ with SessionLocal() as bootstrap_session:
 app, rt = fast_app(
     live=False,
     pico=False,
+    htmx=False,
+    surreal=False,
     secret_key=settings.session_secret,
     sess_https_only=settings.is_production,
     same_site="lax",

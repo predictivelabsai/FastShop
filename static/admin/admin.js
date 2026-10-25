@@ -133,6 +133,7 @@
     const snapshot = (form) => JSON.stringify(Array.from(new FormData(form).entries(), ([key, value]) => [key, value instanceof File ? (value.name ? `${value.name}:${value.size}:${value.lastModified}` : '') : value]));
     let dirtyForms = [];
     let submitting = false;
+    document.addEventListener('admin:mutation-error', () => { submitting = false; refreshDirty(); });
     const refreshDirty = () => {
       dirtyForms = guardedForms.filter((form) => snapshot(form) !== snapshots.get(form));
       if (saveBar) saveBar.hidden = !dirtyForms.length;

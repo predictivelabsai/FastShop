@@ -6,6 +6,7 @@ from sqlalchemy import select
 from starlette.responses import RedirectResponse, Response
 
 from app import content, site_ui
+from app.admin_ui import empty_state
 from app.db import SessionLocal
 from app.models import Site, SiteMedia, new_id
 from app.services import CommerceError
@@ -38,9 +39,10 @@ def register_media_routes(rt, actor, csrf, check_csrf, shell, error):
                         Label("Alt text", Input(name="alt", required=True, maxlength=400)),
                         Label("Image (JPEG, PNG or WebP, up to 8 MB)", Input(type="file", name="image", accept="image/jpeg,image/png,image/webp", required=True)),
                         Label(Input(type="checkbox", name="placeholder"), " Placeholder image"),
-                        Button("Upload image", cls="e-button"), method="post", enctype="multipart/form-data", cls="e-form"),
+                        Button("Upload image", cls="e-button"), method="post", enctype="multipart/form-data", cls="e-form", id="media-upload"),
                     P(notice, role="status") if notice else None,
-                    Div(*[card(db, site, m, session) for m in media], cls="e-grid") if media else P("No media yet. Upload your first image to reuse it in the editor."))
+                    Div(*[card(db, site, m, session) for m in media], cls="e-grid") if media else empty_state("Add your first image", "Upload images to build a reusable media library for your store.",
+                        A("Upload image", href="#media-upload", cls="e-button")))
         except CommerceError as exc:
             return error(exc)
 

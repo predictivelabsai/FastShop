@@ -121,7 +121,7 @@ def register_growth_reports_routes(rt, actor, csrf, check_csrf, shell, error):
             return error(exc)
 
     @rt("/admin/sites/{site_id}/subscriptions", methods=["GET"])
-    def get(session, site_id: str, status: str = "all", q: str = ""):
+    def get(session, site_id: str, status: str = "all", q: str = "", sort: str = "due"):
         try:
             user_id = actor(session)
             with SessionLocal() as db:
@@ -132,6 +132,9 @@ def register_growth_reports_routes(rt, actor, csrf, check_csrf, shell, error):
                 if status != "all":
                     query = query.where(SubscriptionContract.state == status)
                 rows = list(db.execute(query.order_by(SubscriptionContract.next_due_at)))
+                if sort in {"name", "name_desc"}:
+                    rows.sort(key=lambda row: (row[1].name or row[1].email).casefold(),
+                              reverse=sort == "name_desc")
                 q = q.strip()[:100]
                 if q:
                     rows = [(contract, customer) for contract, customer in rows
@@ -142,7 +145,11 @@ def register_growth_reports_routes(rt, actor, csrf, check_csrf, shell, error):
                     Label("Search subscriptions", Input(type="search", name="q", value=q)),
                     Label("Status", Select(*[Option(value.title(), value=value,
                         selected=status == value) for value in ("all", "active", "paused", "cancelled")],
-                        name="status")), Button("Filter", cls="e-button"),
+                        name="status")),
+                    Label("Sort", Select(*[Option(label, value=value, selected=sort == value)
+                        for value, label in (("due", "Next billing date"), ("name", "Customer A to Z"),
+                                             ("name_desc", "Customer Z to A"))], name="sort")),
+                    Button("Filter", cls="e-button"),
                     method="get", cls="e-actions"),
                     index_table(["Customer", "Products", "Status", "Next billing", "Interval"], [
                         [A(customer.name or customer.email, href=root + "/" + contract.id),
