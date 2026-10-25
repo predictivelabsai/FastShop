@@ -23,13 +23,14 @@ from starlette.responses import RedirectResponse
 from app import content, discounts
 from app.admin_ui import badge, card, index_table, page_header, two_column
 from app.db import SessionLocal
-from app.models import Collection, Discount, DiscountCode, DiscountRedemption, Product
+from app.models import Collection, Discount, DiscountCode, Product
 from app.services import CommerceError
 
 
 def owned(db, site, discount_id):
     rule = db.scalar(select(Discount).where(Discount.id == discount_id,
-        Discount.site_id == site.id, Discount.tenant_id == site.tenant_id))
+        Discount.site_id == site.id, Discount.tenant_id == site.tenant_id,
+        Discount.deleted_at.is_(None)))
     if not rule:
         raise CommerceError("Discount not found.")
     return rule
@@ -171,7 +172,8 @@ def register_discount_routes(rt, actor, csrf, check_csrf, shell, error):
                 discounts.bridge_vouchers(db, site)
                 db.commit()
                 rules = list(db.scalars(select(Discount).where(Discount.site_id == site.id,
-                    Discount.tenant_id == site.tenant_id).order_by(Discount.created_at.desc())))
+                    Discount.tenant_id == site.tenant_id, Discount.deleted_at.is_(None))
+                    .order_by(Discount.created_at.desc())))
                 prefix = f"/admin/sites/{site.id}/discounts"
                 rules = [r for r in rules if (status == "All" or discounts.status(r) == status)
                          and (not q or q.lower() in r.title.lower() or any(q.lower() in c.lower()
@@ -251,13 +253,7 @@ def register_discount_routes(rt, actor, csrf, check_csrf, shell, error):
                     raise CommerceError("Choose a valid action.")
                 for rule in rules:
                     if command == "delete":
-                        if discounts.pending_attempts(db, site, rule):
-                            raise CommerceError("This discount is reserved by a checkout. Deactivate it instead.")
-                        if db.scalar(select(DiscountRedemption.id).where(DiscountRedemption.discount_id == rule.id)):
-                            raise CommerceError("Used discounts must be deactivated to retain reporting history.")
-                        for code in db.scalars(select(DiscountCode).where(DiscountCode.discount_id == rule.id)):
-                            db.delete(code)
-                        db.delete(rule)
+                        discounts.delete(db, site, rule)
                     elif command == "duplicate":
                         clone = Discount(**{c.name: getattr(rule, c.name) for c in Discount.__table__.columns
                             if c.name not in {"id", "created_at", "updated_at", "voucher_id"}})

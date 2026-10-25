@@ -30,6 +30,8 @@ def utc(value):
 
 def status(rule, now=None):
     now = now or datetime.now(UTC)
+    if rule.deleted_at:
+        return "Deleted"
     if not rule.is_active:
         return "Inactive"
     if rule.ends_at and utc(rule.ends_at) <= now:
@@ -65,6 +67,7 @@ def code_rule(db, site, code):
     return db.scalar(select(Discount).join(DiscountCode,
         DiscountCode.discount_id == Discount.id).where(
         Discount.site_id == site.id, Discount.tenant_id == site.tenant_id,
+        Discount.deleted_at.is_(None),
         DiscountCode.site_id == site.id, DiscountCode.tenant_id == site.tenant_id,
         DiscountCode.code == code.strip().upper()))
 
@@ -153,7 +156,8 @@ def apply(db, site, lines, shipping, *, code="", email="", now=None, preview=Fal
     """Return lines, shipping, redemption snapshots. No usage is consumed by quotes."""
     now = now or datetime.now(UTC)
     rules = list(db.scalars(select(Discount).where(Discount.site_id == site.id,
-        Discount.tenant_id == site.tenant_id, Discount.method == "automatic")))
+        Discount.tenant_id == site.tenant_id, Discount.method == "automatic",
+        Discount.deleted_at.is_(None))))
     explicit = code_rule(db, site, code) if code else None
     if code and not explicit:
         raise CommerceError("This discount code is unavailable.")
@@ -239,3 +243,14 @@ def redeem(db, site, order, snapshots):
                 db.execute(update(Voucher).where(Voucher.id == rule.voucher_id,
                     Voucher.tenant_id == site.tenant_id).values(used_count=Voucher.used_count + 1))
             db.flush()
+
+
+def delete(db, site, rule):
+    """Remove the merchant rule and codes while retaining settlement/audit links."""
+    if rule.tenant_id != site.tenant_id or rule.site_id != site.id:
+        raise CommerceError("Discount not found.")
+    for code in db.scalars(select(DiscountCode).where(DiscountCode.discount_id == rule.id,
+            DiscountCode.tenant_id == site.tenant_id, DiscountCode.site_id == site.id)):
+        db.delete(code)
+    rule.deleted_at, rule.is_active = datetime.now(UTC), False
+    db.flush()

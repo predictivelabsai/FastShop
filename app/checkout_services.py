@@ -86,11 +86,15 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
         raise CommerceError("Invalid checkout request key.")
     destination = commerce.address(destination)
     code = str(code).strip().upper()
-    fingerprint = hashlib.sha256(json.dumps({"customer": customer_id, "lines": selections,
+    request_payload = {"customer": customer_id, "lines": selections,
         "destination": destination, "code": code, "recipient_name": recipient_name,
-        "subscription_consent": subscription_consent, "shipping_rate_id": shipping_rate_id,
+        "subscription_consent": subscription_consent,
         "renewal_contract": renewal_contract.id if renewal_contract else None,
-        "recovery_cycle": recovery_cycle.id if recovery_cycle else None}, sort_keys=True).encode()).hexdigest()
+        "recovery_cycle": recovery_cycle.id if recovery_cycle else None}
+    # Keep existing request keys replayable when no new delivery option is chosen.
+    if shipping_rate_id:
+        request_payload["shipping_rate_id"] = shipping_rate_id
+    fingerprint = hashlib.sha256(json.dumps(request_payload, sort_keys=True).encode()).hexdigest()
     with db.begin_nested():
         lock_site(db, site)
         previous = db.scalar(select(CheckoutAttempt).where(CheckoutAttempt.site_id == site.id,

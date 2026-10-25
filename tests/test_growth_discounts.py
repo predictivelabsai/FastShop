@@ -186,3 +186,16 @@ def test_minimal_form_uses_explicit_safe_defaults(shop):
     row = save(db, site, {"title": "Default rule", "codes": "DEFAULT", "value": "10"})
     assert (row.type, row.method, row.value_type, row.applies_to) == (
         "amount_off_order", "code", "percentage", "all")
+
+
+def test_deleted_legacy_rule_is_not_imported_again(shop):
+    db, site, _, _ = shop
+    db.add(Voucher(tenant_id=site.tenant_id, code="RETIRED", kind="percentage", value=10))
+    db.flush()
+    discounts.bridge_vouchers(db, site)
+    row = discounts.code_rule(db, site, "RETIRED")
+    discounts.delete(db, site, row)
+    discounts.bridge_vouchers(db, site)
+    assert discounts.status(row) == "Deleted"
+    assert discounts.code_rule(db, site, "RETIRED") is None
+    assert db.scalar(select(func.count()).select_from(Discount)) == 1

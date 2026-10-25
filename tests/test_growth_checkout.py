@@ -2,7 +2,9 @@
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from html.parser import HTMLParser
+from json import dumps
 
 import pytest
 from fasthtml.common import Div, Input, fast_app
@@ -29,6 +31,17 @@ def test_allocation_ties_are_stable_under_cart_reordering(shop):
     assert {line.reference: line.amount_minor for line in reordered} == {
         line.reference: line.amount_minor for line in allocated
     }
+
+
+def test_checkout_retries_preserve_pre_growth_request_fingerprints(ready):  # noqa: F811
+    legacy_request = {"customer": ready.customer.id, "lines": ready.selections,
+        "destination": DESTINATION | {"line2": ""}, "code": "", "recipient_name": "",
+        "subscription_consent": False, "renewal_contract": None, "recovery_cycle": None}
+    legacy_fingerprint = sha256(dumps(legacy_request, sort_keys=True).encode()).hexdigest()
+    attempt = prepare(ready)
+    assert attempt.request_hash == legacy_fingerprint
+    ready.db.commit()
+    assert prepare(ready).id == attempt.id
 
 
 def test_merchandise_discounts_recompute_shipping_threshold(ready):  # noqa: F811
@@ -231,7 +244,15 @@ def test_discount_form_round_trip_csrf_scope_and_actions_inside_shell(ready, mon
         attempt = prepare(ready, code="WELCOME")
         db.commit()
         response = client.post(
-            target + "/action", data={"csrf_token": "test-token", "action": "delete"}
+            target + "/action", data={"csrf_token": "test-token", "action": "delete"},
+            follow_redirects=False,
         )
-        assert response.status_code == 400 and "reserved by a checkout" in response.text
+        assert response.status_code == 303
+        assert client.get(target).status_code == 400
+        assert discounts.code_rule(db, site, "WELCOME") is None
         assert db.get(CommerceQuote, attempt.quote_id).snapshot_json["discounts"]
+        from tests.test_checkout_services import open_session
+        open_session(ready, attempt)
+        checkout_services.reconcile(db, site, attempt.id, ready.gateway)
+        db.commit()
+        assert attempt.state == "paid"

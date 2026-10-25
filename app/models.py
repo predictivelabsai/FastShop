@@ -334,6 +334,7 @@ class Discount(TimestampMixin, Base):
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     voucher_id: Mapped[str | None] = mapped_column(ForeignKey("vouchers.id"), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class DiscountCode(TimestampMixin, Base):
