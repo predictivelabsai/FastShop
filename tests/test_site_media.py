@@ -89,7 +89,7 @@ def test_backfill_locales_revisions_and_no_content_rewrite(workspace):
     db, _, site, _ = workspace
     page = content.site_pages(db, site)[0]
     doc = copy.deepcopy(page.draft_json)
-    doc["blocks"][0].update(image={"en": "/static/h24you/water-placeholder.webp"}, alt={"en": "Water", "et": "Vesi"})
+    doc["blocks"][0].update(image={"en": "/static/sample-placeholder.webp"}, alt={"en": "Water", "et": "Vesi"})
     page.draft_json = doc
     history = {"sections": [{"type": "hero", "image": "https://example.test/old.jpg"}]}
     db.add(SiteRevision(tenant_id=site.tenant_id, site_id=site.id, page_id=page.id, content_json=history))
@@ -129,7 +129,7 @@ def test_populated_pre_media_upgrade(tmp_path):
         site_id, tenant_id = site.id, site.tenant_id
         page = content.site_pages(db, site)[0]
         doc = copy.deepcopy(page.draft_json)
-        doc["blocks"][0]["image"] = "/static/h24you/water-placeholder.webp"
+        doc["blocks"][0]["image"] = "/static/sample-placeholder.webp"
         page.draft_json = doc
         db.commit()
     SiteMedia.__table__.drop(engine)

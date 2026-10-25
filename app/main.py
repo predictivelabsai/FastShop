@@ -42,12 +42,10 @@ from app.services import (
     toggle_wishlist,
     update_cart_line,
 )
-from app.site_seed import seed_h24you
 
 prepare_schema()
 with SessionLocal() as bootstrap_session:
     seed(bootstrap_session, settings.admin_email)
-    seed_h24you(bootstrap_session, settings.admin_email)
     bootstrap_session.commit()
 
 app, rt = fast_app(

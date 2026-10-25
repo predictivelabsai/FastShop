@@ -7,7 +7,7 @@ from app import content, site_ui
 from app.models import Base, Product, Review, User
 from app.services import CommerceError
 from app.site_reviews import all_reviews, approved_reviews, moderate_review, review_summary
-from app.site_seed import seed_h24you
+from scripts.demo_site import seed_demo_site
 
 ADMIN = "admin@fastshop.example"
 
@@ -20,7 +20,7 @@ def site_db():
         admin = User(email=ADMIN, name="Admin")
         db.add(admin)
         db.flush()
-        site = seed_h24you(db, ADMIN)
+        site = seed_demo_site(db, ADMIN)
         db.commit()
         yield db, site, admin
 
@@ -64,7 +64,7 @@ def test_moderation_requires_ownership_and_toggles(site_db):
 
 def _render(db, site, path, preview=True):
     page = next(p for p in content.site_pages(db, site) if p.path == path)
-    parts = site_ui.storefront(db, site, page, "/sites/h24you", "tok", "https://h24you.com", preview=preview)
+    parts = site_ui.storefront(db, site, page, "/sites/northstar", "tok", "https://northstar.example.test", preview=preview)
     return "".join(to_xml(part) for part in parts if part is not None)
 
 

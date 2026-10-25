@@ -1,4 +1,4 @@
-"""US dietary-supplement wording checks for storefront content (brief §8).
+"""US dietary-supplement wording checks for storefront content.
 
 Compliance is enforced where a merchant deliberately makes content public — page
 publication and benefit-statement approval — not on draft saves or the seed fixture,
@@ -126,7 +126,7 @@ def _blocking_message(findings: dict[str, list[str]], where: str) -> str | None:
         return None
     return (
         f"{where} cannot be published with " + " and ".join(problems)
-        + ". Use research language (\"researchers have studied…\") and remove product health claims (brief §8)."
+        + ". Use research language (\"researchers have studied…\") and remove product health claims."
     )
 
 
@@ -145,5 +145,5 @@ def assert_claim_compliant(text: str) -> None:
     if "*" not in str(text):
         raise CommerceError(
             "An approved benefit statement must carry an asterisk (*) so it renders "
-            "beside the FDA disclaimer (brief §8)."
+            "beside the FDA disclaimer."
         )

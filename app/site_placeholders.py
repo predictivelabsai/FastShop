@@ -1,4 +1,4 @@
-"""Read-only placeholder/pending-content inventory for a site (brief §9, deliverable #3).
+"""Read-only placeholder/pending-content inventory for a site.
 
 Enumerates everything a merchant must replace or approve before launch — placeholder
 copy and media, unapproved benefit statements, unset prices, missing social links and
@@ -34,7 +34,7 @@ def placeholder_inventory(db, site) -> list[dict]:
         add("Legal", "Settings · Company address", "Placeholder legal address")
     if _has_marker(config.get("science_date")):
         add("Science", "Settings · Research figures date",
-            "Re-check the counter figures against hydrogenclinicalresearch.com and set the date", "pending")
+            "Re-check the counter figures against the configured research source and set the date", "pending")
     for social in config.get("socials", []):
         if not social.get("url"):
             add("Social", f"Footer · {social.get('label', 'Social')}",

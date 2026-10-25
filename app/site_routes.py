@@ -535,7 +535,7 @@ def register_site_routes(rt):
                                    "reviewed_by": user_id, "reviewed_at": datetime.now(UTC).isoformat()})
                 config["claims"] = claims
                 if any(c.get("approved") for c in claims) and not config.get("footer", "").strip():
-                    raise CommerceError("Add the FDA disclaimer to the footer before approving a benefit statement (brief §8).")
+                    raise CommerceError("Add the FDA disclaimer to the footer before approving a benefit statement.")
                 from app.site_samples import invalidate_reviews
                 config = invalidate_reviews(config, site.settings_json, config)
                 site.settings_json = config

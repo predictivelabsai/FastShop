@@ -153,7 +153,8 @@ def test_disabled_state_and_unreviewed_tax_configuration(shop):
 
 
 def test_stripe_form_contract_and_provider_failure(monkeypatch):
-    site = SimpleNamespace(id="testsite", slug="h24you")
+    site = SimpleNamespace(id="testsite", slug="northstar")
+    monkeypatch.setenv("FASTSHOP_STRIPE_PRIMARY_SITE", "northstar")
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fixture")
     line = SimpleNamespace(reference="variant", amount_minor=2696, quantity=1, tax_code="txcd_00000000")
     def reply(request):
@@ -175,11 +176,13 @@ def test_stripe_form_contract_and_provider_failure(monkeypatch):
 
 
 def test_credentials_do_not_cross_merchants_or_allow_live_keys(monkeypatch):
+    monkeypatch.setenv("FASTSHOP_STRIPE_PRIMARY_SITE", "northstar")
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fixture")
     assert credentials(SimpleNamespace(id="another", slug="another-brand"))[0] == ""
+    monkeypatch.setenv("FASTSHOP_STRIPE_PRIMARY_SITE", "northstar")
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live_fixture")
     with pytest.raises(CommerceError, match="Live keys"):
-        StripeGateway(SimpleNamespace(id="h24", slug="h24you"))
+        StripeGateway(SimpleNamespace(id="sample_store", slug="northstar"))
 
 
 def test_signature_checks_raw_body_timestamp_and_multiple_signatures():

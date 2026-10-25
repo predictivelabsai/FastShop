@@ -237,7 +237,7 @@ def test_happy_path_provisions_clean_site_and_authenticates_session(signup_works
         assert db.scalar(
             select(func.count(Channel.id)).where(Channel.tenant_id == tenant.id)
         ) == 1
-        assert "hydrogen" not in str(site.settings_json).lower()
+        assert "supplements" not in str(site.settings_json).lower()
         onboarding_state = db.scalar(
             select(OnboardingState).where(
                 OnboardingState.site_id == site.id,

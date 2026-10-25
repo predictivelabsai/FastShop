@@ -12,24 +12,22 @@ from scripts.build_guide_pptx import parse_slides  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_guide_structure_matches_contents_and_h24you_example():
-    markdown = (ROOT / 'docs/USER_GUIDE.md').read_text()
+def test_guide_structure_and_local_links():
+    markdown = (ROOT / 'docs/USER_GUIDE.md').read_text(encoding='utf-8')
     slides = parse_slides(markdown)
-    assert len(slides) == 39
+    assert len(slides) == 8
     assert slides[0]['kind'] == 'cover'
-    assert [i + 1 for i, slide in enumerate(slides) if slide['kind'] == 'section'] == [3, 7, 14, 27, 35]
-    assert sum(bool(slide['image']) for slide in slides) == 18
-    assert all('h24you-guide' in slide['image'] for slide in slides if slide['image'])
+    assert not any(slide['image'] for slide in slides)
+    assert 'Northstar Goods' in markdown
     for target in re.findall(r'\]\(([^)]+)\)', markdown):
         if not target.startswith(('https://', 'http://', '#')):
             assert (ROOT / 'docs' / target).is_file(), target
 
 
-def test_guide_includes_brief_prompts_and_all_launch_article_sources():
-    markdown = (ROOT / 'docs/USER_GUIDE.md').read_text()
-    for phrase in ('Original wording', 'Business:', 'Audience:', 'Pages:', 'Tone:', 'Shipping: 1000',
-        'Prompt: Learn article 1', 'Prompt: Learn article 2', 'Prompt: Learn article 3',
-        '26483953', '23680032', '30918832', '31251888', '38590828', '36819697', 'ph16020142'):
+def test_guide_covers_building_commerce_and_launch():
+    markdown = (ROOT / 'docs/USER_GUIDE.md').read_text(encoding='utf-8')
+    for phrase in ('Business:', 'Audience:', 'Pages:', 'Tone:', 'primary-site',
+                   'subscriptions', 'compliance', 'go-live', 'undo'):
         assert phrase in markdown
     for prompt in re.findall(r'(?:^>.*\n)+', markdown, re.M):
         assert len(prompt) < 4000

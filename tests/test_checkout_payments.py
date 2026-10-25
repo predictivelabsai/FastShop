@@ -105,6 +105,7 @@ def test_handoff_checks_customer_and_stops_retry_before_provider_key_expiry(read
 
 
 def test_stripe_creation_uses_stable_keys_and_customer_binding(monkeypatch):
+    monkeypatch.setenv("FASTSHOP_STRIPE_PRIMARY_SITE", "northstar")
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fixture")
     keys = []
     def reply(request):
@@ -113,7 +114,7 @@ def test_stripe_creation_uses_stable_keys_and_customer_binding(monkeypatch):
             return httpx.Response(200, json={"id": "cus_fixture", "livemode": False})
         assert parse_qs(request.content.decode())["customer"] == ["cus_fixture"]
         return httpx.Response(200, json={"id": "cs_test_fixture", "livemode": False})
-    gateway = StripeGateway(SimpleNamespace(id="test", slug="h24you"), transport=httpx.MockTransport(reply))
+    gateway = StripeGateway(SimpleNamespace(id="test", slug="northstar"), transport=httpx.MockTransport(reply))
     for _ in range(2):
         gateway.create_checkout("attempt1", {"customer": {"email": "fixture@example.test"}, "session": {"mode": "payment"}})
     assert keys == ["fastshop-customer-attempt1", "fastshop-checkout-attempt1"] * 2

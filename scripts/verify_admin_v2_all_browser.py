@@ -26,7 +26,7 @@ import verify_admin_v2_orders_browser as orders
 from playwright.sync_api import Error, expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "output/playwright/admin-v2/upstream"
+OUTPUT = ROOT / os.environ.get("FASTSHOP_BROWSER_OUTPUT", "output/playwright/admin-v2/upstream")
 
 
 class LocalCheckoutGateway(growth.LocalTaxGateway):

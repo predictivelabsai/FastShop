@@ -25,7 +25,8 @@ def main():
     email = "browser-" + uuid4().hex[:8] + "@example.test"
     errors = []
     with SessionLocal() as db:
-        site = db.scalar(select(Site).where(Site.slug == "h24you"))
+        from scripts.demo_site import seed_demo_site
+        site = seed_demo_site(db, settings.admin_email)
         site_id = site.id
         commerce.settings_for(db, site, create=True).mode = "sandbox"
         db.commit()
@@ -53,7 +54,7 @@ def main():
         context = browser.new_context(viewport={"width": 1440, "height": 1000}, reduced_motion="reduce")
         page = context.new_page()
         page.on("pageerror", lambda error: errors.append(str(error)))
-        page.goto(base + "/sites/h24you/")
+        page.goto(base + "/sites/northstar/")
         page.locator('#h-cookie button[data-consent="none"]').click()
         page.get_by_role("button", name="Preview the offer").click()
         offer = page.locator("#h-offer-panel")
@@ -65,7 +66,7 @@ def main():
         verify_link(page, "newsletter")
         assert page.get_by_role("heading", name="Email confirmed", exact=True).is_visible()
 
-        page.goto(base + "/sites/h24you/account")
+        page.goto(base + "/sites/northstar/account")
         assert page.get_by_text("Customer accounts are not available for this store", exact=True).is_visible()
         assert page.locator("form").count() == 0
         page.screenshot(path=str(output / "desktop-account-unavailable.png"), full_page=True)
@@ -105,14 +106,14 @@ def main():
 
         for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
             page.set_viewport_size({"width": width, "height": height})
-            page.goto(base + "/sites/h24you/account")
+            page.goto(base + "/sites/northstar/account")
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
             page.screenshot(path=str(output / f"{device}-account.png"), full_page=True)
             page.get_by_role("link", name=order_number).click()
             assert page.get_by_text("Local test carrier FIXTURE-TRACKING-123", exact=True).is_visible()
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
             page.screenshot(path=str(output / f"{device}-tracking.png"), full_page=True)
-        page.goto(base + "/sites/h24you/account")
+        page.goto(base + "/sites/northstar/account")
         page.get_by_role("button", name="Unsubscribe from marketing").click()
         page.wait_for_load_state("networkidle")
         assert page.get_by_text("Marketing: unsubscribed", exact=True).is_visible()

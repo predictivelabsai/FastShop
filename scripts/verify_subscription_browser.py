@@ -47,8 +47,9 @@ def main():
 
     email = "subscription-fixture@example.test"
     with SessionLocal() as db:
-        site = db.scalar(select(Site).where(Site.slug == "h24you"))
-        product = db.scalar(select(Product).where(Product.tenant_id == site.tenant_id, Product.slug == "hydrogen-tablets"))
+        from scripts.demo_site import seed_demo_site
+        site = seed_demo_site(db, settings.admin_email)
+        product = db.scalar(select(Product).where(Product.tenant_id == site.tenant_id, Product.slug == "daily-vitamins"))
         variants = list(db.scalars(select(ProductVariant).where(ProductVariant.tenant_id == site.tenant_id, ProductVariant.product_id == product.id)))
         config = commerce.settings_for(db, site, create=True)
         config.customer_accounts_enabled = True
@@ -120,7 +121,7 @@ def main():
     output = Path("output/playwright/phase2-subscriptions")
     output.mkdir(parents=True, exist_ok=True)
     errors = []
-    root = settings.public_url + "/sites/h24you"
+    root = settings.public_url + "/sites/northstar"
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(channel="chrome", headless=True)
