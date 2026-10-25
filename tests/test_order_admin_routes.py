@@ -191,3 +191,19 @@ def test_refund_rejects_negative_fractional_and_foreign_line_quantities(web):
         assert response.status_code == 400
     assert w.client.get(w.detail + "/refund-items", params={"qty_" + w.order.lines[0].id: "1",
         "shipping": "0.001", "reason": "A rejected malformed shipping request."}).status_code == 400
+
+
+def test_short_return_reason_can_be_reviewed_for_refund(web):
+    w=web
+    line=w.order.lines[0]
+    post(w,'/fulfil-items',{'qty_'+line.id:'1','carrier':'UPS','tracking_number':'SHORT',
+        'request_key':'short-reason-fulfil-01'})
+    post(w,'/returns',{'qty_'+line.id:'1','reason':'Torn'})
+    with w.sessions() as db:
+        row=db.scalar(select(ReturnRequest).where(ReturnRequest.site_order_id==w.link.id))
+        return_id=row.id
+    for target in ('approved','received'):
+        post(w,f'/returns/{return_id}/status',{'target':target})
+    response=w.client.get(w.detail+'/refund-items',params={'return_id':return_id})
+    assert response.status_code==200
+    assert 'Return refund: Torn' in response.text
