@@ -496,7 +496,7 @@ def main():
             gateway_factory=lambda site: GATEWAY)
         growth.checkout = discount_checkout
         OUTPUT.mkdir(parents=True, exist_ok=True)
-        for module in (foundation, catalogue, orders, growth, editor):
+        for module in (foundation, catalogue, orders, growth, editor, gaps):
             module.OUTPUT = OUTPUT
         home_site = foundation.seed_order()
         editor_fixture = editor.fixtures()
@@ -598,7 +598,7 @@ def main():
             browser.assert_clean()
             assert not server_errors, server_errors
             summary = {"status": "passed", "journeys": results, "browser_errors": browser.errors,
-                       "screenshots": str(OUTPUT), "count": len([path for path in OUTPUT.glob("*.png")
+                       "screenshots": OUTPUT.relative_to(ROOT).as_posix(), "count": len([path for path in OUTPUT.glob("*.png")
                            if "failure" not in path.stem and not path.stem.startswith("review-")]),
                        "payment_boundary": "Local provider doubles; no live Stripe payment or email delivery",
                        "isolation": ("Explicit disposable PostgreSQL database, fast_shop schema"

@@ -18,7 +18,7 @@ from playwright.sync_api import Error, expect, sync_playwright
 from verify_admin_v2_browser import EMAIL, PASSWORD, isolate
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "output/playwright/admin-v2/p5"
+OUTPUT = ROOT / "output/playwright/admin-v2/upstream/editor-check"
 
 
 def fixtures():
@@ -84,7 +84,7 @@ def journey(browser, base, site_id, home_id, page_id):
     expect(frame.locator("[data-block-id]").first).to_be_visible()
     hero_row = page.locator(".tree-row").first
     expect(hero_row.locator(".block-icon")).to_be_visible()
-    expect(hero_row.locator(".tree-title > span")).to_have_text("Hero")
+    expect(hero_row.locator(".tree-title > span")).to_have_text("Hero image or video")
     expect(hero_row.locator(".tree-title small")).to_have_text("Make room for something good.")
     capture(page, "desktop-1440-storefront-home")
     page.locator("#add-section").click()

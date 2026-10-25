@@ -30,7 +30,8 @@ The site selects a registered pack through its `theme_pack` setting. Unregistere
 packs use the default storefront. Register once during startup, before accepting
 requests. The deploying repository should also retain its own specialised cart
 presentation and asset enhancement tests. Customer pack assets and bootstrap
-imports remain local to that repository.
+imports remain local to that repository. After core schema preparation, the deploy
+entry point can run its own idempotent seed in an explicit database transaction.
 
 Alembic revisions 0029 to 0034 have identical filenames and identifiers across
 the product and deploy repositories. Do not renumber them when merging the core
