@@ -9,6 +9,8 @@ from app.models import CommerceMail, Order, OutboxEvent, PaymentTransaction, Sto
 
 
 def verify_demo_flow(page, site_id, output):
+    dismiss = page.get_by_role("button", name="Dismiss notification", exact=True)
+    page.add_locator_handler(dismiss, lambda button: button.click())
     models = (CommerceMail, Order, OutboxEvent, PaymentTransaction, Stock)
     with SessionLocal() as db:
         before = [db.scalar(select(func.count()).select_from(model)) for model in models]

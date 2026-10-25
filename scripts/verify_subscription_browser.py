@@ -1,5 +1,6 @@
 """Local fixture subscription controls; no real Stripe calls or persisted browser sessions."""
 
+import json
 import threading
 import time
 from datetime import UTC, datetime, timedelta
@@ -14,8 +15,8 @@ from app.config import settings
 
 
 def main():
-    if settings.db_url or not str(settings.data_dir).startswith("/tmp/fastshop-") or settings.public_url != "http://127.0.0.1:5042":
-        raise SystemExit("Requires isolated /tmp/fastshop-* data, empty DB_URL and http://127.0.0.1:5042 public URL.")
+    if settings.db_url or not Path(settings.data_dir).name.startswith("fastshop-") or settings.public_url != "http://127.0.0.1:5042":
+        raise SystemExit("Requires isolated fastshop-* data, empty DB_URL and http://127.0.0.1:5042 public URL.")
     from app import (
         checkout_payments,
         checkout_services,
@@ -50,6 +51,7 @@ def main():
         product = db.scalar(select(Product).where(Product.tenant_id == site.tenant_id, Product.slug == "hydrogen-tablets"))
         variants = list(db.scalars(select(ProductVariant).where(ProductVariant.tenant_id == site.tenant_id, ProductVariant.product_id == product.id)))
         config = commerce.settings_for(db, site, create=True)
+        config.customer_accounts_enabled = True
         config.mode, config.shipping_minor, config.tax_registration_reviewed = "sandbox", 1000, True
         config.origin_json = {"country": "EE", "line1": "Local fixture warehouse", "city": "Tallinn", "postal_code": "10111"}
         config.product_tax_codes_json = {product.id: "txcd_00000000"}
@@ -125,12 +127,23 @@ def main():
             page = browser.new_page(viewport={"width": 1440, "height": 1000})
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             page.route("https://checkout.stripe.com/**", lambda route: route.fulfill(content_type="text/html", body="<h1>Local card-update simulation</h1>"))
+
+            def local_handoff(route):
+                response = route.fetch(max_redirects=0)
+                destination = response.headers.get("location", "")
+                assert response.status == 303 and destination.startswith("https://checkout.stripe.com/")
+                route.fulfill(status=200, content_type="text/html", body="<script>location.replace(" +
+                    json.dumps(destination) + ")</script>")
+
+            page.route("**/checkout/*/pay", local_handoff)
+            page.route("**/account/subscriptions/*/payment", local_handoff)
             page.goto(root + "/account")
-            page.locator('input[name="email"]').fill(email)
-            page.get_by_role("button", name="Email me a sign-in link").click()
-            page.wait_for_load_state("networkidle")
+            assert page.get_by_role("heading", name="Sign in with an email link").is_visible()
+            assert page.locator('form[action$="/account/login"]').count() == 1
             with SessionLocal() as db:
                 site = db.get(Site, site_id)
+                customer_services.request_email_challenge(db, site, email, "login", "local-browser")
+                db.commit()
                 customer = customer_services.customer_for(db, site, email)
                 challenge = db.scalar(select(CustomerChallenge).where(CustomerChallenge.customer_id == customer.id))
                 link = customer_services.confirmation_url(site, challenge)

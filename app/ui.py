@@ -453,12 +453,23 @@ def merchant_page(title: str, active: str, *content, user: dict, csrf: str, rout
     )
 
 
-def dashboard(session: Session):
-    revenue = session.scalar(select(func.coalesce(func.sum(Order.total_minor), 0)).where(Order.payment_status == "paid")) or 0
-    order_count = session.scalar(select(func.count(Order.id))) or 0
-    product_count = session.scalar(select(func.count(Product.id)).where(Product.is_published.is_(True))) or 0
-    stock_units = session.scalar(select(func.coalesce(func.sum(Stock.quantity - Stock.allocated), 0))) or 0
-    orders = list(session.scalars(select(Order).order_by(Order.created_at.desc()).limit(8)))
+def dashboard(session: Session, tenant_ids: set[str] | None = None):
+    revenue_query = select(func.coalesce(func.sum(Order.total_minor), 0)).where(Order.payment_status == "paid")
+    order_count_query = select(func.count(Order.id))
+    product_count_query = select(func.count(Product.id)).where(Product.is_published.is_(True))
+    stock_query = select(func.coalesce(func.sum(Stock.quantity - Stock.allocated), 0))
+    orders_query = select(Order).order_by(Order.created_at.desc()).limit(8)
+    if tenant_ids is not None:
+        revenue_query = revenue_query.where(Order.tenant_id.in_(tenant_ids))
+        order_count_query = order_count_query.where(Order.tenant_id.in_(tenant_ids))
+        product_count_query = product_count_query.where(Product.tenant_id.in_(tenant_ids))
+        stock_query = stock_query.join(ProductVariant, ProductVariant.id == Stock.variant_id).where(ProductVariant.tenant_id.in_(tenant_ids))
+        orders_query = orders_query.where(Order.tenant_id.in_(tenant_ids))
+    revenue = session.scalar(revenue_query) or 0
+    order_count = session.scalar(order_count_query) or 0
+    product_count = session.scalar(product_count_query) or 0
+    stock_units = session.scalar(stock_query) or 0
+    orders = list(session.scalars(orders_query))
     return (
         Div(Div(Small("Paid revenue"), Strong(money(revenue)), cls="kpi"), Div(Small("Orders"), Strong(str(order_count)), cls="kpi"), Div(Small("Published products"), Strong(str(product_count)), cls="kpi"), Div(Small("Available units"), Strong(str(stock_units)), cls="kpi"), cls="kpis"),
         panel("Recent orders", order_table(orders)),
@@ -473,31 +484,40 @@ def order_table(orders: list[Order]):
     return Div(Table(Thead(Tr(Th("Order"), Th("Customer"), Th("Status"), Th("Payment"), Th("Total"))), Tbody(*[Tr(Td(A(order.number, href=f"/account/orders/{order.token}")), Td(order.email), Td(Span(order.status, cls="pill amber")), Td(Span(order.payment_status, cls="pill green")), Td(money(order.total_minor, order.currency))) for order in orders])), cls="table-scroll")
 
 
-def admin_products(session: Session):
-    rows = products(session)
-    return panel("Published catalog", Div(Table(Thead(Tr(Th("Product"), Th("Category"), Th("Price"), Th("Available"), Th("Status"))), Tbody(*[Tr(Td(A(card.product.name, href=f"/products/{card.product.slug}")), Td(card.product.category.name), Td(money(card.price_minor, card.currency)), Td(str(card.available)), Td(Span("Published", cls="pill green"))) for card in rows])), cls="table-scroll"), A("View storefront", href="/products", cls="button secondary small"))
+def admin_products(session: Session, tenant_ids: set[str] | None = None):
+    rows = products(session, tenant_ids=tenant_ids, admin_catalog=True)
+    return panel("Published catalog", Div(Table(Thead(Tr(Th("Product"), Th("Category"), Th("Price"), Th("Available"), Th("Status"))), Tbody(*[Tr(Td(A(card.product.name, href=f"/products/{card.product.slug}")), Td(card.product.category.name), Td(money(card.price_minor, card.currency) if card.price_minor is not None else "Price to be confirmed"), Td(str(card.available)), Td(Span("Published", cls="pill green"))) for card in rows])), cls="table-scroll"), A("View storefront", href="/products", cls="button secondary small"))
 
 
-def admin_inventory(session: Session):
-    rows = session.execute(select(ProductVariant, Stock).join(Stock, Stock.variant_id == ProductVariant.id).order_by(ProductVariant.sku)).all()
+def admin_inventory(session: Session, tenant_ids: set[str] | None = None):
+    statement = select(ProductVariant, Stock).join(Stock, Stock.variant_id == ProductVariant.id).order_by(ProductVariant.sku)
+    if tenant_ids is not None:
+        statement = statement.where(ProductVariant.tenant_id.in_(tenant_ids))
+    rows = session.execute(statement).all()
     return panel("Warehouse availability", Div(Table(Thead(Tr(Th("SKU"), Th("Variant"), Th("On hand"), Th("Allocated"), Th("Available"))), Tbody(*[Tr(Td(variant.sku), Td(variant.name), Td(str(stock.quantity)), Td(str(stock.allocated)), Td(Span(str(stock.quantity - stock.allocated), cls="pill green" if stock.quantity - stock.allocated >= 8 else "pill amber"))) for variant, stock in rows])), cls="table-scroll"))
 
 
-def admin_promotions(session: Session):
-    vouchers = list(session.scalars(select(Voucher).order_by(Voucher.created_at)))
+def admin_promotions(session: Session, tenant_ids: set[str] | None = None):
+    statement = select(Voucher).order_by(Voucher.created_at)
+    if tenant_ids is not None:
+        statement = statement.where(Voucher.tenant_id.in_(tenant_ids))
+    vouchers = list(session.scalars(statement))
     return panel("Vouchers and promotions", Div(Table(Thead(Tr(Th("Code"), Th("Type"), Th("Value"), Th("Minimum"), Th("Used"), Th("Status"))), Tbody(*[Tr(Td(Code(v.code)), Td(v.kind), Td(f"{v.value}%" if v.kind == "percentage" else money(v.value)), Td(money(v.minimum_minor)), Td(str(v.used_count)), Td(Span("Active" if v.is_active else "Paused", cls="pill green" if v.is_active else "pill"))) for v in vouchers])), cls="table-scroll"))
 
 
-def admin_channels(session: Session):
-    tenant, _ = tenant_channel(session)
-    channels = list(session.scalars(select(Channel).where(Channel.tenant_id == tenant.id)))
+def admin_channels(session: Session, tenant_ids: set[str] | None = None):
+    statement = select(Channel).order_by(Channel.name)
+    if tenant_ids is not None:
+        statement = statement.where(Channel.tenant_id.in_(tenant_ids))
+    channels = list(session.scalars(statement))
     return panel("Sales channels", Div(Table(Thead(Tr(Th("Channel"), Th("Currency"), Th("Country"), Th("Locale"), Th("Tax display"), Th("Status"))), Tbody(*[Tr(Td(channel.name), Td(channel.currency), Td(channel.country_code), Td(channel.locale), Td("Tax inclusive" if channel.prices_include_tax else "Tax exclusive"), Td(Span("Active", cls="pill green"))) for channel in channels])), cls="table-scroll"))
 
 
-def integration_page(session: Session, message: str = ""):
+def integration_page(session: Session, message: str = "", tenant_ids: set[str] | None = None):
     state = fasterp.status()
-    pending = session.scalar(select(func.count(OutboxEvent.id)).where(OutboxEvent.status == "pending")) or 0
-    failed = session.scalar(select(func.count(OutboxEvent.id)).where(OutboxEvent.status == "failed")) or 0
+    scope = OutboxEvent.tenant_id.in_(tenant_ids) if tenant_ids is not None else True
+    pending = session.scalar(select(func.count(OutboxEvent.id)).where(OutboxEvent.status == "pending", scope)) or 0
+    failed = session.scalar(select(func.count(OutboxEvent.id)).where(OutboxEvent.status == "failed", scope)) or 0
     return (
         Div(message, cls="notice") if message else None,
         panel("FastERP connection", Div(Div(H3("erp.fastsme.com"), P(state.message), Small("FastShop sends confirmed orders through a signed, idempotent API boundary; it never writes into FastERP tables.")), Span("Reachable" if state.reachable else "Unavailable", cls="pill green" if state.reachable else "pill amber"), cls="integration-state")),

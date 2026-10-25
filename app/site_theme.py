@@ -20,6 +20,25 @@ PRESETS = {
     "bold": DEFAULTS | {"accent": "#7e22ce", "background": "#faf5ff", "surface": "#eee0fb", "text": "#29163b", "headings": "modern", "hero": "center"},
 }
 
+# Packs are application-owned assets, never a merchant stylesheet URL.
+THEME_PACKS = {}
+
+
+def register_theme_pack(name, *, storefront, block, commerce=None):
+    """Register application-owned renderers from an optional pack's startup module."""
+    if not re.fullmatch(r"[a-z][a-z0-9_-]{0,79}", name) or name in THEME_PACKS:
+        raise ValueError("Choose a new valid theme pack identifier.")
+    THEME_PACKS[name] = {"storefront": storefront, "block": block, "commerce": commerce}
+
+
+def pack_renderer(config, surface):
+    return THEME_PACKS.get(theme_pack(config), {}).get(surface)
+
+
+def theme_pack(config):
+    value = config.get("theme_pack")
+    return value if isinstance(value, str) and value in THEME_PACKS else ""
+
 
 def validate_theme(value):
     if not isinstance(value, dict) or set(value) - set(DEFAULTS):

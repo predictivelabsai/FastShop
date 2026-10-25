@@ -54,3 +54,7 @@ def health() -> dict[str, str]:
         "database": "postgresql" if IS_POSTGRES else "sqlite",
         "schema": settings.db_schema if IS_POSTGRES else "main",
     }
+
+
+# Register transactional, append-only admin audit collection.
+from app import admin_activity  # noqa: E402,F401

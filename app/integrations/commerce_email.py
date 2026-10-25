@@ -6,22 +6,26 @@ from datetime import UTC, datetime, timedelta
 import httpx
 from sqlalchemy import select, update
 
+from app import commerce, growth_settings, signup_services
 from app import customer_services as customers
-from app import signup_services
 from app.db import SessionLocal
 from app.models import (
     BillingSubscription,
     CommerceMail,
     CustomerChallenge,
     CustomerOffer,
+    DraftOrder,
     MarketingConsent,
     Membership,
     Order,
+    PaymentTransaction,
+    RefundCommand,
     ShipmentEvent,
     ShopCustomer,
     SignupEmailVerification,
     Site,
     SiteOrder,
+    StaffInvite,
     SubscriptionContract,
     SubscriptionCycle,
     User,
@@ -49,6 +53,77 @@ def send_email(recipient, subject, body, *, message_id):
 
 
 def render_message(db, row, site, customer=None, user=None):
+    """Apply merchant text templates only after existing reference checks pass."""
+    reference = row.reference_json or {}
+    if row.kind == "staff_invite":
+        invite = db.scalar(select(StaffInvite).where(
+            StaffInvite.id == reference.get("invite_id"), StaffInvite.site_id == site.id,
+            StaffInvite.tenant_id == site.tenant_id))
+        if (not user or not invite or invite.accepted_at
+                or signup_services.utc(invite.expires_at) <= datetime.now(UTC)):
+            return None
+        url = growth_settings.invite_url(invite)
+        default = ("You are invited to " + site.name,
+            f"You have been invited to {site.name} as {invite.role}.\n\nAccept: {url}\n\n"
+            "This invitation expires after seven days and can be used once.")
+        return growth_settings.notification_message(db, site, "invite", {
+            "customer_name": invite.email, "action_url": url, "message": default[1]},
+            default=default)
+    if row.kind == "notification_test":
+        if not user:
+            return None
+        return str(reference.get("subject", "Notification test")), str(reference.get("body", ""))
+    default = _render_message(db, row, site, customer, user)
+    if not default:
+        return None
+    event = {"order_confirmation": "order_confirmation", "shipment_update": "shipping_confirmation",
+             "refund": "refund", "draft_invoice": "draft_invoice", "login": "customer_account", "account_verification": "customer_account"}.get(row.kind)
+    if not event:
+        return default
+    values = {"customer_name": customer.name if customer else user.name if user else "",
+              "message": default[1], "action_url": ""}
+    if row.kind == "login" and customer:
+        challenge = db.scalar(select(CustomerChallenge).where(CustomerChallenge.id == row.challenge_id,
+            CustomerChallenge.site_id == site.id, CustomerChallenge.tenant_id == site.tenant_id,
+            CustomerChallenge.customer_id == customer.id))
+        if challenge:
+            values["action_url"] = customers.confirmation_url(site, challenge)
+    if row.kind == "account_verification":
+        verification = db.scalar(select(SignupEmailVerification).where(
+            SignupEmailVerification.id == reference.get("verification_id"),
+            SignupEmailVerification.site_id == site.id, SignupEmailVerification.tenant_id == site.tenant_id))
+        if verification:
+            values["action_url"] = signup_services.verification_url(verification)
+    link = db.scalar(select(SiteOrder).where(SiteOrder.id == reference.get("site_order_id"),
+        SiteOrder.site_id == site.id, SiteOrder.tenant_id == site.tenant_id)) if reference.get("site_order_id") else None
+    if link:
+        order = db.scalar(select(Order).where(Order.id == link.order_id, Order.tenant_id == site.tenant_id))
+        if order:
+            values.update(order_number=order.number, total=money(order.total_minor, order.currency))
+            if row.kind == "refund":
+                command = db.scalar(select(RefundCommand).where(
+                    RefundCommand.id == reference.get("refund_command_id"),
+                    RefundCommand.site_id == site.id, RefundCommand.tenant_id == site.tenant_id,
+                    RefundCommand.site_order_id == link.id, RefundCommand.state == "succeeded"))
+                if command:
+                    values["total"] = money(command.amount_minor, command.currency)
+    if row.kind == "draft_invoice":
+        draft = db.scalar(select(DraftOrder).where(
+            DraftOrder.id == reference.get("draft_id"), DraftOrder.site_id == site.id,
+            DraftOrder.tenant_id == site.tenant_id))
+        if draft:
+            from app.draft_orders import totals
+            values.update(order_number=draft.id[:8].upper(),
+                          total=money(totals(db, site, draft)[1], draft.currency))
+    if row.kind == "shipment_update":
+        shipment = db.scalar(select(ShipmentEvent).where(ShipmentEvent.id == reference.get("shipment_id"),
+            ShipmentEvent.site_id == site.id, ShipmentEvent.tenant_id == site.tenant_id))
+        if shipment:
+            values["tracking_number"] = shipment.tracking_number
+    return growth_settings.notification_message(db, site, event, values, default=default)
+
+
+def _render_message(db, row, site, customer=None, user=None):
     if row.kind == "account_verification":
         verification = db.scalar(
             select(SignupEmailVerification).where(
@@ -93,6 +168,79 @@ def render_message(db, row, site, customer=None, user=None):
         )
     if not customer:
         return None
+    if row.kind == "order_edit_invoice":
+        from app.commerce_gap_models import OrderEdit
+        reference = row.reference_json or {}
+        edit = db.scalar(select(OrderEdit).join(SiteOrder, SiteOrder.id == OrderEdit.site_order_id).where(
+            OrderEdit.id == reference.get("order_edit_id"), OrderEdit.site_id == site.id,
+            OrderEdit.tenant_id == site.tenant_id, SiteOrder.customer_id == customer.id,
+            SiteOrder.id == reference.get("site_order_id"), SiteOrder.tenant_id == site.tenant_id,
+            SiteOrder.site_id == site.id))
+        if not edit or edit.settlement != "invoiced" or edit.difference_minor <= 0:
+            return None
+        latest = db.scalar(select(OrderEdit.id).where(OrderEdit.site_id == site.id,
+            OrderEdit.tenant_id == site.tenant_id, OrderEdit.site_order_id == edit.site_order_id)
+            .order_by(OrderEdit.created_at.desc(), OrderEdit.id.desc()))
+        if latest != edit.id:
+            return None
+        link = db.get(SiteOrder, edit.site_order_id)
+        order = db.get(Order, link.order_id)
+        return f"Order invoice - {site.name}", (
+            f"{site.name}\nOrder {order.number}\n\n"
+            f"Amount owing after your order edit: {money(edit.difference_minor, order.currency)}\n\n"
+            "Arrange payment directly with the merchant. This invoice does not charge a card.")
+    if row.kind == "draft_invoice":
+        from app import draft_orders
+        reference = row.reference_json or {}
+        draft = db.scalar(select(DraftOrder).where(DraftOrder.id == reference.get("draft_id"),
+            DraftOrder.site_id == site.id, DraftOrder.tenant_id == site.tenant_id,
+            DraftOrder.customer_id == customer.id, DraftOrder.status == "invoice_sent",
+            DraftOrder.version == reference.get("version")))
+        if not draft:
+            return None
+        subtotal, total = draft_orders.totals(db, site, draft)
+        body = f"{site.name}\nDraft invoice #{draft.id[:8].upper()}\n\n"
+        for line in draft_orders.lines_for(db, site, draft):
+            body += f"{line.title} × {line.quantity}: {money(line.quantity*line.unit_price_minor, draft.currency)}\n"
+        body += (f"\nSubtotal: {money(subtotal, draft.currency)}\n"
+            f"Discount: {money(draft.discount_minor, draft.currency)}\n"
+            f"Shipping: {money(draft.shipping_minor, draft.currency)}\n"
+            f"Total: {money(total, draft.currency)}\n\n"
+            "Arrange payment directly with the merchant. This invoice has no online payment link "
+            "and does not confirm receipt of payment. No automatic tax calculation is included.\n")
+        return f"Draft invoice - {site.name}", body
+    if row.kind == "refund":
+        reference = row.reference_json or {}
+        link = db.scalar(select(SiteOrder).where(SiteOrder.id == reference.get("site_order_id"),
+            SiteOrder.site_id == site.id, SiteOrder.tenant_id == site.tenant_id,
+            SiteOrder.customer_id == customer.id))
+        if not link:
+            return None
+        order = db.scalar(select(Order).where(Order.id == link.order_id,
+            Order.tenant_id == site.tenant_id))
+        refunds = list(db.scalars(select(PaymentTransaction).where(
+            PaymentTransaction.order_id == link.order_id,
+            PaymentTransaction.kind == "refund", PaymentTransaction.status == "succeeded")))
+        if not order or not refunds or order.payment_status not in {"refunded", "partially_refunded"}:
+            return None
+        if reference.get("refund_command_id"):
+            command = db.scalar(select(RefundCommand).where(
+                RefundCommand.id == reference["refund_command_id"],
+                RefundCommand.site_id == site.id, RefundCommand.tenant_id == site.tenant_id,
+                RefundCommand.site_order_id == link.id, RefundCommand.state == "succeeded"))
+            if not command or not any(
+                refund.external_id == command.provider_refund_id
+                and refund.provider == "stripe:" + site.id
+                and refund.currency == command.currency
+                and refund.amount_minor == command.amount_minor for refund in refunds
+            ):
+                return None
+            amount = command.amount_minor
+        else:
+            amount = sum(refund.amount_minor for refund in refunds)
+        return "Refund confirmation " + order.number, (
+            f"{site.name}\n\nA refund of {money(amount, order.currency)} has been recorded "
+            f"for order {order.number}.\n\nThis is a transactional order notification.")
     if row.kind in {"renewal_failed", "renewal_upcoming"}:
         return render_subscription_message(db, row, site, customer)
     if row.kind in {"order_confirmation", "shipment_update"}:
@@ -132,24 +280,29 @@ def render_order_message(db, row, site, customer):
     if not link:
         return None
     order = db.scalar(select(Order).where(Order.id == link.order_id, Order.tenant_id == site.tenant_id))
-    if not order or order.payment_status != "paid":
+    if not order or (order.payment_status != "paid" and not (
+            row.kind == "shipment_update" and order.payment_status in {"partially_refunded", "refunded"})):
         return None
-    # Phase 2 currently permits test payments only; never imply real fulfilment.
-    heading = "Sandbox order confirmation"
-    body = f"{site.name}\nOrder {order.number}\n\nTEST ORDER — no real payment or shipment.\n\n"
+    from app.models import PaymentTransaction
+    manual = db.scalar(select(PaymentTransaction.id).where(
+        PaymentTransaction.order_id == order.id, PaymentTransaction.provider == "manual:"+site.id,
+        PaymentTransaction.kind == "charge", PaymentTransaction.status == "succeeded")) is not None
+    heading = "Order confirmation" if manual else "Sandbox order confirmation"
+    body = f"{site.name}\nOrder {order.number}\n\n"
+    body += ("Payment was recorded manually by the merchant. No online charge was made.\n\n"
+        if manual else "TEST ORDER - no real payment or shipment.\n\n")
     if row.kind == "shipment_update":
         shipment = db.scalar(select(ShipmentEvent).where(ShipmentEvent.id == reference.get("shipment_id"),
             ShipmentEvent.site_order_id == link.id, ShipmentEvent.site_id == site.id,
             ShipmentEvent.tenant_id == site.tenant_id))
         if not shipment:
             return None
-        heading = "Sandbox delivery update"
+        heading = "Delivery update" if manual else "Sandbox delivery update"
         body += f"Status: {shipment.status.replace('_', ' ').title()}\n"
         if shipment.carrier or shipment.tracking_number:
             body += f"Carrier: {shipment.carrier}\nTracking number: {shipment.tracking_number}\n"
         if shipment.note:
             body += shipment.note + "\n"
-        # The account page validates ownership and presents the vetted carrier link.
     else:
         for line in order.lines:
             body += f"{line.product_name} · {line.variant_name} × {line.quantity}: {money(line.total_minor, order.currency)}\n"
@@ -158,10 +311,12 @@ def render_order_message(db, row, site, customer):
             f"Shipping: {money(order.shipping_minor, order.currency)}\n"
             f"Sales tax: {money(order.tax_minor, order.currency)}\n"
             f"Total paid: {money(order.total_minor, order.currency)}\n")
-    url = customers.customer_base(site) + "/account/orders/" + link.id
-    body += (f"\nView your order and delivery updates (sign-in required): {url}\n\n"
-        "This is a transactional message about your order, not a marketing subscription.\n\nPowered by FastShop.")
-    return f"{heading} — {order.number} — {site.name}", body
+    config = commerce.settings_for(db, site)
+    if config and config.customer_accounts_enabled:
+        url = customers.customer_base(site) + "/account/orders/" + link.id
+        body += f"\nView your order and delivery updates (sign-in required): {url}\n"
+    body += "\nThis is a transactional message about your order, not a marketing subscription.\n\nPowered by FastShop."
+    return f"{heading} - {order.number} - {site.name}", body
 
 
 def render_subscription_message(db, row, site, customer):
@@ -192,8 +347,7 @@ def render_subscription_message(db, row, site, customer):
         subject = ("Delivery needs attention" if mode == "live" else "Sandbox delivery needs attention")
         body += (f"Your delivery scheduled for {cycle.due_at:%Y-%m-%d} UTC was not completed. "
             "Future deliveries are paused. No successful payment was recorded for this delivery.\n\n"
-            "Sign in to review a fresh one-time checkout for the missed delivery, update your saved card, "
-            "or manage future deliveries. Retrying the missed delivery does not automatically resume the subscription.\n")
+            "Retrying the missed delivery does not automatically resume the subscription.\n")
     else:
         if (contract.state != "active" or contract.version != reference.get("version") or
                 customers.utc(contract.next_due_at).isoformat() != reference.get("due_at") or
@@ -205,10 +359,11 @@ def render_subscription_message(db, row, site, customer):
         amount = sum(line["unit_minor"] * line["quantity"] for line in contract.lines_json)
         body += (f"Your next delivery is scheduled for {contract.next_due_at:%Y-%m-%d} UTC.\n"
             f"Recurring merchandise: {money(amount, 'USD')}. Shipping and destination sales tax are calculated per delivery; "
-            "this notice is not a final payment quote. The first-order offer does not repeat.\n\n"
-            "You can skip, pause, change or cancel future deliveries in My account before payment processing begins.\n")
-    url = customers.customer_base(site) + "/account/subscriptions/" + contract.id
-    body += f"\nManage subscription (sign-in required): {url}\n\nThis is a transactional subscription notice, not marketing.\n\nPowered by FastShop."
+            "this notice is not a final payment quote. The first-order offer does not repeat.\n")
+    if config and config.customer_accounts_enabled:
+        url = customers.customer_base(site) + "/account/subscriptions/" + contract.id
+        body += f"\nManage subscription (sign-in required): {url}\n"
+    body += "\nThis is a transactional subscription notice, not marketing.\n\nPowered by FastShop."
     return subject + " — " + site.name, body
 
 
@@ -237,6 +392,11 @@ def dispatch_mail(message_id, *, sessions=SessionLocal, sender=send_email):
             return False
         subject, body = message
         recipient = user.email if user else customer.email
+        if row.kind == "staff_invite":
+            invite = db.scalar(select(StaffInvite).where(
+                StaffInvite.id == (row.reference_json or {}).get("invite_id"),
+                StaffInvite.site_id == row.site_id, StaffInvite.tenant_id == row.tenant_id))
+            recipient = invite.email
         status, provider_id = sender(recipient, subject, body, message_id=row.id)
         row.status, row.provider_id = status, provider_id
         row.available_at = datetime.now(UTC) + timedelta(minutes=min(60, 2 ** row.attempts))

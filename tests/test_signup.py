@@ -460,3 +460,50 @@ def test_slug_collision_uses_bounded_unique_suffix(signup_workspace):
         slugs = list(db.scalars(select(Site.slug).order_by(Site.slug)))
         assert slugs == ["shared-store", "shared-store-2"]
         assert all(3 <= len(slug) <= signup_services.SIGNUP_SLUG_MAX_LENGTH for slug in slugs)
+
+
+def test_existing_orphan_password_signup_requires_its_password(signup_workspace):
+    from app.auth import hash_admin_password
+
+    with signup_workspace.sessions() as db:
+        user = User(email="owner@example.test", name="Orphan",
+                    password_hash=hash_admin_password("correct-horse-battery-staple"))
+        db.add(user)
+        db.commit()
+        user_id = user.id
+    response = signup(signup_workspace.client)
+    assert response.headers["location"].startswith("/admin/onboarding/")
+    with signup_workspace.sessions() as db:
+        assert db.scalar(select(func.count(User.id))) == 1
+        assert db.scalar(select(Membership.user_id)) == user_id
+
+
+def test_existing_google_orphan_signup_reuses_user(signup_workspace):
+    with signup_workspace.sessions() as db:
+        user = User(email="orphan@example.test", name="Orphan")
+        db.add(user)
+        db.flush()
+        user_id = user.id
+        result = signup_services.provision_google_signup(
+            db, "Recovered merchant", user.email, "fixture"
+        )
+        db.commit()
+        assert result.user.id == user_id
+        assert result.user.email_verified_at is not None
+        assert result.message_id is None
+        assert db.scalar(select(func.count(User.id))) == 1
+        assert db.scalar(select(Membership.user_id)) == user_id
+
+
+def test_existing_orphan_cannot_be_claimed_with_new_password(signup_workspace):
+    from app.auth import hash_admin_password
+
+    with signup_workspace.sessions() as db:
+        user = User(email="owner@example.test", name="Orphan",
+                    password_hash=hash_admin_password("another-private-password"))
+        db.add(user)
+        db.commit()
+    response = signup(signup_workspace.client)
+    assert response.headers["location"] == "/signup?status=unable#signup-form"
+    with signup_workspace.sessions() as db:
+        assert db.scalar(select(func.count(Membership.id))) == 0

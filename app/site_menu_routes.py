@@ -23,6 +23,7 @@ from starlette.responses import JSONResponse, RedirectResponse
 from app import content
 from app import site_builder_services as builder
 from app import site_menus as menus
+from app.admin_ui import empty_state
 from app.db import SessionLocal
 from app.models import new_id
 from app.services import CommerceError
@@ -69,10 +70,12 @@ def register_menu_routes(rt, actor, csrf, check_csrf, shell, error):
                                 method="post", action=base + "/" + menu.name, cls="e-form"), cls="e-section"))
                     cards.append(Div(H2(menu.name.title()),
                         P(f"{len(menu.items_json)} of 40 items. " + ("Published menu available." if menu.published_items_json is not None else "Unpublished; visitors see legacy links.")),
-                        *rows, P("This menu is empty.") if not rows else None,
+                        *rows, empty_state("Add your first menu item", "Help customers find pages and products in your store.",
+                            A("Add menu item", href="#add-menu-" + menu.name, cls="e-button")) if not rows else None,
                         Details(Summary("Add an item"), Form(*hidden(), *fields({}),
                             Button("Add item", name="action", value="add", cls="e-button", disabled=len(menu.items_json) >= menus.MAX_ITEMS),
-                            method="post", action=base + "/" + menu.name, cls="e-form")),
+                            method="post", action=base + "/" + menu.name, cls="e-form",
+                            id="add-menu-" + menu.name)),
                         Form(*hidden(), Button("Publish menu", name="action", value="publish", cls="e-button"),
                             method="post", action=base + "/" + menu.name), cls="e-card"))
                 return shell("Menus — " + site.name,
@@ -80,8 +83,10 @@ def register_menu_routes(rt, actor, csrf, check_csrf, shell, error):
                     P("Edit labels and destinations, then publish each menu when ready. Header and footer appear on the storefront. Other named menus are available through the API."),
                     P("Labels use the site's default locale. Editing preserves other translations."),
                     P(notice, role="alert", cls="e-note") if notice else None,
-                    *cards,
-                    H3("Create a menu"), Form(*hidden(), Label("Menu name", Input(name="name", placeholder="header or footer", required=True, maxlength=40)),
+                    *(cards or [empty_state("Create your first menu",
+                        "Organise links for your store header, footer and other navigation.",
+                        A("Create menu", href="#create-menu", cls="e-button"))]),
+                    H3("Create a menu", id="create-menu"), Form(*hidden(), Label("Menu name", Input(name="name", placeholder="header or footer", required=True, maxlength=40)),
                         Button("Create menu", cls="e-button"), method="post", action=base, cls="e-form"),
                     Form(*hidden(), Input(type="hidden", name="action", value="import"), Button("Import legacy navigation", cls="e-button"), method="post", action=base))
         except CommerceError as exc:

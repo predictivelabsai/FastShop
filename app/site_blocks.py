@@ -9,14 +9,19 @@ from typing import NotRequired, TypedDict
 from urllib.parse import urlsplit
 
 from app.services import CommerceError
+from app.site_widgets import WIDGETS, validate_style, validate_widget
 
 CONTENT_VERSION = 1
+MAX_BLOCK_DEPTH = 3
+MAX_BLOCK_NODES = 200
 LocalizedText = str | dict[str, str]
 
 
 class Block(TypedDict):
     id: str
     type: str
+    children: NotRequired[list[Block]]
+    style: NotRequired[dict[str, str | int | bool]]
     version: NotRequired[int]
     hidden: NotRequired[bool]
     subscription_preview: NotRequired[bool]
@@ -61,6 +66,21 @@ BLOCK_TYPES = {
     'references': BlockSpec('Studies referenced', ('url',)),
     'embed': BlockSpec('Secure embed'),
 }
+BLOCK_TYPES.update({key: BlockSpec(spec[0]) for key, spec in WIDGETS.items()})
+BLOCK_VALIDATORS = {}
+
+
+def register_block_type(kind, spec, *, validator=None):
+    """Register a trusted application-owned extension before serving requests."""
+    if not isinstance(kind, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,79}', kind):
+        raise ValueError('Use a valid block type identifier.')
+    if kind in BLOCK_TYPES:
+        raise ValueError('Block type is already registered.')
+    BLOCK_TYPES[kind] = spec
+    if validator is not None:
+        BLOCK_VALIDATORS[kind] = validator
+
+
 TEXT_FIELDS = {'heading', 'eyebrow', 'body', 'button', 'image', 'video', 'mobile_video',
                'poster', 'link', 'url', 'category', 'alt'}
 ITEM_FIELDS = {'heading', 'body', 'url', 'theme', 'image', 'alt', 'label', 'value'}
@@ -90,18 +110,30 @@ def _text(value, key, limit=30000):
     for text in values:
         if not isinstance(text, str) or len(text) > limit:
             raise CommerceError(f'{key} must be text under {limit + 1} characters.')
+        if key in {'image', 'poster'} and re.fullmatch(r'metafield:[a-z][a-z0-9_]{0,79}\.[a-z][a-z0-9_]{0,79}', text):
+            continue
         if key in URL_FIELDS and text:
             safe_url(text, media=key not in {'link', 'url'})
     return copy.deepcopy(value)
 
 
-def validate_block(block: dict) -> Block:
+def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
     if not isinstance(block, dict) or not isinstance(block.get('type'), str) or block['type'] not in BLOCK_TYPES:
         raise CommerceError('Choose a supported block type.')
+    if _depth > MAX_BLOCK_DEPTH:
+        raise CommerceError('Blocks can be nested up to three levels deep.')
+    if _state is None:
+        _state = {'count': 0, 'ids': set()}
+    _state['count'] += 1
+    if _state['count'] > MAX_BLOCK_NODES:
+        raise CommerceError('A page can contain up to 200 total blocks.')
     result = copy.deepcopy(block)
     if not isinstance(result.get('id'), str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,128}', result['id']):
         raise CommerceError('Each block needs a valid identifier.')
-    allowed = TEXT_FIELDS | {'id', 'type', 'role', 'layout', 'version', 'hidden', 'subscription_preview', 'items', 'gallery'}
+    if result['id'] in _state['ids']:
+        raise CommerceError('Each block needs a unique identifier across the tree.')
+    _state['ids'].add(result['id'])
+    allowed = TEXT_FIELDS | {'children', 'style'} | (set(WIDGETS[result['type']][2]) if result['type'] in WIDGETS else set()) | {'id', 'type', 'role', 'layout', 'version', 'hidden', 'subscription_preview', 'items', 'gallery'}
     if set(result) - allowed:
         raise CommerceError('Choose supported block fields.')
     for key in {'role', 'layout'} & result.keys():
@@ -114,6 +146,14 @@ def validate_block(block: dict) -> Block:
             raise CommerceError('Visibility and subscription preview must be true or false.')
     for key in TEXT_FIELDS & result.keys():
         result[key] = _text(result[key], key)
+    if 'style' in result:
+        result['style'] = validate_style(result['style'])
+    if 'children' in result:
+        if result['type'] != 'container' or not isinstance(result['children'], list):
+            raise CommerceError('Only containers accept a list of child widgets.')
+        result['children'] = [validate_block(child, _depth=_depth + 1, _state=_state) for child in result['children']]
+        if any(child['type'] not in WIDGETS for child in result['children']):
+            raise CommerceError('Containers accept generic widgets only.')
     if result['type'] == 'embed':
         from app.content import safe_url
         value = result.get('url', '')
@@ -136,6 +176,10 @@ def validate_block(block: dict) -> Block:
             raise CommerceError('A gallery accepts up to twelve image URLs.')
         for value in result['gallery']:
             _text(value, 'image')
+    if result['type'] in WIDGETS:
+        result = validate_widget(result)
+    if validator := BLOCK_VALIDATORS.get(result['type']):
+        validator(result)
     return result
 
 
@@ -155,17 +199,14 @@ def normalize_document(document: dict | list) -> dict:
     if not isinstance(blocks, list) or len(blocks) > 60:
         raise CommerceError('A page can contain up to 60 blocks.')
     normalized = []
-    ids = set()
+    state = {'count': 0, 'ids': set()}
     for index, block in enumerate(blocks):
         if not isinstance(block, dict):
             raise CommerceError('Blocks must be objects.')
         if not canonical:
             block.setdefault('id', uuid.uuid5(uuid.NAMESPACE_URL, f'fastshop:legacy-block:{index}').hex)
         block.setdefault('version', 1)
-        block = validate_block(block)
-        if block['id'] in ids:
-            raise CommerceError('Each block needs a unique identifier.')
-        ids.add(block['id'])
+        block = validate_block(block, _state=state)
         normalized.append(block)
     result.update(version=CONTENT_VERSION, blocks=normalized)
     if 'blog' in result:
@@ -185,7 +226,7 @@ def resolve_document(document, locale='en') -> dict:
     result = normalize_document(document)
     for key in {'title', 'description', 'image', 'category'} & result.keys():
         result[key] = resolve_text(result[key], locale)
-    for block in result['blocks']:
+    for block in walk_blocks(result['blocks']):
         for key in TEXT_FIELDS & block.keys():
             block[key] = resolve_text(block[key], locale)
         for item in block.get('items', []):
@@ -210,8 +251,14 @@ def merge_localized(old, new, locale):
     return copy.deepcopy(new)
 
 
+def walk_blocks(blocks):
+    for block in blocks:
+        yield block
+        yield from walk_blocks(block.get('children', []))
+
+
 def get_block(document, block_id) -> Block:
-    for block in normalize_document(document)['blocks']:
+    for block in walk_blocks(normalize_document(document)['blocks']):
         if block['id'] == block_id:
             return block
     raise CommerceError('Block not found.')
@@ -226,9 +273,12 @@ def patch_block(document, block_id, values, locale=None) -> dict:
                for key, value in values.items() if value is not None}
     removals = {key for key, value in values.items() if value is None}
     updated = {key: value for key, value in old.items() if key not in removals} | changes
-    result['blocks'] = [validate_block(updated) if block['id'] == block_id else block
-                        for block in result['blocks']]
-    return result
+    old.clear()
+    old.update(updated)
+    def replace(blocks):
+        return [updated if b['id'] == block_id else b | ({'children': replace(b['children'])} if 'children' in b else {}) for b in blocks]
+    result['blocks'] = replace(result['blocks'])
+    return normalize_document(result)
 
 
 def add_block(document, block) -> dict:
@@ -244,7 +294,9 @@ def add_block(document, block) -> dict:
 def remove_block(document, block_id) -> dict:
     result = normalize_document(document)
     get_block(result, block_id)
-    result['blocks'] = [block for block in result['blocks'] if block['id'] != block_id]
+    def remove(blocks):
+        return [b | ({'children': remove(b['children'])} if 'children' in b else {}) for b in blocks if b['id'] != block_id]
+    result['blocks'] = remove(result['blocks'])
     return result
 
 

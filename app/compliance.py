@@ -9,6 +9,8 @@ promotional wording and disease references block; hype words are advisory only.
 from __future__ import annotations
 
 import re
+from html import unescape
+from html.parser import HTMLParser
 
 from app.services import CommerceError
 
@@ -50,12 +52,39 @@ def scan_text(text: str, *, allow_disease: bool = True) -> dict[str, list[str]]:
     }
 
 
+class _VisibleText(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+
+    def handle_data(self, data):
+        self.parts.append(data)
+
+
+def _readable(value):
+    if isinstance(value, dict):
+        return " ".join(_readable(text) for text in value.values())
+    parser = _VisibleText()
+    raw = str(value or "")
+    parser.feed(unescape(raw))
+    # Preserve the original plain-text scan as well as text joined across HTML
+    # tags. Angle brackets in a plain heading must not hide prohibited wording.
+    return raw + " " + "".join(parser.parts)
+
+
 def _section_strings(section: dict) -> list[str]:
     values = [section.get(key, "") for key in ("eyebrow", "heading", "body")]
     for item in section.get("items", []):
         if isinstance(item, dict):
-            values.extend(str(item.get(key, "")) for key in ("heading", "body"))
-    return [str(value) for value in values if value]
+            values.extend(item.get(key, "") for key in ("heading", "body"))
+    return [_readable(value) for value in values if value]
+
+
+def _sections(blocks):
+    for block in blocks:
+        if isinstance(block, dict):
+            yield block
+            yield from _sections(block.get("children", []))
 
 
 def scan_document(document: dict) -> dict[str, list[str]]:
@@ -74,7 +103,8 @@ def scan_document(document: dict) -> dict[str, list[str]]:
             banned += [t for t in found["banned"] if t not in banned]
             diseases += [t for t in found["diseases"] if t not in diseases]
             hype += [t for t in found["hype"] if t not in hype]
-    for section in document.get("blocks", document.get("sections", [])) if isinstance(document, dict) else []:
+    blocks = document.get("blocks", document.get("sections", [])) if isinstance(document, dict) else []
+    for section in _sections(blocks):
         if not isinstance(section, dict):
             continue
         check_disease = section.get("type") not in _RESEARCH_SECTIONS

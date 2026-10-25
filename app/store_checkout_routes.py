@@ -5,7 +5,7 @@ import secrets
 from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Option, P, Select
 from fasthtml.core import FtResponse
 from sqlalchemy import select
-from starlette.responses import JSONResponse, RedirectResponse, Response
+from starlette.responses import JSONResponse, RedirectResponse
 
 from app import checkout_payments, commerce, customer_services, subscriptions
 from app import checkout_services as checkout
@@ -14,6 +14,7 @@ from app.integrations.stripe_commerce import StripeGateway, make_gateway
 from app.models import CheckoutAttempt, CommerceQuote, Site, SiteCart, SubscriptionCycle
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
+from app.storefront_ui import commerce_page, public_message
 
 
 def register_store_checkout_routes(rt, csrf, check_csrf, error):
@@ -42,8 +43,10 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
     def screen(site, request, title, *children):
         root = base(site, request)
         mode_label = "Live payments" if site._payment_mode == "live" else "Sandbox · No live payments"
+        if (rendered := commerce_page(site, request, title, *children)) is not None:
+            return FtResponse(rendered, headers={"Cache-Control": "private, no-store"})
         return FtResponse(platform_page(title, P(site.name + " · " + mode_label), *children,
-            navigation=[A("Store", href=root + "/"), A("Bag", href=root + "/cart"), A("My account", href=root + "/account")], customer=True),
+            navigation=[A("Store", href=root + "/"), A("Bag", href=root + "/cart")], customer=True),
             headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
                 "Content-Security-Policy": "frame-ancestors 'self'"})
 
@@ -71,6 +74,13 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     cart.lines_json, cart.discount_code = [], ""
                     cart.version += 1
                 lines = commerce.price_lines(db, site, config, cart.lines_json) if cart.lines_json else []
+                from app import discounts
+                applied = []
+                if lines:
+                    customer = customer_services.signed_in_customer(db, site, session)
+                    rule = discounts.code_rule(db, site, cart.discount_code) if cart.discount_code else None
+                    lines, _, applied = discounts.apply(db, site, lines, config.shipping_minor or 0,
+                        code=cart.discount_code if rule else "", email=customer.email if customer else "", preview=True)
                 db.commit()
                 return screen(site, request, "Your bag", csrf(session), *[Div(H2(line.name), P(money(line.amount_minor, "USD")),
                     P("Monthly subscription · 10% merchandise saving" if line.subscription else "One-time purchase"),
@@ -79,6 +89,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                         Input(type="hidden", name="subscription", value="on" if line.subscription else "off"),
                         Label("Quantity (0 removes)", Input(type="number", name="quantity", value=line.quantity, min=0, max=25, required=True)),
                         Button("Update quantity", cls="e-button"), method="post", action=root + "/cart/update", cls="e-form"), cls="e-card") for line in lines],
+                    P("Discount savings: " + money(sum(r["amount_minor"] for r in applied), "USD")) if applied else None,
                     P("Your bag is empty.") if not lines else P("Merchandise: " + money(sum(line.amount_minor for line in lines), "USD") + ". Shipping and destination sales tax are calculated next."),
                     Form(csrf(session), Input(type="hidden", name="version", value=cart.version),
                         Label("Discount code", Input(name="code", value=cart.discount_code, maxlength=40)),
@@ -87,7 +98,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     A("Continue to checkout", href=root + "/checkout", cls="e-button") if lines else A("Browse the shop", href=root + "/shop"),
                     A("Resume existing checkout", href=root + "/checkout/" + cart.checkout_id) if cart.checkout_id else None)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/cart/summary", methods=["GET"])
     def get(session, request, slug: str):
@@ -123,9 +134,9 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 db.commit()
                 return RedirectResponse(base(site, request) + "/cart", status_code=303)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
-    async def change_cart(session, request, slug, *, add):
+    async def change_cart(session, request, slug, *, add, purchase=False):
         form = await request.form()
         try:
             check_csrf(session, form)
@@ -135,35 +146,45 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
             if form.get("subscription", "off") not in ("on", "off"):
                 raise CommerceError("Choose a valid purchase option.")
             subscription = form.get("subscription") == "on"
+            if purchase and form.get("target_subscription") not in ("on", "off"):
+                raise CommerceError("Choose a valid purchase option.")
             with SessionLocal() as db:
                 site, config = resolve(db, slug)
                 checkout.lock_site(db, site)
                 cart = cart_for(db, site, session)
+                paid_reset = False
                 if cart.checkout_id:
                     attempt = checkout.owned_attempt(db, site, cart.checkout_id)
                     if attempt.state in checkout.ACTIVE:
                         raise CommerceError("Cancel or finish the existing checkout before changing this bag.")
                     cart.checkout_id = None
                     if attempt.state == "paid":
+                        paid_reset = True
                         cart.lines_json = []
                         cart.discount_code = ""
                 if not add and str(cart.version) != form.get("version"):
                     raise CommerceError("Your bag changed in another tab. Reload before updating.")
                 variant_id = str(form.get("variant_id", ""))
                 lines = [dict(line) for line in cart.lines_json]
-                match = next((line for line in lines if line["variant_id"] == variant_id and line["subscription"] == subscription), None)
-                if add and match:
-                    quantity += match["quantity"]
-                lines = [line for line in lines if not (line["variant_id"] == variant_id and line["subscription"] == subscription)]
-                if quantity:
-                    lines.append({"variant_id": variant_id, "quantity": quantity, "subscription": subscription})
+                if purchase:
+                    # A late form must never restore items from a paid checkout.
+                    if not paid_reset:
+                        lines = commerce.convert_cart_purchase(lines, variant_id, subscription,
+                            form.get("target_subscription") == "on")
+                else:
+                    match = next((line for line in lines if line["variant_id"] == variant_id and line["subscription"] == subscription), None)
+                    if add and match:
+                        quantity += match["quantity"]
+                    lines = [line for line in lines if not (line["variant_id"] == variant_id and line["subscription"] == subscription)]
+                    if quantity:
+                        lines.append({"variant_id": variant_id, "quantity": quantity, "subscription": subscription})
                 if lines:
                     commerce.price_lines(db, site, config, lines)
                 cart.lines_json, cart.version, cart.request_key = lines, cart.version + 1, secrets.token_hex(16)
                 db.commit()
                 return RedirectResponse(base(site, request) + "/cart", status_code=303)
         except (CommerceError, ValueError) as exc:
-            return error(CommerceError(str(exc)))
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/cart/add", methods=["POST"])
     async def post(session, request, slug: str):
@@ -172,6 +193,10 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
     @rt("/sites/{slug}/cart/update", methods=["POST"])
     async def post(session, request, slug: str):
         return await change_cart(session, request, slug, add=False)
+
+    @rt("/sites/{slug}/cart/purchase", methods=["POST"])
+    async def post(session, request, slug: str):
+        return await change_cart(session, request, slug, add=False, purchase=True)
 
     @rt("/sites/{slug}/checkout", methods=["GET"])
     def get(session, request, slug: str):
@@ -187,6 +212,9 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     return RedirectResponse(root + "/cart", status_code=303)
                 customer = customer_services.signed_in_customer(db, site, session)
                 recurring_lines = [line for line in commerce.price_lines(db, site, config, cart.lines_json) if line.subscription]
+                from app.models import ShippingRate
+                rates = list(db.scalars(select(ShippingRate).where(ShippingRate.site_id == site.id,
+                    ShippingRate.tenant_id == site.tenant_id).order_by(ShippingRate.name)))
                 def field(label, name, **kwargs):
                     return Label(label, Input(name=name, **kwargs))
                 return screen(site, request, "US delivery & checkout", P("Review shipping and sales tax before going to Stripe. No payment is taken on this form."),
@@ -200,7 +228,11 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                             *[Option(commerce.US_STATES[state], value=state) for state in config.allowed_states_json if state in commerce.US_STATES], name="state", required=True, autocomplete="shipping address-level1")),
                         field("ZIP code", "postal_code", required=True, pattern=r"\d{5}(-\d{4})?", autocomplete="shipping postal-code"),
                         Input(type="hidden", name="country", value="US"),
-                        field("First-order discount code (optional)", "code", maxlength=40, value=cart.discount_code),
+                        Label("Delivery method", Select(Option("Best available delivery rate", value=""),
+                            *[Option(rate.name + (" (local pickup)" if rate.local_pickup else ""), value=rate.id)
+                              for rate in rates], name="shipping_rate_id")) if rates else None,
+                        field("Discount code (optional)", "code", maxlength=40, value=cart.discount_code),
+                        field("Gift card code (optional, sandbox)", "gift_card_code", maxlength=64),
                         Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
                         P("US delivery only. This does not subscribe you to marketing."),
                         Div(H2("Monthly delivery subscription"),
@@ -209,7 +241,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                             P("No payment is taken until you review the first delivery total and complete Stripe checkout.")) if recurring_lines else None,
                         Button("Review shipping & tax", cls="e-button"), method="post", action=root + "/checkout", cls="e-form e-card"))
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/checkout", methods=["POST"])
     async def post(session, request, slug: str):
@@ -235,12 +267,20 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 attempt = checkout.prepare(db, site, customer.id, cart.lines_json, dict(form),
                     make_gateway(StripeGateway, site, db),
                     request_key=cart.request_key, code=form.get("code", ""), recipient_name=name,
-                    subscription_consent=form.get("subscription_consent") == "on")
+                    gift_card_code=form.get("gift_card_code", ""),
+                    subscription_consent=form.get("subscription_consent") == "on",
+                    shipping_rate_id=form.get("shipping_rate_id") or None)
                 cart.checkout_id = attempt.id
                 db.commit()
                 return RedirectResponse(base(site, request) + "/checkout/" + attempt.id, status_code=303)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)
+
+    def review_line(site, line, quote):
+        purchase = ("One-time delivery recovery" if quote.snapshot_json.get("recovery_cycle_id") else
+                    "Monthly subscription" if line["subscription"] else "One-time purchase")
+        return P(f"{line['name']} × {line['quantity']} · "
+                 + money(line["amount_minor"], quote.currency) + " · " + purchase)
 
     @rt("/sites/{slug}/checkout/{attempt_id}", methods=["GET"])
     def get(session, request, slug: str, attempt_id: str):
@@ -265,22 +305,23 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     Div(H2("Deliver to"), P(quote.snapshot_json.get("recipient_name", "")),
                         P(", ".join(str(quote.snapshot_json["destination"].get(key, "")) for key in
                             ("line1", "line2", "city", "state", "postal_code", "country") if quote.snapshot_json["destination"].get(key))), cls="e-card"),
-                    Div(*[P(f"{line['name']} × {line['quantity']} · " + money(line["amount_minor"], quote.currency)
-                        + (" · One-time delivery recovery" if quote.snapshot_json.get("recovery_cycle_id") else
-                            " · Monthly subscription" if line["subscription"] else " · One-time purchase")) for line in quote.snapshot_json["lines"]],
+                    Div(*[review_line(site, line, quote) for line in quote.snapshot_json["lines"]],
                         P("Merchandise: " + money(quote.subtotal_minor, quote.currency)),
                         P("Savings: " + money(quote.discount_minor, quote.currency)),
                         P("Shipping: " + money(quote.shipping_minor, quote.currency)),
                         P("Sales tax (" + quote.snapshot_json["destination"]["state"] + "): " + money(quote.tax_minor, quote.currency)),
-                        H2("Total: " + money(quote.total_minor, quote.currency)), cls="e-card"),
-                    P("Your payment has been verified. You can sign in by email to view this order.") if attempt.state == "paid" else P("A return from Stripe is not proof of payment. Payment is confirmed only after verification."),
-                    Form(csrf(session), Button("Continue to Stripe test checkout", cls="e-button"), method="post", action=action + "/pay") if attempt.state in checkout.ACTIVE else None,
+                        P("Gift card: " + money(quote.snapshot_json["gift_card"]["amount_minor"], quote.currency))
+                            if quote.snapshot_json.get("gift_card") else None,
+                        H2("Total: " + money(quote.total_minor, quote.currency)),
+                        cls="e-card"),
+                    P("Your payment has been verified.") if attempt.state == "paid" else P("A return from Stripe is not proof of payment. Payment is confirmed only after verification."),
+                    Form(csrf(session), Button("Pay with gift card" if quote.total_minor == 0 and quote.snapshot_json.get("gift_card") else "Continue to Stripe test checkout", cls="e-button"), method="post", action=action + "/pay") if attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Check payment status", cls="e-button"), method="post", action=action + "/refresh") if attempt.stripe_session_id and attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Cancel checkout", cls="e-button"), method="post", action=action + "/cancel") if attempt.state in checkout.ACTIVE else None,
                     Form(csrf(session), Button("Start a new bag", cls="e-button"), method="post", action=action + "/new") if attempt.state in ("paid", "expired") and cart.checkout_id == attempt.id else None,
-                    A("My account", href=root + "/account"))
+                    A("Back to store", href=root + "/"))
         except CommerceError:
-            return Response("Checkout not found.", status_code=404)
+            return public_message(request, slug, "Checkout not found.", status_code=404, plain=False)
 
     @rt("/sites/{slug}/checkout/{attempt_id}/{action}", methods=["POST"])
     async def post(session, request, slug: str, attempt_id: str, action: str):
@@ -314,4 +355,4 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 raise CommerceError("Unknown checkout action.")
             return RedirectResponse(root + "/checkout/" + attempt_id, status_code=303)
         except CommerceError as exc:
-            return error(exc)
+            return public_message(request, slug, exc)

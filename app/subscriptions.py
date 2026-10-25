@@ -83,19 +83,24 @@ def activate(db, site, attempt, quote, intent):
     return contract
 
 
-def owned(db, site, customer_id, contract_id):
-    contract = db.scalar(select(SubscriptionContract).join(ShopCustomer, ShopCustomer.id == SubscriptionContract.customer_id)
-        .where(SubscriptionContract.id == contract_id, SubscriptionContract.site_id == site.id,
-            SubscriptionContract.tenant_id == site.tenant_id, SubscriptionContract.customer_id == customer_id,
-            ShopCustomer.site_id == site.id, ShopCustomer.tenant_id == site.tenant_id,
-            ShopCustomer.is_active.is_(True), ShopCustomer.verified_at.is_not(None))
+def owned(db, site, customer_id, contract_id, *, merchant=False):
+    query = select(SubscriptionContract).join(ShopCustomer, ShopCustomer.id == SubscriptionContract.customer_id)
+    query = query.where(SubscriptionContract.id == contract_id,
+            SubscriptionContract.site_id == site.id,
+            SubscriptionContract.tenant_id == site.tenant_id,
+            SubscriptionContract.customer_id == customer_id,
+            ShopCustomer.site_id == site.id, ShopCustomer.tenant_id == site.tenant_id)
+    if not merchant:
+        query = query.where(ShopCustomer.is_active.is_(True), ShopCustomer.verified_at.is_not(None))
+    contract = db.scalar(query
         .with_for_update(of=SubscriptionContract).execution_options(populate_existing=True))
     if not contract:
         raise CommerceError("Subscription not found.")
     return contract
 
 
-def change(db, site, customer_id, contract_id, action, values, *, version, request_key, now=None):
+def change(db, site, customer_id, contract_id, action, values, *, version, request_key, now=None,
+           _merchant_actor_id=None):
     """Customer commands are versioned, idempotent and audited. No provider charge occurs here."""
     now = now or datetime.now(UTC)
     if not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", request_key):
@@ -103,7 +108,10 @@ def change(db, site, customer_id, contract_id, action, values, *, version, reque
     fingerprint = hashlib.sha256(json.dumps({"action": action, "values": values, "version": version}, sort_keys=True).encode()).hexdigest()
     with db.begin_nested():
         checkout.lock_site(db, site)
-        contract = owned(db, site, customer_id, contract_id)
+        if _merchant_actor_id:
+            from app.content import owned_site
+            owned_site(db, site.id, _merchant_actor_id, publish=True)
+        contract = owned(db, site, customer_id, contract_id, merchant=bool(_merchant_actor_id))
         previous = db.scalar(select(SubscriptionEvent).where(SubscriptionEvent.contract_id == contract.id,
             SubscriptionEvent.site_id == site.id, SubscriptionEvent.tenant_id == site.tenant_id,
             SubscriptionEvent.request_key == request_key))
@@ -177,6 +185,26 @@ def change(db, site, customer_id, contract_id, action, values, *, version, reque
             details_json={"before": before, "after": {"state": contract.state,
                 "next_due_at": checkout.utc(contract.next_due_at).isoformat(), "version": contract.version,
                 "interval_months": contract.interval_months}, "values": values,
+                "merchant_actor_id": _merchant_actor_id,
                 "current_delivery_already_processing": bool(processing)}))
         db.flush()
         return contract
+
+
+def merchant_change(db, site, actor_id, contract_id, action, *, version, request_key, now=None):
+    """Merchant console uses the same guarded and audited scheduling commands.
+
+    There are no payment-provider calls. Account deactivation must not prevent
+    staff cancelling a customer's future deliveries.
+    """
+    from app.content import owned_site
+    owned_site(db, site.id, actor_id, publish=True)
+    if action not in {"pause", "resume", "cancel", "skip"}:
+        raise CommerceError("Choose a valid subscription action.")
+    contract = db.scalar(select(SubscriptionContract).where(
+        SubscriptionContract.id == contract_id, SubscriptionContract.site_id == site.id,
+        SubscriptionContract.tenant_id == site.tenant_id))
+    if not contract:
+        raise CommerceError("Subscription not found.")
+    return change(db, site, contract.customer_id, contract.id, action, {}, version=version,
+                  request_key=request_key, now=now, _merchant_actor_id=actor_id)

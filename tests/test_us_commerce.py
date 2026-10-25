@@ -1,13 +1,16 @@
 import hashlib
 import hmac
 import json
+import os
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from urllib.parse import parse_qs
+from uuid import uuid4
 
 import httpx
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app import commerce
@@ -19,42 +22,70 @@ from app.models import (
     Product,
     ProductType,
     ProductVariant,
+    Tenant,
     User,
     VariantChannelListing,
 )
 from app.services import CommerceError
 
 
+@contextmanager
+def shop_engine(tmp_path):
+    url = os.getenv("FASTSHOP_TEST_DB_URL", "")
+    if not url:
+        engine = create_engine(f"sqlite:///{tmp_path / 'commerce-test.db'}",
+                               connect_args={"check_same_thread": False})
+        try:
+            yield engine
+        finally:
+            engine.dispose()
+        return
+    if not url.startswith("postgresql+psycopg://"):
+        raise ValueError("FASTSHOP_TEST_DB_URL must select disposable PostgreSQL")
+    schema = "fast_shop_test_" + uuid4().hex
+    admin_engine = create_engine(url)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+    engine = create_engine(url, connect_args={"options": f"-csearch_path={schema}"})
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+        admin_engine.dispose()
+
+
 @pytest.fixture
 def shop(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'commerce-test.db'}", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    with Session(engine, expire_on_commit=False) as db:
-        owner = User(email="merchant@example.test", name="Merchant")
-        db.add(owner)
-        db.flush()
-        site = create_site(db, owner.id, "Test brand", "us-test-brand")
-        config = commerce.settings_for(db, site, create=True)
-        config.mode = "sandbox"
-        config.origin_json = {"country": "EE", "line1": "Test warehouse", "city": "Tallinn", "postal_code": "10111"}
-        config.shipping_minor = 1000  # Test fixture, not the merchant's chosen shipping fee.
-        config.tax_registration_reviewed = True
-        category = Category(tenant_id=site.tenant_id, slug="tablets", name="Tablets")
-        kind = ProductType(tenant_id=site.tenant_id, slug="physical", name="Physical")
-        db.add_all([category, kind])
-        db.flush()
-        product = Product(tenant_id=site.tenant_id, category_id=category.id, product_type_id=kind.id,
-            name="Test tablets", slug="tablets", is_published=True)
-        db.add(product)
-        db.flush()
-        variant = ProductVariant(tenant_id=site.tenant_id, product_id=product.id, sku="TEST", name="Original")
-        db.add(variant)
-        db.flush()
-        db.add(VariantChannelListing(channel_id=site.channel_id, variant_id=variant.id, currency="USD", price_minor=2995))
-        config.product_tax_codes_json = {product.id: "txcd_00000000"}
-        config.subscription_product_ids_json = [product.id]
-        db.commit()
-        yield db, site, config, variant
+    with shop_engine(tmp_path) as engine:
+        Base.metadata.create_all(engine)
+        with Session(engine, expire_on_commit=False) as db:
+            owner = User(email="merchant@example.test", name="Merchant")
+            db.add(owner)
+            db.flush()
+            site = create_site(db, owner.id, "Test brand", "us-test-brand")
+            config = commerce.settings_for(db, site, create=True)
+            config.mode = "sandbox"
+            config.origin_json = {"country": "EE", "line1": "Test warehouse", "city": "Tallinn", "postal_code": "10111"}
+            config.shipping_minor = 1000  # Test fixture, not the merchant's chosen shipping fee.
+            config.tax_registration_reviewed = True
+            category = Category(tenant_id=site.tenant_id, slug="tablets", name="Tablets")
+            kind = ProductType(tenant_id=site.tenant_id, slug="physical", name="Physical")
+            db.add_all([category, kind])
+            db.flush()
+            product = Product(tenant_id=site.tenant_id, category_id=category.id, product_type_id=kind.id,
+                name="Test tablets", slug="tablets", is_published=True)
+            db.add(product)
+            db.flush()
+            variant = ProductVariant(tenant_id=site.tenant_id, product_id=product.id, sku="TEST", name="Original")
+            db.add(variant)
+            db.flush()
+            db.add(VariantChannelListing(channel_id=site.channel_id, variant_id=variant.id, currency="USD", price_minor=2995))
+            config.product_tax_codes_json = {product.id: "txcd_00000000"}
+            config.subscription_product_ids_json = [product.id]
+            db.commit()
+            yield db, site, config, variant
 
 
 DESTINATION = {"line1": "123 Test Street", "city": "Los Angeles", "state": "CA", "postal_code": "90001", "country": "US"}
@@ -85,6 +116,8 @@ def test_foreign_catalog_and_subscription_ineligibility(shop):
     config.subscription_product_ids_json = []
     with pytest.raises(CommerceError, match="not eligible"):
         commerce.price_lines(db, site, config, [{"variant_id": variant.id, "quantity": 1, "subscription": True}])
+    db.add(Tenant(id="foreign-tenant", slug="foreign-tenant", name="Foreign tenant"))
+    db.flush()
     variant.tenant_id = "foreign-tenant"
     db.flush()
     with pytest.raises(CommerceError, match="unavailable"):
@@ -157,3 +190,29 @@ def test_signature_checks_raw_body_timestamp_and_multiple_signatures():
     for body, clock in [(payload + b" ", stamp), (payload, stamp + 301)]:
         with pytest.raises(CommerceError):
             verify_webhook(body, f"t={stamp},v1={digest}", secret, now=clock)
+
+
+@pytest.mark.parametrize("source,target", [(False, True), (True, False), (True, True)])
+def test_cart_purchase_conversion_is_pure(source, target):
+    selections = [{"variant_id": "tablets", "quantity": 3, "subscription": source},
+                  {"variant_id": "bottle", "quantity": 1, "subscription": False}]
+    result = commerce.convert_cart_purchase(selections, "tablets", source, target)
+    assert selections[0]["subscription"] is source
+    assert {"variant_id": "tablets", "quantity": 3, "subscription": target} in result
+    assert result[0] is not selections[1]
+    result[0]["quantity"] = 7
+    assert selections[1]["quantity"] == 1
+
+
+def test_cart_purchase_merges_and_rejects_over_cap_without_mutating():
+    selections = [{"variant_id": "tablets", "quantity": 3, "subscription": False},
+                  {"variant_id": "tablets", "quantity": 22, "subscription": True}]
+    assert commerce.convert_cart_purchase(selections, "tablets", False, True) == [
+        {"variant_id": "tablets", "quantity": 25, "subscription": True}]
+    assert selections[1]["quantity"] == 22
+    selections[0]["quantity"] = 4
+    with pytest.raises(CommerceError, match="quantity"):
+        commerce.convert_cart_purchase(selections, "tablets", False, True)
+    assert selections[1]["quantity"] == 22
+    with pytest.raises(CommerceError, match="bag changed"):
+        commerce.convert_cart_purchase(selections, "foreign", False, True)

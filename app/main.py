@@ -17,6 +17,7 @@ from app.api import api
 from app.config import settings
 from app.db import SessionLocal, health, prepare_schema
 from app.integrations import fasterp
+from app.integrations.commerce_email import dispatch_mail
 from app.models import (
     Cart,
     CartLine,
@@ -52,6 +53,8 @@ with SessionLocal() as bootstrap_session:
 app, rt = fast_app(
     live=False,
     pico=False,
+    htmx=False,
+    surreal=False,
     secret_key=settings.session_secret,
     sess_https_only=settings.is_production,
     same_site="lax",
@@ -71,6 +74,9 @@ from app.site_routes import register_site_routes  # noqa: E402
 
 register_site_routes(rt)
 app.add_middleware(SiteHostMiddleware)
+from app.admin_ui import AdminContextMiddleware  # noqa: E402
+
+app.add_middleware(AdminContextMiddleware)
 
 from app.scheduler import start_scheduler  # noqa: E402
 
@@ -158,6 +164,15 @@ def admin_guard(session: dict):
     if user["role"] not in {"admin", "merchant"}:
         return None, RedirectResponse("/account", status_code=303)
     return user, None
+
+
+def membership_tenants(db, user: dict) -> set[str] | None:
+    """Scope members to their tenants; membership-free operators retain global access."""
+    tenant_ids = set(db.scalars(select(Membership.tenant_id).where(Membership.user_id == user["id"])))
+    if tenant_ids:
+        return tenant_ids
+    operator = db.get(User, user["id"])
+    return None if operator and operator.email.lower() == settings.admin_email else set()
 
 
 def establish_session(session: dict, user: User, role: str) -> None:
@@ -333,13 +348,17 @@ def get(session, error: str = "", next: str = ""):
     destination = safe_next_path(next)
     if destination:
         session["login_next"] = destination
-    if current_user(session):
-        return RedirectResponse(destination or "/account", status_code=303)
+    user = current_user(session)
+    if user:
+        with SessionLocal() as db:
+            membership = db.scalar(select(Membership).where(Membership.user_id == user["id"]))
+        if membership or user["role"] in {"admin", "merchant"}:
+            return RedirectResponse(destination or "/admin", status_code=303)
     return login_page(
         csrf_token(session),
         error,
         auth.google_enabled(),
-        auth.local_login_allowed(),
+        auth.local_login_allowed() or settings.allow_password_login,
     )
 
 
@@ -362,7 +381,16 @@ def post(session, email: str, password: str, csrf_token: str = ""):
             and auth.verify_admin_password(password, user.password_hash)
         ):
             membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
-            role = membership.role if membership else "customer"
+            if not membership:
+                result = signup_services.provision_workspace_for_user(db, user, user.name)
+                db.commit()
+                establish_session(session, user, "admin")
+                session["csrf_token"] = secrets.token_urlsafe(32)
+                session.pop("login_next", None)
+                if result.message_id:
+                    dispatch_mail(result.message_id)
+                return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
+            role = membership.role
             establish_session(session, user, role)
             db.commit()
             default = "/admin" if role in {"admin", "merchant"} else "/account"
@@ -419,7 +447,9 @@ def get(session, request, code: str = "", state: str = "", error: str = ""):
         return RedirectResponse("/signup", status_code=303)
     with SessionLocal() as db:
         user = db.scalar(select(User).where(User.email == identity["email"]))
-        if mode == "signup" and not user:
+        if mode == "signup" and (
+            not user or not db.scalar(select(Membership.id).where(Membership.user_id == user.id))
+        ):
             address = request.client.host if request.client else "unknown"
             if signup_services.rate_limited(db, "signup", identity["email"], address):
                 db.commit()
@@ -445,10 +475,29 @@ def get(session, request, code: str = "", state: str = "", error: str = ""):
             session["csrf_token"] = secrets.token_urlsafe(32)
             return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
         user = user or find_or_create_user(db, identity["email"], identity["name"])
-        if mode == "signup" and not user.email_verified_at:
-            user.email_verified_at = datetime.now(UTC)
         membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
-        role = membership.role if membership else "customer"
+        if not membership:
+            if not settings.signup_open:
+                db.rollback()
+                session.clear()
+                return RedirectResponse("/signup?status=no-workspace", status_code=303)
+            user.email_verified_at = user.email_verified_at or datetime.now(UTC)
+            try:
+                result = signup_services.provision_workspace_for_user(
+                    db, user, signup_services.normalized_name(identity["name"])
+                )
+                db.commit()
+            except (CommerceError, IntegrityError, ValueError):
+                db.rollback()
+                return RedirectResponse(failure_path, status_code=303)
+            establish_session(session, result.user, "admin")
+            session["csrf_token"] = secrets.token_urlsafe(32)
+            session.pop("login_next", None)
+            if result.message_id:
+                dispatch_mail(result.message_id)
+            return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
+        user.email_verified_at = user.email_verified_at or datetime.now(UTC)
+        role = membership.role
         establish_session(session, user, role)
         db.commit()
     if mode == "signup" and membership:
@@ -481,6 +530,16 @@ def get(session, request, code: str = "", state: str = "", error: str = ""):
 
 @rt("/logout")
 def get(session):
+    session.clear()
+    return RedirectResponse("/", status_code=303)
+
+
+@rt("/logout", methods=["POST"])
+def post(session, csrf_token: str = ""):
+    try:
+        require_csrf(session, csrf_token)
+    except CommerceError as exc:
+        return PlainTextResponse(str(exc), status_code=400)
     session.clear()
     return RedirectResponse("/", status_code=303)
 
@@ -552,7 +611,8 @@ def post(session, message: str, route: str = "/", surface: str = "shopper", csrf
     user = current_user(session)
     merchant = bool(user and user["role"] in {"admin", "merchant"} and (surface == "merchant" or route.startswith("/admin")))
     with SessionLocal() as db:
-        response = ai.answer(db, message, route, merchant)
+        response = ai.answer(db, message, route, merchant,
+            tenant_ids=membership_tenants(db, user) if merchant else None)
     return JSONResponse({"answer": response, "surface": "merchant" if merchant else "shopper"})
 
 
@@ -562,7 +622,10 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.dashboard(db)
+        content = ui.dashboard(db, tenant_ids=membership_tenants(db, user))
+        site = signup_services.first_site_for_user(db, user["id"])
+        if site:
+            content = (ui.Div(ui.A("Open store admin →", href=f"/admin/sites/{site.id}", cls="btn btn-primary"), cls="panel"), *content)
     return ui.merchant_page("Commerce overview", "dashboard", *content, user=user, csrf=csrf_token(session), route="/admin")
 
 
@@ -572,7 +635,7 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.admin_products(db)
+        content = ui.admin_products(db, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("Products", "products", content, user=user, csrf=csrf_token(session), route="/admin/products")
 
 
@@ -582,7 +645,11 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        orders = list(db.scalars(select(Order).order_by(Order.created_at.desc())))
+        tenant_ids = membership_tenants(db, user)
+        statement = select(Order).order_by(Order.created_at.desc())
+        if tenant_ids is not None:
+            statement = statement.where(Order.tenant_id.in_(tenant_ids))
+        orders = list(db.scalars(statement))
         content = ui.panel("All orders", ui.order_table(orders))
     return ui.merchant_page("Orders", "orders", content, user=user, csrf=csrf_token(session), route="/admin/orders")
 
@@ -593,7 +660,7 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.admin_inventory(db)
+        content = ui.admin_inventory(db, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("Inventory", "inventory", content, user=user, csrf=csrf_token(session), route="/admin/inventory")
 
 
@@ -603,7 +670,7 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.admin_promotions(db)
+        content = ui.admin_promotions(db, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("Promotions", "promotions", content, user=user, csrf=csrf_token(session), route="/admin/promotions")
 
 
@@ -613,7 +680,7 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.admin_channels(db)
+        content = ui.admin_channels(db, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("Channels", "channels", content, user=user, csrf=csrf_token(session), route="/admin/channels")
 
 
@@ -659,7 +726,7 @@ def get(session, message: str = ""):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        content = ui.integration_page(db, message)
+        content = ui.integration_page(db, message, tenant_ids=membership_tenants(db, user))
     return ui.merchant_page("FastERP integration", "integrations", *content, user=user, csrf=csrf_token(session), route="/admin/integrations/fasterp")
 
 
@@ -671,7 +738,7 @@ def post(session, csrf_token: str = ""):
     try:
         require_csrf(session, csrf_token)
         with SessionLocal() as db:
-            delivered, failed = fasterp.deliver_pending(db)
+            delivered, failed = fasterp.deliver_pending(db, tenant_ids=membership_tenants(db, user))
             db.commit()
         message = f"Sync finished: {delivered} delivered, {failed} deferred or failed."
     except CommerceError as exc:
@@ -694,7 +761,14 @@ def get(session):
     if redirect:
         return redirect
     with SessionLocal() as db:
-        rows = list(db.scalars(select(User).order_by(User.created_at.desc())))
+        tenant_ids = membership_tenants(db, user)
+        statement = select(User).order_by(User.created_at.desc())
+        if tenant_ids is not None:
+            statement = statement.where(
+                User.id.in_(select(Membership.user_id).where(Membership.tenant_id.in_(tenant_ids)))
+                | User.id.in_(select(Order.user_id).where(Order.tenant_id.in_(tenant_ids)))
+            )
+        rows = list(db.scalars(statement))
         content = ui.panel("Customers and staff", ui.Div(ui.Table(ui.Thead(ui.Tr(ui.Th("Name"), ui.Th("Email"), ui.Th("Status"))), ui.Tbody(*[ui.Tr(ui.Td(row.name), ui.Td(row.email), ui.Td(ui.Span("Active", cls="pill green"))) for row in rows])), cls="table-scroll"))
     return ui.merchant_page("Customers", "customers", content, user=user, csrf=csrf_token(session), route="/admin/customers")
 

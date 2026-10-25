@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import delete, func, select, update
 
 from app import content, onboarding
-from app.auth import hash_admin_password
+from app.auth import hash_admin_password, verify_admin_password
 from app.config import settings
 from app.models import (
     CommerceMail,
@@ -246,6 +246,18 @@ def queue_verification(db, site: Site, user: User) -> CommerceMail:
     return message
 
 
+def provision_workspace_for_user(
+    db, user: User, name: str, *, slug_start: int = 1
+) -> SignupResult:
+    """Attach a workspace in the caller's transaction, without duplicating its user."""
+    site = content.create_site(
+        db, user.id, normalized_name(name), unique_site_slug(db, name, start=slug_start)
+    )
+    onboarding.create_state(db, site, user.id)
+    message = None if user.email_verified_at else queue_verification(db, site, user)
+    return SignupResult(user=user, site=site, message_id=message.id if message else None)
+
+
 def provision_password_signup(
     db,
     name: str,
@@ -255,21 +267,22 @@ def provision_password_signup(
     *,
     slug_start: int = 1,
 ) -> SignupResult:
-    if db.scalar(select(User.id).where(User.email == email)):
-        raise SignupUnavailable("Account already exists.")
-    user = User(email=email, name=name, password_hash=hash_admin_password(password))
-    db.add(user)
-    db.flush()
-    site = content.create_site(
-        db,
-        user.id,
-        name,
-        unique_site_slug(db, name, start=slug_start),
-    )
-    onboarding.create_state(db, site, user.id)
-    message = queue_verification(db, site, user)
+    user = db.scalar(select(User).where(User.email == email).with_for_update())
+    if user:
+        if (
+            not user.is_active
+            or db.scalar(select(Membership.id).where(Membership.user_id == user.id))
+            or not user.password_hash
+            or not verify_admin_password(password, user.password_hash)
+        ):
+            raise SignupUnavailable("Account already exists.")
+    else:
+        user = User(email=email, name=name, password_hash=hash_admin_password(password))
+        db.add(user)
+        db.flush()
+    result = provision_workspace_for_user(db, user, name, slug_start=slug_start)
     record_attempt(db, "signup", email, client_address, accepted=True)
-    return SignupResult(user=user, site=site, message_id=message.id)
+    return result
 
 
 def provision_google_signup(
@@ -280,25 +293,22 @@ def provision_google_signup(
     *,
     slug_start: int = 1,
 ) -> SignupResult:
-    if db.scalar(select(User.id).where(User.email == email)):
-        raise SignupUnavailable("Account already exists.")
-    user = User(
-        email=email,
-        name=name,
-        password_hash=None,
-        email_verified_at=datetime.now(UTC),
-    )
-    db.add(user)
-    db.flush()
-    site = content.create_site(
-        db,
-        user.id,
-        name,
-        unique_site_slug(db, name, start=slug_start),
-    )
-    onboarding.create_state(db, site, user.id)
+    user = db.scalar(select(User).where(User.email == email).with_for_update())
+    if user:
+        if not user.is_active or db.scalar(
+            select(Membership.id).where(Membership.user_id == user.id)
+        ):
+            raise SignupUnavailable("Account already exists.")
+        user.email_verified_at = user.email_verified_at or datetime.now(UTC)
+    else:
+        user = User(
+            email=email, name=name, password_hash=None, email_verified_at=datetime.now(UTC)
+        )
+        db.add(user)
+        db.flush()
+    result = provision_workspace_for_user(db, user, name, slug_start=slug_start)
     record_attempt(db, "signup", email, client_address, accepted=True)
-    return SignupResult(user=user, site=site, message_id=None)
+    return result
 
 
 def first_site_for_user(db, user_id: str) -> Site | None:

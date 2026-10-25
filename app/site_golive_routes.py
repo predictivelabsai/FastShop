@@ -24,6 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from starlette.responses import RedirectResponse
 
 from app import content, site_golive
+from app.admin_ui import empty_state
 from app.config import settings
 from app.db import SessionLocal
 from app.models import Membership, SiteCommerceSettings, User
@@ -184,7 +185,9 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                         cls="e-card g-stage",
                     ),
                     Div(H2("Operator audit trail"),
-                        *audit_nodes if audit_nodes else [P("No go-live decisions have been recorded yet.")],
+                        *audit_nodes if audit_nodes else [empty_state("No go-live decisions yet",
+                            "Publication and commerce decisions will appear here after a review.",
+                            A("Review publication", href="#publish", cls="e-button"))],
                         cls="e-card g-stage") if operator else None,
                 )
         except CommerceError as exc:

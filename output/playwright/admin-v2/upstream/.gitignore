@@ -1,0 +1,9 @@
+# Keep a small desktop/mobile review set; retain the full run locally.
+*.png
+!desktop-home.png
+!mobile-home.png
+!desktop-product-editor.png
+!mobile-orders-filtered.png
+!desktop-1440-edited-page.png
+!mobile-390-editor-restored.png
+/editor-check/

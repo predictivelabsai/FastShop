@@ -3,13 +3,19 @@
 import re
 from urllib.parse import urlencode
 
-from fasthtml.common import H2, A, Button, Div, Form, Input, Label, P
 from sqlalchemy import select
 from starlette.responses import RedirectResponse
 
 from app import content, site_builder_services
 from app.db import SessionLocal
-from app.models import Category, Product, ProductType, ProductVariant, VariantChannelListing
+from app.models import (
+    Category,
+    Product,
+    ProductImage,
+    ProductType,
+    ProductVariant,
+    VariantChannelListing,
+)
 from app.services import CommerceError
 
 
@@ -91,35 +97,6 @@ def create_catalog_product(db, site, definition, *, user_id: str | None = None):
 
 
 def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
-    @rt("/admin/sites/{site_id}/products", methods=["GET"])
-    def get(session, site_id: str, notice: str = ""):
-        try:
-            with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session))
-                products = list(db.scalars(select(Product).where(Product.tenant_id == site.tenant_id)))
-                cards = []
-                for product in products:
-                    variants = list(db.scalars(select(ProductVariant).where(ProductVariant.product_id == product.id, ProductVariant.tenant_id == site.tenant_id).order_by(ProductVariant.sort_order)))
-                    fields = []
-                    for variant in variants:
-                        price = db.scalar(select(VariantChannelListing).where(VariantChannelListing.variant_id == variant.id, VariantChannelListing.channel_id == site.channel_id))
-                        fields.append(Div(Label("Variant name", Input(name=f"variant_{variant.id}", value=variant.name)),
-                            Label("USD price in cents (blank if unconfirmed)", Input(name=f"price_{variant.id}", type="number", min="0", step="1", value=price.price_minor if price else ""))))
-                    cards.append(Div(H2(product.name), Form(csrf(session), Input(type="hidden", name="product_id", value=product.id),
-                        Label("Product name", Input(name="name", value=product.name, required=True)),
-                        Label("Image URL", Input(name="image", value=product.image_url)), *fields,
-                        Button("Save catalog details", cls="e-button"), method="post", cls="e-form"), cls="e-card"))
-                return shell("Products", A("← Site", href=f"/admin/sites/{site.id}"), P("Catalog changes update product displays immediately. Checkout remains closed in Phase 1."),
-                    P(notice[:300], role="status", cls="e-note") if notice else None,
-                    Div(*cards, cls="e-grid"), H2("Add a product"), Form(csrf(session),
-                        Label("Name", Input(name="name", required=True, maxlength=220)),
-                        Label("URL slug", Input(name="slug", required=True, pattern="[a-z0-9-]+")),
-                        Label("Image URL", Input(name="image")), Label("Variant names, separated by commas", Input(name="variants", value="Original")),
-                        Label("USD price in cents", Input(name="price", type="number", min="0", step="1")),
-                        Button("Create product and draft page", cls="e-button"), method="post", cls="e-form"))
-        except CommerceError as exc:
-            return error(exc)
-
     @rt("/admin/sites/{site_id}/products", methods=["POST"])
     async def post(session, request, site_id: str):
         form = await request.form()
@@ -140,6 +117,15 @@ def register_catalog_routes(rt, actor, csrf, check_csrf, shell, error):
                     if not product:
                         raise CommerceError("Product not found.")
                     product.name, product.image_url = name, image_url
+                    product.version += 1
+                    first_image = db.scalar(select(ProductImage).where(
+                        ProductImage.tenant_id == site.tenant_id, ProductImage.product_id == product.id)
+                        .order_by(ProductImage.position, ProductImage.id))
+                    if first_image:
+                        first_image.image_url = image_url
+                    elif image_url:
+                        db.add(ProductImage(tenant_id=site.tenant_id, product_id=product.id,
+                                            image_url=image_url, alt=name, position=0))
                     variants = list(db.scalars(select(ProductVariant).where(ProductVariant.product_id == product.id, ProductVariant.tenant_id == site.tenant_id)))
                     for variant in variants:
                         variant.name = str(form.get(f"variant_{variant.id}", variant.name)).strip()[:180]
