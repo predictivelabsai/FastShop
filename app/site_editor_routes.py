@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import inspect
 import json
 import re
 from html import escape
@@ -10,6 +11,7 @@ from types import SimpleNamespace
 from fasthtml.common import NotStr, to_xml
 from sqlalchemy import select, update
 from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from app import content, site_ui, theme_library
 from app.db import SessionLocal
@@ -143,6 +145,22 @@ def render_document(db, site, page, document, token, block_id=""):
 
 
 def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
+    def json_route(path, *, methods):
+        """Keep JSON validation in the editor, before FastHTML form injection."""
+        def register(handler):
+            parameters = inspect.signature(handler).parameters
+
+            async def endpoint(request):
+                values = dict(request.path_params)
+                for key in ("page", "theme"):
+                    if key in parameters:
+                        values[key] = request.query_params.get(key, "")
+                return await handler(request.session, request, **values)
+
+            rt.__self__.router.routes.append(Route(path, endpoint=endpoint, methods=methods))
+            return handler
+        return register
+
     def access(db, session, site_id, *, publish=False):
         try:
             user_id = actor(session)
@@ -250,7 +268,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
         except CommerceError as exc:
             return failure(exc)
 
-    @rt("/admin/sites/{site_id}/editor/api/render", methods=["POST"])
+    @json_route("/admin/sites/{site_id}/editor/api/render", methods=["POST"])
     async def render(session, request, site_id: str, page: str = "", theme: str = ""):
         try:
             values = await payload(session, request)
@@ -321,19 +339,19 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
         except (CommerceError, ValueError, TypeError) as exc:
             return failure(exc)
 
-    @rt("/admin/sites/{site_id}/editor/api/draft", methods=["PUT"])
+    @json_route("/admin/sites/{site_id}/editor/api/draft", methods=["PUT"])
     async def draft(session, request, site_id: str, page: str = "", theme: str = ""):
         return await write(session, request, site_id, page, "draft", theme_id=theme)
 
-    @rt("/admin/sites/{site_id}/editor/api/publish", methods=["POST"])
+    @json_route("/admin/sites/{site_id}/editor/api/publish", methods=["POST"])
     async def publish(session, request, site_id: str, page: str = "", theme: str = ""):
         return await write(session, request, site_id, page, "publish", theme_id=theme)
 
-    @rt("/admin/sites/{site_id}/editor/api/restore", methods=["POST"])
+    @json_route("/admin/sites/{site_id}/editor/api/restore", methods=["POST"])
     async def restore(session, request, site_id: str, page: str = "", theme: str = ""):
         return await write(session, request, site_id, page, "restore", theme_id=theme)
 
-    @rt("/admin/sites/{site_id}/editor/api/revisions/{revision_id}/restore", methods=["POST"])
+    @json_route("/admin/sites/{site_id}/editor/api/revisions/{revision_id}/restore", methods=["POST"])
     async def restore_revision(session, request, site_id: str, revision_id: str, page: str = "", theme: str = ""):
         return await write(session, request, site_id, page, "restore", revision_id, theme)
 
@@ -371,7 +389,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
         except CommerceError as exc:
             return failure(exc)
 
-    @rt("/admin/sites/{site_id}/editor/api/theme-settings", methods=["PUT"])
+    @json_route("/admin/sites/{site_id}/editor/api/theme-settings", methods=["PUT"])
     async def theme_put(session, request, site_id: str, theme: str = ""):
         try:
             values = await payload(session, request)
