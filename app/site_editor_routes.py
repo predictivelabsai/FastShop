@@ -416,5 +416,3 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 return response({"media": result}, 201)
         except (CommerceError, ValueError, TypeError) as exc:
             return failure(exc)
-
-
