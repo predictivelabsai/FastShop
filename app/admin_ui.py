@@ -193,7 +193,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         return base + "/coming-soon/" + key
     groups = [
         ("Home", base, []),
-        ("Orders", base + "/orders", [("Drafts", coming("drafts")), ("Abandoned checkouts", coming("abandoned-checkouts"))]),
+        ("Orders", base + "/orders", [("Drafts", base + "/drafts"), ("Abandoned checkouts", base + "/abandoned-checkouts")]),
         ("Products", base + "/products", [("Collections", base + "/collections"), ("Inventory", base + "/inventory")]),
         ("Customers", base + "/customers", []),
         ("Discounts", coming("discounts"), []),
@@ -249,7 +249,8 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
                        Span(title.replace("—", "·")), aria_label="Page breadcrumb"), cls="a-topbar"),
                  Div(None if any(_has_page_header(child) for child in children)
                      else page_header(title.replace("—", "·")),
-                     Div(notice[:300], role="status", cls="a-toast") if notice else None,
+                     Div(Span(notice[:300]), Button("×", type="button", data_toast_dismiss="",
+                         aria_label="Dismiss notification"), role="status", cls="a-toast") if notice else None,
                      *children, cls="a-content"), id="admin-main", cls="a-canvas"),
             Div(Span("Unsaved changes"), Button("Discard", type="button", data_discard=""),
                 Button("Save", type="button", data_save=""), id="admin-save-bar",

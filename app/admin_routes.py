@@ -29,11 +29,13 @@ from app.admin_ui import badge, card, empty_state, index_table
 from app.db import SessionLocal
 from app.models import (
     CatalogueSettings,
+    DraftOrder,
     Membership,
     Order,
     Product,
     ProductVariant,
     RefundCommand,
+    ReturnRequest,
     ShopCustomer,
     SiteOrder,
     SitePage,
@@ -87,7 +89,7 @@ def search_results(db, site, user_id: str, query: str) -> list[dict]:
             ShopCustomer.email.ilike(pattern, escape="\\")),
     ).order_by(ShopCustomer.email).limit(6))
     for customer in customers:
-        add("Customer", customer.name or customer.email, prefix + "/customers", customer.email)
+        add("Customer", customer.name or customer.email, prefix + f"/customers/{customer.id}", customer.email)
     pages = db.scalars(select(SitePage).where(
         SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
         or_(SitePage.title.ilike(pattern, escape="\\"), SitePage.path.ilike(pattern, escape="\\")),
@@ -171,6 +173,17 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                         tasks.append((f"{unfulfilled} {'order' if unfulfilled == 1 else 'orders'} to fulfil", prefix + "/orders?status_filter=unfulfilled"))
                     if pending:
                         tasks.append((f"{pending} {'refund' if pending == 1 else 'refunds'} pending", prefix + "/orders"))
+                if manager:
+                    requested = db.scalar(select(func.count()).select_from(ReturnRequest).where(
+                        ReturnRequest.site_id == site.id, ReturnRequest.tenant_id == site.tenant_id,
+                        ReturnRequest.status == "requested"))
+                    open_drafts = db.scalar(select(func.count()).select_from(DraftOrder).where(
+                        DraftOrder.site_id == site.id, DraftOrder.tenant_id == site.tenant_id,
+                        DraftOrder.status.in_(["open", "invoice_sent"])))
+                    if requested:
+                        tasks.append((f"{requested} {'return' if requested == 1 else 'returns'} requested", prefix + "/orders"))
+                    if open_drafts:
+                        tasks.append((f"{open_drafts} open draft {'order' if open_drafts == 1 else 'orders'}", prefix + "/drafts"))
                 catalogue_settings = db.scalar(select(CatalogueSettings).where(
                     CatalogueSettings.tenant_id == site.tenant_id, CatalogueSettings.site_id == site.id))
                 threshold = catalogue_settings.low_stock_threshold if catalogue_settings else 5

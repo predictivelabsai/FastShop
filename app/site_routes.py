@@ -166,6 +166,12 @@ def register_site_routes(rt):
     register_commerce_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.order_management_routes import register_order_management_routes
     register_order_management_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.order_admin_routes import register_order_admin_routes
+    register_order_admin_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.draft_order_routes import register_draft_order_routes
+    register_draft_order_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.customer_admin_routes import register_customer_admin_routes
+    register_customer_admin_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.customer_routes import register_customer_routes
     register_customer_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.store_checkout_routes import register_store_checkout_routes

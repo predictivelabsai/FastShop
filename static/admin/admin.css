@@ -255,3 +255,6 @@
   .a-shell th, .a-shell td { padding: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .a-shell *, .a-shell *::before, .a-shell *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+
+.a-toast { display: flex; align-items: center; gap: 16px; }
+.a-shell .a-toast button { min-width: 28px; min-height: 28px; padding: 2px 6px; border: 0; background: transparent; color: inherit; box-shadow: none; font-size: 20px; }
