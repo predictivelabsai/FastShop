@@ -66,17 +66,18 @@ def isolate(data_dir: str, port: int) -> None:
     for key in (
         "XAI_API_KEY", "POSTMARK_API_TOKEN", "POSTMARK_SERVER_TOKEN",
         "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "FASTSME_API_TOKEN",
-        "FASTERP_API_TOKEN", "FASTERP_BASE_URL", "FASTSHOP_CONNECTOR_TOKEN", "GOOGLE_CLIENT_ID",
+        "FASTERP_API_TOKEN", "FASTERP_BASE_URL", "FASTERP_COMPANY_ID",
+        "FASTSHOP_CONNECTOR_TOKEN", "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET", "FASTSHOP_BILLING_STRIPE_SECRET_KEY",
         "FASTSHOP_BILLING_STRIPE_WEBHOOK_SECRET", "FASTSHOP_ENCRYPTION_KEY",
         "FASTSHOP_STORE_KEY_ENCRYPTION_KEY",
-        "PAYPAL_CLIENT_ID", "PAYPAL_SECRET",
+        "PAYPAL_CLIENT_ID", "PAYPAL_SECRET", "PAYPAL_MODE",
     ):
         os.environ[key] = ""
     # Site-specific provider credentials must also remain unavailable.
     for key in tuple(os.environ):
         if key.startswith(("FASTSHOP_STRIPE_", "FASTSHOP_WOOCOMMERCE_",
-                           "FASTSHOP_PAYPAL_", "FASTSHOP_WORDPRESS_")):
+                           "FASTSHOP_PAYPAL_", "FASTSHOP_WORDPRESS_", "FASTSHOP_SHOPIFY_")):
             os.environ[key] = ""
 
 
