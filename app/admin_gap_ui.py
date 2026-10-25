@@ -1,6 +1,7 @@
 """Additive merchant controls for personal views, locations and activity."""
 
 import json
+from datetime import UTC
 
 from fasthtml.common import (
     A,
@@ -13,12 +14,15 @@ from fasthtml.common import (
     Nav,
     P,
     Script,
+    Small,
     Summary,
 )
+from sqlalchemy import select
 
 from app import admin_views as views
 from app.admin_activity import activities_for
-from app.admin_ui import card, empty_state, index_table, page_header
+from app.admin_ui import card, empty_state, index_table, page_header, timeline
+from app.models import Membership, User
 
 
 def view_controls(db, site, user_id, resource, params, csrf):
@@ -49,22 +53,46 @@ def view_controls(db, site, user_id, resource, params, csrf):
         data_available_columns=json.dumps(views.COLUMNS[resource]))
 
 
+def _activity_actors(db, site, rows):
+    identifiers = {row.actor_id for row in rows if row.actor_id}
+    if not identifiers:
+        return {}
+    users = db.scalars(select(User).join(Membership, Membership.user_id == User.id).where(
+        Membership.tenant_id == site.tenant_id, User.id.in_(identifiers)))
+    return {user.id: user.name.strip() or user.email for user in users}
+
+
+def _activity_actor(row, actors):
+    return actors.get(row.actor_id, "Former team member") if row.actor_id else "System"
+
+
+def _activity_date(value):
+    if value.tzinfo:
+        value = value.astimezone(UTC)
+    return value.strftime("%d %b %Y at %H:%M UTC")
+
+
 def activity_card(db, site, object_type="", object_id=""):
-    rows = activities_for(db, site, object_type=object_type, object_id=object_id)
-    return card(index_table(["When", "Actor", "Action"], [
-        [str(r.created_at), r.actor_id or "System", r.summary] for r in rows[:20]]) if rows else
-        P("Changes made by your team appear here."),
+    rows = activities_for(db, site, object_type=object_type, object_id=object_id)[:5]
+    actors = _activity_actors(db, site, rows)
+    return card(timeline([Div(P(row.summary.replace("_", " ")),
+        Small(_activity_actor(row, actors) + " · " + _activity_date(row.created_at)))
+        for row in rows]) if rows else P("Changes made by your team appear here."),
         A("View activity", href=f"/admin/sites/{site.id}/activity?object_type={object_type}&object_id={object_id}"), title="Activity")
 
 
-def activity_page(rows, site, params):
+def activity_page(db, rows, site, params):
+    actors = _activity_actors(db, site, rows)
     return Div(page_header("Activity", back_href=f"/admin/sites/{site.id}/settings"),
         card(Form(*[Label(label, Input(name=key, value=params.get(key, "")))
         for key, label in (("object_type", "Object type"), ("object_id", "Object ID"),
                            ("actor_id", "Actor ID"), ("action", "Action"))],
         Button("Filter activity"), action=f"/admin/sites/{site.id}/activity", method="get", cls="e-form a-filter-bar")),
         index_table(["When", "Actor", "Object", "Action", "Summary"], [
-            [str(r.created_at), r.actor_id or "System", r.object_type + " " + r.object_id, r.action, r.summary] for r in rows]) if rows else
+            [_activity_date(r.created_at), _activity_actor(r, actors),
+             r.object_type.replace("_", " ").capitalize(),
+             r.action.replace("_", " ").capitalize(), r.summary.replace("_", " ")]
+            for r in rows]) if rows else
         empty_state("No activity found", "Changes made by your team appear here. Try clearing the filters to see all activity."))
 
 

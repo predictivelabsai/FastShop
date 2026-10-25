@@ -158,7 +158,11 @@ def journey(browser, base, fixture, device, width, height):
         assert page.url.endswith("/pages/contact")
 
         # 4. Quantity changes and custom items persist, with a manual settlement.
-        page.goto(prefix + "/orders/" + fixture["link"] + "/edit")
+        order_url = prefix + "/orders/" + fixture["link"]
+        page.goto(order_url)
+        expect(page.get_by_role("link", name="Edit", exact=True)).to_have_attribute(
+            "href", order_url + "/edit")
+        page.get_by_role("link", name="Edit", exact=True).click()
         page.get_by_label("Quantity", exact=True).first.fill("4")
         page.get_by_label("Item name", exact=True).fill("Gift wrapping")
         page.get_by_label("Price (minor units)", exact=True).fill("250")
@@ -171,6 +175,10 @@ def journey(browser, base, fixture, device, width, height):
         with SessionLocal() as db:
             edit = db.scalar(select(OrderEdit).where(OrderEdit.site_id == fixture["site"]))
             assert edit.difference_minor == 3250 and edit.settlement == "paid"
+        page.goto(order_url)
+        expect(page.locator(".p3-timeline")).to_contain_text("Order edited from")
+        expect(page.locator(".p3-timeline")).to_contain_text("Payment recorded manually")
+        expect(page.locator(".p3-timeline")).not_to_contain_text("minor units")
 
         # 5. Launch from selected products, navigate cells, copy down and save.
         page.goto(prefix + "/products")
@@ -383,7 +391,7 @@ def main():
             "server_errors": server_errors, "screenshots": str(OUTPUT),
             "count": len([p for p in OUTPUT.glob("*.png") if "failure" not in p.stem
                           and not p.stem.startswith("review-")]),
-            "isolation": "Disposable SQLite; local tax double; sandbox gift tender; no provider calls"}
+            "isolation": f"Disposable {engine.dialect.name}; local tax double; sandbox gift tender; no provider calls"}
         (OUTPUT / "results.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
         print(json.dumps(summary))
 

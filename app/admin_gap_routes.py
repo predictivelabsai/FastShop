@@ -65,7 +65,7 @@ def register_admin_gap_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
                 filters = {key: request.query_params.get(key, "") for key in ("object_type", "object_id", "actor_id", "action")}
-                return shell("Activity", ui.activity_page(activities_for(db, site, **filters), site, filters))
+                return shell("Activity", ui.activity_page(db, activities_for(db, site, **filters), site, filters))
         except CommerceError as exc:
             return error(exc)
 

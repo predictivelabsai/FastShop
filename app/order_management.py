@@ -724,9 +724,20 @@ def timeline(db, site: Site, link: SiteOrder, order: Order) -> list[dict]:
             AdminActivity.site_id == site.id, AdminActivity.tenant_id == site.tenant_id,
             AdminActivity.object_type == "order",
             AdminActivity.object_id.in_([order.id, link.id])))
-    events.extend({"at": row.created_at, "kind": "activity", "title": "Order " + row.action,
-                   "detail": "By " + (name or "Staff")}
-                  for row, name in activity if row.action != "edited")
+    # The full append-only audit is linked below the timeline. Group generic
+    # ORM updates by actor/day, and leave creation, edits, shipments and notes
+    # to their richer merchant events rather than repeating each flush.
+    seen_activity = set()
+    for row, name in sorted(activity, key=lambda item: _utc(item[0].created_at), reverse=True):
+        if row.action in {"created", "edited"}:
+            continue
+        identity = (row.actor_id, row.action, row.created_at.date())
+        if identity in seen_activity:
+            continue
+        seen_activity.add(identity)
+        events.append({"at": row.created_at, "kind": "activity",
+                       "title": "Order details " + row.action,
+                       "detail": "By " + (name or "Staff")})
     comments = db.execute(select(OrderComment, User.name).outerjoin(User,
         User.id == OrderComment.author_id).where(OrderComment.site_order_id == link.id,
         OrderComment.site_id == site.id, OrderComment.tenant_id == site.tenant_id))

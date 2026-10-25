@@ -41,12 +41,15 @@ def test_edit_allocates_releases_and_replays(tracked):
 
 def test_edit_timeline_uses_amounts_and_reason_without_raw_minor_unit_comment(tracked):
     from app import order_management
-    from app.admin_activity import activity_context
+    from app.admin_activity import activity_context, record_activity
     from app.order_admin_ui import merchant_timeline
 
     w = tracked
     with activity_context(w.db, w.site, w.owner.id):
         edit(w, selections(w, 7))
+    for _ in range(2):
+        record_activity(w.db, w.site, w.owner.id, 'order', w.order.id,
+                        'updated', 'Order updated.')
     w.db.commit()
     visible, _ = merchant_timeline(
         order_management.timeline(w.db, w.site, w.link, w.order), w.order.currency)
@@ -57,6 +60,7 @@ def test_edit_timeline_uses_amounts_and_reason_without_raw_minor_unit_comment(tr
     assert all('minor units' not in event.get('detail', '') for event in visible)
     assert any(event['kind'] == 'activity' and event['detail'].startswith('By ')
                for event in visible)
+    assert len([event for event in visible if event['kind'] == 'activity']) == 1
 
 
 def test_failed_edit_rolls_back_and_stale_edit_rejected(tracked):
