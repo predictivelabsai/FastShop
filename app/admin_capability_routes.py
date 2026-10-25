@@ -2,7 +2,7 @@
 
 from urllib.parse import urlencode
 
-from fasthtml.common import A, Button, Form, P, Script
+from fasthtml.common import A, Button, Div, Form, P, Script
 from starlette.responses import RedirectResponse
 
 from app import content, ui
@@ -23,8 +23,9 @@ def register_admin_capability_routes(rt, actor, csrf, check_csrf, shell, error):
                 base = f"/admin/sites/{site.id}"
                 return shell("Integrations", *ui.integrations_hub(
                     db, base=base + "/settings/integrations"),
-                    card(A("Store connectors and import plans", href=base + "/integrations"),
-                         A("Payment settings", href=base + "/settings/payments")))
+                    card(Div(A("Store connectors and import plans", href=base + "/integrations"),
+                             A("Payment settings", href=base + "/settings/payments"),
+                             cls="a-actions")))
         except CommerceError as exc:
             return error(exc)
 

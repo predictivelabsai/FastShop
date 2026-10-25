@@ -153,6 +153,7 @@ def assistant(surface: str, csrf: str, route: str, embedded: bool = False, inlin
         Div(
             Div(
                 Strong("Merchant copilot" if surface == "merchant" else "Shopping assistant"),
+                P(Small("Grounded in this page and live commerce data")) if inline else
                 Small("Grounded in this page and live commerce data"),
             ),
             Button("×" if not embedded else "›", type="button", cls="ai-close", onclick="toggleAssistant(false)" if not embedded else "toggleCopilot()", aria_label="Close assistant") if not inline else None,
@@ -166,7 +167,7 @@ def assistant(surface: str, csrf: str, route: str, embedded: bool = False, inlin
             ),
             cls="ai-messages",
         ),
-        Div(*[Button(text, type="button", onclick=f"askSample({text!r}, {form_id!r})") for text in samples], cls="ai-samples"),
+        Div(*[Button(text, type="button", onclick=f"askSample({text!r}, {form_id!r})") for text in samples], cls="ai-samples a-actions" if inline else "ai-samples"),
         Form(
             csrf_input(csrf),
             Input(type="hidden", name="surface", value=surface),
@@ -174,7 +175,7 @@ def assistant(surface: str, csrf: str, route: str, embedded: bool = False, inlin
             Input(name="message", placeholder="Ask FastShop…", maxlength="1000", autocomplete="off"),
             Button("Send", type="submit", cls="button small"),
             id=form_id,
-            cls="ai-form",
+            cls="ai-form a-actions" if inline else "ai-form",
         ),
     )
     if embedded:
@@ -502,13 +503,16 @@ def integration_page(session: Session, message: str = "", tenant_ids: set[str] |
 
 def integrations_hub(session: Session, base: str = "/admin/integrations"):
     state = fasterp.status()
+    in_store = base.startswith("/admin/sites/")
 
     def card(name, desc, label, ok, href, cta="Setup guide"):
         return Div(Div(H3(name), Span(label, cls="pill green" if ok else "pill amber"), cls="panel-head"),
-                   P(desc), A(cta + " →", href=href, cls="button secondary small"), cls="developer-card")
+                   P(desc), A(cta + " →", href=href, cls="button secondary small"),
+                   cls="a-card" if in_store else "developer-card")
 
     return (
-        Div(Span("Connect FastShop", cls="eyebrow"), H2("Integrations"),
+        Div(None if in_store else Span("Connect FastShop", cls="eyebrow"),
+            None if in_store else H2("Integrations"),
             P("Payments, storefront sync and back-office. Provider secrets are set as deployment "
               "environment variables through Coolify/FastDevOps, never stored in this application."),
             cls="page-head"),
@@ -521,7 +525,7 @@ def integrations_hub(session: Session, base: str = "/admin/integrations"):
                  "Optional", True, base + "/woocommerce"),
             card("FastERP", state.message, "Reachable" if state.reachable else "Unavailable",
                  state.reachable, base + "/fasterp", "Open"),
-            cls="developer-grid"),
+            cls="a-columns" if in_store else "developer-grid"),
     )
 
 
