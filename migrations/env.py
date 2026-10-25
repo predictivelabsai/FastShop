@@ -48,6 +48,11 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            # PostgreSQL search_path also reflects this schema-qualified internal
+            # table without a schema; it must never become application drift.
+            include_name=lambda name, type_, parents: (
+                type_ != "table" or name != "alembic_version"
+            ),
             version_table_schema=settings.db_schema if is_postgres else None,
         )
         with context.begin_transaction():

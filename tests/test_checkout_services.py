@@ -27,6 +27,7 @@ from app.models import (
     Site,
     SiteOrder,
     Stock,
+    Tenant,
     Warehouse,
 )
 from app.services import CommerceError
@@ -122,6 +123,8 @@ def test_stock_failure_rolls_back_partial_allocations_even_if_outer_transaction_
 
 def test_customer_scope_and_origin_stock(ready):
     r = ready
+    r.db.add(Tenant(id="another-tenant", slug="another-tenant", name="Another tenant"))
+    r.db.flush()
     r.customer.tenant_id = "another-tenant"
     r.db.flush()
     with pytest.raises(CommerceError, match="Customer not found"):

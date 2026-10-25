@@ -31,8 +31,9 @@ def test_admin_merge_single_head_and_round_trip(tmp_path):
     assert tables <= set(inspect(engine).get_table_names())
     with engine.connect() as db:
         assert list(db.scalars(text("SELECT version_num FROM alembic_version"))) == [head]
-    migrate("downgrade", "20261025_0030")
+    migrate("downgrade", "20261011_0029")
     assert not tables & set(inspect(engine).get_table_names())
     migrate("upgrade", "head")
     assert tables <= set(inspect(engine).get_table_names())
+    assert "No new upgrade operations detected" in migrate("check")
     engine.dispose()

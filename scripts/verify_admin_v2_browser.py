@@ -48,9 +48,9 @@ def isolate(data_dir: str, port: int) -> None:
     settle_admin_actions()
     os.environ.update({
         "PYTHON_DOTENV_DISABLED": "1",
-        "DB_URL": "",
+        "DB_URL": os.environ.get("FASTSHOP_BROWSER_DB_URL", ""),
         "FASTSHOP_ENV": "development",
-        "FASTSHOP_AUTO_CREATE_SCHEMA": "1",
+        "FASTSHOP_AUTO_CREATE_SCHEMA": "0" if os.environ.get("FASTSHOP_BROWSER_DB_URL") else "1",
         "FASTSHOP_DATA_DIR": data_dir,
         "FASTSHOP_PUBLIC_URL": f"http://127.0.0.1:{port}",
         "FASTSHOP_HOST": "127.0.0.1",

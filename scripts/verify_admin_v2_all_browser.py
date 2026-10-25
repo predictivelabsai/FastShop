@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import socket
 import sys
@@ -729,7 +730,9 @@ def main():
                        "screenshots": str(OUTPUT), "count": len([path for path in OUTPUT.glob("*.png")
                            if "failure" not in path.stem and not path.stem.startswith("review-")]),
                        "payment_boundary": "Local provider doubles; no live Stripe payment or email delivery",
-                       "isolation": "One fresh disposable SQLite database and one app instance",
+                       "isolation": ("Explicit disposable PostgreSQL database, fast_shop schema"
+                                     if os.environ.get("FASTSHOP_BROWSER_DB_URL") else
+                                     "One fresh disposable SQLite database and one app instance"),
                        "successful_downloads": len(browser.downloads)}
         finally:
             server.should_exit = True

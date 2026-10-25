@@ -51,6 +51,9 @@ def upgrade():
             with op.batch_alter_table(model.__tablename__) as batch:
                 for name in missing:
                     column = model.__table__.c[name]._copy()
+                    # Batch copies must not create indexes named after SQLite's
+                    # temporary table. Stable model indexes are created below.
+                    column.index = False
                     if name == 'image_id':
                         column.foreign_keys.clear()
                     batch.add_column(column)
