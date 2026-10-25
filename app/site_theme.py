@@ -4,7 +4,7 @@ import re
 
 from app.services import CommerceError
 
-DEFAULTS = {"accent": "#1554cc", "background": "#fafaf7", "surface": "#e8f4fb",
+DEFAULTS = {"accent": "#145cce", "background": "#f8fafc", "surface": "#e8f4fb",
             "text": "#101922", "font": "modern", "headings": "editorial",
             "spacing": "comfortable", "radius": "subtle", "width": "wide", "hero": "left"}
 CHOICES = {"font": {"modern": "Arial, sans-serif", "humanist": "Verdana, sans-serif"},

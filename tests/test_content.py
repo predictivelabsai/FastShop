@@ -41,7 +41,7 @@ def test_site_creation_assigns_owner_and_creates_private_starter(workspace):
     assert site.status == "draft"
     assert len(site_pages(db, site)) == 8
     assert all(p.published_json is None for p in site_pages(db, site))
-    assert "hydrogen" not in str(site.settings_json).lower()
+    assert "supplements" not in str(site.settings_json).lower()
 
 
 def test_cross_tenant_read_save_restore_denied(workspace):

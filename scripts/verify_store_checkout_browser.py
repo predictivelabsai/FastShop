@@ -28,7 +28,6 @@ def main():
     from app.models import (
         Product,
         ProductVariant,
-        Site,
         SitePage,
         Stock,
         SubscriptionContract,
@@ -37,7 +36,8 @@ def main():
     from tests.test_store_checkout_routes import HostedGateway
 
     with SessionLocal() as db:
-        site = db.scalar(select(Site).where(Site.slug == "h24you"))
+        from scripts.demo_site import seed_demo_site
+        site = seed_demo_site(db, settings.admin_email)
         config = commerce.settings_for(db, site, create=True)
         config.mode, config.shipping_minor, config.tax_registration_reviewed = "sandbox", 1000, True
         config.origin_json = {"country": "EE", "line1": "Local fixture warehouse", "city": "Tallinn", "postal_code": "10111"}
@@ -48,7 +48,7 @@ def main():
         db.flush()
         for variant in variants:
             db.add(Stock(warehouse_id=warehouse.id, variant_id=variant.id, quantity=25))
-        tablet = db.scalar(select(Product).where(Product.tenant_id == site.tenant_id, Product.slug == "hydrogen-tablets"))
+        tablet = db.scalar(select(Product).where(Product.tenant_id == site.tenant_id, Product.slug == "daily-vitamins"))
         config.subscription_product_ids_json = [tablet.id]
         product_page = db.scalar(select(SitePage).where(SitePage.site_id == site.id, SitePage.product_id == tablet.id))
         product_path = product_page.path
@@ -68,7 +68,7 @@ def main():
     output = Path("output/playwright/phase2-subscription-checkout" if args.subscription else "output/playwright/phase2-checkout")
     output.mkdir(parents=True, exist_ok=True)
     errors = []
-    root = settings.public_url + "/sites/h24you"
+    root = settings.public_url + "/sites/northstar"
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(channel="chrome", headless=True)

@@ -2,8 +2,8 @@
 
 ## Existing article mapping (recorded before implementation)
 
-`app/site_articles.py` contains the three H2 seed article dictionaries, not a
-service or a separate article table. `site_seed.py` creates `SitePage` rows of
+`scripts/demo_site.py` contains the fictional sample article dictionaries, not a
+service or a separate article table. `scripts/demo_site.py` creates `SitePage` rows of
 kind `article` at `/blogs/learn/{slug}`. The blog index is a `kind=blog` page at
 `/blogs/learn`, with an introductory text block and an `articles` block. Article
 documents contain title, category, image, text blocks and a references block
@@ -124,7 +124,7 @@ Verified on 2026-10-08:
 ## Files changed
 
 - `app/models.py`, `app/site_blog.py`, `app/site_blocks.py`, `app/content.py`,
-  `app/compliance.py`, `app/site_seed.py`, `app/site_routes.py`, `app/site_ui.py`.
+  `app/compliance.py`, `scripts/demo_site.py`, `app/site_routes.py`, `app/site_ui.py`.
 - `migrations/versions/20261008_0019_blog_depth.py`, `static/site-blog.css`.
 - `tests/test_site_blog.py`, `scripts/verify_site_browser.py`.
 - `output/playwright/phase1b-blog/` and this document.

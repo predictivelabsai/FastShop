@@ -37,8 +37,7 @@ provider acceptance.
    ```
 
    The primary store may instead use the unprefixed globals `PAYPAL_CLIENT_ID`,
-   `PAYPAL_SECRET`, `PAYPAL_MODE` (mirrors Stripe's `FASTSHOP_PAYPAL_PRIMARY_SITE`, default
-   `h24you`).
+   `PAYPAL_SECRET`, `PAYPAL_MODE` only when `FASTSHOP_PAYPAL_PRIMARY_SITE` explicitly names its slug (no default).
 4. Confirm the readiness table on `/admin/integrations/paypal` shows the store as **Ready**.
 
 Credentials are resolved by `app/integrations/paypal.py` (`credentials`, `readiness`). Keep

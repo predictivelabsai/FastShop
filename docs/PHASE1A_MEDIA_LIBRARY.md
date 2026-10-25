@@ -13,8 +13,7 @@ That URL remains stable; unpublished uploads require merchant membership, while
 published page/settings references permit public access under the existing rules.
 Responses retain private/no-store caching and nosniff headers.
 
-H2 seed documents instead reference assets under `/static/h24you/`, including
-images, video and posters. They had no media rows. Other content can contain
+Fictional sample documents reference `/static/sample-product.svg`. Other content can contain
 HTTPS media URLs. Page draft/published JSON and revision JSON contain URL strings
 or locale maps in image/poster/video fields and gallery lists; nested entries also
 have image/alt fields. Site settings and builder change-set snapshots can retain
@@ -48,7 +47,7 @@ search path; no other schema is accessed.
 ## Backfill
 
 `app/site_media.py:backfill_media` runs beside navigation adaptation on new demo
-creation, new H2 creation, existing H2 seed discovery, and in the new migration
+creation, new sample creation, existing sample seed discovery, and in the new migration
 for existing sites. It scans draft/published page documents and historical
 revisions, plus settings and undo snapshots. Both legacy sections and canonical
 blocks are traversed, including localized URLs, galleries and nested images.
@@ -116,7 +115,7 @@ Verification on 2026-10-08:
   and Stripe keys cleared in the same PowerShell session as pytest.
 - After the final control-spacing adjustment, all 15 media/render tests passed.
 - All 50 pre-existing storefront HTML hashes still match the unchanged Phase 0
-  and Phase 0b fixtures. The added golden test asserts the H2 library is populated,
+  and Phase 0b fixtures. The added golden test asserts the sample library is populated,
   repeats the backfill, then compares every preview/published render unchanged.
 - Empty disposable SQLite: upgrade through `20261008_0018` and `alembic check`
   passed; no new upgrade operations. The temporary database file was deleted.
@@ -152,7 +151,7 @@ freeform prose; the supported media fields use structured URL values.
 ## Files changed
 
 - `app/models.py`, `app/site_media.py`, `app/site_media_routes.py`.
-- `app/content.py`, `app/site_seed.py`, `app/site_routes.py`,
+- `app/content.py`, `scripts/demo_site.py`, `app/site_routes.py`,
   `app/site_builder_services.py`.
 - `migrations/versions/20261008_0018_media_library.py`.
 - `tests/test_site_media.py`, `tests/test_site_content_render.py`.

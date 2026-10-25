@@ -32,10 +32,10 @@ def main():
         html = Path(temporary) / 'guide.html'
         subprocess.run(['pandoc', str(snapshot), '-s', '--embed-resources',
             '--from=markdown-implicit_figures', '--css', str(docs / 'assets/guide.css'),
-            '--metadata', 'pagetitle=FastShop — H24YOU User Guide', '-o', str(html)], cwd=docs, check=True)
+            '--metadata', 'pagetitle=FastShop User Guide', '-o', str(html)], cwd=docs, check=True)
         subprocess.run(['weasyprint', str(html), str(base.with_suffix('.pdf'))], check=True)
     subprocess.run([os.sys.executable, str(ROOT / 'scripts/build_guide_pptx.py'),
-        str(snapshot), str(base.with_suffix('.pptx')), 'FastShop — H24YOU User Guide'],
+        str(snapshot), str(base.with_suffix('.pptx')), 'FastShop User Guide'],
         env=os.environ | {'GUIDE_DATE': GUIDE_DATE}, check=True)
     info = subprocess.check_output(['pdfinfo', str(base.with_suffix('.pdf'))], text=True)
     pages = int(re.search(r'^Pages:\s+(\d+)', info, re.M).group(1))

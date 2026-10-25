@@ -90,7 +90,7 @@ def test_static_placeholder_resolution_skips_provider_and_media_rows(image_db):
     db, owner = image_db
     plan, source = generate_plan(brief(), force_guided=True)
     for item in plan["imagery"]:
-        item["placeholder_url"] = "/static/h24you/water-placeholder.webp"
+        item["placeholder_url"] = "/static/sample-placeholder.webp"
 
     class FailingProvider:
         def generate(self, direction, size, key):
@@ -100,7 +100,7 @@ def test_static_placeholder_resolution_skips_provider_and_media_rows(image_db):
         db, owner.id, brief(), plan, source, image_provider=FailingProvider()
     )
     assert set(_visual_urls(db, site).values()) == {
-        "/static/h24you/water-placeholder.webp"
+        "/static/sample-placeholder.webp"
     }
     assert not list(db.scalars(select(SiteMedia).where(
         SiteMedia.tenant_id == site.tenant_id,
@@ -114,14 +114,14 @@ def test_resolution_preserves_manual_image_and_rejects_foreign_media(image_db):
     site = create_generated_site(db, owner.id, brief(), plan, source)
     home = next(page for page in content.site_pages(db, site) if page.path == "/")
     document = normalize_document(home.draft_json)
-    document["blocks"][0]["image"] = {"en": "/static/h24you/bottle-placeholder.webp"}
+    document["blocks"][0]["image"] = {"en": "/static/sample-placeholder.webp"}
     home.draft_json = document
     db.flush()
     result = resolve_site_imagery(db, site, owner.id)
     assert result.preserved == 1
     assert resolve_site_imagery(db, site, owner.id).preserved == 1
     assert _visual_urls(db, site)[("/", "home-hero")] == (
-        "/static/h24you/bottle-placeholder.webp"
+        "/static/sample-placeholder.webp"
     )
 
     other = content.create_site(db, owner.id, "Other images", "other-images")

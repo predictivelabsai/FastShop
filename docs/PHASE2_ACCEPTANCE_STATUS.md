@@ -20,10 +20,7 @@ site-route assertions. The clean-database full run passes; use a fresh temporary
 data directory for this suite, not an application or previously exercised fixture
 database. Alembic reports head `20260921_0012` with no pending model changes.
 
-The source scope is the Phase 2 list and commerce requirements in
-`data/feature-requests/h24you/h24you_website_build_brief.md`, with the user's
-subsequent approval of Stripe, EU-origin fulfilment, US-only destination tax,
-recommended discount stacking and consistent FastShop platform branding.
+The scope covers generic checkout, subscriptions, EU-origin fulfilment, US destination tax, discount stacking and shared FastShop branding.
 
 | Requirement | Current authoritative evidence | Acceptance limit |
 | --- | --- | --- |
@@ -34,7 +31,7 @@ recommended discount stacking and consistent FastShop platform branding.
 | My account | Site-scoped single-use email login, own order history and subscription controls; isolation/CSRF tests and browser flows | Actual email delivery and production-domain acceptance missing |
 | Tracking | Merchant-entered owned shipment events, vetted carrier links, customer history and transactional updates | Manual tracking only; no carrier status feed or real shipment acceptance |
 | Email capture | Unticked consent, double opt-in, one first-order offer, unsubscribe, separate transactional mail queue | No real Postmark delivery/bounce acceptance or scheduled production mail processing |
-| Branding/UI | Shared FastShop platform shell, tokens, logo and drawer chrome; desktop/mobile screenshots | H24YOU public identity is retained; the broader brief's final content/legal/placeholder approvals remain separate launch gates |
+| Branding/UI | Shared FastShop platform shell, tokens, logo and drawer chrome; desktop/mobile screenshots | Merchant identity is retained; the broader brief's final content/legal/placeholder approvals remain separate launch gates |
 | Analytics | Optional site-owned GA4 ID; consent-gated published public page views; desktop/mobile intercepted-network checks | No real property ingestion verified; private checkout/account tagging and purchase/revenue events are not implemented |
 
 ## Secure configuration and verification gaps

@@ -36,17 +36,14 @@ Repository: <https://github.com/predictivelabsai/FastShop>
 
 ## Editable websites — Phase 1
 
-The H2 4 You design/content preview lives at `/sites/h24you/`. Authorized merchants
-can create their own sites at `/admin/sites`, edit sections and shared settings,
+Authorised merchants can create their own sites at `/admin/sites`, edit sections and shared settings,
 upload media, manage product presentation, preview drafts and publish revisions.
 The new storefronts do not activate the legacy demo checkout. Phase 2 commerce
 is implemented locally in sandbox-only mode; real-provider acceptance and release
 remain separate gates. Do not assume the production target runs the local worktree.
 
-- [Phase 1 delivery and placeholder register](docs/H24YOU_PHASE1_DELIVERY.md)
 - [Merchant editing guide](docs/PHASE1_MERCHANT_GUIDE.md)
 - [Phase 2 commerce implementation roadmap](docs/PHASE2_COMMERCE_ROADMAP.md)
-- [Browser verification evidence](output/playwright/h24you-phase1/verification.json)
 
 ## Dual-flow builder and private commerce demo
 
@@ -61,9 +58,7 @@ sample products and orders are isolated from real catalog and commerce records.
 
 ![FastShop dual-flow builder and simulated commerce](static/productdemo.gif)
 
-- [Screenshot-led user guide](docs/USER_GUIDE.md)
-- [H24YOU guide — PDF](docs/fastshop_user_guide_2026-09-21.pdf) · [PowerPoint](docs/fastshop_user_guide_2026-09-21.pptx)
-- [Production guide verification](docs/PRODUCTION_GUIDE_VERIFICATION.md)
+- [User guide](docs/USER_GUIDE.md)
 - [WooCommerce API stubs and Stripe key/setup checklist](docs/WOOCOMMERCE_STRIPE_INTEGRATION.md)
 - [Implementation status and provider acceptance limits](docs/DUAL_FLOW_IMPLEMENTATION_STATUS.md)
 - [Dual-flow architecture and acceptance plan](docs/DUAL_FLOW_SITE_BUILDER_PLAN.md)

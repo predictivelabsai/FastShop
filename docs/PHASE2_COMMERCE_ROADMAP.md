@@ -18,7 +18,7 @@ remain in scope; completing a configuration screen does not complete Phase 2.
   unset, blocking quotes rather than silently providing free shipping.
 - Phase 1 and Phase 2 merchant screens now reuse FastShop's shared CSS tokens,
   green accent, logo component and HTML shell. Public merchant rebranding awaits
-  clarification; H2 4 You's existing public identity has not been overwritten.
+  clarification; existing merchant identities have not been overwritten.
 - Added site-owned configuration, allowed US destinations, product tax category
   mapping, subscription eligibility, sandbox tax preview and immutable expiring
   quote snapshots. The Stripe adapter rejects live keys and invalid webhook
@@ -266,7 +266,7 @@ configuration, worker commands and outstanding provider acceptance.
 The current local environment has no Stripe secret key or webhook signing secret.
 Set `STRIPE_SECRET_KEY` (test mode) and `STRIPE_WEBHOOK_SECRET` in the ignored
 environment file or secret manager, never in chat or committed files. The global
-keys are reserved for `FASTSHOP_STRIPE_PRIMARY_SITE` (default `h24you`). Other
+keys are reserved for `FASTSHOP_STRIPE_PRIMARY_SITE` (no default store). Other
 sites require `FASTSHOP_STRIPE_<UPPERCASE_SITE_ID>_SECRET_KEY` and the matching
 `WEBHOOK_SECRET`, preventing another merchant from inheriting that account.
 
@@ -284,10 +284,10 @@ Provider references:
 ## Product boundary
 
 FastShop combines editable sites and editorial content with structured commerce.
-The H2 4 You brief describes Shopify behavior, but the platform is FastShop.
+FastShop supports native commerce and reviewed platform connectors.
 Shopify checkout, customer accounts, subscriptions, email and analytics are not
 automatically available in this architecture. Provider choices need a separate
-decision based on the Estonian merchant entity and US customers.
+decision based on the merchant entity and destination markets.
 
 The brief's “no Stripe” wording is attached to footer payment icons. It should
 not be interpreted as an explicit prohibition on Stripe as a backend processor.

@@ -6,7 +6,7 @@ from app import compliance, content
 from app.models import Base, User
 from app.services import CommerceError
 from app.site_placeholders import placeholder_inventory
-from app.site_seed import seed_h24you
+from scripts.demo_site import seed_demo_site
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def test_scan_flags_banned_and_disease_terms():
 
 
 def test_scan_ignores_compliant_research_language():
-    findings = compliance.scan_text("Researchers have studied molecular hydrogen; more research is needed.")
+    findings = compliance.scan_text("Researchers have studied vitamin supplements; more research is needed.")
     assert findings["banned"] == [] and findings["diseases"] == []
 
 
@@ -87,7 +87,7 @@ def test_save_page_blocks_noncompliant_publish_but_allows_draft(db):
 
 
 def test_seed_content_is_publishable(db):
-    site = seed_h24you(db, "admin@fastshop.example")
+    site = seed_demo_site(db, "admin@fastshop.example")
     db.commit()
     for page in content.site_pages(db, site):
         findings = compliance.scan_document(page.draft_json)
@@ -96,7 +96,7 @@ def test_seed_content_is_publishable(db):
 
 
 def test_placeholder_inventory_surfaces_seed_placeholders(db):
-    site = seed_h24you(db, "admin@fastshop.example")
+    site = seed_demo_site(db, "admin@fastshop.example")
     db.commit()
     items = placeholder_inventory(db, site)
     areas = {item["area"] for item in items}

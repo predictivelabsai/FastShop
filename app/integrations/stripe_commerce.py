@@ -24,8 +24,9 @@ def credentials(site):
     key = os.getenv(prefix + "SECRET_KEY", "")
     secret = os.getenv(prefix + "WEBHOOK_SECRET", "")
     # Existing global credentials are exclusively for the explicitly designated store.
-    # Other tenants never inherit the H2 4 You merchant account.
-    if site.slug == os.getenv("FASTSHOP_STRIPE_PRIMARY_SITE", "h24you"):
+    # Other tenants never inherit the designated merchant account.
+    primary_site = os.getenv("FASTSHOP_STRIPE_PRIMARY_SITE", "")
+    if primary_site and site.slug == primary_site:
         key = key or os.getenv("STRIPE_SECRET_KEY", "")
         secret = secret or os.getenv("STRIPE_WEBHOOK_SECRET", "")
     return key, secret

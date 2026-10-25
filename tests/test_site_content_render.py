@@ -12,8 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.content import create_site, site_pages
 from app.models import Base, SiteMenu, User
-from app.site_seed import seed_h24you
 from app.site_ui import storefront
+from scripts.demo_site import seed_demo_site
 
 GOLDEN = Path(__file__).parent / "fixtures" / "phase0_storefront_sha256.json"
 
@@ -26,18 +26,18 @@ def seeded_render_hashes(render=storefront):
         user = User(email="render@example.test", name="Render fixture")
         db.add(user)
         db.flush()
-        h24you = seed_h24you(db, user.email)
+        northstar = seed_demo_site(db, user.email)
         demo = create_site(db, user.id, "Demo storefront", "demo-render")
         # SQLite timestamps have second precision; avoid random ID tie-breaks
         # in the article listing by fixing the fixture's publication ordering.
-        for index, page in enumerate(site_pages(db, h24you)):
+        for index, page in enumerate(site_pages(db, northstar)):
             page.created_at = datetime(2026, 1, 1) + timedelta(seconds=index)
         for page in site_pages(db, demo):
             page.published_json = page.draft_json
         db.flush()
         from app.site_menus import menus_for
-        assert all({menu.name for menu in menus_for(db, site)} == {"header", "footer"} for site in (h24you, demo))
-        for site in (h24you, demo):
+        assert all({menu.name for menu in menus_for(db, site)} == {"header", "footer"} for site in (northstar, demo))
+        for site in (northstar, demo):
             for page in site_pages(db, site):
                 for preview in (False, True):
                     rendered = render(
@@ -60,7 +60,11 @@ def seeded_render_hashes(render=storefront):
 
 
 def test_seeded_storefront_html_matches_before_blocks():
-    assert seeded_render_hashes() == json.loads(GOLDEN.read_text(encoding="utf-8"))
+    hashes = seeded_render_hashes()
+    assert len(hashes) == 50  # 17 editorial pages plus 8 starter pages, both render modes.
+    for path in ("/", "/products/daily-vitamins", "/blogs/learn/reading-product-labels"):
+        assert hashes[f"northstar:{path}:preview"] != hashes[f"northstar:{path}:published"]
+    assert hashes == json.loads(GOLDEN.read_text(encoding="utf-8"))
 
 
 def test_seeded_storefront_html_matches_before_menus():
@@ -82,7 +86,7 @@ def test_media_registration_preserves_all_golden_renders():
 
     def registered(db, site, *args, **kwargs):
         assert backfill_media(db, site) == 0
-        if site.slug == "h24you":
+        if site.slug == "northstar":
             assert media_for(db, site)
         return storefront(db, site, *args, **kwargs)
 

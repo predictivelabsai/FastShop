@@ -11,9 +11,9 @@ Use the application's ignored `.env` or your deployment secret manager. Never pu
 credentials in chat, command arguments, screenshots, Git, or this document.
 The repository ignores `.env`; restrict its filesystem permissions to the operator.
 
-- Primary H24YOU site: `STRIPE_SECRET_KEY` (test mode) and
+- Explicitly selected primary site: `STRIPE_SECRET_KEY` (test mode) and
   `STRIPE_WEBHOOK_SECRET`. Global credentials are only used for the slug in
-  `FASTSHOP_STRIPE_PRIMARY_SITE`, default `h24you`.
+  `FASTSHOP_STRIPE_PRIMARY_SITE`, no default store.
 - Other sites: `FASTSHOP_STRIPE_<UPPERCASE_SITE_ID>_SECRET_KEY` and the matching
   `FASTSHOP_STRIPE_<UPPERCASE_SITE_ID>_WEBHOOK_SECRET`. Do not borrow another
   merchant's account credentials.

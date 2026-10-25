@@ -179,7 +179,7 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
     if kind == "hero":
         media = Video(Source(src=section["mobile_video"], type="video/mp4", media="(max-width: 600px)") if section.get("mobile_video") else None,
                       Source(src=section["video"], type="video/mp4"), autoplay=True, muted=True, loop=True,
-                      playsinline=True, poster=section.get("image", ""), aria_label="Water and bubbles — placeholder video") if section.get("video") else image(section.get("image"), eager=True)
+                      playsinline=True, poster=section.get("image", ""), aria_label="Hero background video") if section.get("video") else image(section.get("image"), eager=True)
         return Section(Div(media, cls="h-hero-media"), Div(Small(section.get("eyebrow", ""), cls="h-eyebrow"),
             H1(heading), *paragraphs(section.get("body")), cta(section, base), cls="h-hero-copy"),
             Button("Pause motion", type="button", data_video_toggle="", cls="h-video-toggle") if section.get("video") else None,
@@ -193,7 +193,7 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
             Div(intro, cta(section, base), cls="h-split-copy"), cls="h-split h-section")
     if kind == "facts":
         return Section(intro, Div(*[Div(Strong(item["value"]), P(item["label"])) for item in config.get("facts", [])], cls="h-facts"),
-            Small("Source: ", A("hydrogenclinicalresearch.com", href=config.get("science_source", "https://hydrogenclinicalresearch.com/"), target="_blank", rel="noopener noreferrer"),
+            Small("Source: ", A(config.get("science_source_label", "Research source"), href=config.get("science_source", ""), target="_blank", rel="noopener noreferrer"),
                   " — figures as of " + config.get("science_date", "date to be confirmed")), cls="h-section h-facts-section")
     if kind == "claims":
         approved = [item for item in config.get("claims", []) if item.get("approved")]

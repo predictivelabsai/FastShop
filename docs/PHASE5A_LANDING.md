@@ -99,7 +99,7 @@ language.
 
 The surface uses a local system font stack. This matches the legacy UI's
 no-remote-font behavior and guarantees zero font requests. It is intentionally
-independent of tenant Quicksand assets and merchant/editor styles.
+independent of tenant font assets and merchant/editor styles.
 
 At 1440px the hero uses a two-column composition with a large proof surface. At
 390px it becomes a single reading order, navigation collapses to essential

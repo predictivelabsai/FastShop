@@ -8,7 +8,6 @@ from urllib.parse import urlsplit
 
 import uvicorn
 from playwright.sync_api import expect, sync_playwright
-from sqlalchemy import select
 
 from app.config import settings
 
@@ -18,10 +17,10 @@ def main():
         raise SystemExit("Requires isolated fastshop-* data, empty DB_URL and http://127.0.0.1:5043.")
     from app.db import SessionLocal
     from app.main import app
-    from app.models import Site
 
     with SessionLocal() as db:
-        site = db.scalar(select(Site).where(Site.slug == "h24you"))
+        from scripts.demo_site import seed_demo_site
+        site = seed_demo_site(db, settings.admin_email)
         site.status = "published"
         site_id = site.id
         db.commit()
@@ -35,7 +34,7 @@ def main():
         raise RuntimeError("Local analytics verifier did not start")
     output = Path("output/playwright/phase2-analytics")
     output.mkdir(parents=True, exist_ok=True)
-    root = settings.public_url + "/sites/h24you"
+    root = settings.public_url + "/sites/northstar"
     requests, errors = [], []
     measurement = "G-TEST123456"
 
@@ -88,11 +87,11 @@ def main():
             assert len([row for row in commands if row[:2] == ["event", "page_view"]]) == 1
             config = next(row[2] for row in commands if row[0] == "config")
             assert config["cookie_prefix"] == "fs_" + site_id
-            assert config["cookie_path"] == "/sites/h24you" and config["allow_google_signals"] is False
+            assert config["cookie_path"] == "/sites/northstar" and config["allow_google_signals"] is False
             page.get_by_role("button", name="Cookie preferences", exact=True).click()
             page.locator('[data-consent="custom"]').click()
             assert len(requests) == 1  # Repeated grant does not reload or duplicate page_view.
-            page.evaluate("name => { document.cookie = name + '=fixture; Path=/sites/h24you'; document.cookie = 'unrelated_fixture=keep; Path=/'; }", "fs_" + site_id + "_ga")
+            page.evaluate("name => { document.cookie = name + '=fixture; Path=/sites/northstar'; document.cookie = 'unrelated_fixture=keep; Path=/'; }", "fs_" + site_id + "_ga")
             second = context.new_page()
             second.goto(root + "/")
             second.wait_for_function("window.__gaFixtureLoaded === true")

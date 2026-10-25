@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 
 from app import ui
 from app.integrations import paypal
+from app.integrations.stripe_commerce import credentials as stripe_credentials
 from app.models import Base, User
-from app.site_seed import seed_h24you
+from scripts.demo_site import seed_demo_site
 
 
 def _site(site_id="abc123", slug="somestore"):
@@ -32,11 +33,27 @@ def test_paypal_primary_site_uses_globals(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("PAYPAL_CLIENT_ID", "gid")
     monkeypatch.setenv("PAYPAL_SECRET", "gsec")
-    # default primary site slug is h24you
-    client_id, secret, mode = paypal.credentials(_site(slug="h24you"))
+    # Global credentials require an explicitly selected primary site.
+    monkeypatch.setenv("FASTSHOP_PAYPAL_PRIMARY_SITE", "northstar")
+    client_id, secret, mode = paypal.credentials(_site(slug="northstar"))
     assert (client_id, secret, mode) == ("gid", "gsec", "sandbox")
     # a non-primary store gets nothing from the globals
     assert paypal.readiness(_site(slug="other")).configured is False
+
+
+def test_global_credentials_require_an_explicit_primary_store(monkeypatch):
+    for provider in ("STRIPE", "PAYPAL"):
+        monkeypatch.delenv(f"FASTSHOP_{provider}_PRIMARY_SITE", raising=False)
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_global_fixture")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_global_fixture")
+    monkeypatch.setenv("PAYPAL_CLIENT_ID", "global_fixture_id")
+    monkeypatch.setenv("PAYPAL_SECRET", "global_fixture_secret")
+    for slug in ("northstar", "another-store", ""):
+        assert stripe_credentials(_site(slug=slug)) == ("", "")
+        assert paypal.credentials(_site(slug=slug)) == ("", "", "sandbox")
+    monkeypatch.setenv("FASTSHOP_STRIPE_PRIMARY_SITE", "northstar")
+    assert stripe_credentials(_site(slug="northstar")) == ("sk_test_global_fixture", "whsec_global_fixture")
+    assert stripe_credentials(_site(slug="another-store")) == ("", "")
 
 
 def test_readiness_never_exposes_values(monkeypatch):
@@ -61,13 +78,13 @@ def test_paypal_guide_lists_key_env_vars_and_readiness(monkeypatch):
     with Session(engine, expire_on_commit=False) as db:
         db.add(User(email="admin@fastshop.example", name="Admin"))
         db.flush()
-        seed_h24you(db, "admin@fastshop.example")
+        seed_demo_site(db, "admin@fastshop.example")
         db.commit()
         html = "".join(to_xml(p) for p in ui.paypal_guide(db) if p is not None)
     assert "FASTSHOP_PAYPAL_{SITE_ID}_CLIENT_ID" in html
     assert "FASTSHOP_PAYPAL_{SITE_ID}_SECRET" in html
     assert "PayPal readiness by store" in html
-    assert "h24you" in html  # the seeded store appears in the readiness table
+    assert "northstar" in html  # the seeded store appears in the readiness table
 
 
 def test_integrations_hub_renders_all_providers():

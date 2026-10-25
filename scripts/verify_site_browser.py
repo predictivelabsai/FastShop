@@ -700,10 +700,10 @@ def verify_design_audit(base: str, output: str):
             )
             page.get_by_role("button", name="Sign in", exact=True).click()
             page.wait_for_url("**/admin/sites")
-            h24_card = page.locator(".e-card").filter(
-                has=page.get_by_role("heading", name="H2 4 You", exact=True)
+            store_card = page.locator(".e-card").filter(
+                has=page.get_by_role("heading", name="Northstar Goods", exact=True)
             )
-            h24_card.get_by_role("link", name="Open editor →", exact=True).click()
+            store_card.get_by_role("link", name="Open editor →", exact=True).click()
             page.get_by_role("link", name="Build with AI →", exact=True).click()
             page.wait_for_url("**/admin/sites/*/build")
             builder_url = page.url
@@ -805,41 +805,41 @@ def main():
         action="store_true",
         help="Capture all key product surfaces against one already-running app",
     )
-    parser.add_argument("--output", default="output/playwright/h24you-phase1")
+    parser.add_argument("--output", default="output/playwright/northstar-phase1")
     args = parser.parse_args()
     if args.design_audit:
-        if args.output == "output/playwright/h24you-phase1":
+        if args.output == "output/playwright/northstar-phase1":
             args.output = "output/playwright/design-audit"
         verify_design_audit(args.base, args.output)
         return
     if args.onboarding:
-        if args.output == "output/playwright/h24you-phase1":
+        if args.output == "output/playwright/northstar-phase1":
             args.output = "output/playwright/phase-onboarding-wizard"
         verify_onboarding(args.output)
         return
     if args.plans:
-        if args.output == "output/playwright/h24you-phase1":
+        if args.output == "output/playwright/northstar-phase1":
             args.output = "output/playwright/phase5d-plans"
         verify_plans(args.output)
         return
     if args.billing:
-        if args.output == "output/playwright/h24you-phase1":
+        if args.output == "output/playwright/northstar-phase1":
             args.output = "output/playwright/phase5e-billing"
         verify_billing(args.output)
         return
     if args.signup:
-        if args.output == "output/playwright/h24you-phase1":
+        if args.output == "output/playwright/northstar-phase1":
             args.output = "output/playwright/phase5b-signup"
         verify_signup(args.output)
         return
     if args.landing:
-        if args.output == "output/playwright/h24you-phase1":
+        if args.output == "output/playwright/northstar-phase1":
             args.output = "output/playwright/phase5a-landing"
         with signup_server(True) as base:
             verify_landing(base, args.output)
         return
     if args.platform_root:
-        if args.output == "output/playwright/h24you-phase1":
+        if args.output == "output/playwright/northstar-phase1":
             args.output = "output/playwright/phase-landing-root"
         verify_platform_root(args.base, args.output)
         return
@@ -855,6 +855,13 @@ def main():
         raise RuntimeError("Shopify browser verification requires FASTSHOP_SHOPIFY_FIXTURE_PATH.")
     if args.wordpress and not os.getenv("FASTSHOP_WORDPRESS_FIXTURE_PATH"):
         raise RuntimeError("WordPress browser verification requires FASTSHOP_WORDPRESS_FIXTURE_PATH.")
+    if args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
+        from app.config import settings
+        from app.db import SessionLocal
+        from scripts.demo_site import seed_demo_site
+        with SessionLocal() as db:
+            seed_demo_site(db, settings.admin_email)
+            db.commit()
     if args.embeds:
         if not (args.merchant or args.merchant_only) or not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
             raise RuntimeError("Embed/snippet checks require --merchant against an isolated local database.")
@@ -864,25 +871,25 @@ def main():
         from app.models import Site
 
         with SessionLocal() as db:
-            site = db.scalar(select(Site).where(Site.slug == "h24you"))
+            site = db.scalar(select(Site).where(Site.slug == "northstar"))
             if not site:
-                raise RuntimeError("The H2 4 You fixture is not available.")
+                raise RuntimeError("The Northstar Goods fixture is not available.")
             site.status = "published"
             db.commit()
-    if args.order_management and args.output == "output/playwright/h24you-phase1":
+    if args.order_management and args.output == "output/playwright/northstar-phase1":
         args.output = "output/playwright/phase4c-order-management"
-    if args.webhook_reliability and args.output == "output/playwright/h24you-phase1":
+    if args.webhook_reliability and args.output == "output/playwright/northstar-phase1":
         args.output = "output/playwright/phase4d-webhook-reliability"
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
-    paths = ["/", "/shop", "/collections/hydrogen-tablets", "/collections/hydrogen-water-bottles",
-             "/products/hydrogen-tablets", "/products/hydroxy-go", "/pages/science", "/blogs/learn",
-             "/blogs/learn/what-is-molecular-hydrogen", "/blogs/learn/timing-and-consistency",
-             "/blogs/learn/how-to-read-hydrogen-research", "/pages/about-us", "/pages/contact",
+    paths = ["/", "/shop", "/collections/daily-vitamins", "/collections/bottles",
+             "/products/daily-vitamins", "/products/trail-bottle", "/pages/science", "/blogs/learn",
+             "/blogs/learn/choosing-everyday-goods", "/blogs/learn/caring-for-your-bottle",
+             "/blogs/learn/reading-product-labels", "/pages/about-us", "/pages/contact",
              "/pages/terms-and-conditions", "/pages/privacy-policy", "/pages/faq", "/pages/returns-and-refunds"]
     failures, checks = [], []
     if args.blog:
-        paths.extend(["/blog", "/blog/category/the-basics"])
+        paths.extend(["/blog", "/blog/category/guides"])
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel="chrome", headless=True)
         for device, width, height in ([] if args.merchant_only else [("desktop", 1440, 1000), ("ipad", 834, 1112), ("mobile", 390, 844)]):
@@ -890,33 +897,31 @@ def main():
             page = context.new_page()
             page.on("pageerror", lambda error: failures.append(str(error)))
             page.on("response", lambda response: failures.append(f"HTTP {response.status}: {response.url}") if response.status >= 400 else None)
-            page.goto(args.base + "/sites/h24you/")
+            page.goto(args.base + "/sites/northstar/")
             page.locator('#h-cookie button[data-consent="none"]').click()
             assert page.evaluate("window.fastshopConsent.analytics === false && window.fastshopConsent.marketing === false")
             page.evaluate("localStorage.setItem('fastshop-offer:' + document.querySelector('.h-site').dataset.site, 'true')")
             for path in paths:
-                response = page.goto(args.base + "/sites/h24you" + path)
+                response = page.goto(args.base + "/sites/northstar" + path)
                 assert response.status == 200, path
                 assert page.locator('.h-header-actions a[href$="/account"]').count() == 0
                 assert page.locator(".h-header-actions").get_by_role("button", name="My account", exact=False).count() == 0
                 page.wait_for_load_state("networkidle")
                 assert page.locator("h1").count() == 1, path
                 assert page.locator('link[rel="canonical"]').count() == 1
-                if args.blog and path == "/blog/category/the-basics":
-                    assert page.locator(".h-articles article").count() == 1
-                    assert page.get_by_role("navigation", name="Article categories").get_by_role("link", name="THE BASICS", exact=True).get_attribute("aria-current") == "page"
+                if args.blog and path == "/blog/category/guides":
+                    assert page.locator(".h-articles article").count() == 3
+                    assert page.get_by_role("navigation", name="Article categories").get_by_role("link", name="GUIDES", exact=True).get_attribute("aria-current") == "page"
                     assert page.locator('link[rel="canonical"]').get_attribute("href").endswith(path)
-                    assert page.locator(".h-blog-byline").inner_text() == "By H2 4 You team"
+                    assert page.locator(".h-blog-byline").first.inner_text() == "By Northstar Goods team"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (device, path)
                 assert page.locator("img").evaluate_all("images => images.every(i => i.hasAttribute('alt') && i.getAttribute('alt').length)")
                 load_page_media(page)
                 name = path.strip("/").replace("/", "-") or "home"
                 page.screenshot(path=str(out / f"{device}-{name}.png"), full_page=True)
                 checks.append({"device": device, "path": path, "status": response.status, "title": page.title()})
-            page.goto(args.base + "/sites/h24you/pages/science")
-            page.get_by_role("button", name="Exercise", exact=True).click()
-            assert page.locator('[data-research-theme="Exercise"]:visible').count() == 2
-            assert page.locator('[data-research-theme="Reviews"]:visible').count() == 0
+            page.goto(args.base + "/sites/northstar/pages/science")
+            assert page.locator('a[href="https://example.test/materials"]').is_visible()
             page.get_by_role("button", name="Cookie preferences", exact=True).click()
             page.locator("#h-cookie summary").click()
             page.screenshot(path=str(out / f"{device}-cookie-preferences.png"), full_page=False)
@@ -927,18 +932,19 @@ def main():
                 page.screenshot(path=str(out / "mobile-open-menu.png"))
                 page.keyboard.press("Escape")
                 assert not page.locator(".h-nav").is_visible()
-            page.goto(args.base + "/sites/h24you/products/hydrogen-tablets")
-            page.get_by_role("combobox", name="Choose your option").select_option(label="Raspberry")
+            page.goto(args.base + "/sites/northstar/products/daily-vitamins")
+            options = page.get_by_role("combobox", name="Choose your option")
+            if options.count():
+                options.select_option(label="Original")
             assert page.get_by_role("button", name="Add to cart — coming in Phase 2").is_disabled()
-            page.get_by_role("button", name="View gallery image 2", exact=True).click()
-            assert "water-placeholder" in page.locator('[data-gallery-main] img').get_attribute("src")
+            assert "sample-placeholder.webp" in page.locator('[data-gallery-main] img').get_attribute("src")
             context.close()
         if args.merchant or args.merchant_only:
             if not args.base.startswith(("http://127.0.0.1:", "http://localhost:")):
                 raise RuntimeError("Merchant mutation checks are limited to an isolated local database.")
             context = browser.new_context(viewport={"width": 1440, "height": 1000})
             if args.wordpress:
-                fixture_image = Path(__file__).resolve().parents[1] / "static" / "h24you" / "water-placeholder.webp"
+                fixture_image = Path(__file__).resolve().parents[1] / "static" / "sample-placeholder.webp"
                 context.route(
                     "https://images.wordpress.example/**",
                     lambda route: route.fulfill(path=str(fixture_image), content_type="image/webp"),
@@ -981,11 +987,11 @@ def main():
                 page.screenshot(path=str(out / "desktop-golive-publish-blocked.png"), full_page=True)
 
                 with SessionLocal() as db:
-                    h24 = db.scalar(select(Site).where(Site.slug == "h24you"))
-                    if not h24:
-                        raise RuntimeError("The H2 4 You fixture site is unavailable.")
-                    h24_id = h24.id
-                page.goto(args.base + f"/admin/sites/{h24_id}/golive")
+                    sample_store = db.scalar(select(Site).where(Site.slug == "northstar"))
+                    if not sample_store:
+                        raise RuntimeError("The Northstar Goods fixture site is unavailable.")
+                    store_id = sample_store.id
+                page.goto(args.base + f"/admin/sites/{store_id}/golive")
                 assert page.locator("#publish").is_visible()
                 assert page.locator(".g-check-fail").count() >= 1  # commerce remains intentionally incomplete
                 for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
@@ -1007,11 +1013,11 @@ def main():
                 assert domain in page.get_by_role("status").inner_text()
 
                 with SessionLocal() as db:
-                    h24 = db.get(Site, h24_id)
+                    sample_store = db.get(Site, store_id)
                     for path in ("/pages/privacy-policy", "/pages/terms-and-conditions", "/pages/returns-and-refunds"):
                         policy = db.scalar(select(SitePage).where(
-                            SitePage.site_id == h24.id,
-                            SitePage.tenant_id == h24.tenant_id,
+                            SitePage.site_id == sample_store.id,
+                            SitePage.tenant_id == sample_store.tenant_id,
                             SitePage.path == path,
                         ))
                         document = dict(policy.draft_json)
@@ -1020,26 +1026,26 @@ def main():
                         policy.draft_json = document
                         policy.published_json = dict(document)
                     products = list(db.scalars(select(Product).where(
-                        Product.tenant_id == h24.tenant_id,
+                        Product.tenant_id == sample_store.tenant_id,
                         Product.is_published.is_(True),
                     )))
                     variants = list(db.scalars(select(ProductVariant).where(
-                        ProductVariant.tenant_id == h24.tenant_id,
+                        ProductVariant.tenant_id == sample_store.tenant_id,
                         ProductVariant.product_id.in_([product.id for product in products]),
                         ProductVariant.is_active.is_(True),
                     )))
                     priced = set(db.scalars(select(VariantChannelListing.variant_id).where(
-                        VariantChannelListing.channel_id == h24.channel_id,
+                        VariantChannelListing.channel_id == sample_store.channel_id,
                     )))
                     for variant in variants:
                         if variant.id not in priced:
                             db.add(VariantChannelListing(
                                 variant_id=variant.id,
-                                channel_id=h24.channel_id,
+                                channel_id=sample_store.channel_id,
                                 currency="USD",
                                 price_minor=2500,
                             ))
-                    config = commerce.settings_for(db, h24, create=True)
+                    config = commerce.settings_for(db, sample_store, create=True)
                     config.mode = "disabled"
                     config.origin_json = {"country": "EE", "line1": "Browser warehouse", "city": "Tallinn", "postal_code": "10111"}
                     config.shipping_minor = 900
@@ -1047,7 +1053,7 @@ def main():
                     config.tax_registration_reviewed = True
                     config.product_tax_codes_json = {product.id: "txcd_00000000" for product in products}
                     config.version += 1
-                    h24.version += 1
+                    sample_store.version += 1
                     db.commit()
                 page.reload()
                 page.wait_for_load_state("networkidle")
@@ -1077,7 +1083,7 @@ def main():
                 secret_key = "sk_live_browser_fixture_1234"
                 webhook_secret = "whsec_browser_fixture_5678"
                 with SessionLocal() as db:
-                    live_site = db.scalar(select(Site).where(Site.slug == "h24you"))
+                    live_site = db.scalar(select(Site).where(Site.slug == "northstar"))
                     operator = db.scalar(select(User).where(User.email == os.environ["FASTSHOP_ADMIN_EMAIL"].lower()))
                     if not live_site or not operator:
                         raise RuntimeError("The operator fixture site is unavailable.")
@@ -1148,9 +1154,9 @@ def main():
                 )
 
                 with SessionLocal() as db:
-                    order_site = db.scalar(select(Site).where(Site.slug == "h24you"))
+                    order_site = db.scalar(select(Site).where(Site.slug == "northstar"))
                     if not order_site:
-                        raise RuntimeError("The H2 4 You order fixture site is unavailable.")
+                        raise RuntimeError("The Northstar Goods order fixture site is unavailable.")
                     customer = ShopCustomer(
                         tenant_id=order_site.tenant_id,
                         site_id=order_site.id,
@@ -1187,8 +1193,8 @@ def main():
                     db.add(OrderLine(
                         order_id=order.id,
                         sku="BROWSER-4C",
-                        product_name="Hydrogen tablet bundle",
-                        variant_name="Raspberry",
+                        product_name="Daily vitamin bundle",
+                        variant_name="Original",
                         quantity=2,
                         unit_price_minor=3700,
                         total_minor=7400,
@@ -1297,9 +1303,9 @@ def main():
                 )
 
                 with SessionLocal() as db:
-                    reliability_site = db.scalar(select(Site).where(Site.slug == "h24you"))
+                    reliability_site = db.scalar(select(Site).where(Site.slug == "northstar"))
                     if not reliability_site:
-                        raise RuntimeError("The H2 4 You reliability fixture site is unavailable.")
+                        raise RuntimeError("The Northstar Goods reliability fixture site is unavailable.")
                     customer = ShopCustomer(
                         tenant_id=reliability_site.tenant_id,
                         site_id=reliability_site.id,
@@ -1404,9 +1410,9 @@ def main():
                 from app.models import Site
 
                 with SessionLocal() as db:
-                    connector_site = db.scalar(select(Site).where(Site.slug == "h24you"))
+                    connector_site = db.scalar(select(Site).where(Site.slug == "northstar"))
                     if connector_site is None:
-                        raise RuntimeError("The H2 4 You fixture site is unavailable.")
+                        raise RuntimeError("The Northstar Goods fixture site is unavailable.")
                     connector_site_id = connector_site.id
                 connector_name = "csv" if args.csv_merchant_feed else "wordpress" if args.wordpress else "shopify" if args.shopify else "woocommerce"
                 connector_label = "CSV catalog & Merchant Center" if args.csv_merchant_feed else "WordPress" if args.wordpress else "Shopify" if args.shopify else "WooCommerce"
@@ -1663,7 +1669,7 @@ def main():
             page.get_by_role("link", name="Media library", exact=True).click()
             page.locator('input[name="title"]').first.fill("Acceptance image")
             page.locator('input[name="alt"]').first.fill("Water texture for browser acceptance")
-            page.locator('input[type="file"]').set_input_files("static/h24you/water-placeholder.webp")
+            page.locator('input[type="file"]').set_input_files("static/sample-placeholder.webp")
             page.get_by_role("button", name="Upload image", exact=True).click()
             page.wait_for_load_state("networkidle")
             assert page.get_by_role("heading", name="Acceptance image", exact=True).is_visible()
@@ -1716,10 +1722,10 @@ def main():
                 ))
                 page.set_viewport_size({"width": 1440, "height": 1000})
                 page.goto(args.base + "/admin/sites")
-                h24_card = page.locator(".e-card").filter(has=page.get_by_role("heading", name="H2 4 You", exact=True))
-                h24_card.get_by_role("link", name="Open editor →", exact=True).click()
-                h24_editor_url = page.url
-                page.get_by_role("link", name="Follow the questions.", exact=True).click()
+                store_card = page.locator(".e-card").filter(has=page.get_by_role("heading", name="Northstar Goods", exact=True))
+                store_card.get_by_role("link", name="Open editor →", exact=True).click()
+                store_editor_url = page.url
+                page.get_by_role("link", name="Materials and information", exact=True).click()
                 page.locator('select[name="new_section"]').select_option("embed")
                 page.get_by_role("button", name="Save draft", exact=True).click()
                 page.wait_for_load_state("networkidle")
@@ -1730,7 +1736,7 @@ def main():
                 embed_section.get_by_label("Embed URL (HTTPS)", exact=True).fill("https://embed.example.test/widget")
                 page.get_by_role("button", name="Publish page", exact=True).click()
                 page.wait_for_load_state("networkidle")
-                page.goto(h24_editor_url + "/snippets")
+                page.goto(store_editor_url + "/snippets")
                 head_card = page.locator(".e-card").filter(has=page.get_by_role("heading", name="Document head", exact=True))
                 head_card.get_by_label("Snippet markup", exact=True).fill('<meta name="phase1c-browser" content="published">')
                 head_card.get_by_label("Enable this placement", exact=True).check()
@@ -1747,7 +1753,7 @@ def main():
                     page.goto(snippets_url)
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
                     page.screenshot(path=str(out / f"{device}-snippet-editor.png"), full_page=True)
-                    page.goto(args.base + "/sites/h24you/pages/science")
+                    page.goto(args.base + "/sites/northstar/pages/science")
                     page.wait_for_load_state("networkidle")
                     assert page.locator('head meta[name="phase1c-browser"]').get_attribute("content") == "published"
                     frame = page.locator('iframe[src="https://embed.example.test/widget"]')

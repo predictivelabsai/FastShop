@@ -285,6 +285,7 @@ def test_merchant_disabling_commerce_prevents_prepared_renewal_charge(contract):
 
 
 def test_stripe_renewal_adapter_handles_card_error_by_fetching_known_intent(monkeypatch):
+    monkeypatch.setenv("FASTSHOP_STRIPE_PRIMARY_SITE", "northstar")
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fixture")
     calls = []
     def reply(request):
@@ -301,7 +302,7 @@ def test_stripe_renewal_adapter_handles_card_error_by_fetching_known_intent(monk
             return httpx.Response(200, json={"id": "tax_fixture", "livemode": False})
         assert fields["confirm"] == ["false"]
         return httpx.Response(200, json={"id": "pi_fixture", "livemode": False, "status": "requires_confirmation"})
-    gateway = StripeGateway(SimpleNamespace(id="fixture", slug="h24you"), transport=httpx.MockTransport(reply))
+    gateway = StripeGateway(SimpleNamespace(id="fixture", slug="northstar"), transport=httpx.MockTransport(reply))
     gateway.create_renewal("cycle1", {"amount": 2696, "currency": "usd", "confirm": False})
     assert gateway.confirm_renewal("cycle1", "pi_fixture")["status"] == "requires_action"
     assert gateway.record_renewal_tax("cycle1", "taxcalc_fixture") == "tax_fixture"

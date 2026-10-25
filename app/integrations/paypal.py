@@ -33,7 +33,8 @@ def credentials(site) -> tuple[str, str, str]:
     secret = os.getenv(prefix + "SECRET", "")
     mode = os.getenv(prefix + "MODE", "")
     # The primary store may use unprefixed globals, exactly like Stripe.
-    if site.slug == os.getenv("FASTSHOP_PAYPAL_PRIMARY_SITE", "h24you"):
+    primary_site = os.getenv("FASTSHOP_PAYPAL_PRIMARY_SITE", "")
+    if primary_site and site.slug == primary_site:
         client_id = client_id or os.getenv("PAYPAL_CLIENT_ID", "")
         secret = secret or os.getenv("PAYPAL_SECRET", "")
         mode = mode or os.getenv("PAYPAL_MODE", "")

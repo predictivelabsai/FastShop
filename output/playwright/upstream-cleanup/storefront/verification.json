@@ -1,0 +1,312 @@
+{
+  "base": "http://127.0.0.1:5026",
+  "checks": [
+    {
+      "device": "desktop",
+      "path": "/",
+      "status": 200,
+      "title": "Goods for everyday life \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/shop",
+      "status": 200,
+      "title": "Our collection \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/collections/daily-vitamins",
+      "status": 200,
+      "title": "Daily Vitamins \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/collections/bottles",
+      "status": 200,
+      "title": "Bottles \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/products/daily-vitamins",
+      "status": 200,
+      "title": "Daily vitamins \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/products/trail-bottle",
+      "status": 200,
+      "title": "Trail Bottle \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/science",
+      "status": 200,
+      "title": "Materials and information \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn",
+      "status": 200,
+      "title": "The journal \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn/choosing-everyday-goods",
+      "status": 200,
+      "title": "Choosing everyday goods \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn/caring-for-your-bottle",
+      "status": 200,
+      "title": "Caring for your bottle \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/blogs/learn/reading-product-labels",
+      "status": 200,
+      "title": "Reading product labels \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/about-us",
+      "status": 200,
+      "title": "About us \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/contact",
+      "status": 200,
+      "title": "Contact \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/terms-and-conditions",
+      "status": 200,
+      "title": "Terms and Conditions \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/privacy-policy",
+      "status": 200,
+      "title": "Privacy Policy \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/faq",
+      "status": 200,
+      "title": "FAQ \u2014 Northstar Goods"
+    },
+    {
+      "device": "desktop",
+      "path": "/pages/returns-and-refunds",
+      "status": 200,
+      "title": "Returns and Refunds \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/",
+      "status": 200,
+      "title": "Goods for everyday life \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/shop",
+      "status": 200,
+      "title": "Our collection \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/collections/daily-vitamins",
+      "status": 200,
+      "title": "Daily Vitamins \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/collections/bottles",
+      "status": 200,
+      "title": "Bottles \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/products/daily-vitamins",
+      "status": 200,
+      "title": "Daily vitamins \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/products/trail-bottle",
+      "status": 200,
+      "title": "Trail Bottle \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/science",
+      "status": 200,
+      "title": "Materials and information \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/blogs/learn",
+      "status": 200,
+      "title": "The journal \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/blogs/learn/choosing-everyday-goods",
+      "status": 200,
+      "title": "Choosing everyday goods \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/blogs/learn/caring-for-your-bottle",
+      "status": 200,
+      "title": "Caring for your bottle \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/blogs/learn/reading-product-labels",
+      "status": 200,
+      "title": "Reading product labels \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/about-us",
+      "status": 200,
+      "title": "About us \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/contact",
+      "status": 200,
+      "title": "Contact \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/terms-and-conditions",
+      "status": 200,
+      "title": "Terms and Conditions \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/privacy-policy",
+      "status": 200,
+      "title": "Privacy Policy \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/faq",
+      "status": 200,
+      "title": "FAQ \u2014 Northstar Goods"
+    },
+    {
+      "device": "ipad",
+      "path": "/pages/returns-and-refunds",
+      "status": 200,
+      "title": "Returns and Refunds \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/",
+      "status": 200,
+      "title": "Goods for everyday life \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/shop",
+      "status": 200,
+      "title": "Our collection \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/collections/daily-vitamins",
+      "status": 200,
+      "title": "Daily Vitamins \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/collections/bottles",
+      "status": 200,
+      "title": "Bottles \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/products/daily-vitamins",
+      "status": 200,
+      "title": "Daily vitamins \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/products/trail-bottle",
+      "status": 200,
+      "title": "Trail Bottle \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/science",
+      "status": 200,
+      "title": "Materials and information \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn",
+      "status": 200,
+      "title": "The journal \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn/choosing-everyday-goods",
+      "status": 200,
+      "title": "Choosing everyday goods \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn/caring-for-your-bottle",
+      "status": 200,
+      "title": "Caring for your bottle \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/blogs/learn/reading-product-labels",
+      "status": 200,
+      "title": "Reading product labels \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/about-us",
+      "status": 200,
+      "title": "About us \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/contact",
+      "status": 200,
+      "title": "Contact \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/terms-and-conditions",
+      "status": 200,
+      "title": "Terms and Conditions \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/privacy-policy",
+      "status": 200,
+      "title": "Privacy Policy \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/faq",
+      "status": 200,
+      "title": "FAQ \u2014 Northstar Goods"
+    },
+    {
+      "device": "mobile",
+      "path": "/pages/returns-and-refunds",
+      "status": 200,
+      "title": "Returns and Refunds \u2014 Northstar Goods"
+    }
+  ],
+  "failures": []
+}

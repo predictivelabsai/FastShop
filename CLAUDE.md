@@ -79,7 +79,7 @@ is stored in FastShop. `stripe_commerce.py` and `woocommerce.py` (read-only) are
 `fast_shop` schema via `search_path` connect args (SQLite is the dev/test fallback). `prepare_schema()`
 creates the schema and, when `FASTSHOP_AUTO_CREATE_SCHEMA` is set, the tables; production relies on
 Alembic (`migrations/`, which reads `settings.database_url` and sets `version_table_schema`). On boot,
-`main.py` seeds the demo tenant (`app/seed.py`) and the H2 4 You preview site (`app/site_seed.py`).
+`main.py` seeds only the generic demo tenant (`app/seed.py`). The fictional editorial fixture in `scripts/demo_site.py` is opt-in for local scripts and tests.
 
 **Config.** `app/config.py:settings` is a frozen dataclass read from env (`.env` via python-dotenv).
 `DB_URL` empty → SQLite under `FASTSHOP_DATA_DIR`; `postgres://`/`postgresql://` are normalized to

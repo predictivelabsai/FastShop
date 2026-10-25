@@ -6,10 +6,10 @@ Passwords never appear in output or argv-derived logs: read them from:
   - --password (explicit, fine for throwaway demo accounts).
 
 Examples:
-  python scripts/create_user_account.py --email helen@h24you.com \
-      --name "Helen Kaljuvee" --role merchant --site h24you --password-stdin
-  python scripts/create_user_account.py --email owner@h24you.com \
-      --role admin --site h24you --password "a-passphrase-of-24-chars-or-more"
+  python scripts/create_user_account.py --email alex@northstar.example.test \
+      --name "Alex Morgan" --role merchant --site northstar --password-stdin
+  python scripts/create_user_account.py --email owner@northstar.example.test \
+      --role admin --site northstar --password "a-passphrase-of-24-chars-or-more"
 
 Idempotent: re-running with the same email updates name/role/password without
 creating duplicates. Passwords must be 24-1024 characters (same policy as the
@@ -58,7 +58,7 @@ def main():
     parser.add_argument("--password", default="")
     parser.add_argument("--password-stdin", action="store_true")
     parser.add_argument("--role", default="merchant", choices=["admin", "merchant", "customer"])
-    parser.add_argument("--site", default="h24you", help="site slug or tenant slug (default h24you)")
+    parser.add_argument("--site", required=True, help="site slug or tenant slug")
     parser.add_argument("--clear-password", action="store_true", help="revoke password login only")
     args = parser.parse_args()
 

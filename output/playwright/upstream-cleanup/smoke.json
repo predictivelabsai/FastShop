@@ -1,0 +1,21 @@
+{
+  "port": 5026,
+  "routes": [
+    {
+      "route": "/",
+      "status": 200
+    },
+    {
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "route": "/healthz",
+      "status": 200
+    }
+  ],
+  "startup_tenants": [
+    "fastshop-demo"
+  ],
+  "startup_sites": 0
+}

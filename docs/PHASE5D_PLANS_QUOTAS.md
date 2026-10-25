@@ -154,10 +154,8 @@ The Phase 5d migration is therefore
 the enforced AI-credit seam inventory above.
 
 The upgrade adds non-null `tenants.plan` as `String(20)` with server default `free`, updates
-the existing `fastshop-demo` and `h24you` fixture tenants to `pro`, and creates
-`usage_events` from `UsageEvent.__table__` with `checkfirst=True`. The fixture migration
-matches `app/seed.py:107` and `app/site_seed.py:53`, which create those platform tenants on
-Pro so demo, go-live, and browser flows are not constrained by self-serve Free limits. The
+the historical fixture tenants to `pro`, and creates
+`usage_events` from `UsageEvent.__table__` with `checkfirst=True`. Historical data operations are retained exactly as originally released. The
 downgrade drops `usage_events` and then removes `tenants.plan` with a batch alteration.
 
 ## Marketing isolation
