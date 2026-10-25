@@ -11,6 +11,8 @@ from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 
 from app import (
+    admin_routes,
+    admin_ui,
     content,
     onboarding,
     onboarding_routes,
@@ -46,6 +48,8 @@ def onboarding_workspace(monkeypatch):
     Base.metadata.create_all(engine)
     sessions = sessionmaker(bind=engine, expire_on_commit=False)
     monkeypatch.setattr(site_routes, "SessionLocal", sessions)
+    monkeypatch.setattr(admin_routes, "SessionLocal", sessions)
+    monkeypatch.setattr(admin_ui, "SessionLocal", sessions)
     monkeypatch.setattr(onboarding_routes, "SessionLocal", sessions)
     monkeypatch.setattr(site_builder_routes, "SessionLocal", sessions)
 
@@ -73,6 +77,7 @@ def onboarding_workspace(monkeypatch):
         canonical=False,
     )
     site_routes.register_site_routes(rt)
+    app.add_middleware(admin_ui.AdminContextMiddleware)
 
     @rt("/_test/login/{user_id}", methods=["GET"])
     def get(session, user_id: str):

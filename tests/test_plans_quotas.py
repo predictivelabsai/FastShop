@@ -186,7 +186,7 @@ def test_ai_generation_is_metered_only_after_success(workspace, monkeypatch):
     sign_in(workspace, user_id)
     dashboard = workspace.client.get("/admin/sites")
     assert dashboard.status_code == 200
-    assert "Plan &amp; usage — Free" in dashboard.text
+    assert "Plan and usage · Free" in dashboard.text
     assert "AI generation credits: 1 of 3" in dashboard.text
 
 
@@ -503,7 +503,7 @@ def test_reads_stay_open_when_every_quota_is_exhausted(workspace):
     sign_in(workspace, user_id)
     dashboard = workspace.client.get("/admin/sites")
     assert dashboard.status_code == 200
-    assert "Plan &amp; usage — Free" in dashboard.text
+    assert "Plan and usage · Free" in dashboard.text
     assert "Sites: 2 of 2" in dashboard.text
     assert workspace.client.get(f"/admin/sites/{site_id}/products").status_code == 200
 

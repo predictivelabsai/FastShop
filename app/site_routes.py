@@ -81,8 +81,8 @@ def register_site_routes(rt):
             raise CommerceError("Your session expired. Reload and try again.")
 
     def shell(title, *children, subnavigation=None):
-        from app.platform_ui import platform_page
-        return platform_page(title, *children, subnavigation=subnavigation)
+        from app.admin_ui import contextual_page
+        return contextual_page(title, *children, subnavigation=subnavigation)
 
     def error(exc):
         return Response(str(exc), status_code=400, media_type="text/plain")
@@ -179,6 +179,9 @@ def register_site_routes(rt):
     from app.billing_routes import register_billing_routes
     register_billing_routes(rt, actor, csrf, check_csrf, shell, error)
 
+    from app.admin_routes import register_admin_routes
+    register_admin_routes(rt, actor, csrf, check_csrf, shell, error)
+
     @rt("/admin/sites", methods=["GET"])
     def get(session, notice: str = ""):
         if not session.get("user_id"):
@@ -240,26 +243,13 @@ def register_site_routes(rt):
                             cls="e-quota",
                         )
                     )
-                return shell("Your websites", P("Build your story. Shape your storefront. Publish when you're ready."),
+                return shell("Stores", P("Choose a store to manage."),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
-                    Div(
-                        Div(
-                            H2(f"Plan & usage — {plan_tier.name}"),
-                            A("Manage billing →", href="/admin/billing", cls="b-manage-link"),
-                            cls="e-plan-heading",
-                        ),
-                        Div(*quota_cards, cls="e-quota-grid"),
-                        Small(
-                            "Limits come from your current plan. Higher plans add room; nothing here is a price.",
-                            cls="e-plan-smallprint",
-                        ),
-                        cls="e-card e-plan-usage",
-                    ),
                     verification_banner(db, user_id, session),
                     Div(
                         Div(
-                            H2("Websites"),
-                            P(f"{len(sites)} website" + ("" if len(sites) == 1 else "s")),
+                            H2("Your stores"),
+                            P(f"{len(sites)} store" + ("" if len(sites) == 1 else "s")),
                             cls="e-dashboard-section-heading",
                         ),
                         Div(
@@ -281,7 +271,7 @@ def register_site_routes(rt):
                                         and onboarding_by_site[site.id].status not in {"complete", "skipped"}
                                         else None,
                                         A(
-                                            "Open editor →",
+                                            "Open store →",
                                             href=f"/admin/sites/{site.id}",
                                             cls="e-site-open",
                                         ),
@@ -295,6 +285,22 @@ def register_site_routes(rt):
                         ),
                         cls="e-dashboard-section",
                     ),
+                    Details(Summary("Plan and usage"),
+                    Div(
+                        Div(
+                            H2(f"Plan and usage · {plan_tier.name}"),
+                            A("Manage billing →", href="/admin/billing", cls="b-manage-link"),
+                            cls="e-plan-heading",
+                        ),
+                        Div(*quota_cards, cls="e-quota-grid"),
+                        Small(
+                            "Limits come from your current plan. Higher plans add room; nothing here is a price.",
+                            cls="e-plan-smallprint",
+                        ),
+                        cls="e-card e-plan-usage",
+                    ),
+                    ),
+                    Details(Summary("Add a store"),
                     Div(
                         Div(
                             H2("Start something new"),
@@ -342,6 +348,7 @@ def register_site_routes(rt):
                             cls="e-dashboard-actions",
                         ),
                         cls="e-dashboard-section e-dashboard-action-section",
+                    ),
                     ))
         except CommerceError as exc:
             return error(exc)
@@ -412,89 +419,17 @@ def register_site_routes(rt):
                 )
             return error(exc)
 
-    @rt("/admin/sites/{site_id}", methods=["GET"])
+    @rt("/admin/sites/{site_id}/settings/general", methods=["GET"])
     def get(session, site_id: str, notice: str = ""):
         try:
             user_id = actor(session)
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, user_id)
-                pages = content.site_pages(db, site)
                 config = site.settings_json
-                from app.site_samples import pending_reviews
-                pending = pending_reviews(config)
-                from app import site_golive
-                publish_report = site_golive.assess(db, site)
-                passed = len(publish_report.checks) - len(publish_report.failures)
-                onboarding_state = db.scalar(
-                    select(OnboardingState)
-                    .join(Membership, Membership.tenant_id == OnboardingState.tenant_id)
-                    .where(
-                        OnboardingState.site_id == site.id,
-                        OnboardingState.tenant_id == site.tenant_id,
-                        Membership.user_id == user_id,
-                        Membership.role.in_(["admin", "merchant"]),
-                    )
-                )
-                from app.platform_ui import platform_subnav
-
-                site_navigation = platform_subnav(
-                    (
-                        "Build & content",
-                        (
-                            A("Build with AI →", href=f"/admin/sites/{site.id}/build"),
-                            A("Design controls", href=f"/admin/sites/{site.id}/build?view=design"),
-                            A("Merchant details & samples", href=f"/admin/sites/{site.id}/samples"),
-                            A("Menus", href=f"/admin/sites/{site.id}/menus"),
-                            A("Media library", href=f"/admin/sites/{site.id}/media"),
-                            A("Snippets", href=f"/admin/sites/{site.id}/snippets"),
-                            A("Reviews", href=f"/admin/sites/{site.id}/reviews"),
-                            A("Placeholders", href=f"/admin/sites/{site.id}/placeholders"),
-                        ),
-                    ),
-                    (
-                        "Catalog & commerce",
-                        (
-                            A("Products", href=f"/admin/sites/{site.id}/products"),
-                            A("Commerce", href=f"/admin/sites/{site.id}/commerce"),
-                            A("Orders", href=f"/admin/sites/{site.id}/orders"),
-                            A("Revenue", href=f"/admin/sites/{site.id}/revenue"),
-                            A("Try commerce demo", href=f"/admin/sites/{site.id}/demo", cls="e-button"),
-                        ),
-                    ),
-                    (
-                        "Launch & operations",
-                        (
-                            A("View site ↗", href=f"/sites/{site.slug}/", target="_blank"),
-                            A("Go-live review", href=f"/admin/sites/{site.id}/golive"),
-                            A("Integrations", href=f"/admin/sites/{site.id}/integrations"),
-                            A("Inbox", href=f"/admin/sites/{site.id}/inbox"),
-                        ),
-                    ),
-                    aria_label=site.name + " tools",
-                )
-                return shell(site.name,
+                return shell("General",
                     verification_banner(db, user_id, session),
-                    Div(H2("Finish setting up your first draft"),
-                        P("Your saved brief is ready whenever you are. Generate a tailored draft or keep the clean template."),
-                        A("Continue setup →", href=f"/admin/onboarding/{site.id}"),
-                        cls="e-card n-onboarding-banner")
-                    if onboarding_state and onboarding_state.status not in {"complete", "skipped"}
-                    else None,
-                    P("Manage your pages, brand and catalog. Configure sandbox commerce separately before enabling customer services."),
-                    P(notice[:300], role="status", cls="e-note") if notice else None,
-                    Div(H2("Go-live checklist"),
-                        P(f"{passed} of {len(publish_report.checks)} publication checks pass. Site status: {site.status}."),
-                        P("The checklist is derived from pages, menus, compliance, domain and commerce state; it is never stored as editable flags."),
-                        A("Review checklist and actions →", href=f"/admin/sites/{site.id}/golive"),
-                        cls="e-card g-overview"),
-                    P("Before publication, review merchant fields: " + ", ".join(pending) + ". Publication does not confirm these details or enable payments.", cls="e-note") if pending else None,
-                    A("Customers, tracking & email", href=f"/admin/sites/{site.id}/customers"),
-                    Div(Div(H2("Pages"), *[Div(A(p.title, href=f"/admin/sites/{site.id}/pages/{p.id}"), Small(p.path),
-                        Small("Published" if p.published_json else "Draft"), cls="e-page-row") for p in pages],
-                        Details(Summary("Add a page"), Form(csrf(session), Label("Title", Input(name="title", required=True)),
-                            Label("Path", Input(name="path", placeholder="/pages/our-story", required=True)),
-                            Label("Type", Select(*[Option(k.title(), value=k) for k in sorted(content.PAGE_KINDS)], name="kind")),
-                            Button("Create page", cls="e-button"), method="post", action=f"/admin/sites/{site.id}/pages", cls="e-form")), cls="e-card"),
+                    A("← Settings", href=f"/admin/sites/{site.id}/settings"),
+                    Div(
                         Div(H2("Brand and shared content"), Form(csrf(session), Input(type="hidden", name="version", value=site.version),
                             *[Label(label, Input(name=key, value=config.get(key, ""))) for key, label in [
                                 ("name", "Brand name"), ("tagline", "Tagline"), ("email", "Contact email"),
@@ -518,8 +453,8 @@ def register_site_routes(rt):
                             P("An approved statement must include an asterisk (*) and compliant wording; it renders beside the FDA footer disclaimer.", cls="e-note"),
                             Button("Save draft settings", name="action", value="draft", cls="e-button"),
                             Button("Publish shared settings", name="action", value="publish", cls="e-button"),
-                            method="post", action=f"/admin/sites/{site.id}/settings", cls="e-form"), cls="e-card"), cls="e-grid"),
-                    subnavigation=site_navigation)
+                            method="post", action=f"/admin/sites/{site.id}/settings", cls="e-form", data_dirty_guard=""), cls="e-card"), cls="a-general-settings"),
+                    )
         except CommerceError as exc:
             return error(exc)
 
@@ -583,7 +518,7 @@ def register_site_routes(rt):
                 db.flush()
                 builder.record_change(db, site, user_id, before, "classical", "Brand and shared content")
                 db.commit()
-            return RedirectResponse(f"/admin/sites/{site_id}", status_code=303)
+            return RedirectResponse(f"/admin/sites/{site_id}/settings/general?notice=Settings+saved", status_code=303)
         except CommerceError as exc:
             return error(exc)
 
@@ -595,7 +530,7 @@ def register_site_routes(rt):
                 from app.site_reviews import all_reviews
                 reviews = all_reviews(db, site)
                 rows = [Form(csrf(session), Small(("APPROVED" if r.is_approved else "PENDING"), cls="e-pill"),
-                             P(f"{r.rating}★ · {r.title}"), P(r.body), Small("— " + r.author_name),
+                             P(f"{r.rating}★ · {r.title}"), P(r.body), Small("By " + r.author_name),
                              Button("Hide" if r.is_approved else "Approve", name="action",
                                     value="hide" if r.is_approved else "approve", cls="e-button"),
                              Button("Delete", name="action", value="delete", cls="e-button"),
@@ -717,7 +652,7 @@ def register_site_routes(rt):
 
                 revisions = list(db.scalars(select(SiteRevision).where(SiteRevision.page_id == page.id,
                     SiteRevision.site_id == site.id, SiteRevision.tenant_id == site.tenant_id).order_by(SiteRevision.created_at.desc()).limit(20)))
-                return shell(document["title"], Div(A("← All pages and settings", href=f"/admin/sites/{site.id}"),
+                return shell(document["title"], Div(A("← Pages", href=f"/admin/sites/{site.id}/pages"),
                     A("Browse media library", href=f"/admin/sites/{site.id}/media", target="_blank"), cls="e-actions"),
                     Div(Form(csrf(session), Input(type="hidden", name="version", value=page.version),
                         Label("Page title", Input(name="title", value=document["title"], required=True, maxlength=240)),

@@ -154,6 +154,7 @@ def icon(name):
 
 def nav_section(path):
     """Map existing detail and utility routes to their primary navigation section."""
+    path = path.split("?", 1)[0]
     part = path.split("/admin/sites/", 1)[-1].split("/")[1:]
     key = part[0] if part else ""
     if key == "coming-soon" and len(part) > 1:
@@ -262,6 +263,8 @@ def contextual_page(title, *children, subnavigation=None):
         parts = path.strip("/").split("/")
         site_id = parts[2] if len(parts) > 2 else ""
         site = next((s for s in sites if s.id == site_id), None)
-        notice = parse_qs(scope.get("query_string", b"").decode()).get("notice", [""])[0]
+        query = parse_qs(scope.get("query_string", b"").decode())
+        notice = query.get("notice", [""])[0]
+        nav_path = path + "?view=design" if path.endswith("/build") and query.get("view") == ["design"] else path
         return admin_page(title, *children, site=site, sites=sites, user=user,
-                          path=path, notice=notice, csrf_token=session.get("csrf_token", ""))
+                          path=nav_path, notice=notice, csrf_token=session.get("csrf_token", ""))

@@ -221,7 +221,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
             not missing_publication,
             "The home page has a published snapshot." if not missing_publication else
             "Publish the home page; a draft-only home cannot open the site.",
-            f"/admin/sites/{site.id}",
+            f"/admin/sites/{site.id}/pages",
         ),
         ReadinessCheck(
             "hostname_unique",
@@ -235,7 +235,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
             "Draft content passes compliance review",
             compliance_ok,
             compliance_explanation,
-            f"/admin/sites/{site.id}",
+            f"/admin/sites/{site.id}/pages",
         ),
         ReadinessCheck(
             "merchant_review",
@@ -332,7 +332,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
                 not policy_missing,
                 "Privacy, terms and returns policies are reviewed and published." if not policy_missing else
                 "Replace placeholder copy and publish: " + ", ".join(policy_missing) + ".",
-                f"/admin/sites/{site.id}",
+                f"/admin/sites/{site.id}/pages",
                 "commerce",
             ),
             ReadinessCheck(

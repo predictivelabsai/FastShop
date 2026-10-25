@@ -74,6 +74,9 @@ from app.site_routes import register_site_routes  # noqa: E402
 
 register_site_routes(rt)
 app.add_middleware(SiteHostMiddleware)
+from app.admin_ui import AdminContextMiddleware  # noqa: E402
+
+app.add_middleware(AdminContextMiddleware)
 
 from app.scheduler import start_scheduler  # noqa: E402
 
@@ -531,6 +534,16 @@ def get(session):
     return RedirectResponse("/", status_code=303)
 
 
+@rt("/logout", methods=["POST"])
+def post(session, csrf_token: str = ""):
+    try:
+        require_csrf(session, csrf_token)
+    except CommerceError as exc:
+        return PlainTextResponse(str(exc), status_code=400)
+    session.clear()
+    return RedirectResponse("/", status_code=303)
+
+
 @rt("/account")
 def get(session):
     user = current_user(session)
@@ -610,6 +623,9 @@ def get(session):
         return redirect
     with SessionLocal() as db:
         content = ui.dashboard(db, tenant_ids=membership_tenants(db, user))
+        site = signup_services.first_site_for_user(db, user["id"])
+        if site:
+            content = (ui.Div(ui.A("Open store admin →", href=f"/admin/sites/{site.id}", cls="btn btn-primary"), cls="panel"), *content)
     return ui.merchant_page("Commerce overview", "dashboard", *content, user=user, csrf=csrf_token(session), route="/admin")
 
 
