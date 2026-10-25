@@ -29,6 +29,7 @@ from app.db import SessionLocal
 from app.models import Membership, OnboardingState, Site, User
 
 STORE_SESSION_KEY = "admin_site_id"
+STORE_SELECTION_REQUIRED = "admin_store_selection_required"
 STORE_ROLES = ("admin", "merchant", "editor")
 LEGACY_DESTINATIONS = {
     "products": "products",
@@ -82,13 +83,17 @@ def current_site(db, session: dict, *, site_id: str | None = None) -> Site | Non
     when an explicit or remembered store is inaccessible.
     """
     sites = accessible_sites(db, session.get("user_id", ""))
+    if site_id is None and session.get(STORE_SELECTION_REQUIRED):
+        return None
     preferred = site_id if site_id is not None else session.get(STORE_SESSION_KEY)
     if preferred:
         site = next((site for site in sites if site.id == preferred), None)
         if site:
             session[STORE_SESSION_KEY] = site.id
+            session.pop(STORE_SELECTION_REQUIRED, None)
         else:
             session.pop(STORE_SESSION_KEY, None)
+            session[STORE_SELECTION_REQUIRED] = True
         return site
     return sites[0] if sites else None
 

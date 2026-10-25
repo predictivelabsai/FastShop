@@ -43,7 +43,7 @@ from fasthtml.common import (
 from sqlalchemy import select
 
 from app.db import SessionLocal
-from app.models import Membership, Site, User
+from app.models import User
 from app.ui import static_asset
 
 admin_scope = ContextVar("admin_scope", default=None)
@@ -290,25 +290,29 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
 def contextual_page(title, *children, subnavigation=None):
     scope = admin_scope.get() or {}
     path = scope.get("path", "")
-    if not path.startswith(("/admin/sites", "/admin/onboarding/")):
+    if not path.startswith(("/admin/sites", "/admin/onboarding/", "/admin/billing")):
         from app.platform_ui import platform_page
         return platform_page(title, *children, subnavigation=subnavigation)
     session = scope.get("session", {})
+    from app.admin_entry import STORE_SESSION_KEY, accessible_sites, current_site
+
     with SessionLocal() as db:
         user = db.get(User, session.get("user_id", ""))
-        sites = list(db.scalars(select(Site).join(Membership, Membership.tenant_id == Site.tenant_id)
-            .where(Membership.user_id == session.get("user_id", ""),
-                   Membership.role.in_(["admin", "merchant", "editor"])).order_by(Site.name, Site.id))) if user and user.is_active else []
+        sites = accessible_sites(db, session.get("user_id", ""))
         parts = path.strip("/").split("/")
         site_id = parts[2] if len(parts) > 2 else ""
         site = next((s for s in sites if s.id == site_id), None)
         if site:
-            session["admin_site_id"] = site.id
-        elif session.get("admin_site_id") not in {s.id for s in sites}:
-            session.pop("admin_site_id", None)
+            current_site(db, session, site_id=site.id)
+        elif path.startswith("/admin/billing"):
+            site = current_site(db, session)
+        elif session.get(STORE_SESSION_KEY) not in {s.id for s in sites}:
+            current_site(db, session)
         query = parse_qs(scope.get("query_string", b"").decode())
         notice = query.get("notice", [""])[0]
         nav_path = path + "?view=design" if path.endswith("/build") and query.get("view") == ["design"] else path
+        if path.startswith("/admin/billing") and site:
+            nav_path = f"/admin/sites/{site.id}/settings/billing"
         if site and user:
             from app.admin_gap_ui import activity_card, view_controls
             from app.admin_views import COLUMNS

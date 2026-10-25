@@ -34,13 +34,14 @@ from starlette.responses import RedirectResponse, Response
 
 from app import content, signup_services, site_ui
 from app import site_builder_services as builder
-from app.admin_ui import card, empty_state, index_table
+from app.admin_ui import empty_state, index_table
 from app.config import settings
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
 from app.integrations.contact_email import deliver
 from app.models import (
     Membership,
+    OnboardingState,
     Site,
     SiteContact,
     SitePage,
@@ -224,6 +225,11 @@ def register_site_routes(rt):
                     Membership.role.in_(["admin", "merchant", "editor"]),
                 ).order_by(Site.name, Site.id)))
                 sites = [row[0] for row in site_rows]
+                roles = {row[0].id: row[1] for row in site_rows}
+                onboarding = {
+                    state.site_id: state for state in db.scalars(select(OnboardingState).where(
+                        OnboardingState.site_id.in_([site.id for site in sites])))
+                } if sites else {}
                 from app.plans import account_usage
 
                 plan_tier, quota_rows = account_usage(db, user_id)
@@ -266,10 +272,15 @@ def register_site_routes(rt):
                 return shell("Stores", P("Choose a store to manage."),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
                     verification_banner(db, user_id, session),
-                    card(index_table(["Store", "Address", "Status"], [
+                    index_table(["Store", "Address", "Status", "Setup"], [
                         [A(site.name, href=f"/admin/sites/{site.id}"),
-                         "/sites/" + site.slug, site.status]
-                        for site in sites]), title="Your stores") if sites else
+                         "/sites/" + site.slug, site.status,
+                         A("Resume store setup", href=f"/admin/onboarding/{site.id}")
+                         if roles[site.id] in {"admin", "merchant"}
+                         and site.id in onboarding
+                         and onboarding[site.id].status not in {"complete", "skipped"}
+                         else "Complete"]
+                        for site in sites]) if sites else
                     empty_state("Create your first store", "Add a store below to get started."),
                     Details(Summary("Plan and usage"),
                     Div(
