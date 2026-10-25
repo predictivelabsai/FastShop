@@ -1,0 +1,305 @@
+"""Merchant Admin v2 foundation: home, discovery and settings navigation."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+from fasthtml.common import (
+    H2,
+    A,
+    Button,
+    Div,
+    Form,
+    Input,
+    Label,
+    Li,
+    NotStr,
+    Option,
+    P,
+    Select,
+    Small,
+    Strong,
+    Ul,
+)
+from sqlalchemy import func, or_, select
+from starlette.responses import JSONResponse
+
+from app import content, order_management, site_golive
+from app.admin_ui import badge, card, empty_state, index_table
+from app.db import SessionLocal
+from app.models import (
+    Membership,
+    Order,
+    Product,
+    ProductVariant,
+    RefundCommand,
+    ShopCustomer,
+    SiteOrder,
+    SitePage,
+    Stock,
+    User,
+)
+from app.services import CommerceError, money
+
+FEATURES = {
+    "drafts": "Draft orders", "abandoned-checkouts": "Abandoned checkouts",
+    "collections": "Collections", "inventory": "Inventory", "discounts": "Discounts",
+    "blog": "Blog posts", "blog-posts": "Blog posts", "users": "Users and permissions",
+    "policies": "Policies", "notifications": "Notifications", "markets": "Markets",
+}
+
+
+def search_results(db, site, user_id: str, query: str) -> list[dict]:
+    """Search only resources visible through existing merchant permissions."""
+    query = query.strip()[:100]
+    if not query:
+        return []
+    # Treat %, _ and the escape character as literal search terms.
+    pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    prefix = f"/admin/sites/{site.id}"
+    rows = []
+
+    def add(kind, title, href, subtitle=""):
+        rows.append({"type": kind, "title": title, "href": href, "subtitle": subtitle})
+
+    products = db.scalars(select(Product).where(
+        Product.tenant_id == site.tenant_id,
+        Product.name.ilike(pattern, escape="\\"),
+    ).order_by(Product.name).limit(6))
+    for product in products:
+        add("Product", product.name, prefix + "/products", product.slug)
+    role = db.scalar(select(Membership.role).where(
+        Membership.tenant_id == site.tenant_id, Membership.user_id == user_id,
+    ))
+    if role in {"admin", "merchant"}:
+        orders = db.execute(select(SiteOrder, Order).join(Order, Order.id == SiteOrder.order_id)
+            .where(SiteOrder.site_id == site.id, SiteOrder.tenant_id == site.tenant_id,
+                   Order.tenant_id == site.tenant_id,
+                   or_(Order.number.ilike(pattern, escape="\\"),
+                       Order.email.ilike(pattern, escape="\\")))
+            .order_by(Order.created_at.desc()).limit(6))
+        for link, order in orders:
+            add("Order", order.number, prefix + f"/orders/{link.id}", order.email)
+    customers = db.scalars(select(ShopCustomer).where(
+        ShopCustomer.site_id == site.id, ShopCustomer.tenant_id == site.tenant_id,
+        or_(ShopCustomer.name.ilike(pattern, escape="\\"),
+            ShopCustomer.email.ilike(pattern, escape="\\")),
+    ).order_by(ShopCustomer.email).limit(6))
+    for customer in customers:
+        add("Customer", customer.name or customer.email, prefix + "/customers", customer.email)
+    pages = db.scalars(select(SitePage).where(
+        SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+        or_(SitePage.title.ilike(pattern, escape="\\"), SitePage.path.ilike(pattern, escape="\\")),
+    ).order_by(SitePage.title).limit(6))
+    for page in pages:
+        add("Page", page.title, prefix + f"/pages/{page.id}", page.path)
+    return rows
+
+
+def sales_sparkline(values):
+    """Render the actual daily sales series, including days without orders."""
+    maximum = max(values, default=0) or 1
+    points = " ".join(
+        f"{8 + index * 584 / max(1, len(values) - 1):.1f},{112 - value * 96 / maximum:.1f}"
+        for index, value in enumerate(values)
+    )
+    return NotStr(
+        '<svg viewBox="0 0 600 128" role="img" aria-label="Daily total sales" '
+        'style="width:100%;height:128px;color:var(--admin-accent,#005bd3)">'
+        '<path d="M8 112H592" stroke="#dedede" fill="none"/>'
+        f'<polyline points="{points}" fill="none" stroke="currentColor" '
+        'stroke-width="2.5" stroke-linejoin="round"/></svg>'
+    )
+
+
+def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
+    @rt("/admin/sites/{site_id}/search", methods=["GET"])
+    def get(session, site_id: str, q: str = "", format: str = "html"):
+        try:
+            user_id = actor(session)
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, user_id)
+                results = search_results(db, site, user_id, q)
+                if format == "json":
+                    return JSONResponse({"q": q[:100], "results": results},
+                                        headers={"Cache-Control": "no-store"})
+                return shell("Search", Form(
+                    Label("Search your store", Input(name="q", value=q[:100], type="search")),
+                    Button("Search", cls="e-button"), method="get", cls="e-form"),
+                    card(*[Div(A(row["title"], href=row["href"]),
+                               Small(f'{row["type"]} · {row["subtitle"]}'),
+                               cls="e-page-row") for row in results]) if results else
+                    empty_state("No results" if q else "Search your store",
+                                "Find products, orders, customers and pages."))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}", methods=["GET"])
+    def get(session, site_id: str, days: str = "7"):
+        try:
+            user_id = actor(session)
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, user_id)
+                role = db.scalar(select(Membership.role).where(
+                    Membership.tenant_id == site.tenant_id, Membership.user_id == user_id))
+                manager = role in {"admin", "merchant"}
+                user = db.get(User, user_id)
+                prefix = f"/admin/sites/{site.id}"
+                count_days = int(days) if days in {"1", "7", "30"} else 7
+                end = datetime.now(UTC).date()
+                start = end - timedelta(days=count_days - 1)
+                pages = content.site_pages(db, site)
+                report = site_golive.assess(db, site)
+                rows = order_management.orders_for(db, site) if manager else []
+                revenue = order_management.revenue_report(db, site, start, end) if manager else None
+                daily = [0] * count_days
+                if revenue:
+                    for _, order, _ in rows:
+                        index = (order.created_at.date() - start).days
+                        if (0 <= index < count_days
+                                and order.payment_status in order_management.REPORT_PAYMENT_STATES
+                                and order.currency.upper() == revenue.currency):
+                            daily[index] += order.total_minor
+                tasks = []
+                if manager:
+                    unfulfilled = sum(order.status == "unfulfilled" for _, order, _ in rows)
+                    pending = db.scalar(select(func.count()).select_from(RefundCommand).where(
+                        RefundCommand.site_id == site.id, RefundCommand.tenant_id == site.tenant_id,
+                        RefundCommand.state.in_(order_management.REFUND_STATES_HOLDING_FUNDS)))
+                    if unfulfilled:
+                        tasks.append((f"{unfulfilled} orders to fulfil", prefix + "/orders?status_filter=unfulfilled"))
+                    if pending:
+                        tasks.append((f"{pending} refunds pending", prefix + "/orders"))
+                # There is no configured low-stock threshold yet. Report only recorded stock-outs.
+                stockout_variants = (select(Stock.variant_id)
+                    .join(ProductVariant, ProductVariant.id == Stock.variant_id)
+                    .where(ProductVariant.tenant_id == site.tenant_id)
+                    .group_by(Stock.variant_id)
+                    .having(func.sum(Stock.quantity - Stock.allocated) <= 0).subquery())
+                stockouts = db.scalar(select(func.count()).select_from(stockout_variants))
+                if stockouts:
+                    tasks.append((f"{stockouts} variants out of stock", prefix + "/coming-soon/inventory"))
+                drafts = sum(page.published_json is None for page in pages)
+                if drafts:
+                    tasks.append((f"{drafts} unpublished drafts", prefix + "/pages"))
+                tasks.extend((check.label, prefix + "/pages" if check.action_url == prefix else check.action_url)
+                             for check in report.failures)
+                completed = sum(check.passed for check in report.checks)
+                date_control = Form(Label("Date range", Select(
+                    *[Option(label, value=value, selected=count_days == int(value))
+                      for value, label in (("1", "Today"), ("7", "Last 7 days"), ("30", "Last 30 days"))],
+                    name="days")), Button("Apply", cls="e-button"), method="get", cls="e-actions")
+                metrics = Div(*[Div(Small(label), Strong(value), cls="admin-metric") for label, value in (
+                    ("Total sales", money(revenue.gross_sales_minor, revenue.currency)),
+                    ("Orders", str(revenue.order_count)),
+                    ("Average order value", money(revenue.average_order_value_minor, revenue.currency)),
+                )], cls="admin-metrics") if revenue else None
+                return shell("Home", P(f"Hello, {(user.name or 'there').split()[0]}"),
+                    Div(date_control, cls="admin-dashboard-controls"), metrics,
+                    Div(card(sales_sparkline(daily),
+                             Small(f"{start:%d %b} to {end:%d %b} · {revenue.currency}"),
+                             title="Sales over time") if revenue else None,
+                        card(P(f"{completed} of {len(report.checks)} steps complete"),
+                             Ul(*[Li(A(check.label, href=prefix + "/pages" if check.action_url == prefix else check.action_url), " ",
+                                     badge("Done", "success") if check.passed else badge("To do"))
+                                  for check in report.checks], cls="admin-task-list"),
+                             A("Review setup", href=prefix + "/golive", cls="e-button"),
+                             title="Setup guide"), cls="admin-two-column"),
+                    card(Ul(*[Li(A(label, href=href)) for label, href in tasks], cls="admin-task-list")
+                         if tasks else P("You are all caught up."), title="To do"),
+                    card(index_table(["Order", "Customer", "Payment", "Total"], [
+                        [A(order.number, href=prefix + f"/orders/{link.id}"), order.email,
+                         badge(order.payment_status.replace("_", " ").title(),
+                               "success" if order.payment_status == "paid" else "neutral"),
+                         money(order.total_minor, order.currency)]
+                        for link, order, _ in rows[:5]]) if rows else
+                        empty_state("Your orders will appear here", "Orders from your store are shown as they arrive."),
+                        title="Recent orders") if manager else None,
+                    card(Div(A("Products", href=prefix + "/products"),
+                             A("Pages", href=prefix + "/pages"),
+                             A("View store", href=f"/sites/{site.slug}/"),
+                             A("Settings", href=prefix + "/settings"), cls="e-actions"), title="Quick links"))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/settings", methods=["GET"])
+    def get(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session))
+                prefix = f"/admin/sites/{site.id}"
+                entries = [
+                    ("General", "/settings/general", "Store details and preferences"),
+                    ("Plan and billing", "/settings/billing", "Your plan, usage and billing"),
+                    ("Users and permissions", "/coming-soon/users", "Staff access and roles"),
+                    ("Payments", "/commerce", "Payment providers and commerce mode"),
+                    ("Checkout", "/commerce", "Checkout and customer accounts"),
+                    ("Shipping and delivery", "/commerce", "Destinations and delivery settings"),
+                    ("Taxes and duties", "/commerce", "Tax configuration and previews"),
+                    ("Notifications", "/customers", "Customer email and delivery status"),
+                    ("Domains", "/golive", "Domain and go-live checks"),
+                    ("Integrations", "/integrations", "Connect services to your store"),
+                    ("Policies", "/coming-soon/policies", "Store and customer policies"),
+                ]
+                return shell("Settings", Div(
+                    Div(Label("Find a setting", Input(type="search", placeholder="Search settings",
+                        data_settings_search=True)),
+                        Div(*[A(label, href=prefix + href, data_settings_item=label.lower())
+                              for label, href, _ in entries], cls="admin-settings-nav")),
+                    card(*[Div(A(label, href=prefix + href), P(description),
+                               cls="e-page-row", data_settings_item=label.lower())
+                           for label, href, description in entries], title=site.name),
+                    cls="admin-settings-layout"))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/settings/billing", methods=["GET"])
+    def get(session, site_id: str):
+        try:
+            from app import plans
+            with SessionLocal() as db:
+                user_id = actor(session)
+                content.owned_site(db, site_id, user_id)
+                plan = plans.account_plan(db, user_id)
+                return shell("Plan and billing", card(H2(plan.name),
+                    P("Manage your account plan and billing in one place."),
+                    A("Manage plan and billing", href="/admin/billing", cls="e-button")))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/coming-soon/{feature}", methods=["GET"])
+    def get(session, site_id: str, feature: str):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session))
+                title = FEATURES.get(feature, feature.replace("-", " ").capitalize()[:80])
+                return shell(title, empty_state("Coming in this release",
+                    f"{title} is being prepared for your store. Your existing tools are ready to use.",
+                    A("Back to Home", href=f"/admin/sites/{site.id}", cls="e-button")))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/pages", methods=["GET"])
+    def get(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session))
+                prefix = f"/admin/sites/{site.id}"
+                pages = content.site_pages(db, site)
+                return shell("Pages",
+                    Div(*[A(label, href=prefix + "/" + key) for label, key in (
+                        ("Snippets", "snippets"), ("Reviews", "reviews"),
+                        ("Placeholders", "placeholders"), ("Inbox", "inbox"))], cls="e-actions"),
+                    card(index_table(["Title", "Path", "Status"], [
+                    [A(page.title, href=prefix + f"/pages/{page.id}"), page.path,
+                     badge("Published", "success") if page.published_json is not None else badge("Draft")]
+                    for page in pages]) if pages else empty_state("Add your first page",
+                    "Share your story, store details and policies.")),
+                    card(Form(csrf(session), Label("Title", Input(name="title", required=True)),
+                        Label("Path", Input(name="path", placeholder="/pages/our-story", required=True)),
+                        Label("Type", Select(*[Option(kind.title(), value=kind)
+                            for kind in sorted(content.PAGE_KINDS)], name="kind")),
+                        Button("Add page", cls="e-button"), method="post", action=prefix + "/pages",
+                        cls="e-form", data_dirty_guard=True), title="Add a page"))
+        except CommerceError as exc:
+            return error(exc)
