@@ -157,3 +157,26 @@ nests and publishes it again, guarding against stale child data during reorderin
 - The existing P5 mobile visual editor is cramped. P4 verifies navigation into it;
   further editor viewport improvements belong to P5.
 - PostgreSQL runtime/concurrency validation remains an environment follow-up.
+
+## Cleanup restriction
+
+Automatic approval review rejected recursive deletion with the reason
+`blocked by policy`, both for the verified workspace-local list and for a single
+literal, verified directory using native PowerShell `Remove-Item -LiteralPath`.
+No alternative deletion mechanism was used to bypass that rejection.
+
+These ignored folders therefore remain local and require cleanup when the
+restriction permits it:
+
+- `output/p4-validation`
+- `output/p4-full-validation`
+- `output/p4-final-validation`
+- `output/p4-manifest`
+- `output/p4-migration-final`
+- `output/p4-shard-0`
+- `output/p4-shard-1`
+- `output/p4-shard-2`
+
+The generated untracked `.sesskey` was removed using non-recursive deletion.
+No database, cache, environment file, session key or browser session state is
+included in the commits. Git status is clean after this documentation update.
