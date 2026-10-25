@@ -791,10 +791,44 @@ body {
     padding: 12px;
   }
 }
+.mobile-preview {
+  display: none;
+}
 @media (max-width: 760px) {
   .editor-layout {
-    grid-template-columns: 42px 190px minmax(260px, 1fr);
-    overflow: auto;
+    grid-template-columns: 44px minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .editor-stage {
+    grid-column: 2;
+    min-width: 0;
+  }
+  .editor-rail {
+    z-index: 10;
+  }
+  .editor-shell .editor-rail button,
+  .editor-rail a {
+    width: 44px;
+    height: 44px;
+  }
+  .mobile-preview {
+    display: block;
+  }
+  .editor-left {
+    position: fixed;
+    left: 44px;
+    top: 64px;
+    bottom: 0;
+    width: min(280px, calc(100vw - 44px));
+    z-index: 9;
+    transform: translateX(calc(-100% - 44px));
+  }
+  .editor-shell.is-panel-open .editor-left {
+    transform: translateX(0);
+  }
+  #editor-error {
+    left: 44px;
+    right: 8px;
   }
   .editor-right {
     position: fixed;

@@ -1086,10 +1086,20 @@ window.addEventListener("message", (e) => {
 $$("[data-mode]").forEach(
   (b) =>
     (b.onclick = () => {
+      const shell = $("#editor");
+      shell.classList.toggle(
+        "is-panel-open",
+        mode !== b.dataset.mode || !shell.classList.contains("is-panel-open"),
+      );
+      if (window.matchMedia("(max-width: 760px)").matches) select(null);
       mode = b.dataset.mode;
       if (state) renderLeft();
     }),
 );
+$("#mobile-preview").onclick = () => {
+  $("#editor").classList.remove("is-panel-open");
+  select(null);
+};
 $$("[data-tab]").forEach(
   (b) =>
     (b.onclick = () => {
