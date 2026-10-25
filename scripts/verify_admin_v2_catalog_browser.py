@@ -137,6 +137,12 @@ def verify_product(page, prefix: str, device: str) -> None:
     expect(page.get_by_alt_text(PRODUCT_TITLE, exact=True)).to_be_visible()
     expect(page.get_by_label("Compare-at price", exact=True)).to_have_value("39.95")
     expect(page.get_by_label("Cost per item", exact=True)).to_have_value("12.00")
+    page.locator('textarea[name="short_description"]').fill("Made for everyday journeys.")
+    page.get_by_role("button", name="Save product", exact=True).click()
+    page.reload()
+    expect(page.locator('textarea[name="short_description"]')).to_have_value(
+        "Made for everyday journeys.")
+    expect(page.get_by_label("SKU Natural", exact=True)).to_have_value("TOTE-NAT")
     screenshot(page, device, "product-editor")
     page.goto(prefix + "/products")
     page.get_by_label("Search products", exact=True).fill("canvas")

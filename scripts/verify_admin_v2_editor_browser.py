@@ -6,6 +6,7 @@ No environment files, provider calls or stored browser sessions are used.
 from __future__ import annotations
 
 import json
+import re
 import socket
 import sys
 import tempfile
@@ -139,8 +140,16 @@ def journey(browser, base, site_id, home_id, page_id):
     page.locator('[data-device="mobile"]').click()
     expect(page.locator("#editor-canvas")).to_have_css("width", "390px")
     capture(page, "mobile-canvas")
+    heading.dblclick()
+    heading.fill("An edit to undo")
+    heading.press("Tab")
+    expect(heading).to_contain_text("An edit to undo")
     page.locator("#undo").click()
+    expect(heading).to_contain_text("Thoughtfully made, every day")
     page.locator("#redo").click()
+    expect(heading).to_contain_text("An edit to undo")
+    page.locator("#undo").click()
+    expect(heading).to_contain_text("Thoughtfully made, every day")
     page.locator("#save").click()
     expect(page.locator("#save-status")).to_contain_text("Saved")
     page.reload()
@@ -159,11 +168,25 @@ def journey(browser, base, site_id, home_id, page_id):
     expect(page.locator("#save-status")).to_contain_text("Published")
     live = page.request.get("/sites/h24you-liquid/pages/editor-browser")
     assert live.ok and "--store-accent:#1765b3" in live.text()
+    live_page = context.new_page()
+    live_page.goto("/sites/h24you-liquid/pages/editor-browser")
+    expect(live_page.get_by_role("heading", name="Thoughtfully made, every day", exact=True)).to_be_visible()
+    expect(live_page.locator('main .fs-widget img').first).to_be_visible()
+    capture(live_page, "desktop-published-editor-page")
+    live_page.close()
     page.locator("#revisions").click()
     expect(page.locator("#revision-list button").first).to_be_visible()
+    revisions = page.request.get(editor + "/api/revisions?page=" + page_id).json()["revisions"]
+    expected_revision = revisions[-1]["document"]
     page.locator("#revision-list button").last.click()
     expect(page.locator("#revision-dialog")).not_to_be_visible()
     expect(page.locator("#save-status")).to_contain_text("Saved")
+    restored = page.request.get(editor + "/api/document?page=" + page_id).json()["document"]
+    assert restored == expected_revision, "Restored document differs from the selected revision"
+    page.reload()
+    assert page.request.get(editor + "/api/document?page=" + page_id).json()["document"] == expected_revision
+    for restored_block in expected_revision.get("blocks", []):
+        expect(frame.locator('[data-block-id="' + restored_block["id"] + '"]')).to_be_visible()
     contrast = frame.locator(".metal-footer").evaluate("""element => {
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 1;
@@ -182,6 +205,17 @@ def journey(browser, base, site_id, home_id, page_id):
     }""")
     assert contrast >= 4.5, f"Liquid footer contrast after theme edit: {contrast:.2f}"
     capture(page, "desktop-restored-revision")
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.get_by_role("button", name="Preview page", exact=True).click()
+    canvas_box = page.locator("#editor-canvas").bounding_box()
+    assert canvas_box and canvas_box["width"] >= 300
+    assert canvas_box["x"] + canvas_box["width"] <= 390
+    capture(page, "mobile-390-editor-restored")
+    page.get_by_role("button", name="Widgets", exact=True).click()
+    expect(page.get_by_role("heading", name="Widgets", exact=True)).to_be_visible()
+    capture(page, "mobile-390-editor-widgets")
+    page.get_by_role("button", name="Preview page", exact=True).click()
+    expect(page.locator("#editor")).not_to_have_class(re.compile(r".*is-panel-open.*"))
     assert not errors, errors
     context.close()
     return errors
