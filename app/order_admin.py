@@ -732,9 +732,9 @@ def detail(db, site, link_id):
         .order_by(ReturnRequest.created_at.desc())))
     return dict(link=link, order=order, customer=customer, timeline=orders.timeline(db, site, link, order),
         returns=returns, captured=captured, refunded=refunded, available=available, payment_provider=payment_provider,
-        gift_only_payment=any(p.provider == 'gift_card:'+site.id for p in paid_transactions)
+        gift_only_payment=any(p.provider == 'gift:'+site.id for p in paid_transactions)
             and sum(p.amount_minor * (-1 if p.kind == 'refund' else 1) for p in paid_transactions
-                if p.provider != 'gift_card:'+site.id and p.kind in {'charge', 'refund'}) <= 0,
+                if p.provider != 'gift:'+site.id and p.kind in {'charge', 'refund'}) <= 0,
         prev_id=siblings[index-1] if index else None,
         next_id=siblings[index+1] if index+1 < len(siblings) else None,
         fulfilment_label=fulfilment_label(order))

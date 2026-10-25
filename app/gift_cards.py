@@ -160,7 +160,7 @@ def redeem(db, site, order, quote):
     db.add(GiftCardEntry(tenant_id=site.tenant_id, site_id=site.id, gift_card_id=card.id,
         order_id=order.id, request_key=key, kind='redemption', amount_minor=-amount,
         balance_minor=card.balance_minor))
-    db.add(PaymentTransaction(order_id=order.id, provider='gift_card:'+site.id,
+    db.add(PaymentTransaction(order_id=order.id, provider='gift:'+site.id,
         external_id=key, kind='charge', status='succeeded', currency=order.currency, amount_minor=amount))
 
 
@@ -180,7 +180,7 @@ def restore_full_refund(db, site, order):
         db.add(GiftCardEntry(tenant_id=site.tenant_id, site_id=site.id, gift_card_id=card.id,
             order_id=order.id, request_key=key, kind='refund', amount_minor=amount,
             balance_minor=card.balance_minor))
-        db.add(PaymentTransaction(order_id=order.id, provider='gift_card:'+site.id,
+        db.add(PaymentTransaction(order_id=order.id, provider='gift:'+site.id,
             external_id=key, kind='refund', status='succeeded', currency=order.currency, amount_minor=amount))
     db.flush()
 
@@ -209,8 +209,8 @@ def refund_gift_only_order(db, site, actor_id, link_id, reason):
         PaymentTransaction.order_id == order.id, PaymentTransaction.status == 'succeeded',
         PaymentTransaction.currency == order.currency)))
     other_remaining = sum(p.amount_minor * (-1 if p.kind == 'refund' else 1)
-        for p in payments if p.provider != 'gift_card:'+site.id and p.kind in {'charge', 'refund'})
-    if (not any(p.provider == 'gift_card:'+site.id and p.kind == 'charge' for p in payments)
+        for p in payments if p.provider != 'gift:'+site.id and p.kind in {'charge', 'refund'})
+    if (not any(p.provider == 'gift:'+site.id and p.kind == 'charge' for p in payments)
             or other_remaining > 0):
         raise CommerceError('Refund the remaining payment from other tenders before restoring the gift card.')
     if order.payment_status == 'refunded':

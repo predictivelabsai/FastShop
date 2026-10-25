@@ -199,6 +199,19 @@ def merchant_timeline(events, currency):
             event["title"] = (f"Refund of {amount} {status}" if event.get("payment_kind") == "refund"
                               else f"Payment of {amount} {status}")
             event["detail"] = ""
+            if str(event.get("payment_provider", "")).startswith("gift:"):
+                event["title"] = (f"Gift card refund of {amount} {status}"
+                                  if event.get("payment_kind") == "refund"
+                                  else f"Gift card payment of {amount} {status}")
+        elif kind == "order_edit":
+            event["title"] = (f"Order edited from {money(event['before_minor'], currency)} "
+                              f"to {money(event['after_minor'], currency)}")
+            settlement = {"pending": "Payment difference awaiting settlement",
+                          "settled": "No payment difference", "paid": "Payment recorded manually",
+                          "invoiced": "Invoice queued"}.get(event.get("settlement"), "")
+            event["detail"] = detail + (" · " + settlement if settlement else "")
+        elif kind == "activity":
+            event["title"] = event["title"].replace("_", " ").capitalize()
         visible.append(event)
     return visible, integration
 

@@ -344,7 +344,7 @@ def _order_payment_state(db, site: Site, order: Order, charge_status: str) -> st
     transactions = list(db.scalars(select(PaymentTransaction).join(Order,
         Order.id == PaymentTransaction.order_id).where(
             PaymentTransaction.order_id == order.id,
-            PaymentTransaction.provider.in_(["stripe:"+site.id, "gift_card:"+site.id, "manual:"+site.id]),
+            PaymentTransaction.provider.in_(["stripe:"+site.id, "gift:"+site.id, "manual:"+site.id]),
             PaymentTransaction.status == "succeeded", PaymentTransaction.currency == order.currency,
             Order.tenant_id == site.tenant_id)))
     captured = sum(row.amount_minor for row in transactions if row.kind == "charge")
@@ -669,6 +669,9 @@ def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, re
 
 
 def timeline(db, site: Site, link: SiteOrder, order: Order) -> list[dict]:
+    from app.admin_gap_models import AdminActivity
+    from app.commerce_gap_models import OrderEdit
+
     events = [{"at": order.created_at, "kind": "order", "title": "Order confirmed",
                "detail": f"Payment state: {order.payment_status}."}]
     attempts = list(db.scalars(select(CheckoutAttempt).where(
@@ -709,11 +712,28 @@ def timeline(db, site: Site, link: SiteOrder, order: Order) -> list[dict]:
     )))
     events.extend({"at": row.updated_at, "kind": "outbox", "title": row.topic.replace(".", " ").title(),
                    "detail": f"Delivery state: {row.status}; attempts: {row.attempts}."} for row in outbox)
+    edits = list(db.scalars(select(OrderEdit).where(
+        OrderEdit.site_order_id == link.id, OrderEdit.site_id == site.id,
+        OrderEdit.tenant_id == site.tenant_id)))
+    events.extend({"at": row.created_at, "kind": "order_edit", "title": "Order edited",
+                   "detail": row.reason, "before_minor": row.before_minor,
+                   "after_minor": row.after_minor, "settlement": row.settlement}
+                  for row in edits)
+    activity = db.execute(select(AdminActivity, User.name).outerjoin(User,
+        User.id == AdminActivity.actor_id).where(
+            AdminActivity.site_id == site.id, AdminActivity.tenant_id == site.tenant_id,
+            AdminActivity.object_type == "order",
+            AdminActivity.object_id.in_([order.id, link.id])))
+    events.extend({"at": row.created_at, "kind": "activity", "title": "Order " + row.action,
+                   "detail": "By " + (name or "Staff")}
+                  for row, name in activity if row.action != "edited")
     comments = db.execute(select(OrderComment, User.name).outerjoin(User,
         User.id == OrderComment.author_id).where(OrderComment.site_order_id == link.id,
         OrderComment.site_id == site.id, OrderComment.tenant_id == site.tenant_id))
     events.extend({"at": row.created_at, "kind": "comment", "title":
         ("Internal note" if row.internal else "Comment") + " · " + (name or "Staff"),
         "detail": row.body, "internal": row.internal, "author_id": row.author_id}
-        for row, name in comments)
+        for row, name in comments if not any(row.body ==
+            f"Order edited: {edit.reason} Total changed from {edit.before_minor} to "
+            f"{edit.after_minor} {order.currency} minor units." for edit in edits))
     return sorted(events, key=lambda item: _utc(item["at"]), reverse=True)

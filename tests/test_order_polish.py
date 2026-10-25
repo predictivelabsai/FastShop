@@ -51,3 +51,18 @@ def test_timeline_merges_repeated_charge_identity_but_preserves_distinct_payment
                                    payment | {"payment_reference": "charge-2"}], "USD")
     assert len(visible) == 2
     assert all("Payment of" in event["title"] for event in visible)
+
+
+def test_timeline_humanises_edit_gift_tender_and_activity():
+    visible, integration = merchant_timeline([
+        dict(kind="order_edit", title="Order edited", detail="Requested extra item",
+             before_minor=4000, after_minor=4500, settlement="invoiced"),
+        dict(kind="payment", payment_provider="gift:site", payment_reference="gift-1",
+             payment_kind="charge", payment_status="succeeded", amount_minor=4000),
+        dict(kind="activity", title="Order payment_updated", detail="By Ada"),
+    ], "USD")
+    assert "40.00" in visible[0]["title"] and "45.00" in visible[0]["title"]
+    assert visible[0]["detail"] == "Requested extra item · Invoice queued"
+    assert visible[1]["title"].startswith("Gift card payment of")
+    assert visible[2]["title"] == "Order payment updated"
+    assert not integration
