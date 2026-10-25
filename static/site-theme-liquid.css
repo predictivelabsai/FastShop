@@ -819,7 +819,7 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 @media(max-width:767px) { .h-site[data-pack="liquid"] .metal-benefit-card .liquid-card-disclaimer { display:block; font-size:10px; line-height:1.5; } }
 /* Native commerce forms share the public Liquid tokens. */
 .h-site[data-pack="liquid"] .liquid-commerce { min-height:55vh; padding-block:64px; }
-.h-site[data-pack="liquid"] .liquid-commerce h1 { font-size:clamp(40px,5vw,60px); line-height:1.1; margin-bottom:16px; }
+.h-site[data-pack="liquid"] .liquid-commerce h1 { font-size:clamp(40px,5vw,60px); line-height:1.1; margin-bottom:16px; overflow-wrap:anywhere; }
 .h-site[data-pack="liquid"] .liquid-commerce small { display:block; color:var(--muted-foreground); font-size:12px; margin-bottom:32px; }
 .h-site[data-pack="liquid"] .liquid-commerce-content { display:grid; gap:24px; max-width:100%; }
 .h-site[data-pack="liquid"] .liquid-commerce :is(h2,h3) { font-family:var(--display-family); font-size:28px; line-height:1.25; }
