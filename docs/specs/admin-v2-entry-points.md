@@ -111,8 +111,9 @@ Storefront/Liquid changes, schema expansion, provider redesign, live provider
 operations, deployment, pushing branches and changing the port-5025 server.
 Existing unrelated untracked screenshots remain untouched.
 
-## Planning status
+## Implementation status
 
-Route and configuration inspection completed. Application code and tests have
-not changed or run. Implementation awaits the plan-and-dispatch skill's required
-go-ahead. Upstream base: `70da7b1a9b8cd239cd9de63f1fdc405640e9ba93`.
+All four approved tasks were dispatched, implemented and integrated. The generic
+patch was ported to upstream from `70da7b1a9b8cd239cd9de63f1fdc405640e9ba93`.
+Validation results and the final route map are recorded in
+`docs/specs/admin-v2-entry-points-verification.md`.
