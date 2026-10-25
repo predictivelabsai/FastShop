@@ -177,6 +177,8 @@ def test_dry_run_apply_and_reimport_are_idempotent(workspace):
         "tags": ["water", "reading"],
         "author_name": "Mara Field",
         "author_bio": "",
+        "excerpt": "",
+        "publish_at": "",
     }
     assert draft.published_json is None and metadata(draft.draft_json)["state"] == "draft"
     assert db.scalar(select(func.count()).select_from(BlogCategory).where(
