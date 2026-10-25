@@ -142,6 +142,7 @@ def resource_picker(id="resource-picker", title="Choose a resource"):
 
 
 _ICONS = {
+    "Assistant": '<path d="M4 4h16v12H9l-5 4z"/><path d="M8 8h8M8 12h5"/>',
     "Home": '<path d="m3 10 9-7 9 7v11h-6v-7H9v7H3z"/>',
     "Orders": '<path d="M5 7h14l2 14H3L5 7Z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>',
     "Products": '<path d="m3 3 9 1 9 9-8 8-9-9z"/><circle cx="8" cy="8" r="1"/>',
@@ -203,7 +204,7 @@ def nav_section(path):
         "preferences": "Online Store", "settings": "Settings", "commerce": "Settings",
         "golive": "Settings", "live-credentials": "Settings", "billing": "Settings",
         "users": "Settings", "policies": "Settings", "notifications": "Settings",
-        "search": "Home", "activity": "Settings",
+        "search": "Home", "activity": "Settings", "assistant": "Assistant",
     }.get(key, "Online Store")
 
 
@@ -223,6 +224,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         ("Discounts", base + "/discounts", []),
         ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files"), ("URL redirects", base + "/redirects"), ("Activity", base + "/activity")]),
         ("Analytics", base + "/analytics", []),
+        ("Assistant", base + "/assistant", []),
         ("Marketing/Integrations", base + "/integrations", []),
         ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Themes", base + "/themes"), ("Preferences", base + "/preferences")]),
     ]
@@ -296,10 +298,14 @@ def contextual_page(title, *children, subnavigation=None):
         user = db.get(User, session.get("user_id", ""))
         sites = list(db.scalars(select(Site).join(Membership, Membership.tenant_id == Site.tenant_id)
             .where(Membership.user_id == session.get("user_id", ""),
-                   Membership.role.in_(["admin", "merchant", "editor"])).order_by(Site.name))) if user and user.is_active else []
+                   Membership.role.in_(["admin", "merchant", "editor"])).order_by(Site.name, Site.id))) if user and user.is_active else []
         parts = path.strip("/").split("/")
         site_id = parts[2] if len(parts) > 2 else ""
         site = next((s for s in sites if s.id == site_id), None)
+        if site:
+            session["admin_site_id"] = site.id
+        elif session.get("admin_site_id") not in {s.id for s in sites}:
+            session.pop("admin_site_id", None)
         query = parse_qs(scope.get("query_string", b"").decode())
         notice = query.get("notice", [""])[0]
         nav_path = path + "?view=design" if path.endswith("/build") and query.get("view") == ["design"] else path

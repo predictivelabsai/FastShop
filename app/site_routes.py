@@ -34,14 +34,13 @@ from starlette.responses import RedirectResponse, Response
 
 from app import content, signup_services, site_ui
 from app import site_builder_services as builder
-from app.admin_ui import empty_state
+from app.admin_ui import card, empty_state, index_table
 from app.config import settings
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
 from app.integrations.contact_email import deliver
 from app.models import (
     Membership,
-    OnboardingState,
     Site,
     SiteContact,
     SitePage,
@@ -198,6 +197,8 @@ def register_site_routes(rt):
     from app.billing_routes import register_billing_routes
     register_billing_routes(rt, actor, csrf, check_csrf, shell, error)
 
+    from app.admin_capability_routes import register_admin_capability_routes
+    register_admin_capability_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.admin_routes import register_admin_routes
     register_admin_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.discount_routes import register_discount_routes
@@ -221,16 +222,8 @@ def register_site_routes(rt):
                 ).where(
                     Membership.user_id == user_id,
                     Membership.role.in_(["admin", "merchant", "editor"]),
-                )))
+                ).order_by(Site.name, Site.id)))
                 sites = [row[0] for row in site_rows]
-                roles = {row[0].id: row[1] for row in site_rows}
-                onboarding_by_site = {
-                    state.site_id: state for state in db.scalars(
-                        select(OnboardingState).where(
-                            OnboardingState.site_id.in_([site.id for site in sites])
-                        )
-                    )
-                } if sites else {}
                 from app.plans import account_usage
 
                 plan_tier, quota_rows = account_usage(db, user_id)
@@ -273,45 +266,11 @@ def register_site_routes(rt):
                 return shell("Stores", P("Choose a store to manage."),
                     P(notice[:300], role="status", cls="e-note") if notice else None,
                     verification_banner(db, user_id, session),
-                    Div(
-                        Div(
-                            H2("Your stores"),
-                            P(f"{len(sites)} store" + ("" if len(sites) == 1 else "s")),
-                            cls="e-dashboard-section-heading",
-                        ),
-                        Div(
-                            *[
-                                Div(
-                                    Div(
-                                        H3(site.name),
-                                        P("/sites/" + site.slug, cls="e-site-address"),
-                                        cls="e-site-identity",
-                                    ),
-                                    Div(
-                                        A(
-                                            "Resume store setup →",
-                                            href=f"/admin/onboarding/{site.id}",
-                                            cls="e-button e-site-resume",
-                                        )
-                                        if roles[site.id] in {"admin", "merchant"}
-                                        and onboarding_by_site.get(site.id)
-                                        and onboarding_by_site[site.id].status not in {"complete", "skipped"}
-                                        else None,
-                                        A(
-                                            "Open store →",
-                                            href=f"/admin/sites/{site.id}",
-                                            cls="e-site-open",
-                                        ),
-                                        cls="e-site-actions",
-                                    ),
-                                    cls="e-card e-site-card",
-                                )
-                                for site in sites
-                            ],
-                            cls="e-sites-grid",
-                        ),
-                        cls="e-dashboard-section",
-                    ),
+                    card(index_table(["Store", "Address", "Status"], [
+                        [A(site.name, href=f"/admin/sites/{site.id}"),
+                         "/sites/" + site.slug, site.status]
+                        for site in sites]), title="Your stores") if sites else
+                    empty_state("Create your first store", "Add a store below to get started."),
                     Details(Summary("Plan and usage"),
                     Div(
                         Div(

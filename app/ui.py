@@ -144,7 +144,7 @@ def public_footer():
     )
 
 
-def assistant(surface: str, csrf: str, route: str, embedded: bool = False):
+def assistant(surface: str, csrf: str, route: str, embedded: bool = False, inline: bool = False):
     form_id = "copilot-form" if embedded else "ai-form"
     samples = (
         ("/orders", "/stock", "/sync") if surface == "merchant" else ("Recommend something", "/products", "How does delivery work?")
@@ -155,7 +155,7 @@ def assistant(surface: str, csrf: str, route: str, embedded: bool = False):
                 Strong("Merchant copilot" if surface == "merchant" else "Shopping assistant"),
                 Small("Grounded in this page and live commerce data"),
             ),
-            Button("×" if not embedded else "›", type="button", cls="ai-close", onclick="toggleAssistant(false)" if not embedded else "toggleCopilot()", aria_label="Close assistant"),
+            Button("×" if not embedded else "›", type="button", cls="ai-close", onclick="toggleAssistant(false)" if not embedded else "toggleCopilot()", aria_label="Close assistant") if not inline else None,
             cls="ai-head",
         ),
         Div(
@@ -178,7 +178,7 @@ def assistant(surface: str, csrf: str, route: str, embedded: bool = False):
         ),
     )
     if embedded:
-        return Div(*content, cls="copilot")
+        return Div(*content, cls="copilot a-card" if inline else "copilot")
     return (
         Button("✦ Ask FastShop", type="button", cls="ai-launch", onclick="toggleAssistant(true)"),
         Div(*content, id="ai-drawer", cls="ai-drawer", aria_hidden="true"),
@@ -428,31 +428,6 @@ def success_page(order: Order):
     )
 
 
-MERCHANT_NAV = (
-    ("Overview", (("dashboard", "Dashboard", "/admin"), ("assistant", "AI Assistant", "/admin/assistant"))),
-    ("Commerce", (("products", "Products", "/admin/products"), ("orders", "Orders", "/admin/orders"), ("customers", "Customers", "/admin/customers"), ("promotions", "Promotions", "/admin/promotions"))),
-    ("Operations", (("inventory", "Inventory", "/admin/inventory"), ("channels", "Channels", "/admin/channels"), ("content", "Sites & content", "/admin/sites"), ("integrations", "Integrations", "/admin/integrations"))),
-    ("Build", (("developers", "Developers", "/developers"), ("store", "View storefront", "/"))),
-)
-
-
-def merchant_page(title: str, active: str, *content, user: dict, csrf: str, route: str):
-    navigation = Div(
-        brand(),
-        *[Div(Div(label, cls="nav-label"), *[A(name, href=href, cls="active" if key == active else "") for key, name, href in items], cls="nav-group") for label, items in MERCHANT_NAV],
-        cls="merchant-nav",
-    )
-    return (
-        *document_head(title),
-        Div(
-            navigation,
-            Main(Div(H1(title), Div(Button("Copilot", type="button", cls="button secondary small", onclick="toggleCopilot()"), Span(user["email"]), A("Sign out", href="/logout"), cls="merchant-actions"), cls="merchant-top"), *content, cls="merchant-main"),
-            assistant("merchant", csrf, route, embedded=True),
-            cls="merchant-shell",
-        ),
-    )
-
-
 def dashboard(session: Session, tenant_ids: set[str] | None = None):
     revenue_query = select(func.coalesce(func.sum(Order.total_minor), 0)).where(Order.payment_status == "paid")
     order_count_query = select(func.count(Order.id))
@@ -525,7 +500,7 @@ def integration_page(session: Session, message: str = "", tenant_ids: set[str] |
     )
 
 
-def integrations_hub(session: Session):
+def integrations_hub(session: Session, base: str = "/admin/integrations"):
     state = fasterp.status()
 
     def card(name, desc, label, ok, href, cta="Setup guide"):
@@ -535,17 +510,17 @@ def integrations_hub(session: Session):
     return (
         Div(Span("Connect FastShop", cls="eyebrow"), H2("Integrations"),
             P("Payments, storefront sync and back-office. Provider secrets are set as deployment "
-              "environment variables through Coolify/FastDevOps — never stored in this application."),
+              "environment variables through Coolify/FastDevOps, never stored in this application."),
             cls="page-head"),
         Div(
             card("Stripe", "Card payments, Apple Pay / Google Pay and US sales tax for sandbox checkout.",
-                 "Sandbox-gated", True, "/admin/integrations/stripe"),
+                 "Sandbox-gated", True, base + "/stripe"),
             card("PayPal", "Offer PayPal at checkout. Setup guide and where to add PayPal API keys, with readiness.",
-                 "Guide & keys", True, "/admin/integrations/paypal", "Open guide & keys"),
+                 "Guide & keys", True, base + "/paypal", "Open guide & keys"),
             card("WooCommerce", "Reviewed import of catalog, customers and orders, plus JSON catalog export.",
-                 "Optional", True, "/admin/integrations/woocommerce"),
+                 "Optional", True, base + "/woocommerce"),
             card("FastERP", state.message, "Reachable" if state.reachable else "Unavailable",
-                 state.reachable, "/admin/integrations/fasterp", "Open"),
+                 state.reachable, base + "/fasterp", "Open"),
             cls="developer-grid"),
     )
 
@@ -554,10 +529,10 @@ def _env_var(name, example=""):
     return Li(Code(name), Small(" " + example) if example else None)
 
 
-def _guide(eyebrow, title, lead, steps, env_title, env_items, *extra, docs=None):
+def _guide(eyebrow, title, lead, steps, env_title, env_items, *extra, docs=None, base="/admin/integrations"):
     return (
         Div(Span(eyebrow, cls="eyebrow"), H2(title), P(lead),
-            A("← All integrations", href="/admin/integrations"), cls="page-head"),
+            A("← All integrations", href=base), cls="page-head"),
         panel("Setup steps", Ol(*[Li(step) for step in steps])),
         panel(env_title, Div(P("Set these as environment variables in Coolify (never commit them). "
                                "Replace {SITE_ID} with the store's id shown on its admin page."),
@@ -567,7 +542,7 @@ def _guide(eyebrow, title, lead, steps, env_title, env_items, *extra, docs=None)
     )
 
 
-def stripe_guide():
+def stripe_guide(base="/admin/integrations"):
     return _guide(
         "Payments", "Stripe setup",
         "Stripe powers sandbox card payments, Apple Pay / Google Pay and US sales tax. Live keys are "
@@ -584,12 +559,12 @@ def stripe_guide():
          _env_var("FASTSHOP_STRIPE_{SITE_ID}_WEBHOOK_SECRET", "= whsec_…"),
          _env_var("STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET", "= globals used only by the primary store")],
         panel("Notes", Div(P("Only test keys (sk_test_ / rk_test_) are accepted; live responses are rejected."),
-                           P("Enable PayPal at checkout from the ", A("PayPal guide", href="/admin/integrations/paypal"), "."))),
-        docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
+                           P("Enable PayPal at checkout from the ", A("PayPal guide", href=base + "/paypal"), "."))),
+        base=base, docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
     )
 
 
-def woocommerce_guide():
+def woocommerce_guide(base="/admin/integrations"):
     return _guide(
         "Storefront", "WooCommerce setup",
         "Migrate products, categories, customers and orders through a read-only WooCommerce API key. "
@@ -607,13 +582,19 @@ def woocommerce_guide():
          _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CONSUMER_SECRET", "= cs_…"),
          _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CURRENCY", "= USD"),
          _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CURRENCY_SCALE", "= 2")],
-        docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
+        base=base, docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
     )
 
 
-def paypal_guide(session: Session):
+def paypal_guide(session: Session, *, site_id=None, tenant_ids=None,
+                 base="/admin/integrations"):
     from app.integrations import paypal
-    sites = list(session.scalars(select(Site).order_by(Site.slug)))
+    statement = select(Site).order_by(Site.slug)
+    if tenant_ids is not None:
+        statement = statement.where(Site.tenant_id.in_(tenant_ids))
+    if site_id is not None:
+        statement = statement.where(Site.id == site_id)
+    sites = list(session.scalars(statement))
     rows = []
     for site in sites:
         state = paypal.readiness(site)
@@ -628,13 +609,13 @@ def paypal_guide(session: Session):
         "Two ways to offer PayPal. Path 1 (recommended today) runs through Stripe Checkout with no "
         "separate keys. Path 2 stores direct PayPal REST credentials as environment variables for a "
         "direct integration (a provider-gated seam).",
-        ["Path 1 — via Stripe: enable PayPal on your Stripe account, then turn on "
+        ["Path 1, via Stripe: enable PayPal on your Stripe account, then turn on "
          "\"Offer PayPal at one-time checkout\" in the store's Commerce/shared settings. No PayPal keys are stored here.",
-         "Path 2 — direct PayPal: in the PayPal Developer Dashboard, create a REST app (start in Sandbox).",
+         "Path 2, direct PayPal: in the PayPal Developer Dashboard, create a REST app (start in Sandbox).",
          "Copy the app's Client ID and Secret.",
          "Set the environment variables below in Coolify (use MODE=sandbox until acceptance), then redeploy.",
          "Return here to confirm the readiness table shows the store as Ready."],
-        "Environment variables — where to add PayPal keys (per store)",
+        "Environment variables: where to add PayPal keys (per store)",
         [_env_var("FASTSHOP_PAYPAL_{SITE_ID}_CLIENT_ID", "= your PayPal REST client id"),
          _env_var("FASTSHOP_PAYPAL_{SITE_ID}_SECRET", "= your PayPal REST secret"),
          _env_var("FASTSHOP_PAYPAL_{SITE_ID}_MODE", "= sandbox | live"),
@@ -644,7 +625,7 @@ def paypal_guide(session: Session):
             P("Keys are read from the environment and never stored in this application's database; "
               "this page only reports whether each value is present, never the value itself."),
             P("Subscriptions stay card-only so saved-card renewals work; PayPal applies to one-time orders."))),
-        docs=("PayPal integration", "https://github.com/predictivelabsai/FastShop/blob/main/docs/PAYPAL_INTEGRATION.md"),
+        base=base, docs=("PayPal integration", "https://github.com/predictivelabsai/FastShop/blob/main/docs/PAYPAL_INTEGRATION.md"),
     )
 
 
