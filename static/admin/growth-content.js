@@ -16,7 +16,7 @@
   document.querySelectorAll('[data-menu-form]').forEach(form => {
     const root = form.querySelector(':scope > .gc-tree'); let dragging = null;
     const children = node => Array.from(node.children).filter(el => el.matches('li[data-menu-item]'));
-    const serialize = tree => children(tree).map(li => {const item = JSON.parse(li.dataset.menuItem); const label = li.querySelector('[data-menu-label]').value; item.label = typeof item.label === 'object' ? {...item.label, [form.dataset.menuLocale]: label} : label; const nested = serialize(li.querySelector(':scope > ol')); if (nested.length) item.children = nested; return item;});
+    const serialize = tree => children(tree).map(li => {const item = JSON.parse(li.dataset.menuItem); const label = li.querySelector('[data-menu-label]').value; item.label = typeof item.label === 'object' ? {...item.label, [form.dataset.menuLocale]: label} : label; const nested = serialize(li.querySelector(':scope > ol')); if (nested.length) item.children = nested; else delete item.children; return item;});
     const changed = () => {form.querySelector('[data-menu-json]').value = JSON.stringify(serialize(root)); form.dispatchEvent(new Event('change', {bubbles:true}));};
     form.addEventListener('submit', changed);
     form.addEventListener('click', event => {
