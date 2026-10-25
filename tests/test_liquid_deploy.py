@@ -3,7 +3,7 @@ import copy
 import json
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
 from app.models import Base, Membership, Site, SiteCommerceSettings, SitePage, Tenant, User
@@ -74,6 +74,88 @@ def test_cutover_is_idempotent_and_preserves_roles_content_passwords(database, m
     for page_id, draft, published in docs:
         page = db.get(SitePage, page_id)
         assert page.draft_json == draft and page.published_json == published
+
+
+@pytest.mark.parametrize("source_role,target_role,expected", [
+    ("admin", "merchant", "admin"),
+    ("admin", "editor", "admin"),
+    ("merchant", "editor", "merchant"),
+    ("merchant", "admin", "admin"),
+    ("editor", "admin", "admin"),
+    ("editor", "merchant", "merchant"),
+    ("admin", "admin", "admin"),
+    ("merchant", "merchant", "merchant"),
+    ("editor", "editor", "editor"),
+])
+def test_cutover_only_upgrades_existing_roles(
+    database, monkeypatch, source_role, target_role, expected,
+):
+    db, site, previous = database
+    monkeypatch.setenv("FASTSHOP_H24YOU_LIQUID_HOSTNAME", "h24you.example.test")
+    user = db.scalar(select(User).where(User.email == source_role + "@example.test"))
+    target = Membership(tenant_id=site.tenant_id, user_id=user.id, role=target_role)
+    db.add(target)
+    db.commit()
+    for _ in range(2):
+        bootstrap_liquid_demo(db, site)
+        db.commit()
+        assert target.role == expected
+        assert db.scalar(select(Membership.role).where(
+            Membership.tenant_id == previous.tenant_id, Membership.user_id == user.id,
+        )) == source_role
+        assert user.password_hash == "unchanged"
+
+
+@pytest.mark.parametrize("existing_role", [None, "editor", "merchant", "admin"])
+@pytest.mark.parametrize("cutover_enabled", [False, True])
+def test_liquid_seed_ensures_named_admin_idempotently(
+    database, monkeypatch, existing_role, cutover_enabled,
+):
+    db, site, previous = database
+    if cutover_enabled:
+        monkeypatch.setenv("FASTSHOP_H24YOU_LIQUID_HOSTNAME", "h24you.example.test")
+    else:
+        monkeypatch.delenv("FASTSHOP_H24YOU_LIQUID_HOSTNAME", raising=False)
+    helen = User(email="helen@h24you.com", name="Helen", password_hash="unchanged")
+    db.add(helen)
+    db.flush()
+    legacy_membership = Membership(tenant_id=previous.tenant_id, user_id=helen.id, role="merchant")
+    db.add(legacy_membership)
+    if existing_role:
+        db.add(Membership(tenant_id=site.tenant_id, user_id=helen.id, role=existing_role))
+    db.commit()
+    seed_h24you_liquid(db, "operator@example.test")
+    db.commit()
+    membership = db.scalar(select(Membership).where(
+        Membership.tenant_id == site.tenant_id, Membership.user_id == helen.id,
+    ))
+    assert membership.role == "admin"
+    before = (membership.id, membership.created_at, membership.updated_at)
+    users_before = db.scalar(select(func.count()).select_from(User))
+    seed_h24you_liquid(db, "operator@example.test")
+    db.commit()
+    db.refresh(membership)
+    assert (membership.id, membership.created_at, membership.updated_at) == before
+    assert membership.role == "admin"
+    assert db.scalar(select(func.count()).select_from(User)) == users_before
+    assert db.scalar(select(func.count()).select_from(Membership).where(
+        Membership.tenant_id == site.tenant_id, Membership.user_id == helen.id,
+    )) == 1
+    assert legacy_membership.role == "merchant"
+    assert helen.password_hash == "unchanged"
+
+
+def test_liquid_seed_missing_named_admin_does_not_create_user(database, monkeypatch):
+    db, site, _ = database
+    monkeypatch.delenv("FASTSHOP_H24YOU_LIQUID_HOSTNAME", raising=False)
+    users_before = db.scalar(select(func.count()).select_from(User))
+    memberships_before = db.scalar(select(func.count()).select_from(Membership))
+    for _ in range(2):
+        assert seed_h24you_liquid(db, "operator@example.test").id == site.id
+        db.commit()
+    assert db.scalar(select(User).where(User.email == "helen@h24you.com")) is None
+    assert db.scalar(select(func.count()).select_from(User)) == users_before
+    assert db.scalar(select(func.count()).select_from(Membership)) == memberships_before
 
 
 @pytest.mark.parametrize("hostname", ["https://example.com", "bad", "127.0.0.1", "a.test/path"])

@@ -29,6 +29,8 @@ from app.site_catalog import create_catalog_product
 
 ASSETS = "/static/h24you/liquid/"
 CONTENT = json.loads(Path(__file__).with_name("site_liquid_content.json").read_text("utf-8"))
+H24YOU_LIQUID_ADMIN_EMAILS = ("helen@h24you.com",)
+_MEMBERSHIP_ROLE_PRIORITY = {"editor": 1, "merchant": 2, "admin": 3}
 
 
 def block(kind, identity, **values):
@@ -324,6 +326,7 @@ def seed_h24you_liquid(db, admin_email):
         ensure_product_pages(db, site)
         ensure_content_pages(db, site)
         bootstrap_liquid_demo(db, site)
+        ensure_liquid_admin_memberships(db, site)
         return site
     tenant = Tenant(slug="h24you-liquid", name="H2 | 4 YOU Liquid")
     db.add(tenant)
@@ -458,7 +461,22 @@ def seed_h24you_liquid(db, admin_email):
         )
     db.flush()
     bootstrap_liquid_demo(db, site)
+    ensure_liquid_admin_memberships(db, site)
     return site
+
+
+def ensure_liquid_admin_memberships(db, site):
+    """Grant the named H24YOU operators access without provisioning accounts."""
+    for user in db.scalars(select(User).where(User.email.in_(H24YOU_LIQUID_ADMIN_EMAILS))):
+        membership = db.scalar(select(Membership).where(
+            Membership.tenant_id == site.tenant_id, Membership.user_id == user.id,
+        ))
+        if membership:
+            if membership.role != "admin":
+                membership.role = "admin"
+        else:
+            db.add(Membership(tenant_id=site.tenant_id, user_id=user.id, role="admin"))
+    db.flush()
 
 
 def bootstrap_liquid_demo(db, site):
@@ -507,7 +525,10 @@ def bootstrap_liquid_demo(db, site):
                 Membership.tenant_id == site.tenant_id, Membership.user_id == source.user_id,
             ))
             if target:
-                target.role = source.role
+                if _MEMBERSHIP_ROLE_PRIORITY.get(source.role, 0) > (
+                    _MEMBERSHIP_ROLE_PRIORITY.get(target.role, 0)
+                ):
+                    target.role = source.role
             else:
                 db.add(Membership(tenant_id=site.tenant_id,
                     user_id=source.user_id, role=source.role))
