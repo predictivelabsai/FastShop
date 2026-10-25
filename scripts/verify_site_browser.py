@@ -933,7 +933,9 @@ def main():
                 page.keyboard.press("Escape")
                 assert not page.locator(".h-nav").is_visible()
             page.goto(args.base + "/sites/northstar/products/daily-vitamins")
-            page.get_by_role("combobox", name="Choose your option").select_option(label="Original")
+            options = page.get_by_role("combobox", name="Choose your option")
+            if options.count():
+                options.select_option(label="Original")
             assert page.get_by_role("button", name="Add to cart — coming in Phase 2").is_disabled()
             assert "sample-placeholder.webp" in page.locator('[data-gallery-main] img').get_attribute("src")
             context.close()

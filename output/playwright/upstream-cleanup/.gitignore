@@ -1,0 +1,9 @@
+*
+!.gitignore
+!results.json
+!smoke.json
+!storefront/
+storefront/*
+!storefront/verification.json
+!storefront/desktop-home.png
+!storefront/mobile-home.png
