@@ -19,6 +19,7 @@ from sqlalchemy import (
     UniqueConstraint,
     false,
     func,
+    true,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, validates
 
@@ -131,6 +132,53 @@ class Product(TimestampMixin, Base):
     image_url: Mapped[str] = mapped_column(Text, default="")
     is_published: Mapped[bool] = mapped_column(Boolean, default=False)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(16), default=lambda ctx: "active" if ctx.get_current_parameters().get("is_published") else "draft", server_default="draft", index=True)
+    vendor: Mapped[str] = mapped_column(String(200), default="", server_default="", index=True)
+    product_type: Mapped[str] = mapped_column(String(200), default="", server_default="", index=True)
+    tags_json: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    description_html: Mapped[str] = mapped_column(Text, default="", server_default="")
+    short_description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    template: Mapped[str] = mapped_column(String(100), default="default", server_default="default")
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    requires_shipping: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    weight_grams: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    dimensions_json: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    country_of_origin: Mapped[str] = mapped_column(String(2), default="", server_default="")
+    hs_code: Mapped[str] = mapped_column(String(20), default="", server_default="")
+    charge_tax: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    tax_code: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    images: Mapped[list[ProductImage]] = relationship(
+        cascade="all, delete-orphan", order_by="ProductImage.position",
+        foreign_keys="ProductImage.product_id",
+    )
+    options: Mapped[list[ProductOption]] = relationship(
+        cascade="all, delete-orphan", order_by="ProductOption.position",
+    )
+
+    @validates("status")
+    def validate_status(self, key, value):
+        if value not in {"active", "draft", "archived"}:
+            raise ValueError("Invalid product status")
+        if value != "active":
+            self.is_published = False
+        return value
+
+    @validates("is_published")
+    def validate_published(self, key, value):
+        if value and getattr(self, "status", None) == "archived":
+            return False
+        if value:
+            self.status = "active"
+        return bool(value)
+
+    @property
+    def handle(self):
+        return self.slug
+
+    @handle.setter
+    def handle(self, value):
+        self.slug = value
     variants: Mapped[list[ProductVariant]] = relationship(
         back_populates="product", cascade="all, delete-orphan", order_by="ProductVariant.sort_order"
     )
@@ -169,6 +217,14 @@ class ProductVariant(TimestampMixin, Base):
     weight_grams: Mapped[int] = mapped_column(Integer, default=0)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    barcode: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    track_inventory: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    continue_selling_when_out_of_stock: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(),
+    )
+    image_id: Mapped[str | None] = mapped_column(
+        ForeignKey("product_images.id", ondelete="SET NULL"), nullable=True,
+    )
     product: Mapped[Product] = relationship(back_populates="variants")
 
 
@@ -502,6 +558,9 @@ class SitePage(TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(240))
     kind: Mapped[str] = mapped_column(String(40), default="content")
     product_id: Mapped[str | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    collection_id: Mapped[str | None] = mapped_column(
+        ForeignKey("collections.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
     draft_json: Mapped[dict] = mapped_column(BlockDocumentJSON, default=dict)
     published_json: Mapped[dict | None] = mapped_column(BlockDocumentJSON, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
@@ -1089,3 +1148,96 @@ class PlatformBillingStripeEvent(TimestampMixin, Base):
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class ProductImage(TimestampMixin, Base):
+    __tablename__ = "product_images"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    product_id: Mapped[str] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("site_media.id"), nullable=True)
+    image_url: Mapped[str] = mapped_column(Text)
+    alt: Mapped[str] = mapped_column(String(400), default="")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ProductOption(TimestampMixin, Base):
+    __tablename__ = "product_options"
+    __table_args__ = (UniqueConstraint("product_id", "name"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    product_id: Mapped[str] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    values: Mapped[list[ProductOptionValue]] = relationship(
+        cascade="all, delete-orphan", order_by="ProductOptionValue.position",
+    )
+
+
+class ProductOptionValue(TimestampMixin, Base):
+    __tablename__ = "product_option_values"
+    __table_args__ = (UniqueConstraint("option_id", "value"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    option_id: Mapped[str] = mapped_column(ForeignKey("product_options.id", ondelete="CASCADE"))
+    value: Mapped[str] = mapped_column(String(150))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ProductTag(TimestampMixin, Base):
+    __tablename__ = "product_tags"
+    __table_args__ = (UniqueConstraint("product_id", "tag"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    product_id: Mapped[str] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
+    tag: Mapped[str] = mapped_column(String(100), index=True)
+
+
+class Collection(TimestampMixin, Base):
+    __tablename__ = "collections"
+    __table_args__ = (UniqueConstraint("tenant_id", "handle"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    title: Mapped[str] = mapped_column(String(220))
+    handle: Mapped[str] = mapped_column(String(180))
+    description: Mapped[str] = mapped_column(Text, default="")
+    image_url: Mapped[str] = mapped_column(Text, default="")
+    seo_title: Mapped[str] = mapped_column(String(240), default="")
+    seo_description: Mapped[str] = mapped_column(String(320), default="")
+    kind: Mapped[str] = mapped_column(String(20), default="manual")
+    rules_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    sort_order: Mapped[str] = mapped_column(String(30), default="manual")
+    is_published: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class CollectionProduct(TimestampMixin, Base):
+    __tablename__ = "collection_products"
+    __table_args__ = (UniqueConstraint("collection_id", "product_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    collection_id: Mapped[str] = mapped_column(ForeignKey("collections.id", ondelete="CASCADE"))
+    product_id: Mapped[str] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class InventoryAdjustment(TimestampMixin, Base):
+    __tablename__ = "inventory_adjustments"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    variant_id: Mapped[str] = mapped_column(ForeignKey("product_variants.id"), index=True)
+    warehouse_id: Mapped[str] = mapped_column(ForeignKey("warehouses.id"), index=True)
+    delta: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(String(20))
+    note: Mapped[str] = mapped_column(Text, default="")
+    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    resulting_quantity: Mapped[int] = mapped_column(Integer)
+
+
+class CatalogueSettings(TimestampMixin, Base):
+    __tablename__ = "catalogue_settings"
+    __table_args__ = (UniqueConstraint("site_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    low_stock_threshold: Mapped[int] = mapped_column(Integer, default=0)
