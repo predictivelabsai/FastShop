@@ -68,7 +68,9 @@ def aggregate(db, site, start: date, end: date):
                             ("Discounted orders" if order.discount_minor else "No discount"))
             label = label or "Discounted orders"
             discounts[label][0] += order.total_minor
-            discounts[label][1] += order.discount_minor
+            shipping_saving = sum(item.get("amount_minor", 0) for item in applied
+                if isinstance(item, dict) and item.get("type") == "free_shipping") if isinstance(applied, list) else 0
+            discounts[label][1] += order.discount_minor + shipping_saving
             discounts[label][2] += 1
             for line in order.lines:
                 # Historical names survive deleted variants and catalogue renames.

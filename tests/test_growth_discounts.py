@@ -179,3 +179,10 @@ def test_bridged_completion_updates_legacy_counter_once(ready):  # noqa: F811
     ready.db.refresh(voucher)
     assert voucher.used_count == 3
     assert discounts.usage(ready.db, discounts.code_rule(ready.db, ready.site, "LEGACY")) == 3
+
+
+def test_minimal_form_uses_explicit_safe_defaults(shop):
+    db, site, _, _ = shop
+    row = save(db, site, {"title": "Default rule", "codes": "DEFAULT", "value": "10"})
+    assert (row.type, row.method, row.value_type, row.applies_to) == (
+        "amount_off_order", "code", "percentage", "all")

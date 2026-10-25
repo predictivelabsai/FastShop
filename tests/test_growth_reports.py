@@ -13,7 +13,7 @@ from starlette.responses import Response
 from starlette.testclient import TestClient
 
 from app import growth_reports, growth_reports_routes, subscriptions
-from app.models import Membership, OrderLine, SubscriptionEvent
+from app.models import CommerceQuote, Membership, OrderLine, SubscriptionEvent
 from app.services import CommerceError
 from tests.test_checkout_services import ready  # noqa: F401
 from tests.test_order_management import add_order, workspace
@@ -77,6 +77,25 @@ def test_empty_series_ranges_and_csv_formula_escaping():
                                     ("custom", "2000-01-01", "2002-01-01")):
             with pytest.raises(CommerceError):
                 growth_reports.date_range(preset, first, last)
+
+
+def test_free_shipping_savings_are_included_in_discount_report():
+    with workspace() as w:
+        day = w.order.created_at.date()
+        quote = CommerceQuote(tenant_id=w.site.tenant_id, site_id=w.site.id,
+            fingerprint="shipping-report", provider_id="fixture", currency="USD",
+            subtotal_minor=w.order.subtotal_minor, discount_minor=0, shipping_minor=0,
+            tax_minor=0, total_minor=w.order.total_minor, expires_at=datetime.now(UTC),
+            snapshot_json={"discounts": [{"title": "Free delivery", "type": "free_shipping",
+                                          "amount_minor": 650}]})
+        w.db.add(quote)
+        w.db.flush()
+        from app.models import SiteOrder
+        link = w.db.scalar(select(SiteOrder).where(SiteOrder.order_id == w.order.id))
+        link.quote_id = quote.id
+        w.db.flush()
+        report = growth_reports.report(w.db, w.site, day, day)
+        assert report["discounts"] == [("Free delivery", [w.order.total_minor, 650, 1])]
 
 
 def test_merchant_actions_share_idempotency_versions_and_actor_audit(contract):

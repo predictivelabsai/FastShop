@@ -44,8 +44,10 @@ def save(db, site, data, rule=None):
     choices = {"type": discounts.TYPES, "method": {"code", "automatic"},
         "value_type": {"percentage", "fixed"}, "applies_to": {"all", "products", "collections"},
         "eligibility": {"all", "emails"}, "minimum_type": {"none", "amount", "quantity"}}
+    defaults = {"type": "amount_off_order", "method": "code", "value_type": "percentage",
+                "applies_to": "all", "eligibility": "all", "minimum_type": "none"}
     for field, allowed in choices.items():
-        value = str(data.get(field, getattr(rule, field) or next(iter(allowed))))
+        value = str(data.get(field, getattr(rule, field) or defaults[field]))
         if value not in allowed:
             raise CommerceError("Choose valid discount conditions.")
         setattr(rule, field, value)
