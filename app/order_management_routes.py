@@ -6,16 +6,13 @@ from urllib.parse import urlencode
 
 from fasthtml.common import (
     H2,
-    H3,
     A,
     Button,
     Div,
     Form,
     Input,
     Label,
-    Option,
     P,
-    Select,
     Small,
     Span,
     Strong,
@@ -62,162 +59,6 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
             Div(Small("Average order"), Strong(money(report.average_order_value_minor, report.currency)), cls="o-metric"),
             cls="o-metrics",
         )
-
-    @rt("/admin/sites/{site_id}/orders", methods=["GET"])
-    def get(session, site_id: str, status_filter: str = "all", notice: str = ""):
-        try:
-            with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session), publish=True)
-                rows = orders.orders_for(db, site, status_filter)
-                body = [Tr(
-                    Td(A(order.number, href=order_url(site.id, link.id))),
-                    Td(order.email),
-                    Td(status(order.status)),
-                    Td(status(order.payment_status)),
-                    Td(money(order.total_minor, order.currency), cls="o-money"),
-                    Td(order.created_at.strftime("%Y-%m-%d")),
-                ) for link, order, _ in rows]
-                return shell(
-                    "Orders",
-                    Div(
-                        A("← Site", href=f"/admin/sites/{site.id}"),
-                        A("Revenue report", href=f"/admin/sites/{site.id}/revenue"),
-                        A("Delivery issues", href=delivery_url(site.id)),
-                        cls="e-actions",
-                    ),
-                    P(f"{site.name} · Real site orders only. Demo-commerce simulations never appear here.", cls="o-intro"),
-                    P(notice, role="status", cls="e-note") if notice else None,
-                    Form(
-                        Label("Fulfillment status", Select(
-                            Option("All orders", value="all", selected=status_filter == "all"),
-                            *[Option(value.title(), value=value, selected=status_filter == value) for value in orders.ORDER_STATES],
-                            name="status_filter",
-                        )),
-                        Button("Filter orders", cls="e-button"),
-                        method="get",
-                        cls="e-form o-filter",
-                    ),
-                    Div(
-                        Table(
-                            Thead(Tr(Th("Order"), Th("Customer"), Th("Fulfillment"), Th("Payment"), Th("Total"), Th("Placed"))),
-                            Tbody(*body),
-                        ),
-                        cls="o-table-wrap",
-                    ) if body else Div(H2("No matching orders"), P("Confirmed storefront orders will appear here. Try another fulfillment filter."), cls="e-card o-empty"),
-                )
-        except CommerceError as exc:
-            return error(exc)
-
-    @rt("/admin/sites/{site_id}/orders/{site_order_id}", methods=["GET"])
-    def get(session, site_id: str, site_order_id: str, notice: str = ""):
-        try:
-            with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session), publish=True)
-                link, order, customer = orders.owned_order(db, site, site_order_id)
-                captured, refunded, available = orders.refund_totals(db, site, link, order)
-                events = orders.timeline(db, site, link, order)
-                allowed = orders.TRANSITIONS.get(order.status, ())
-                address = order.shipping_address_json or {}
-                action = order_url(site.id, link.id)
-                fulfillment = Div(
-                    H2("Update fulfillment"),
-                    P("Fulfillment changes are sequential and customer-visible. Cancelling fulfillment never issues a refund."),
-                    Form(
-                        csrf(session),
-                        Input(type="hidden", name="expected_status", value=order.status),
-                        Label("Next status", Select(*[Option(value.title(), value=value) for value in allowed], name="target")),
-                        Label("Carrier", Input(name="carrier", maxlength=100, autocomplete="off")),
-                        Label("Tracking number", Input(name="tracking_number", maxlength=100, autocomplete="off")),
-                        Label("Carrier tracking URL", Input(name="tracking_url", type="url", maxlength=500, placeholder="https://…")),
-                        Label("Fulfillment or cancellation note", Input(name="note", maxlength=500)),
-                        Small("Carrier and tracking number are required for fulfillment. A cancellation requires a reason."),
-                        Button("Save fulfillment update", cls="e-button"),
-                        method="post",
-                        action=action + "/fulfillment",
-                        cls="e-form",
-                    ),
-                    cls="e-card",
-                ) if allowed else Div(H2("Fulfillment complete"), P(f"This order is {order.status}; no further fulfillment transitions are available."), cls="e-card")
-                refund_card = Div(
-                    H2("Refund payment"),
-                    P("Refunds use the site's current guarded Stripe mode. The exact confirmed amount is persisted before any provider request."),
-                    P(f"Captured: {money(captured, order.currency)} · completed refunds: {money(refunded, order.currency)} · available: {money(available, order.currency)}", cls="o-money"),
-                    Form(
-                        Label("Refund amount (minor units)", Input(name="amount_minor", type="number", min=1, max=available, value=available, required=True)),
-                        Label("Reason", Input(name="reason", minlength=10, maxlength=500, required=True, placeholder="Why this refund is being issued")),
-                        Button("Review refund", cls="e-button", disabled=available <= 0),
-                        method="get",
-                        action=action + "/refund",
-                        cls="e-form",
-                    ) if available else P("No captured amount remains available for another refund."),
-                    cls="e-card",
-                ) if captured else Div(H2("Refund payment"), P("No supported captured Stripe payment is attached to this order."), cls="e-card")
-                resync_card = Div(
-                    H2("Re-sync provider status"),
-                    P("Fetch Stripe's current checkout and payment state for this order. This does not create a payment or refund."),
-                    Form(
-                        csrf(session),
-                        Button("Re-pull Stripe status", cls="e-button"),
-                        method="post",
-                        action=action + "/resync",
-                        cls="e-form o-inline-form",
-                    ),
-                    cls="e-card",
-                ) if link.stripe_checkout_id or captured else Div(
-                    H2("Re-sync provider status"),
-                    P("No Stripe checkout or payment reference is attached to this order."),
-                    cls="e-card",
-                )
-                timeline_rows = []
-                for event in events:
-                    retry = None
-                    command = event.get("command")
-                    if command and command.state in orders.REFUND_STATES_HOLDING_FUNDS:
-                        retry = Form(
-                            csrf(session),
-                            Input(type="hidden", name="amount_minor", value=command.amount_minor),
-                            Input(type="hidden", name="reason", value=command.reason),
-                            Input(type="hidden", name="request_key", value=command.request_key),
-                            Input(type="hidden", name="retry", value="on"),
-                            Button("Reconcile exact refund", cls="e-button"),
-                            method="post",
-                            action=action + "/refund",
-                            cls="e-form o-inline-form",
-                        )
-                    timeline_rows.append(Div(
-                        Div(status(event["kind"]), Small(event["at"].strftime("%Y-%m-%d %H:%M UTC"))),
-                        H3(event["title"]),
-                        P(event["detail"] or "No additional detail."),
-                        A("Open carrier tracking ↗", href=event["tracking_url"], target="_blank", rel="noopener noreferrer") if event.get("tracking_url") else None,
-                        retry,
-                        cls="o-timeline-row",
-                    ))
-                return shell(
-                    order.number,
-                    Div(A("← Orders", href=order_url(site.id)), A("Revenue report", href=f"/admin/sites/{site.id}/revenue"), cls="e-actions"),
-                    P(notice, role="status", cls="e-note") if notice else None,
-                    Div(
-                        Div(H2("Customer"), P(customer.name or "Name not supplied"), P(order.email),
-                            P(", ".join(str(address.get(key, "")) for key in ("line1", "line2", "city", "state", "postal_code", "country") if address.get(key))), cls="e-card"),
-                        Div(H2("Order state"), P(status(order.status)), P(status(order.payment_status)),
-                            P("Placed " + order.created_at.strftime("%Y-%m-%d %H:%M UTC")), cls="e-card"),
-                        cls="e-grid",
-                    ),
-                    Div(H2("Items"),
-                        Div(*[Div(Span(f"{line.product_name} · {line.variant_name} × {line.quantity}"), Strong(money(line.total_minor, order.currency)), cls="o-line") for line in order.lines], cls="o-lines"),
-                        Div(P("Subtotal"), Strong(money(order.subtotal_minor, order.currency)), cls="o-total-row"),
-                        Div(P("Discount"), Strong("−" + money(order.discount_minor, order.currency)), cls="o-total-row"),
-                        Div(P("Shipping"), Strong(money(order.shipping_minor, order.currency)), cls="o-total-row"),
-                        Div(P("Tax"), Strong(money(order.tax_minor, order.currency)), cls="o-total-row"),
-                        Div(P("Total"), Strong(money(order.total_minor, order.currency)), cls="o-total-row o-grand-total"),
-                        cls="e-card o-summary",
-                    ),
-                    Div(fulfillment, refund_card, cls="e-grid"),
-                    resync_card,
-                    Div(H2("Order timeline"), *timeline_rows, cls="e-card o-timeline"),
-                )
-        except CommerceError as exc:
-            return error(exc)
 
     @rt("/admin/sites/{site_id}/orders/{site_order_id}/fulfillment", methods=["POST"])
     async def post(session, request, site_id: str, site_order_id: str):

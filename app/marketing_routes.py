@@ -779,7 +779,9 @@ def signup_page(
     if not signup_open:
         main_content = Section(
             Div(
-                H1("Public signup is currently closed."),
+                H1("No workspace found." if status == "no-workspace" else "Public signup is currently closed."),
+                P("No workspace found for this email and public signup is closed; contact the operator.")
+                if status == "no-workspace" else None,
                 P(
                     "We are not accepting new self-serve accounts through this page. "
                     "Existing merchants can continue to sign in and work on their sites."
@@ -1099,7 +1101,7 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
                 if "email" not in errors
                 else None
             )
-            if limited or existing or errors:
+            if limited or errors:
                 if not limited:
                     signup_services.record_attempt(
                         db, "signup", email, address, accepted=False

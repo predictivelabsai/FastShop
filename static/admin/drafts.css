@@ -1,0 +1,17 @@
+/* Draft tools retain the shell's compact card spacing. */
+.a-shell .d-fields { display:grid; gap:12px; align-items:end; }
+.a-shell .d-fields label { display:grid; gap:6px; }
+.a-shell .d-fields form { margin:0; }
+.a-shell .d-line { display:flex; justify-content:space-between; align-items:center; gap:16px; border-bottom:1px solid var(--a-line); padding:12px 0; }
+.a-shell .d-line p { margin:0; }
+.a-shell [data-draft-editor] .a-card { margin-bottom:16px; }
+.a-shell [data-draft-editor] details { margin:12px 0; }
+.a-shell [data-draft-editor] summary { cursor:pointer; font-weight:600; }
+.a-shell [data-draft-editor] .d-fields + details { border-top:1px solid var(--a-line); padding-top:12px; }
+@media (max-width:600px) { .a-shell .d-line { flex-wrap:wrap; gap:8px; } .a-shell .d-fields button { width:100%; } }
+
+.a-shell .d-payment-row { display:flex; justify-content:space-between; gap:16px; padding:7px 0; }
+.a-shell .d-payment-row strong { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.a-shell .d-payment-total { border-top:1px solid var(--a-line); margin-top:6px; padding:14px 0; font-size:1.1rem; font-weight:650; }
+.a-shell .d-fields label.d-check { display:flex; align-items:center; gap:8px; line-height:1.4; }
+.a-shell .d-check input[type="checkbox"] { flex:0 0 auto; width:16px; height:16px; margin:0; }

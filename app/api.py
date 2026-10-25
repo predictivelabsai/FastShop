@@ -15,7 +15,14 @@ from sqlalchemy.orm import Session
 from app import __version__
 from app.config import settings
 from app.db import SessionLocal, health
-from app.models import Category, ProductVariant
+from app.models import (
+    Category,
+    ProductImage,
+    ProductOption,
+    ProductOptionValue,
+    ProductVariant,
+    VariantChannelListing,
+)
 from app.services import available_stock, money, product_by_slug, products, tenant_channel
 
 
@@ -39,6 +46,16 @@ class ProductSummary(BaseModel):
     currency: str
     formatted_price: str
     available: int
+    handle: str = ""
+    status: str = "active"
+    vendor: str = ""
+    product_type: str = ""
+    tags: list[str] = Field(default_factory=list)
+    description_html: str = ""
+    short_description: str = ""
+    seo_title: str = ""
+    seo_description: str = ""
+    metafields: dict = Field(default_factory=dict)
 
 
 class StockUpdate(BaseModel):
@@ -134,6 +151,16 @@ def list_products(
             currency=card.currency,
             formatted_price=money(card.price_minor, card.currency),
             available=card.available,
+            handle=card.product.slug,
+            status=card.product.status,
+            vendor=card.product.vendor,
+            product_type=card.product.product_type,
+            tags=card.product.tags_json,
+            description_html=card.product.description_html,
+            short_description=card.product.short_description,
+            seo_title=card.product.seo_title,
+            seo_description=card.product.seo_description,
+            metafields=product_metafields(session, card.product),
         )
         for card in products(session, query=q, category=category)
     ]
@@ -147,6 +174,11 @@ def get_product(slug: str, session: Session = Depends(get_session)) -> dict:
     _, channel = tenant_channel(session)
     variants = []
     for variant in product.variants:
+        if not variant.is_active:
+            continue
+        listing = session.scalar(select(VariantChannelListing).where(
+            VariantChannelListing.variant_id == variant.id,
+            VariantChannelListing.channel_id == channel.id))
         variants.append(
             {
                 "id": variant.id,
@@ -154,6 +186,13 @@ def get_product(slug: str, session: Session = Depends(get_session)) -> dict:
                 "name": variant.name,
                 "attributes": variant.attributes_json,
                 "available": available_stock(session, variant.id),
+                "barcode": variant.barcode,
+                "metafields": product_metafields(session, product, variant=variant),
+                "track_inventory": variant.track_inventory,
+                "continue_selling_when_out_of_stock": variant.continue_selling_when_out_of_stock,
+                "image_id": variant.image_id,
+                "price_minor": listing.price_minor if listing else None,
+                "compare_at_minor": listing.compare_at_minor if listing else None,
             }
         )
     return {
@@ -164,6 +203,36 @@ def get_product(slug: str, session: Session = Depends(get_session)) -> dict:
         "channel": channel.slug,
         "currency": channel.currency,
         "variants": variants,
+        "metafields": product_metafields(session, product),
+        "handle": product.slug,
+        "status": product.status,
+        "vendor": product.vendor,
+        "product_type": product.product_type,
+        "tags": product.tags_json,
+        "description_html": product.description_html,
+        "short_description": product.short_description,
+        "seo_title": product.seo_title,
+        "seo_description": product.seo_description,
+        "template": product.template,
+        "published_at": product.published_at,
+        "requires_shipping": product.requires_shipping,
+        "weight_grams": product.weight_grams,
+        "dimensions": product.dimensions_json,
+        "country_of_origin": product.country_of_origin,
+        "hs_code": product.hs_code,
+        "charge_tax": product.charge_tax,
+        "tax_code": product.tax_code,
+        "images": [{"id": image.id, "url": image.image_url, "alt": image.alt,
+                    "position": image.position} for image in session.scalars(
+                        select(ProductImage).where(ProductImage.tenant_id == product.tenant_id,
+                            ProductImage.product_id == product.id).order_by(ProductImage.position))],
+        "options": [{"name": option.name, "position": option.position,
+                     "values": list(session.scalars(select(ProductOptionValue.value).where(
+                         ProductOptionValue.tenant_id == product.tenant_id,
+                         ProductOptionValue.option_id == option.id).order_by(ProductOptionValue.position)))}
+                    for option in session.scalars(select(ProductOption).where(
+                        ProductOption.tenant_id == product.tenant_id,
+                        ProductOption.product_id == product.id).order_by(ProductOption.position))],
     }
 
 
@@ -193,3 +262,21 @@ def propose_stock_update(payload: StockUpdate, session: Session = Depends(get_se
         "current_available": available_stock(session, variant.id),
         "proposed_quantity": payload.quantity,
     }
+
+
+def product_metafields(db, product, *, variant=None):
+    """Site keys preserve isolation when a catalogue product appears in several sites."""
+    from sqlalchemy import or_
+
+    from app.custom_data import values
+    from app.models import Site, SitePage
+    sites = db.scalars(select(Site).where(Site.tenant_id == product.tenant_id,
+        or_(select(SitePage.id).where(SitePage.site_id == Site.id,
+            SitePage.tenant_id == product.tenant_id, SitePage.product_id == product.id).exists(),
+            select(VariantChannelListing.id).join(ProductVariant,
+                ProductVariant.id == VariantChannelListing.variant_id).where(
+                VariantChannelListing.channel_id == Site.channel_id,
+                ProductVariant.tenant_id == product.tenant_id,
+                ProductVariant.product_id == product.id).exists())).order_by(Site.slug))
+    kind, owner_id = ("variant", variant.id) if variant else ("product", product.id)
+    return {site.slug: values(db, site, kind, owner_id) for site in sites}

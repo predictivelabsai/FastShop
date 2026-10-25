@@ -17,8 +17,8 @@ def upgrade():
     columns = {column["name"] for column in inspect(bind).get_columns("site_commerce_settings")}
     additions = (
         ("live_accepted_at", Column("live_accepted_at", DateTime(timezone=True), nullable=True)),
-        ("live_accepted_by", Column("live_accepted_by", String(32), ForeignKey("users.id"), nullable=True)),
-        ("live_credential_id", Column("live_credential_id", String(32), ForeignKey("site_stripe_live_credentials.id"), nullable=True)),
+        ("live_accepted_by", Column("live_accepted_by", String(32), ForeignKey("users.id", name="fk_site_commerce_live_accepted_by"), nullable=True)),
+        ("live_credential_id", Column("live_credential_id", String(32), ForeignKey("site_stripe_live_credentials.id", name="fk_site_commerce_live_credential_id"), nullable=True)),
     )
     for name, column in additions:
         if name not in columns:

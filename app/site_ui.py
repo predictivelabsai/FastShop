@@ -38,6 +38,7 @@ from fasthtml.common import (
     Source,
     Span,
     Strong,
+    Style,
     Summary,
     Textarea,
     Title,
@@ -49,6 +50,13 @@ from app.content import catalog_product, site_pages
 from app.models import Category, Product, ProductVariant, SiteMedia, VariantChannelListing
 from app.services import money
 from app.site_blocks import default_locale, resolve_document
+from app.site_widgets import (
+    WIDGET_CSS,
+    decorate_block,
+    needs_widget_css,
+    render_widget,
+    strip_editor_hooks,
+)
 from app.ui import static_asset
 
 
@@ -154,6 +162,14 @@ def product_cards(db, site, base, category=""):
 
 
 def render_section(db, site, page, config, section, base, csrf, preview=False, first=False, *, blog_articles=None):
+    node = render_widget(db, site, page, config, section, base, csrf, preview,
+                         lambda child: render_section(db, site, page, config, child, base, csrf, preview))
+    if node is not None:
+        return node
+    return decorate_block(_render_section(db, site, page, config, section, base, csrf, preview, first, blog_articles=blog_articles), section, preview)
+
+
+def _render_section(db, site, page, config, section, base, csrf, preview=False, first=False, *, blog_articles=None):
     image = partial(owned_image, db, site)
     kind = section["type"]
     heading = section.get("heading", "")
@@ -261,7 +277,7 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
                     Label("Purchase option", Select(Option("One-time purchase", value="off", selected=True),
                         Option("Subscribe and save 10% · monthly", value="on"), name="subscription")) if subscription_enabled else None,
                     P("USD · " + ("Live checkout" if provider_mode == "live" else "Sandbox checkout") + ". Shipping and state-specific sales tax are calculated before payment."),
-                    P("Monthly delivery at 10% off merchandise. Skip, pause or cancel future deliveries in My account.") if subscription_enabled else None,
+                    P("Monthly delivery at 10% off merchandise.") if subscription_enabled else None,
                     Button("Add to bag", cls="h-button"), method="post", action=base + "/cart/add", cls="h-contact-form") if checkout_enabled and listing else None,
                 Label("Choose your option", Select(*[Option(v.name, value=v.id) for v in variants], aria_label="Choose your option")) if len(variants) > 1 and not checkout_enabled else None,
                 Div(Label(Input(type="radio", name="purchase", checked=True), " One-time purchase"),
@@ -271,7 +287,12 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
     return Section(intro, cta(section, base), cls="h-section h-container h-editorial")
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, message="", blog_listing=False, blog_category="", blog_tag=""):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag=""):
+    from app.site_theme import pack_renderer
+    config = site.settings_json if preview else site.published_settings_json
+    if renderer := pack_renderer(config or {}, "storefront"):
+        return renderer(db, site, page, base, csrf, canonical, preview=preview,
+                        editor=editor, message=message)
     from app.commerce import payments_enabled, settings_for
     from app.customer_services import consent_text
     from app.site_analytics import measurement_id
@@ -292,6 +313,11 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
     document = resolve_document(page.draft_json if preview else page.published_json, default_locale(site, preview=preview))
+    from app.custom_data import resolve_dynamic_document
+    from app.store_preferences import head_nodes
+    from app.store_preferences import metadata as preference_metadata
+    document = resolve_dynamic_document(db, site, page, document)
+    preferences = preference_metadata(db, site, page, document)
     from app.site_blog import articles_for, categories_for, category_slug, metadata
     blog = metadata(document)
     listing_articles = articles_for(db, site, preview=preview, category=blog_category, tag=blog_tag) if blog_listing else None
@@ -329,6 +355,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
     home = page.path == "/"
     def section_view(section, index):
         rendered = render_section(db, site, page, config, section, base, csrf, preview, index == 0, blog_articles=listing_articles)
+        if not editor:
+            strip_editor_hooks(rendered)
         if rendered is not None and section["id"] in anchor_ids:
             rendered.attrs["id"] = "block-" + section["id"]
         if preview and rendered is not None:
@@ -343,12 +371,14 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         Meta(property="og:title", content=document["title"]), Meta(property="og:description", content=document.get("description", "")),
         Meta(property="og:url", content=canonical), Link(rel="canonical", href=canonical),
         *head_snippets,
-        Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml"), Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
+        *head_nodes(db, site, preferences, preview=preview),
+        Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml") if not preferences or not preferences.favicon_id else None, Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
         Script(src=static_asset("site-analytics.js"), defer=True) if analytics_id else None,
         Script(src=static_asset("site-snippets.js"), defer=True) if has_gated_snippets else None,
         Script(NotStr(json.dumps(ga4_item)), type="application/json", id="h-ga4-item") if ga4_item else None,
         Link(rel="stylesheet", href=static_asset("site-theme.css")),
         Link(rel="stylesheet", href=static_asset("site-blog.css")) if blog_listing else None,
+        Style(NotStr(WIDGET_CSS)) if needs_widget_css(document["blocks"]) else None,
         Script(src=static_asset("site-preview.js"), defer=True) if preview else None,
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if customer_services_enabled and not preview else None,
@@ -360,7 +390,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
             Header(A(brand(), href=base + "/", cls="h-brand h-brand-dark"), A(brand(True), href=base + "/", cls="h-brand h-brand-light"),
                 Button("Menu", type="button", data_menu_toggle="", aria_expanded="false", aria_controls="site-navigation", cls="h-menu-toggle"),
                 Nav(*[Details(Summary("Shop"), Div(A("All products", href=url(base, "/shop")), *[A(category["label"], href=url(base, category["path"])) for category in config.get("collections", [])], cls="h-dropdown"), cls="h-shop-menu") if item["label"] == "Shop" and item["path"] == "/shop" and config.get("collections") else A(item["label"], href=url(base, item["path"])) for item in header_navigation], id="site-navigation", cls="h-nav"),
-                Div(A("Account", href=base + "/account", aria_label="My account") if customer_services_enabled else Button("Account", type="button", data_commerce_notice="", aria_label="My account — Phase 2"), A("Bag", href=base + "/cart", data_cart_open="") if customer_services_enabled else Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items — Phase 2"), cls="h-header-actions"), cls="h-header"),
+                Div(A("Account", href=base + "/account", aria_label="My account") if commerce_config and commerce_config.customer_accounts_enabled else None, A("Bag", href=base + "/cart", data_cart_open="") if customer_services_enabled else Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items · Phase 2"), cls="h-header-actions"), cls="h-header"),
             Div(message, role="status", cls="h-message") if message else None,
             Main(Div(Small(document.get("category", "LEARN"), cls="h-eyebrow"), H1(document["title"]),
                 P("By " + blog["author_name"] if blog["author_name"] else f"By {site.name} team · Draft for editorial review"),

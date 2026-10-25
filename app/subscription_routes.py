@@ -6,7 +6,7 @@ from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Option, P, S
 from fasthtml.core import FtResponse
 from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import RedirectResponse
 
 from app import (
     commerce,
@@ -14,6 +14,11 @@ from app import (
     subscription_payments,
     subscription_recovery,
     subscriptions,
+)
+from app.customer_accounts import (
+    CustomerAccountsUnavailable,
+    require_customer_accounts,
+    unavailable_response,
 )
 from app.db import SessionLocal
 from app.models import (
@@ -25,11 +30,14 @@ from app.models import (
 )
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
+from app.storefront_ui import commerce_page, public_message
 
 
 def register_subscription_routes(rt, csrf, check_csrf):
     def identity(db, session, slug):
         site = db.scalar(select(Site).where(Site.slug == slug))
+        if site:
+            require_customer_accounts(db, site)
         customer = customer_services.signed_in_customer(db, site, session) if site else None
         if not site or not customer:
             raise CommerceError("Sign in to manage your subscriptions.")
@@ -40,6 +48,8 @@ def register_subscription_routes(rt, csrf, check_csrf):
 
     def screen(site, request, title, *children):
         root = base(site, request)
+        if (rendered := commerce_page(site, request, title, *children)) is not None:
+            return FtResponse(rendered, headers={"Cache-Control": "private, no-store"})
         return FtResponse(platform_page(title, P(site.name + " · Powered by FastShop"), *children,
             navigation=[A("Store", href=root + "/"), A("My account", href=root + "/account"),
                 A("Subscriptions", href=root + "/account/subscriptions")], customer=True),
@@ -57,6 +67,8 @@ def register_subscription_routes(rt, csrf, check_csrf):
                     P("Status: " + row.state), P("Next scheduled date: " + row.next_due_at.strftime("%Y-%m-%d") + " UTC") if row.state == "active" else None,
                     P("Merchandise per delivery: " + money(sum(line["unit_minor"] * line["quantity"] for line in row.lines_json), "USD") + " + applicable shipping and tax"), cls="e-card") for row in rows],
                     P("No subscriptions yet.") if not rows else None)
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except CommerceError:
             return RedirectResponse("/sites/" + slug + "/account", status_code=303)
 
@@ -82,7 +94,7 @@ def register_subscription_routes(rt, csrf, check_csrf):
                     variants = db.scalars(select(ProductVariant).where(ProductVariant.product_id == line["product_id"],
                         ProductVariant.tenant_id == site.tenant_id, ProductVariant.is_active.is_(True))).all()
                     flavours.append(form("flavour", "Change flavour", Input(type="hidden", name="from_variant_id", value=line["variant_id"]),
-                        Label(line["name"] + " · " + str(line["quantity"]) + " per delivery",
+                        Label(line["name"].replace("\u2014", "·") + " · " + str(line["quantity"]) + " per delivery",
                             Select(*[Option(variant.name, value=variant.id, selected=variant.id == line["variant_id"]) for variant in variants], name="variant_id"))))
                 destination = contract.destination_json
                 recovery = subscription_recovery.pending(db, site, contract.id)
@@ -105,7 +117,7 @@ def register_subscription_routes(rt, csrf, check_csrf):
                         Label("Recipient's full name", Input(name="recipient_name", value=contract.recipient_name, required=True, maxlength=160)),
                         *address_fields, Label("State", Select(*[Option(label, value=code, selected=destination.get("state") == code) for code, label in commerce.US_STATES.items()], name="state")),
                         Input(type="hidden", name="country", value="US")), cls="e-card") if contract.state != "cancelled" else None,
-                    Div(H2("Payment"), P("Stripe securely stores your card. FastShop does not store card numbers. Updating your card does not automatically resume a paused subscription."),
+                    Div(H2("Payment"), P("Stripe securely stores your card. " + "FastShop does not store card numbers. " + "Updating your card does not automatically resume a paused subscription."),
                         form("payment", "Update payment method"),
                         *[P(A("Verify card update", href=root + "/payment/" + setup.id)) for setup in setups], cls="e-card") if contract.state != "cancelled" else None,
                     Div(H2("Recent deliveries"), *[P(cycle.due_at.strftime("%Y-%m-%d") + " · " + cycle.state) for cycle in cycles],
@@ -115,16 +127,18 @@ def register_subscription_routes(rt, csrf, check_csrf):
                             if not recovery and contract.state == "paused" and cycle.state == "failed" and cycle.due_at == contract.next_due_at],
                         P("No renewal deliveries yet.") if not cycles else None, cls="e-card"),
                     Div(H2("Cancel"), form("cancel", "Cancel subscription", Label(Input(type="checkbox", name="confirm_cancel", required=True), " Stop all future renewals")), cls="e-card") if contract.state != "cancelled" else None)
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except CommerceError:
-            return Response("Subscription not found.", status_code=404)
+            return public_message(request, slug, "Subscription not found.", status_code=404, plain=False)
 
     @rt("/sites/{slug}/account/subscriptions/{contract_id}/{action}", methods=["POST"])
     async def post(session, request, slug: str, contract_id: str, action: str):
         data = await request.form()
         try:
-            check_csrf(session, data)
             with SessionLocal() as db:
                 site, customer = identity(db, session, slug)
+                check_csrf(session, data)
                 root = base(site, request) + "/account/subscriptions/" + contract_id
                 if action in ("payment", "recover"):
                     site_id, customer_id = site.id, customer.id
@@ -149,6 +163,8 @@ def register_subscription_routes(rt, csrf, check_csrf):
                     str(data.get("cycle_id", "")), int(data.get("version", "0")), str(data.get("request_key", "")))
                 return RedirectResponse(request.scope.get("site_base", "/sites/" + slug) + "/checkout/" + attempt_id, status_code=303)
             return RedirectResponse(root, status_code=303)
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except (CommerceError, ValueError) as exc:
             return FtResponse(platform_page("Subscription needs attention", P(str(exc)),
                 A("Back to subscription", href=request.scope.get("site_base", "/sites/" + slug) + "/account/subscriptions/" + contract_id), navigation=[], customer=True),
@@ -157,10 +173,11 @@ def register_subscription_routes(rt, csrf, check_csrf):
     @rt("/sites/{slug}/account/subscriptions/{contract_id}/payment/{setup_id}", methods=["GET", "POST"])
     async def payment(session, request, slug: str, contract_id: str, setup_id: str):
         try:
-            if request.method == "POST":
-                check_csrf(session, await request.form())
+            data = await request.form() if request.method == "POST" else None
             with SessionLocal() as db:
                 site, customer = identity(db, session, slug)
+                if data is not None:
+                    check_csrf(session, data)
                 subscriptions.owned(db, site, customer.id, contract_id)
                 setup = db.scalar(select(SubscriptionPaymentSetup).where(SubscriptionPaymentSetup.id == setup_id,
                     SubscriptionPaymentSetup.site_id == site.id, SubscriptionPaymentSetup.tenant_id == site.tenant_id,
@@ -175,5 +192,7 @@ def register_subscription_routes(rt, csrf, check_csrf):
                 P("No payment is taken here. A browser return alone does not update your saved card."),
                 Form(csrf(session), Button("Verify card update", cls="e-button"), method="post", action=root + "/payment/" + setup_id) if state == "pending" else None,
                 A("Back to subscription", href=root))
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
         except CommerceError as exc:
-            return Response(str(exc), status_code=400)
+            return public_message(request, slug, exc, plain=False)

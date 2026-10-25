@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import sessionmaker
 
 from app import checkout_services as checkout
+from app import commerce
 from app import customer_services as customers
 from app.integrations.commerce_email import dispatch_mail, render_message
 from app.models import CommerceMail, MarketingConsent, ShipmentEvent, SiteOrder
@@ -26,9 +27,11 @@ def paid(r):
     return attempt, link, mail
 
 
-def test_confirmation_is_atomic_idempotent_and_independent_of_consent(ready):
+@pytest.mark.parametrize("accounts_enabled", [False, True])
+def test_confirmation_is_atomic_idempotent_and_independent_of_consent(ready, accounts_enabled):
     r = ready
     attempt, link, mail = paid(r)
+    commerce.settings_for(r.db, r.site).customer_accounts_enabled = accounts_enabled
     checkout.reconcile(r.db, r.site, attempt.id, r.gateway)
     assert customers.queue_order_mail(r.db, r.site, link).id == mail.id
     assert r.db.scalar(select(func.count(CommerceMail.id))) == 1
@@ -37,7 +40,10 @@ def test_confirmation_is_atomic_idempotent_and_independent_of_consent(ready):
     assert "Sandbox order confirmation" in subject
     assert "TEST ORDER" in body and "Powered by FastShop" in body
     assert "Sales tax: " + money(205, "USD") in body
-    assert "/account/orders/" + link.id in body and "#token=" not in body
+    assert ("/account/orders/" + link.id in body) == accounts_enabled
+    assert ("sign-in required" in body) == accounts_enabled
+    assert "#token=" not in body
+    assert "transactional message about your order, not a marketing subscription" in body
     assert mail.reference_json == {"site_order_id": link.id}
     r.db.rollback()
     assert r.db.scalar(select(func.count(CommerceMail.id))) == 0
@@ -84,9 +90,11 @@ def test_failed_order_settlement_cannot_leave_an_orphan_receipt(ready, monkeypat
     assert r.db.scalar(select(func.count(SiteOrder.id))) == 0
 
 
-def test_shipment_email_is_scoped_to_exact_event_and_order(ready):
+@pytest.mark.parametrize("accounts_enabled", [False, True])
+def test_shipment_email_is_scoped_to_exact_event_and_order(ready, accounts_enabled):
     r = ready
     _, link, _ = paid(r)
+    commerce.settings_for(r.db, r.site).customer_accounts_enabled = accounts_enabled
     event = ShipmentEvent(tenant_id=r.site.tenant_id, site_id=r.site.id, site_order_id=link.id,
         carrier="DHL", tracking_number="TEST123", status="in_transit", note="Test parcel update")
     r.db.add(event)
@@ -95,6 +103,10 @@ def test_shipment_email_is_scoped_to_exact_event_and_order(ready):
     assert customers.queue_order_mail(r.db, r.site, link, shipment=event).id == mail.id
     subject, body = render_message(r.db, mail, r.site, r.customer)
     assert "delivery update" in subject and "In Transit" in body and "TEST123" in body
+    assert "DHL" in body and "Test parcel update" in body
+    assert ("/account/orders/" + link.id in body) == accounts_enabled
+    assert ("sign-in required" in body) == accounts_enabled
+    assert "transactional message about your order, not a marketing subscription" in body
     event.site_id = "different-site"
     r.db.flush()
     assert render_message(r.db, mail, r.site, r.customer) is None

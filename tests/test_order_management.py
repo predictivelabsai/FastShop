@@ -17,6 +17,7 @@ from app.config import settings
 from app.integrations.stripe_commerce import StripeGateway
 from app.models import (
     Base,
+    CommerceMail,
     DemoCommand,
     DemoWorkspace,
     Membership,
@@ -237,6 +238,11 @@ def test_refund_is_bounded_exact_and_idempotent_through_mocked_transport(monkeyp
             assert db.scalar(select(func.count(PaymentTransaction.id)).where(
                 PaymentTransaction.kind == "refund"
             )) == 1
+            messages = list(db.scalars(select(CommerceMail).where(CommerceMail.kind == "refund")))
+            assert len(messages) == 1
+            assert messages[0].reference_json == {
+                "site_order_id": link.id, "refund_command_id": command.id,
+            }
         with pytest.raises(CommerceError, match="exceeds"):
             checkout_payments.refund(
                 w.site.id,
@@ -407,6 +413,13 @@ def test_order_routes_are_tenant_scoped_csrf_protected_and_prg():
     assert "FS-ROUTE-ORDER" in list_page.text and "FS-OTHER-ORDER" not in list_page.text
     assert client.get(f"/admin/sites/{site_id}/orders/{other_link_id}").status_code == 400
     detail = client.get(f"/admin/sites/{site_id}/orders/{link_id}")
+    for operation in ("fulfil", "refund", "return", "cancel"):
+        assert client.get(
+            f"/admin/sites/{site_id}/orders/{link_id}/actions/{operation}").status_code == 200
+        assert client.get(
+            f"/admin/sites/{site_id}/orders/{other_link_id}/actions/{operation}").status_code == 400
+    assert client.get(
+        f"/admin/sites/{site_id}/orders/{link_id}/actions/missing").status_code == 400
     form = {
         "csrf_token": "wrong",
         "expected_status": "unfulfilled",

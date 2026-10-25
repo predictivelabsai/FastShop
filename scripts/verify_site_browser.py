@@ -897,6 +897,8 @@ def main():
             for path in paths:
                 response = page.goto(args.base + "/sites/h24you" + path)
                 assert response.status == 200, path
+                assert page.locator('.h-header-actions a[href$="/account"]').count() == 0
+                assert page.locator(".h-header-actions").get_by_role("button", name="My account", exact=False).count() == 0
                 page.wait_for_load_state("networkidle")
                 assert page.locator("h1").count() == 1, path
                 assert page.locator('link[rel="canonical"]').count() == 1

@@ -76,7 +76,7 @@ def eligible_offer(db, site, customer, code):
     return offer
 
 
-def prepare(db, site, customer_id, selections, destination, gateway, *, request_key, code="", recipient_name="", subscription_consent=False, renewal_contract=None, recovery_cycle=None):
+def prepare(db, site, customer_id, selections, destination, gateway, *, request_key, code="", recipient_name="", subscription_consent=False, renewal_contract=None, recovery_cycle=None, shipping_rate_id=None, gift_card_code=""):
     """Atomically quote and reserve. Retrying the same command returns the same attempt.
 
     A savepoint prevents partially allocated stock even if the caller catches errors
@@ -86,11 +86,17 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
         raise CommerceError("Invalid checkout request key.")
     destination = commerce.address(destination)
     code = str(code).strip().upper()
-    fingerprint = hashlib.sha256(json.dumps({"customer": customer_id, "lines": selections,
+    request_payload = {"customer": customer_id, "lines": selections,
         "destination": destination, "code": code, "recipient_name": recipient_name,
         "subscription_consent": subscription_consent,
         "renewal_contract": renewal_contract.id if renewal_contract else None,
-        "recovery_cycle": recovery_cycle.id if recovery_cycle else None}, sort_keys=True).encode()).hexdigest()
+        "recovery_cycle": recovery_cycle.id if recovery_cycle else None}
+    if gift_card_code:
+        request_payload["gift_card_code"] = str(gift_card_code).strip().upper()
+    # Keep existing request keys replayable when no new delivery option is chosen.
+    if shipping_rate_id:
+        request_payload["shipping_rate_id"] = shipping_rate_id
+    fingerprint = hashlib.sha256(json.dumps(request_payload, sort_keys=True).encode()).hexdigest()
     with db.begin_nested():
         lock_site(db, site)
         previous = db.scalar(select(CheckoutAttempt).where(CheckoutAttempt.site_id == site.id,
@@ -111,12 +117,16 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
             CheckoutAttempt.state.in_(ACTIVE)))
         if pending:
             raise CommerceError("Resume or cancel your existing checkout before starting another.")
-        offer = eligible_offer(db, site, customer, code)
+        from app import discounts
+        discounts.bridge_vouchers(db, site)
+        growth_rule = discounts.code_rule(db, site, code) if code else None
+        offer = eligible_offer(db, site, customer, code) if not growth_rule else None
         config = commerce.settings_for(db, site)
         if not config:
             raise CommerceError("Commerce is not configured.")
         quote = commerce.quote_order(db, site, config, selections, destination, gateway,
-            first_order_discount=offer is not None)
+            first_order_discount=offer is not None, discount_code=code if growth_rule else "",
+            customer_email=customer.email, shipping_rate_id=shipping_rate_id)
         quote.snapshot_json = quote.snapshot_json | {"recipient_name": recipient_name or customer.name}
         if any(line["subscription"] for line in quote.snapshot_json["lines"]):
             from app.subscriptions import consent_snapshot
@@ -134,36 +144,48 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
                     quote.snapshot_json = quote.snapshot_json | {"recovery_cycle_id": recovery_cycle.id}
             else:
                 quote.snapshot_json = quote.snapshot_json | {"subscription_consent": consent_snapshot(subscription_consent)}
+        from app.gift_cards import apply_to_quote
+        apply_to_quote(db, site, customer, quote, gift_card_code)
         attempt = CheckoutAttempt(tenant_id=site.tenant_id, site_id=site.id, customer_id=customer.id,
             quote_id=quote.id, offer_id=offer.id if offer else None, request_key=request_key,
             request_hash=fingerprint, expires_at=datetime.now(UTC) + timedelta(minutes=35))
         db.add(attempt)
         db.flush()
-        quantities = Counter()
-        for line in quote.snapshot_json["lines"]:
-            quantities[line["variant_id"]] += line["quantity"]
-        # Lock the entire relevant stock set in stable primary-key order, not cart order.
-        stocks = db.scalars(select(Stock).join(Warehouse, Warehouse.id == Stock.warehouse_id)
-            .join(ProductVariant, ProductVariant.id == Stock.variant_id).where(
-                Warehouse.tenant_id == site.tenant_id, ProductVariant.tenant_id == site.tenant_id,
-                Warehouse.country_code == quote.snapshot_json["origin"]["country"],
-                Stock.variant_id.in_(quantities)).order_by(Stock.id).with_for_update(of=Stock)
-            .execution_options(populate_existing=True)).all()
-        for stock in stocks:
-            quantity = min(quantities[stock.variant_id], max(0, stock.quantity - stock.allocated))
-            if quantity:
-                changed = db.execute(update(Stock).where(Stock.id == stock.id,
-                    Stock.quantity - Stock.allocated >= quantity).values(allocated=Stock.allocated + quantity)
-                    .execution_options(synchronize_session="fetch"))
-                if changed.rowcount != 1:
-                    raise CommerceError("Inventory changed. Please retry checkout.")
-                db.add(InventoryReservation(tenant_id=site.tenant_id, site_id=site.id,
-                    attempt_id=attempt.id, stock_id=stock.id, quantity=quantity))
-                quantities[stock.variant_id] -= quantity
-        if any(quantities.values()):
-            raise CommerceError("There is not enough stock at the configured fulfilment origin.")
+        _reserve_snapshot(db, site, attempt, quote.snapshot_json)
         db.flush()
         return attempt
+
+
+def _reserve_snapshot(db, site, attempt, snapshot):
+    """Reserve a trusted snapshot with site lock held, locking stock in PK order."""
+    quantities = Counter()
+    backorders = set()
+    for line in snapshot["lines"]:
+        if line.get("track_inventory", True):
+            quantities[line["variant_id"]] += line["quantity"]
+            if line.get("continue_selling_when_out_of_stock", False):
+                backorders.add(line["variant_id"])
+    # Lock the entire relevant stock set in stable primary-key order, not cart order.
+    stocks = db.scalars(select(Stock).join(Warehouse, Warehouse.id == Stock.warehouse_id)
+        .join(ProductVariant, ProductVariant.id == Stock.variant_id).where(
+            Warehouse.tenant_id == site.tenant_id, ProductVariant.tenant_id == site.tenant_id,
+            Warehouse.country_code == snapshot["origin"]["country"],
+            Warehouse.is_active.is_(True), Warehouse.fulfils_online_orders.is_(True),
+            Stock.variant_id.in_(quantities)).order_by(Stock.id).with_for_update(of=Stock)
+        .execution_options(populate_existing=True)).all()
+    for stock in stocks:
+        quantity = min(quantities[stock.variant_id], max(0, stock.quantity - stock.allocated))
+        if quantity:
+            changed = db.execute(update(Stock).where(Stock.id == stock.id,
+                Stock.quantity - Stock.allocated >= quantity).values(allocated=Stock.allocated + quantity)
+                .execution_options(synchronize_session="fetch"))
+            if changed.rowcount != 1:
+                raise CommerceError("Inventory changed. Please retry checkout.")
+            db.add(InventoryReservation(tenant_id=site.tenant_id, site_id=site.id,
+                attempt_id=attempt.id, stock_id=stock.id, quantity=quantity))
+            quantities[stock.variant_id] -= quantity
+    if any(quantity for variant_id, quantity in quantities.items() if variant_id not in backorders):
+        raise CommerceError("There is not enough stock at the configured fulfilment origin.")
 
 
 def begin_provider(db, site, attempt_id):
@@ -264,16 +286,17 @@ def reconcile(db, site, attempt_id, gateway):
         return attempt
 
 
-def _paid_order(db, site, attempt, quote, provider):
+def _paid_order(db, site, attempt, quote, provider, *, manual=False):
     customer = db.scalar(select(ShopCustomer).where(ShopCustomer.id == attempt.customer_id,
         ShopCustomer.site_id == site.id, ShopCustomer.tenant_id == site.tenant_id))
     if not customer:
         raise CommerceError("Customer reconciliation is required.")
     order = Order(tenant_id=site.tenant_id, channel_id=site.channel_id,
-        number="FS-" + attempt.id.upper(), idempotency_key="stripe-" + attempt.id,
+        number="FS-" + attempt.id.upper(),
+        idempotency_key=("manual-" if manual else "stripe-") + attempt.id,
         email=customer.email, currency=quote.currency, subtotal_minor=quote.subtotal_minor,
         discount_minor=quote.discount_minor, shipping_minor=quote.shipping_minor,
-        tax_minor=quote.tax_minor, total_minor=quote.total_minor, payment_status="paid",
+        tax_minor=quote.tax_minor, total_minor=quote.snapshot_json.get("gross_total_minor", quote.total_minor), payment_status="paid",
         shipping_address_json=quote.snapshot_json["destination"] | {"name":
             attempt.provider_payload_json.get("customer", {}).get("shipping", {}).get("name", quote.snapshot_json.get("recipient_name") or customer.name)})
     db.add(order)
@@ -281,19 +304,26 @@ def _paid_order(db, site, attempt, quote, provider):
     for line in quote.snapshot_json["lines"]:
         variant = db.scalar(select(ProductVariant).where(ProductVariant.id == line["variant_id"],
             ProductVariant.tenant_id == site.tenant_id))
-        if not variant:
+        if not variant and not (manual and not line["variant_id"]):
             raise CommerceError("Purchased variant is missing; merchant reconciliation is required.")
-        db.add(OrderLine(order_id=order.id, variant_id=variant.id, sku=line.get("sku", variant.sku),
-            product_name=line["name"], variant_name=line.get("variant_name", variant.name), quantity=line["quantity"],
+        db.add(OrderLine(order_id=order.id, variant_id=variant.id if variant else None,
+            sku=line.get("sku", variant.sku if variant else ""),
+            product_name=line["name"], variant_name=line.get("variant_name", variant.name if variant else ""), quantity=line["quantity"],
             unit_price_minor=line["unit_minor"], total_minor=line["amount_minor"]))
     link = SiteOrder(tenant_id=site.tenant_id, site_id=site.id, order_id=order.id,
         customer_id=customer.id, quote_id=quote.id, stripe_checkout_id=attempt.stripe_session_id)
     db.add(link)
     db.flush()
+    from app.discounts import redeem
+    redeem(db, site, order, quote.snapshot_json.get("discounts", []))
+    from app.gift_cards import redeem as redeem_gift_card
+    redeem_gift_card(db, site, order, quote)
     from app.customer_services import queue_order_mail
     queue_order_mail(db, site, link)
-    db.add(PaymentTransaction(order_id=order.id, provider="stripe:" + site.id,
-        external_id=provider["payment_intent"], status="succeeded", currency=quote.currency,
+    db.add(PaymentTransaction(order_id=order.id,
+        provider=("manual:" if manual else "stripe:") + site.id,
+        external_id=provider["external_id"] if manual else provider["payment_intent"],
+        status="succeeded", currency=quote.currency,
         amount_minor=quote.total_minor))
     if attempt.offer_id:
         offer = db.scalar(select(CustomerOffer).where(CustomerOffer.id == attempt.offer_id,
@@ -308,5 +338,78 @@ def _paid_order(db, site, attempt, quote, provider):
     # Allocated stock remains committed until fulfilment, as in the existing order model.
     db.add(OutboxEvent(tenant_id=site.tenant_id, topic="order.confirmed", aggregate_id=order.id,
         payload_json={"order_id": order.id, "site_id": site.id, "currency": quote.currency,
-            "total_minor": quote.total_minor}))
+            "total_minor": order.total_minor}))
     attempt.order_id, attempt.state = order.id, "paid"
+    db.flush()
+    return link
+
+
+def complete_manual_order(db, site, customer_id, snapshot, *, request_key, currency,
+                          subtotal_minor, discount_minor, shipping_minor):
+    """Record an admin-confirmed offline payment through checkout stock/finalisation.
+
+    There is deliberately no hosted payment session or provider impersonation.
+    The caller supplies an already validated merchant draft snapshot.
+    """
+    from app.catalog_admin import _ensure_transaction
+    if not isinstance(request_key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", request_key):
+        raise CommerceError("Invalid manual order request key.")
+    if (not re.fullmatch(r"[A-Z]{3}", str(currency)) or
+            any(type(amount) is not int or not 0 <= amount <= 1_000_000_000_000
+                for amount in (subtotal_minor, discount_minor, shipping_minor)) or
+            discount_minor > subtotal_minor):
+        raise CommerceError("Invalid manual order amounts or currency.")
+    if (not isinstance(snapshot, dict) or not isinstance(snapshot.get("lines"), list) or
+            not 1 <= len(snapshot["lines"]) <= 50 or
+            not isinstance(snapshot.get("destination"), dict) or
+            not isinstance(snapshot.get("origin"), dict) or "country" not in snapshot["origin"]):
+        raise CommerceError("Invalid manual order snapshot.")
+    for line in snapshot["lines"]:
+        if (not isinstance(line, dict) or type(line.get("quantity")) is not int or
+                not 1 <= line["quantity"] <= 999 or
+                type(line.get("unit_minor")) is not int or line["unit_minor"] < 0 or
+                type(line.get("amount_minor")) is not int or line["amount_minor"] < 0 or
+                not isinstance(line.get("name"), str) or not line["name"].strip() or
+                "variant_id" not in line):
+            raise CommerceError("Invalid manual order line.")
+    if (sum(line["quantity"]*line["unit_minor"] for line in snapshot["lines"]) != subtotal_minor or
+            sum(line["amount_minor"] for line in snapshot["lines"]) != subtotal_minor-discount_minor):
+        raise CommerceError("Manual order line amounts do not match the order total.")
+    _ensure_transaction(db)
+    fingerprint = hashlib.sha256(json.dumps({"customer": customer_id, "snapshot": snapshot,
+        "currency": currency, "subtotal": subtotal_minor, "discount": discount_minor,
+        "shipping": shipping_minor}, sort_keys=True).encode()).hexdigest()
+    with db.begin_nested():
+        lock_site(db, site)
+        previous = db.scalar(select(CheckoutAttempt).where(
+            CheckoutAttempt.tenant_id == site.tenant_id, CheckoutAttempt.site_id == site.id,
+            CheckoutAttempt.request_key == request_key).with_for_update())
+        if previous:
+            if previous.request_hash != fingerprint:
+                raise CommerceError("This draft completion key was used for different details.")
+            link = db.scalar(select(SiteOrder).where(SiteOrder.tenant_id == site.tenant_id,
+                SiteOrder.site_id == site.id, SiteOrder.order_id == previous.order_id))
+            if not link:
+                raise CommerceError("Draft completion requires reconciliation.")
+            return link
+        customer = db.scalar(select(ShopCustomer).where(ShopCustomer.id == customer_id,
+            ShopCustomer.site_id == site.id, ShopCustomer.tenant_id == site.tenant_id,
+            ShopCustomer.is_active.is_(True)).with_for_update())
+        if not customer:
+            raise CommerceError("Choose an active customer before completing this draft.")
+        quote = CommerceQuote(tenant_id=site.tenant_id, site_id=site.id,
+            fingerprint=fingerprint, provider_id="manual-admin", currency=currency,
+            subtotal_minor=subtotal_minor, discount_minor=discount_minor,
+            shipping_minor=shipping_minor, tax_minor=0,
+            total_minor=subtotal_minor-discount_minor+shipping_minor,
+            expires_at=datetime.now(UTC)+timedelta(minutes=35), snapshot_json=snapshot)
+        db.add(quote)
+        db.flush()
+        attempt = CheckoutAttempt(tenant_id=site.tenant_id, site_id=site.id,
+            customer_id=customer.id, quote_id=quote.id, request_key=request_key,
+            request_hash=fingerprint, expires_at=quote.expires_at,
+            provider_payload_json={"payment_method": "manual", "source": "admin_draft"})
+        db.add(attempt)
+        db.flush()
+        _reserve_snapshot(db, site, attempt, snapshot)
+        return _paid_order(db, site, attempt, quote, {"external_id": request_key}, manual=True)

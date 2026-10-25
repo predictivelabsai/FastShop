@@ -222,3 +222,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.dispatch/
+.dispatch-done
+
+# Local verification artefacts and generated session keys
+/.sesskey
+/_admin_v2_test_isolation.py
+/output/playwright/admin-v2/final/*failure*.png
+/output/playwright/admin-v2/final/review-*.png

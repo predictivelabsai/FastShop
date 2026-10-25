@@ -7,6 +7,7 @@ from starlette.responses import RedirectResponse
 
 from app import content, site_snippets
 from app import site_builder_services as builder
+from app.admin_ui import empty_state
 from app.db import SessionLocal
 from app.services import CommerceError
 from app.site_blocks import default_locale, merge_localized, resolve_text
@@ -65,7 +66,7 @@ def register_snippet_routes(rt, actor, csrf, check_csrf, shell, error):
                             action=f"/admin/sites/{site.id}/snippets/{placement}",
                             cls="e-form",
                         ),
-                        cls="e-card",
+                        cls="e-card", id="snippet-" + placement,
                     ))
                 return shell(
                     "Snippets — " + site.name,
@@ -75,6 +76,9 @@ def register_snippet_routes(rt, actor, csrf, check_csrf, shell, error):
                     P("Executable scripts stay inert until the matching analytics or marketing consent is granted. Snippets never run in draft previews, preview-status sites, checkout, payment, cart, or account pages.", cls="e-note"),
                     P("URLs in snippet attributes must use HTTPS. Mailto is allowed only for links. Structural document tags, inline event handlers, javascript URLs, and iframe srcdoc are rejected."),
                     P(notice, role="status", cls="e-note") if notice else None,
+                    empty_state("No snippets saved",
+                        "Add custom markup to a placement below, then save a draft before publishing.",
+                        A("Add snippet", href="#snippet-head", cls="e-button")) if not saved else None,
                     *cards,
                 )
         except CommerceError as exc:

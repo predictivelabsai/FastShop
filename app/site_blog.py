@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -20,17 +21,25 @@ def taxonomy_slug(name):
 
 
 def validate_blog(value):
-    if not isinstance(value, dict) or set(value) - {"state", "category_slug", "tags", "author_name", "author_bio"}:
+    if not isinstance(value, dict) or set(value) - {"state", "category_slug", "tags", "author_name", "author_bio", "publish_at", "excerpt"}:
         raise CommerceError("Choose supported article metadata fields.")
-    result = {"state": "draft", "category_slug": "", "tags": [], "author_name": "", "author_bio": ""} | value
+    result = {"state": "draft", "category_slug": "", "tags": [], "author_name": "", "author_bio": "", "publish_at": "", "excerpt": ""} | value
     if result["state"] not in STATES:
         raise CommerceError("Choose draft, published or archived editorial state.")
-    for key, limit in (("author_name", 160), ("author_bio", 2000), ("category_slug", 80)):
+    for key, limit in (("author_name", 160), ("author_bio", 2000), ("category_slug", 80), ("publish_at", 40), ("excerpt", 1000)):
         if not isinstance(result[key], str) or len(result[key]) > limit:
             raise CommerceError(f"{key} must be text of at most {limit} characters.")
         result[key] = result[key].strip()
     if result["category_slug"] and not SLUG.fullmatch(result["category_slug"]):
         raise CommerceError("Category slugs use lowercase letters, numbers and hyphens.")
+    if result["publish_at"]:
+        try:
+            moment = datetime.fromisoformat(result["publish_at"])
+            if moment.tzinfo is None:
+                raise ValueError
+            result["publish_at"] = moment.astimezone(UTC).isoformat()
+        except ValueError:
+            raise CommerceError("Choose a publication time with a UTC offset.") from None
     tags = result["tags"]
     if not isinstance(tags, list) or len(tags) > 20 or any(not isinstance(t, str) or len(t) > 80 or not SLUG.fullmatch(t) for t in tags):
         raise CommerceError("Use up to 20 tag slugs: lowercase letters, numbers and hyphens.")
@@ -44,7 +53,11 @@ def metadata(document):
 
 def is_listed(page, *, preview=False):
     document = page.draft_json if preview else page.published_json
-    return page.kind == "article" and bool(document) and metadata(document)["state"] == "published"
+    if page.kind != "article" or not document:
+        return False
+    blog = metadata(document)
+    return blog["state"] == "published" and (preview or not blog["publish_at"] or
+        datetime.fromisoformat(blog["publish_at"]) <= datetime.now(UTC))
 
 
 def categories_for(db, site):
