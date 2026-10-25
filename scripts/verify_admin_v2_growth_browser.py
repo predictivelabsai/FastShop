@@ -89,7 +89,7 @@ def seed_store(device):
             {"version": 1, "title": "Our story", "blocks": [{"id": "story", "type": "text",
                 "heading": "Made for every day", "body": "Useful essentials, thoughtfully chosen."}]})
         page.published_json = page.draft_json
-        site_menus.put_menu(db, site, "main", [
+        site_menus.put_menu(db, site, "header", [
             {"id": "story", "kind": "page", "label": "Our story", "path": page.path},
             {"id": "shop", "kind": "page", "label": "Canvas tote", "path": product_page.path},
             {"id": "home", "kind": "page", "label": "Home", "path": "/"}], publish=True)
@@ -184,8 +184,11 @@ def verify_discounts(page, browser, base, fixture, device):
 def verify_content(page, prefix, fixture, device):
     content_root = prefix + "/content"
     page.goto(content_root + "/pages")
+    capture(page, device, "content-pages")
     page.get_by_role("link", name="Our story", exact=True).click()
     expect(page.locator("#editor-canvas")).to_be_visible()
+    expect(page.locator("#editor-canvas").content_frame.get_by_text(
+        "Made for every day", exact=True)).to_be_visible()
     capture(page, device, "page-editor")
     page.goto(content_root + "/files")
     form = page.locator('form[enctype="multipart/form-data"]')
@@ -209,15 +212,20 @@ def verify_content(page, prefix, fixture, device):
     page.get_by_label("Tags", exact=True).fill("canvas, everyday")
     page.get_by_label("SEO description", exact=True).fill("Meet the Northfield everyday canvas tote.")
     page.get_by_role("combobox", name="Featured image", exact=True).select_option(index=1)
+    capture(page, device, "blog-post-new")
     page.get_by_role("button", name="Publish", exact=True).click()
     expect(page.get_by_role("row").filter(has_text="A useful everyday companion")).to_contain_text("Published")
     capture(page, device, "blog-posts")
     page.goto(content_root + "/menus")
-    form = page.locator('[data-menu-form]').filter(has=page.locator('input[name="name"][value="main"]'))
+    form = page.locator('[data-menu-form]').filter(has=page.locator('input[name="name"][value="header"]'))
     root = form.locator(':scope > .gc-tree')
     items = root.locator(':scope > li')
     first, second = items.nth(0), items.nth(1)
-    first.drag_to(second, target_position={"x": 15, "y": 60})
+    target_box = second.bounding_box()
+    assert target_box
+    first.get_by_role("button", name="Drag Our story", exact=True).drag_to(
+        second, target_position={"x": 10, "y": target_box["height"] - 3})
+    expect(items.nth(0).get_by_label("Link label", exact=True)).to_have_value("Canvas tote")
     # The accessible alternative exercises the same tree serializer on mobile.
     items.nth(1).get_by_role("button", name="Nest", exact=True).first.click()
     expect(root.locator(':scope > li > ol > li')).to_have_count(1)
