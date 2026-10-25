@@ -639,7 +639,9 @@ def newsletter(shell, base, csrf, identity, enabled):
         ),
         Label(
             Input(type="checkbox", name="marketing_consent", required=True, disabled=not enabled),
-            Span(offer["consent"] + " ", A(offer["privacyLabel"], href=offer["privacyHref"]), "."),
+            Span(offer["consent"] + " ",
+                 A(offer["privacyLabel"], href=url(base, offer["privacyHref"]))
+                 if offer["privacyHref"] not in {"", "#", "/#"} else Span(offer["privacyLabel"]), "."),
             cls="liquid-consent",
         ),
         Input(name="website", tabindex="-1", autocomplete="off", hidden=True),
@@ -863,7 +865,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         *[
                             A(s["label"], href=url(base, s["href"]))
                             for s in footer["links"]
-                            if s["href"] != "/shop"
+                            if s["href"] not in {"/shop", "", "#", "/#"}
                         ],
                         H3(footer["helpTitle"]),
                         *[
@@ -890,7 +892,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                                     href=s["href"],
                                     aria_label=site.name + " on " + s["label"],
                                 )
-                                for s in footer["social"]
+                                for s in footer["social"] if s["href"] not in {"", "#", "/#"}
                             ],
                             cls="liquid-socials",
                         ),

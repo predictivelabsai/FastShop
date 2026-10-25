@@ -187,7 +187,8 @@ def render_support(b, base, csrf, enabled, *, message=''):
                 autocomplete='off'), cls='contact-honeypot', aria_hidden='true'),
             Button('Send message', type='submit', disabled=not enabled, cls='bg-metal-sheen why-final-btn contact-submit'),
             P("We'll only use your details to answer your message. See our ",
-              A('Privacy policy', href='#' if b['link'] == '/#' else href(base, b['link'])), '.', cls='contact-privacy'),
+              A('Privacy policy', href=href(base, b['link'])) if b['link'] not in {'', '#', '/#'}
+              else Span('Privacy policy'), '.', cls='contact-privacy'),
             action=base + '/contact', method='post', cls='contact-form', data_liquid_contact=True)
         return Div(Div(P(b['eyebrow'], cls='why-label'), H1(b['heading'], cls='font-display'),
             P(b['body'], cls='contact-text'), cls='contact-intro'),

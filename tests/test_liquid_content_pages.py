@@ -130,6 +130,7 @@ def test_every_internal_site_link_and_fragment_resolves(client):
         response = browser.get(BASE + path)
         assert response.status_code == 200, path
         seen[BASE + path] = Links(response.text)
+        assert not {"#", BASE + "/#"} & set(seen[BASE + path].links), path
     for markup in list(seen.values()):
         for link in markup.links:
             path, fragment = urldefrag(link)
@@ -143,6 +144,21 @@ def test_every_internal_site_link_and_fragment_resolves(client):
                 assert fragment in seen[path].ids, link
     redirect = browser.get(BASE + "/4", follow_redirects=False)
     assert redirect.status_code == 301 and redirect.headers["location"] == BASE + "/"
+
+
+def test_newsletter_uses_a_configured_policy_destination():
+    from fasthtml.common import to_xml
+
+    from app.site_seed_liquid import CONTENT as SHELL
+    from app.site_ui_liquid import newsletter
+
+    shell = copy.deepcopy(SHELL)
+    shell["offer"]["privacyHref"] = "/pages/privacy-policy"
+    markup = str(to_xml(newsletter(shell, BASE, "csrf", "test-email", False)))
+    assert BASE + "/pages/privacy-policy" in Links(markup).links
+    shell["offer"]["privacyHref"] = "#"
+    markup = str(to_xml(newsletter(shell, BASE, "csrf", "test-email", False)))
+    assert "#" not in Links(markup).links
 
 
 @pytest.mark.parametrize("state", ["sent", "failed", "awaiting_configuration"])
