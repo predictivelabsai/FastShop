@@ -20,6 +20,7 @@ from pathlib import Path
 import verify_admin_v2_browser as foundation
 import verify_admin_v2_catalog_browser as catalogue
 import verify_admin_v2_editor_browser as editor
+import verify_admin_v2_gaps_browser as gaps
 import verify_admin_v2_growth_browser as growth
 import verify_admin_v2_orders_browser as orders
 from playwright.sync_api import Error, expect, sync_playwright
@@ -669,6 +670,10 @@ def main():
                         browser.assert_clean()
                         print(device + ": growth, roles and Liquid shopper passed", flush=True)
                         context.close()
+                        gap_fixture = gaps.seed_store("all-" + device)
+                        results.append(gaps.journey(browser, base, gap_fixture, device, width, height))
+                        browser.assert_clean()
+                        print(device + ": all ten functional gaps passed", flush=True)
                     editor.journey(browser, base, *editor_fixture)
                     results.append("visual editor: drag, nesting, inline, styling, undo/redo, save, publish, restore")
                     browser.assert_clean()

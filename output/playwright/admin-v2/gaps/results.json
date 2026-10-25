@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "journeys": [
+    {
+      "device": "desktop",
+      "features": 10
+    },
+    {
+      "device": "mobile",
+      "features": 10
+    }
+  ],
+  "browser_errors": [],
+  "server_errors": [],
+  "screenshots": "C:\\Users\\Joosep\\h24you\\fastshop-admin-editor\\output\\playwright\\admin-v2\\gaps",
+  "count": 36,
+  "isolation": "Disposable SQLite; local tax double; sandbox gift tender; no provider calls"
+}
