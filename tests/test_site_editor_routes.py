@@ -1,4 +1,6 @@
 """Security and persistence contracts for the visual editor's JSON surface."""
+
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -348,3 +350,16 @@ def test_editor_cannot_publish_draft_design(workspace):
         site = db.get(Site, w.site.id)
         assert site.published_settings_json == before and site.version == version
         assert db.get(SitePage, w.page.id).published_json is None
+
+
+@pytest.mark.parametrize("body", [[], [1], None, "text", 42, True])
+@pytest.mark.parametrize("path,method", [
+    ("/draft", "put"), ("/render", "post"), ("/publish", "post"),
+    ("/restore", "post"), ("/revisions/missing/restore", "post"), ("/theme-settings", "put"),
+])
+def test_editor_json_endpoints_reject_non_objects(workspace, body, path, method):
+    w = workspace
+    result = getattr(w.client, method)(w.base + path, content=json.dumps(body),
+        headers=w.headers | {"Content-Type": "application/json"})
+    assert result.status_code == 422
+    assert result.json()["error"] == "Send a JSON object."
