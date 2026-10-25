@@ -151,6 +151,9 @@ def run_cycle(site_id, cycle_id, *, sessions=SessionLocal, gateway_factory=Strip
         checkout.lock_site(db, site)
         cycle, contract, attempt, quote = load_cycle(db, site, cycle_id)
         gateway = make_gateway(gateway_factory, site, db)
+        if (quote.snapshot_json.get("local_tax") and cycle.state != "paid"
+                and commerce.payment_mode(db, site) == "live"):
+            raise CommerceError("Merchant tax rates cannot be used for a live renewal. Request a new Stripe Tax quote.")
         if cycle.state in ("failed", "cancelled", "recovered"):
             return cycle.state
         if cycle.state == "paid":
@@ -220,6 +223,19 @@ def record_tax(site_id, cycle_id, *, sessions=SessionLocal, gateway_factory=Stri
         checkout.lock_site(db, site)
         cycle, contract, attempt, quote = load_cycle(db, site, cycle_id)
         if cycle.state != "paid" or cycle.tax_transaction_id:
+            return
+        if quote.snapshot_json.get("local_tax"):
+            # The provider calculation was deliberately overridden in sandbox.
+            # Never turn that stale calculation into a Stripe tax transaction.
+            # A distinct ledger reference also removes the cycle from retry work.
+            cycle.tax_transaction_id = "sandbox_local_" + quote.id
+            db.add(SubscriptionEvent(tenant_id=site.tenant_id, site_id=site.id,
+                customer_id=contract.customer_id, contract_id=contract.id,
+                request_key="local-tax-" + cycle.id, request_hash=quote.fingerprint,
+                action="sandbox_tax_recorded", details_json={"cycle_id": cycle.id,
+                    "quote_id": quote.id, "tax_minor": quote.tax_minor,
+                    "local_tax": quote.snapshot_json["local_tax"], "provider_transaction": False}))
+            db.commit()
             return
         gateway = make_gateway(gateway_factory, site, db)
         calculation_id = quote.provider_id

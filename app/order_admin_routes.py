@@ -50,9 +50,12 @@ def register_order_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                                 status_code=303)
 
     def filters_for(request):
-        return {key: request.query_params.get(key, "") for key in (
+        filters = {key: request.query_params.get(key, "") for key in (
             "view", "q", "payment", "fulfilment", "start", "end", "tag", "channel", "sort", "page", "per_page")
                 if request.query_params.get(key, "")}
+        if "fulfilment" not in filters and request.query_params.get("status_filter"):
+            filters["fulfilment"] = request.query_params["status_filter"]
+        return filters
 
     @rt("/admin/sites/{site_id}/orders/export", methods=["GET"])
     def get(session, request, site_id: str):

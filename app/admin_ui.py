@@ -170,9 +170,9 @@ def nav_section(path):
         "": "Home", "orders": "Orders", "drafts": "Orders", "abandoned-checkouts": "Orders",
         "deliveries": "Orders", "products": "Products", "collections": "Products",
         "inventory": "Products", "customers": "Customers", "discounts": "Discounts",
-        "pages": "Content", "blog-posts": "Content", "menus": "Content", "media": "Content",
+        "pages": "Content", "blog-posts": "Content", "menus": "Content", "media": "Content", "content": "Content",
         "snippets": "Content", "reviews": "Content", "placeholders": "Content", "inbox": "Content",
-        "revenue": "Analytics", "integrations": "Marketing/Integrations",
+        "revenue": "Analytics", "analytics": "Analytics", "integrations": "Marketing/Integrations", "subscriptions": "Products",
         "build": "Online Store", "samples": "Online Store", "editor": "Online Store",
         "preferences": "Online Store", "settings": "Settings", "commerce": "Settings",
         "golive": "Settings", "live-credentials": "Settings", "billing": "Settings",
@@ -189,16 +189,14 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         return A(icon(label) if primary else None, Span(label), href=href,
                  cls="a-nav-link" + (" is-active" if selected else ""),
                  aria_current="page" if selected else None)
-    def coming(key):
-        return base + "/coming-soon/" + key
     groups = [
         ("Home", base, []),
         ("Orders", base + "/orders", [("Drafts", base + "/drafts"), ("Abandoned checkouts", base + "/abandoned-checkouts")]),
-        ("Products", base + "/products", [("Collections", base + "/collections"), ("Inventory", base + "/inventory")]),
+        ("Products", base + "/products", [("Collections", base + "/collections"), ("Inventory", base + "/inventory"), ("Subscriptions", base + "/subscriptions")]),
         ("Customers", base + "/customers", []),
-        ("Discounts", coming("discounts"), []),
-        ("Content", base + "/pages", [("Pages", base + "/pages"), ("Blog posts", coming("blog-posts")), ("Menus", base + "/menus"), ("Files", base + "/media")]),
-        ("Analytics", base + "/revenue", []),
+        ("Discounts", base + "/discounts", []),
+        ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files")]),
+        ("Analytics", base + "/analytics", []),
         ("Marketing/Integrations", base + "/integrations", []),
         ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Preferences", base + "/settings/general")]),
     ]

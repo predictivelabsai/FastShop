@@ -165,12 +165,26 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                             daily[index] += order.total_minor
                 tasks = []
                 if manager:
+                    from app.discounts import status
+                    from app.models import Discount, SubscriptionContract
+                    active_discounts = sum(status(rule) == "Active" for rule in db.scalars(
+                        select(Discount).where(Discount.tenant_id == site.tenant_id,
+                                               Discount.site_id == site.id)))
+                    if active_discounts:
+                        tasks.append((f"{active_discounts} active discounts", prefix + "/discounts"))
+                    due_subscriptions = db.scalar(select(func.count()).select_from(
+                        SubscriptionContract).where(SubscriptionContract.site_id == site.id,
+                            SubscriptionContract.tenant_id == site.tenant_id,
+                            SubscriptionContract.state == "active",
+                            SubscriptionContract.next_due_at <= datetime.now(UTC) + timedelta(days=7)))
+                    if due_subscriptions:
+                        tasks.append((f"{due_subscriptions} subscriptions due within 7 days", prefix + "/subscriptions"))
                     unfulfilled = sum(order.status == "unfulfilled" for _, order, _ in rows)
                     pending = db.scalar(select(func.count()).select_from(RefundCommand).where(
                         RefundCommand.site_id == site.id, RefundCommand.tenant_id == site.tenant_id,
                         RefundCommand.state.in_(order_management.REFUND_STATES_HOLDING_FUNDS)))
                     if unfulfilled:
-                        tasks.append((f"{unfulfilled} {'order' if unfulfilled == 1 else 'orders'} to fulfil", prefix + "/orders?status_filter=unfulfilled"))
+                        tasks.append((f"{unfulfilled} {'order' if unfulfilled == 1 else 'orders'} to fulfil", prefix + "/orders?fulfilment=unfulfilled"))
                     if pending:
                         tasks.append((f"{pending} {'refund' if pending == 1 else 'refunds'} pending", prefix + "/orders"))
                 if manager:
@@ -248,15 +262,15 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                 entries = [
                     ("General", "/settings/general", "Store details and preferences"),
                     ("Plan and billing", "/settings/billing", "Your plan, usage and billing"),
-                    ("Users and permissions", "/coming-soon/users", "Staff access and roles"),
-                    ("Payments", "/commerce", "Payment providers and commerce mode"),
-                    ("Checkout", "/commerce", "Checkout and customer accounts"),
-                    ("Shipping and delivery", "/commerce", "Destinations and delivery settings"),
-                    ("Taxes and duties", "/commerce", "Tax configuration and previews"),
-                    ("Notifications", "/customers", "Customer email and delivery status"),
-                    ("Domains", "/golive", "Domain and go-live checks"),
+                    ("Users and permissions", "/settings/users", "Staff access and roles"),
+                    ("Payments", "/settings/payments", "Payment providers and commerce mode"),
+                    ("Checkout", "/settings/checkout", "Checkout and customer accounts"),
+                    ("Shipping and delivery", "/settings/shipping", "Destinations and delivery settings"),
+                    ("Taxes and duties", "/settings/taxes", "Tax configuration and previews"),
+                    ("Notifications", "/settings/notifications", "Customer email and delivery status"),
+                    ("Domains", "/settings/domains", "Domain and go-live checks"),
                     ("Integrations", "/integrations", "Connect services to your store"),
-                    ("Policies", "/coming-soon/policies", "Store and customer policies"),
+                    ("Policies", "/settings/policies", "Store and customer policies"),
                 ]
                 return shell("Settings", Div(
                     Div(Label("Find a setting", Input(type="search", placeholder="Search settings",
@@ -289,6 +303,12 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
+                destinations = {"discounts": "/discounts", "blog": "/content/blog-posts",
+                    "blog-posts": "/content/blog-posts", "users": "/settings/users",
+                    "policies": "/settings/policies", "notifications": "/settings/notifications"}
+                if feature in destinations:
+                    from starlette.responses import RedirectResponse
+                    return RedirectResponse(f"/admin/sites/{site.id}" + destinations[feature], status_code=303)
                 title = FEATURES.get(feature, feature.replace("-", " ").capitalize()[:80])
                 return shell(title, empty_state("Coming in this release",
                     f"{title} is being prepared for your store. Your existing tools are ready to use.",

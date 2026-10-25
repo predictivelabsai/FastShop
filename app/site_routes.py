@@ -191,6 +191,14 @@ def register_site_routes(rt):
 
     from app.admin_routes import register_admin_routes
     register_admin_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.discount_routes import register_discount_routes
+    register_discount_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.growth_content_routes import register_growth_content_routes
+    register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.growth_reports_routes import register_growth_reports_routes
+    register_growth_reports_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.growth_settings_routes import register_growth_settings_routes
+    register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error)
 
     @rt("/admin/sites", methods=["GET"])
     def get(session, notice: str = ""):

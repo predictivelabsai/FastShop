@@ -50,6 +50,8 @@ def test_index_filters_pagination_export_and_scope(web):
     assert w.order.number not in w.client.get(w.base + "?q=missing-order").text
     assert w.order.number in w.client.get(w.base + "?q=ORDER-SKU&per_page=1&page=1").text
     assert w.order.number not in w.client.get(w.base + "?payment=pending").text
+    assert w.order.number not in w.client.get(w.base + "?fulfilment=fulfilled").text
+    assert w.order.number not in w.client.get(w.base + "?status_filter=fulfilled").text
     exported = w.client.get(w.base + "/export?q=ORDER-SKU")
     assert exported.status_code == 200 and w.order.number in exported.text
     assert "attachment" in exported.headers["content-disposition"]

@@ -17,6 +17,7 @@ from app.config import settings
 from app.integrations.stripe_commerce import StripeGateway
 from app.models import (
     Base,
+    CommerceMail,
     DemoCommand,
     DemoWorkspace,
     Membership,
@@ -237,6 +238,11 @@ def test_refund_is_bounded_exact_and_idempotent_through_mocked_transport(monkeyp
             assert db.scalar(select(func.count(PaymentTransaction.id)).where(
                 PaymentTransaction.kind == "refund"
             )) == 1
+            messages = list(db.scalars(select(CommerceMail).where(CommerceMail.kind == "refund")))
+            assert len(messages) == 1
+            assert messages[0].reference_json == {
+                "site_order_id": link.id, "refund_command_id": command.id,
+            }
         with pytest.raises(CommerceError, match="exceeds"):
             checkout_payments.refund(
                 w.site.id,

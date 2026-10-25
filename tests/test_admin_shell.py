@@ -41,6 +41,20 @@ def test_shell_components_and_active_navigation():
     assert "Skip to content" in html
 
 
+@pytest.mark.parametrize(("suffix", "destinations"), [
+    ("orders", ["orders", "drafts", "abandoned-checkouts"]),
+    ("products", ["products", "collections", "inventory", "subscriptions"]),
+    ("content/pages", ["content/pages", "content/blog-posts", "content/menus", "content/files"]),
+])
+def test_merged_navigation_links_to_implemented_routes(suffix, destinations):
+    site = SimpleNamespace(id="store-one", name="My store")
+    prefix = "/admin/sites/store-one/"
+    html = str(to_xml(admin_page("Store", site=site, sites=[site], path=prefix + suffix)))
+    for destination in [*destinations, "discounts", "analytics"]:
+        assert f'href="{prefix}{destination}"' in html
+    assert "/coming-soon/" not in html
+
+
 @pytest.mark.parametrize(("suffix", "section"), [
     ("/orders/example/refund", "Orders"), ("/media", "Content"),
     ("/pages/example", "Content"), ("/build", "Online Store"),

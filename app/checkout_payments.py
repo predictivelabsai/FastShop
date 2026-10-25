@@ -32,6 +32,7 @@ def payment_methods_for(site, recurring: bool) -> list[str]:
 
 
 def payment_command(site, attempt, quote, customer):
+    local_tax = quote.snapshot_json.get("local_tax")
     recovery = bool(quote.snapshot_json.get("recovery_cycle_id"))
     if quote.snapshot_json.get("renewal_contract_id") and not recovery:
         raise CommerceError("Use subscription payment recovery for this renewal.")
@@ -55,13 +56,20 @@ def payment_command(site, attempt, quote, customer):
             "currency": "usd", "unit_amount": line["amount_minor"] if remainder else unit,
             "tax_behavior": "exclusive", "product_data": {"name": line["name"] + (f" × {line['quantity']}" if remainder else ""),
                 "tax_code": line["tax_code"]}}})
+    if local_tax and quote.tax_minor:
+        # Merchant tax rates are a sandbox-only calculation. Keep the exact
+        # quoted tax as a clearly labelled line instead of asking Stripe Tax to
+        # calculate a second, potentially different amount at hosted Checkout.
+        lines.append({"quantity": 1, "price_data": {"currency": "usd",
+            "unit_amount": quote.tax_minor, "tax_behavior": "exclusive",
+            "product_data": {"name": "Sandbox sales tax"}}})
     metadata = {"site_id": site.id, "checkout_id": attempt.id, "quote_id": quote.id}
     return {
         "customer": {"email": customer.email, "name": recipient,
             "shipping": {"name": recipient, "address": quote.snapshot_json["destination"]},
             "metadata": metadata},
         "session": {"mode": "payment", "payment_method_types": payment_methods_for(site, recurring), "currency": "usd",
-            "automatic_tax": {"enabled": True}, "line_items": lines,
+            "automatic_tax": {"enabled": not bool(local_tax)}, "line_items": lines,
             "customer_update": {"address": "never", "shipping": "never", "name": "never"},
             "client_reference_id": attempt.id, "metadata": metadata,
             "payment_intent_data": {"metadata": metadata, **({"setup_future_usage": "off_session"} if recurring else {})},
@@ -76,12 +84,19 @@ def payment_command(site, attempt, quote, customer):
 def matches_quote(result, attempt, quote, *, live_mode=False):
     details = result.get("total_details") or {}
     metadata = result.get("metadata") or {}
+    local_tax = quote.snapshot_json.get("local_tax")
+    if local_tax and live_mode:
+        return False
+    automatic_tax = result.get("automatic_tax") or {}
+    tax_matches = (details.get("amount_tax") == 0
+        and automatic_tax.get("enabled") is False
+        and automatic_tax.get("status") in (None, "")) if local_tax else (
+        details.get("amount_tax") == quote.tax_minor and automatic_tax.get("status") == "complete")
     return (result.get("livemode") is live_mode and result.get("mode") == "payment" and
         result.get("client_reference_id") == attempt.id and metadata.get("site_id") == attempt.site_id and
         metadata.get("quote_id") == quote.id and result.get("currency") == quote.currency.lower() and
         type(result.get("amount_total")) is int and result["amount_total"] == quote.total_minor and
-        details.get("amount_tax") == quote.tax_minor and details.get("amount_shipping") == quote.shipping_minor and
-        (result.get("automatic_tax") or {}).get("status") == "complete")
+        tax_matches and details.get("amount_shipping") == quote.shipping_minor)
 
 
 def handoff(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_factory=StripeGateway):
@@ -105,6 +120,8 @@ def handoff(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_
         if not quote or not customer:
             raise CommerceError("Checkout details are unavailable.")
         mode = commerce.payment_mode(db, site)
+        if mode == "live" and quote.snapshot_json.get("local_tax"):
+            raise CommerceError("Merchant tax rates are available in sandbox mode only. Request a new live Stripe Tax quote.")
         gateway = make_gateway(gateway_factory, site, db)
         if not attempt.provider_payload_json:
             if attempt.state != "prepared":

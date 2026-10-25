@@ -177,6 +177,7 @@ def test_pending_refund_reserves_quantity_and_does_not_restock(tracked):
     try:
         command=refund(w,restock=True)
         assert command.state=='pending' and total_stock(w)==(5,0)
+        assert w.db.scalar(select(func.count(CommerceMail.id)).where(CommerceMail.kind=='refund'))==0
         with pytest.raises(CommerceError,match='remaining'):
             order_admin.preview_refund(w.db,w.site,w.link.id,{w.line.id:5})
         with pytest.raises(CommerceError,match='available to return'):
@@ -185,6 +186,7 @@ def test_pending_refund_reserves_quantity_and_does_not_restock(tracked):
         command=refund(w,restock=True)
         assert command.state=='succeeded' and total_stock(w)==(6,0)
         assert refund(w,restock=True).id==command.id and total_stock(w)==(6,0)
+        assert w.db.scalar(select(func.count(CommerceMail.id)).where(CommerceMail.kind=='refund'))==1
     finally:
         RefundGateway.status='succeeded'
 

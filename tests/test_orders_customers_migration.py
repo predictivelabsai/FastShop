@@ -17,7 +17,7 @@ def test_orders_customers_migration_existing_rows_and_roundtrip(tmp_path):
         result=subprocess.run([sys.executable,'-m','alembic',*args],cwd=root,env=env,
             capture_output=True,text=True,timeout=90)
         assert result.returncode==0,result.stdout+result.stderr
-    migrate('upgrade','head')
+    migrate('upgrade','20261025_0031_orders_customers')
     migrate('downgrade','20261025_0030')
     engine=sa.create_engine(url)
     metadata=sa.MetaData()
@@ -50,19 +50,19 @@ def test_orders_customers_migration_existing_rows_and_roundtrip(tmp_path):
         insert(c,'order_lines',id='ol',order_id='o',sku='OLD',product_name='Original item',quantity=3,
             unit_price_minor=3000,total_minor=9000)
         insert(c,'site_orders',id='so',tenant_id='t',site_id='s',customer_id='cu',order_id='o')
-    migrate('upgrade','head')
+    migrate('upgrade','20261025_0031_orders_customers')
     with engine.connect() as c:
         assert c.execute(sa.text('SELECT fulfilled_quantity,refunded_quantity FROM order_lines')).one()==(3,0)
         customer=c.execute(sa.text('SELECT email_marketing_consent,email_consent_source,account_state FROM shop_customers')).one()
         assert tuple(customer)==(1,'legacy','active')
         assert c.scalar(sa.text('SELECT tags_json FROM site_orders'))=='[]'
     assert 'return_requests' in sa.inspect(engine).get_table_names()
-    migrate('downgrade','-1')
+    migrate('downgrade','20261025_0030')
     assert 'return_requests' not in sa.inspect(engine).get_table_names()
     assert 'phone' not in {c['name'] for c in sa.inspect(engine).get_columns('shop_customers')}
     with engine.connect() as c:
         assert c.scalar(sa.text('SELECT number FROM orders'))=='OLD-001'
-    migrate('upgrade','head')
+    migrate('upgrade','20261025_0031_orders_customers')
     engine.dispose()
 
 

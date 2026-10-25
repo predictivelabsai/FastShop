@@ -197,7 +197,8 @@ def shipping_price(config, subtotal_after_discounts):
     return 0 if subtotal_after_discounts >= config.free_shipping_threshold_minor else config.shipping_minor
 
 
-def quote_order(db, site, config, selections, destination, gateway, *, first_order_discount=False):
+def quote_order(db, site, config, selections, destination, gateway, *, first_order_discount=False,
+                discount_code="", customer_email="", shipping_rate_id=None):
     from dataclasses import asdict
     if config.site_id != site.id or config.tenant_id != site.tenant_id:
         raise CommerceError("Commerce settings do not belong to this site.")
@@ -210,23 +211,61 @@ def quote_order(db, site, config, selections, destination, gateway, *, first_ord
     origin = address(config.origin_json, origin=True)
     lines = price_lines(db, site, config, selections, first_order_discount=first_order_discount)
     subtotal = sum(line.subtotal_minor for line in lines)
+    from app import discounts
+    from app.growth_settings import shipping_amount, tax_amount
+    # Merchandise rules run before shipping eligibility. Shipping rules run after
+    # the selected rate so free delivery appears in the same quote snapshot.
+    weight = sum((db.get(Product, line.product_id).weight_grams or 0) * line.quantity for line in lines)
+    def shipping_for_lines(priced_lines):
+        amount = sum(line.amount_minor for line in priced_lines)
+        zone_shipping = shipping_amount(db, site, destination, amount, weight_grams=weight,
+                                        rate_id=shipping_rate_id)
+        return shipping_price(config, amount) if zone_shipping is None else zone_shipping
+    lines, shipping, applied = discounts.apply(db, site, lines, 0,
+        code=discount_code, email=customer_email, shipping_for_lines=shipping_for_lines,
+        existing_order_discount=first_order_discount)
     discounted_subtotal = sum(line.amount_minor for line in lines)
-    shipping = shipping_price(config, discounted_subtotal)
     snapshot = {"lines": [asdict(line) for line in lines], "destination": destination, "origin": origin,
-        "settings_version": config.version, "shipping_minor": shipping, "first_order_discount": first_order_discount}
+        "settings_version": config.version, "shipping_minor": shipping, "first_order_discount": first_order_discount,
+        "discounts": applied, "shipping_rate_id": shipping_rate_id}
     fingerprint = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
     now = datetime.now(UTC)
     quote_id = new_id()
     tax = gateway.calculate_tax(lines, destination, origin, shipping,
         idempotency_key=f"tax-{site.id}-{quote_id}")
+    # Stripe remains authoritative for live payments. Merchant tax rates provide
+    # deterministic sandbox quotes without changing live Stripe Tax paths.
+    local_tax = tax_amount(db, site, destination, discounted_subtotal + shipping)
+    if local_tax and payment_mode(db, site, config) != "live":
+        from dataclasses import replace
+        snapshot["local_tax"] = local_tax
+        tax_value = local_tax["amount_minor"]
+        inclusive = local_tax["prices_include_tax"]
+        if inclusive:
+            # Shipping prices include tax too. Extract its share from shipping,
+            # rather than subtracting it from (possibly fully discounted) goods.
+            gross_total = discounted_subtotal + shipping
+            shipping_tax = tax_value * shipping // (gross_total or 1)
+            merchandise_tax = tax_value - shipping_tax
+            lines = discounts.allocate(lines, list(range(len(lines))), merchandise_tax)
+            shipping -= shipping_tax
+            discounted_subtotal = sum(line.amount_minor for line in lines)
+            snapshot["lines"] = [asdict(line) for line in lines]
+            snapshot["shipping_minor"] = shipping
+            snapshot["included_tax_minor"] = tax_value
+            snapshot["included_merchandise_tax_minor"] = merchandise_tax
+            snapshot["included_shipping_tax_minor"] = shipping_tax
+        tax = replace(tax, tax_minor=tax_value,
+            total_minor=discounted_subtotal + shipping + tax_value,
+            breakdown=[local_tax])
     if tax.currency != "USD" or tax.total_minor != discounted_subtotal + shipping + tax.tax_minor:
         raise CommerceError("The tax provider returned inconsistent totals; checkout is unavailable.")
     if tax.expires_at <= now:
         raise CommerceError("The tax quote expired. Please request a fresh quote.")
     snapshot["tax_breakdown"] = tax.breakdown
     quote = CommerceQuote(id=quote_id, tenant_id=site.tenant_id, site_id=site.id, fingerprint=fingerprint,
-        provider_id=tax.provider_id, currency="USD", subtotal_minor=subtotal,
-        discount_minor=subtotal - discounted_subtotal, shipping_minor=shipping, tax_minor=tax.tax_minor,
+        provider_id=tax.provider_id, currency="USD", subtotal_minor=subtotal - snapshot.get("included_merchandise_tax_minor", 0),
+        discount_minor=subtotal - discounted_subtotal - snapshot.get("included_merchandise_tax_minor", 0), shipping_minor=shipping, tax_minor=tax.tax_minor,
         total_minor=tax.total_minor, expires_at=min(tax.expires_at, now + timedelta(minutes=15)), snapshot_json=snapshot)
     db.add(quote)
     db.flush()

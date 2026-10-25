@@ -19,6 +19,7 @@ def test_catalogue_migration_upgrade_downgrade_backfills(tmp_path):
                                 env=env, capture_output=True, text=True, timeout=60)
         assert result.returncode == 0, result.stdout + result.stderr
 
+    # Test this revision's backfill independently of later feature migrations.
     alembic('upgrade', '20261025_0030')
     alembic('downgrade', '20261011_0029')
     engine = create_engine(url)

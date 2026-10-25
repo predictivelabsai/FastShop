@@ -10,11 +10,16 @@ from app.models import (
     CheckoutAttempt,
     CommerceMail,
     CommerceQuote,
+    Discount,
+    DiscountRedemption,
     DraftOrder,
     InventoryReservation,
+    NotificationTemplate,
     Order,
     OutboxEvent,
     PaymentTransaction,
+    ShippingRate,
+    ShippingZone,
     ShopCustomer,
     User,
 )
@@ -76,6 +81,27 @@ def test_failed_completion_rolls_back_partial_reservations(ready):
     assert r.db.get(DraftOrder, row.id).status == "open"
 
 
+def test_draft_manual_discount_and_shipping_survive_automatic_storefront_rules(ready):
+    r = ready
+    zone = ShippingZone(tenant_id=r.site.tenant_id, site_id=r.site.id,
+        name="Storefront delivery", countries_json=["US"])
+    r.db.add(zone)
+    r.db.flush()
+    r.db.add_all([
+        ShippingRate(tenant_id=r.site.tenant_id, site_id=r.site.id, zone_id=zone.id,
+            name="Flat delivery", amount_minor=9900),
+        Discount(tenant_id=r.site.tenant_id, site_id=r.site.id, title="Automatic half price",
+            method="automatic", type="amount_off_order", value_type="percentage", value=50),
+    ])
+    r.db.commit()
+    draft = draft_with_lines(r)
+    drafts.complete(r.db, r.site, draft.id, mark_as_paid=True)
+    r.db.flush()
+    order = r.db.get(Order, draft.order_id)
+    assert (order.discount_minor, order.shipping_minor, order.total_minor) == (101, 250, 6244)
+    assert r.db.scalar(select(func.count(DiscountRedemption.id))) == 0
+
+
 def test_invoice_queue_has_real_renderer_no_pay_link_or_stock_hold(ready):
     r = ready
     row = draft_with_lines(r)
@@ -89,6 +115,26 @@ def test_invoice_queue_has_real_renderer_no_pay_link_or_stock_hold(ready):
     with pytest.raises(CommerceError, match="changed"):
         drafts.invoice(r.db, r.site, row.id, version=row.version-1)
     drafts.complete(r.db, r.site, row.id, mark_as_paid=True)
+    assert render_message(r.db, mail, r.site, r.customer) is None
+
+
+def test_invoice_notification_override_and_disable_keep_reference_checks(ready):
+    r = ready
+    row = draft_with_lines(r)
+    mail = drafts.invoice(r.db, r.site, row.id, version=row.version)
+    template = NotificationTemplate(tenant_id=r.site.tenant_id, site_id=r.site.id,
+        event="draft_invoice", subject="Invoice {{ order_number }} from {{ store_name }}",
+        body="Total {{ total }}\n{{ message }}")
+    r.db.add(template)
+    r.db.flush()
+    subject, body = render_message(r.db, mail, r.site, r.customer)
+    assert subject == f"Invoice {row.id[:8].upper()} from {r.site.name}"
+    assert "62.44" in body and "no online payment link" in body
+    template.enabled = False
+    r.db.flush()
+    assert render_message(r.db, mail, r.site, r.customer) is None
+    template.enabled = True
+    drafts.save(r.db, r.site, row.id, {"note": "Invoice changed"}, version=row.version)
     assert render_message(r.db, mail, r.site, r.customer) is None
 
 

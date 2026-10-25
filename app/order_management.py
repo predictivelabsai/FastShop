@@ -640,6 +640,16 @@ def refund(site_id: str, user_id: str, site_order_id: str, amount_minor: int, re
             if command.selection_json:
                 from app.order_admin import apply_refund_selection
                 apply_refund_selection(db, site, command, order)
+            from app.customer_services import queue_mail
+            customer = db.scalar(select(ShopCustomer).where(
+                ShopCustomer.id == link.customer_id,
+                ShopCustomer.site_id == site.id,
+                ShopCustomer.tenant_id == site.tenant_id,
+            ))
+            if not customer:
+                raise CommerceError("Order customer is missing.")
+            queue_mail(db, site, customer, "refund", f"refund:{site.id}:{command.id}",
+                reference={"site_order_id": link.id, "refund_command_id": command.id})
         db.commit()
         return command
 
