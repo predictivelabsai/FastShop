@@ -76,10 +76,18 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     cart.lines_json, cart.discount_code = [], ""
                     cart.version += 1
                 lines = commerce.price_lines(db, site, config, cart.lines_json) if cart.lines_json else []
+                from app import discounts
+                applied = []
+                if lines:
+                    customer = customer_services.signed_in_customer(db, site, session)
+                    rule = discounts.code_rule(db, site, cart.discount_code) if cart.discount_code else None
+                    lines, _, applied = discounts.apply(db, site, lines, config.shipping_minor or 0,
+                        code=cart.discount_code if rule else "", email=customer.email if customer else "", preview=True)
                 db.commit()
                 if is_liquid(site):
                     from app.storefront_ui import liquid_cart
                     return screen(site, request, "Your bag",
+                        P("Discount savings: " + money(sum(r["amount_minor"] for r in applied), "USD")) if applied else None,
                         liquid_cart(root, cart, lines, csrf(session)))
                 return screen(site, request, "Your bag", csrf(session), *[Div(H2(line.name), P(money(line.amount_minor, "USD")),
                     P("Monthly subscription · 10% merchandise saving" if line.subscription else "One-time purchase"),
@@ -88,6 +96,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                         Input(type="hidden", name="subscription", value="on" if line.subscription else "off"),
                         Label("Quantity (0 removes)", Input(type="number", name="quantity", value=line.quantity, min=0, max=25, required=True)),
                         Button("Update quantity", cls="e-button"), method="post", action=root + "/cart/update", cls="e-form"), cls="e-card") for line in lines],
+                    P("Discount savings: " + money(sum(r["amount_minor"] for r in applied), "USD")) if applied else None,
                     P("Your bag is empty.") if not lines else P("Merchandise: " + money(sum(line.amount_minor for line in lines), "USD") + ". Shipping and destination sales tax are calculated next."),
                     Form(csrf(session), Input(type="hidden", name="version", value=cart.version),
                         Label("Discount code", Input(name="code", value=cart.discount_code, maxlength=40)),
@@ -210,6 +219,9 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     return RedirectResponse(root + "/cart", status_code=303)
                 customer = customer_services.signed_in_customer(db, site, session)
                 recurring_lines = [line for line in commerce.price_lines(db, site, config, cart.lines_json) if line.subscription]
+                from app.models import ShippingRate
+                rates = list(db.scalars(select(ShippingRate).where(ShippingRate.site_id == site.id,
+                    ShippingRate.tenant_id == site.tenant_id).order_by(ShippingRate.name)))
                 def field(label, name, **kwargs):
                     return Label(label, Input(name=name, **kwargs))
                 return screen(site, request, "US delivery & checkout", P("Review shipping and sales tax before going to Stripe. No payment is taken on this form."),
@@ -223,7 +235,10 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                             *[Option(commerce.US_STATES[state], value=state) for state in config.allowed_states_json if state in commerce.US_STATES], name="state", required=True, autocomplete="shipping address-level1")),
                         field("ZIP code", "postal_code", required=True, pattern=r"\d{5}(-\d{4})?", autocomplete="shipping postal-code"),
                         Input(type="hidden", name="country", value="US"),
-                        field("First-order discount code (optional)", "code", maxlength=40, value=cart.discount_code),
+                        Label("Delivery method", Select(Option("Best available delivery rate", value=""),
+                            *[Option(rate.name + (" (local pickup)" if rate.local_pickup else ""), value=rate.id)
+                              for rate in rates], name="shipping_rate_id")) if rates else None,
+                        field("Discount code (optional)", "code", maxlength=40, value=cart.discount_code),
                         Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
                         P("US delivery only. This does not subscribe you to marketing."),
                         Div(H2("Monthly delivery subscription"),
@@ -258,7 +273,8 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 attempt = checkout.prepare(db, site, customer.id, cart.lines_json, dict(form),
                     make_gateway(StripeGateway, site, db),
                     request_key=cart.request_key, code=form.get("code", ""), recipient_name=name,
-                    subscription_consent=form.get("subscription_consent") == "on")
+                    subscription_consent=form.get("subscription_consent") == "on",
+                    shipping_rate_id=form.get("shipping_rate_id") or None)
                 cart.checkout_id = attempt.id
                 db.commit()
                 return RedirectResponse(base(site, request) + "/checkout/" + attempt.id, status_code=303)

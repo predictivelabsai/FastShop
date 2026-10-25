@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 from sqlalchemy import select, update
 
-from app import commerce, signup_services
+from app import commerce, growth_settings, signup_services
 from app import customer_services as customers
 from app.db import SessionLocal
 from app.models import (
@@ -17,11 +17,13 @@ from app.models import (
     MarketingConsent,
     Membership,
     Order,
+    PaymentTransaction,
     ShipmentEvent,
     ShopCustomer,
     SignupEmailVerification,
     Site,
     SiteOrder,
+    StaffInvite,
     SubscriptionContract,
     SubscriptionCycle,
     User,
@@ -49,6 +51,62 @@ def send_email(recipient, subject, body, *, message_id):
 
 
 def render_message(db, row, site, customer=None, user=None):
+    """Apply merchant text templates only after existing reference checks pass."""
+    reference = row.reference_json or {}
+    if row.kind == "staff_invite":
+        invite = db.scalar(select(StaffInvite).where(
+            StaffInvite.id == reference.get("invite_id"), StaffInvite.site_id == site.id,
+            StaffInvite.tenant_id == site.tenant_id))
+        if (not user or not invite or invite.accepted_at
+                or signup_services.utc(invite.expires_at) <= datetime.now(UTC)):
+            return None
+        url = growth_settings.invite_url(invite)
+        default = ("You are invited to " + site.name,
+            f"You have been invited to {site.name} as {invite.role}.\n\nAccept: {url}\n\n"
+            "This invitation expires after seven days and can be used once.")
+        return growth_settings.notification_message(db, site, "invite", {
+            "customer_name": invite.email, "action_url": url, "message": default[1]},
+            default=default)
+    if row.kind == "notification_test":
+        if not user:
+            return None
+        return str(reference.get("subject", "Notification test")), str(reference.get("body", ""))
+    default = _render_message(db, row, site, customer, user)
+    if not default:
+        return None
+    event = {"order_confirmation": "order_confirmation", "shipment_update": "shipping_confirmation",
+             "refund": "refund", "login": "customer_account", "account_verification": "customer_account"}.get(row.kind)
+    if not event:
+        return default
+    values = {"customer_name": customer.name if customer else user.name if user else "",
+              "message": default[1], "action_url": ""}
+    if row.kind == "login" and customer:
+        challenge = db.scalar(select(CustomerChallenge).where(CustomerChallenge.id == row.challenge_id,
+            CustomerChallenge.site_id == site.id, CustomerChallenge.tenant_id == site.tenant_id,
+            CustomerChallenge.customer_id == customer.id))
+        if challenge:
+            values["action_url"] = customers.confirmation_url(site, challenge)
+    if row.kind == "account_verification":
+        verification = db.scalar(select(SignupEmailVerification).where(
+            SignupEmailVerification.id == reference.get("verification_id"),
+            SignupEmailVerification.site_id == site.id, SignupEmailVerification.tenant_id == site.tenant_id))
+        if verification:
+            values["action_url"] = signup_services.verification_url(verification)
+    link = db.scalar(select(SiteOrder).where(SiteOrder.id == reference.get("site_order_id"),
+        SiteOrder.site_id == site.id, SiteOrder.tenant_id == site.tenant_id)) if reference.get("site_order_id") else None
+    if link:
+        order = db.scalar(select(Order).where(Order.id == link.order_id, Order.tenant_id == site.tenant_id))
+        if order:
+            values.update(order_number=order.number, total=money(order.total_minor, order.currency))
+    if row.kind == "shipment_update":
+        shipment = db.scalar(select(ShipmentEvent).where(ShipmentEvent.id == reference.get("shipment_id"),
+            ShipmentEvent.site_id == site.id, ShipmentEvent.tenant_id == site.tenant_id))
+        if shipment:
+            values["tracking_number"] = shipment.tracking_number
+    return growth_settings.notification_message(db, site, event, values, default=default)
+
+
+def _render_message(db, row, site, customer=None, user=None):
     if row.kind == "account_verification":
         verification = db.scalar(
             select(SignupEmailVerification).where(
@@ -93,6 +151,24 @@ def render_message(db, row, site, customer=None, user=None):
         )
     if not customer:
         return None
+    if row.kind == "refund":
+        reference = row.reference_json or {}
+        link = db.scalar(select(SiteOrder).where(SiteOrder.id == reference.get("site_order_id"),
+            SiteOrder.site_id == site.id, SiteOrder.tenant_id == site.tenant_id,
+            SiteOrder.customer_id == customer.id))
+        if not link:
+            return None
+        order = db.scalar(select(Order).where(Order.id == link.order_id,
+            Order.tenant_id == site.tenant_id))
+        refunds = list(db.scalars(select(PaymentTransaction).where(
+            PaymentTransaction.order_id == link.order_id,
+            PaymentTransaction.kind == "refund", PaymentTransaction.status == "succeeded")))
+        if not order or not refunds or order.payment_status not in {"refunded", "partially_refunded"}:
+            return None
+        amount = sum(refund.amount_minor for refund in refunds)
+        return "Refund confirmation " + order.number, (
+            f"{site.name}\n\nA refund of {money(amount, order.currency)} has been recorded "
+            f"for order {order.number}.\n\nThis is a transactional order notification.")
     if row.kind in {"renewal_failed", "renewal_upcoming"}:
         return render_subscription_message(db, row, site, customer)
     if row.kind in {"order_confirmation", "shipment_update"}:
@@ -238,6 +314,11 @@ def dispatch_mail(message_id, *, sessions=SessionLocal, sender=send_email):
             return False
         subject, body = message
         recipient = user.email if user else customer.email
+        if row.kind == "staff_invite":
+            invite = db.scalar(select(StaffInvite).where(
+                StaffInvite.id == (row.reference_json or {}).get("invite_id"),
+                StaffInvite.site_id == row.site_id, StaffInvite.tenant_id == row.tenant_id))
+            recipient = invite.email
         status, provider_id = sender(recipient, subject, body, message_id=row.id)
         row.status, row.provider_id = status, provider_id
         row.available_at = datetime.now(UTC) + timedelta(minutes=min(60, 2 ** row.attempts))

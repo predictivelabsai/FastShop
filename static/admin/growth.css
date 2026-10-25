@@ -1,0 +1,7 @@
+[data-discount-form] .a-card { margin-bottom:16px; }
+[data-discount-form] [hidden] { display:none !important; }
+[data-discount-form] .a-card label { display:grid; gap:6px; margin:12px 0; }
+[data-discount-form] .a-card label:has(input[type=checkbox]) { display:flex; align-items:center; }
+[data-discount-form] select[multiple] { min-height:100px; }
+[data-discount-form] input, [data-discount-form] select { max-width:100%; min-width:0; }
+[data-discount-form] .a-columns > * { min-width:0; }

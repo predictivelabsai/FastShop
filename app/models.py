@@ -306,6 +306,58 @@ class Voucher(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class Discount(TimestampMixin, Base):
+    __tablename__ = "discounts"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(160))
+    type: Mapped[str] = mapped_column(String(40), default="amount_off_order")
+    method: Mapped[str] = mapped_column(String(20), default="code")
+    value_type: Mapped[str] = mapped_column(String(20), default="percentage")
+    value: Mapped[int] = mapped_column(Integer, default=0)
+    applies_to: Mapped[str] = mapped_column(String(20), default="all")
+    product_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    collection_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    eligibility: Mapped[str] = mapped_column(String(20), default="all")
+    emails_json: Mapped[list] = mapped_column(JSON, default=list)
+    minimum_type: Mapped[str] = mapped_column(String(20), default="none")
+    minimum_value: Mapped[int] = mapped_column(Integer, default=0)
+    usage_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    once_per_customer: Mapped[bool] = mapped_column(Boolean, default=False)
+    combines_products: Mapped[bool] = mapped_column(Boolean, default=False)
+    combines_orders: Mapped[bool] = mapped_column(Boolean, default=False)
+    combines_shipping: Mapped[bool] = mapped_column(Boolean, default=False)
+    buy_quantity: Mapped[int] = mapped_column(Integer, default=1)
+    get_quantity: Mapped[int] = mapped_column(Integer, default=1)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    voucher_id: Mapped[str | None] = mapped_column(ForeignKey("vouchers.id"), nullable=True)
+
+
+class DiscountCode(TimestampMixin, Base):
+    __tablename__ = "discount_codes"
+    __table_args__ = (UniqueConstraint("site_id", "code"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    discount_id: Mapped[str] = mapped_column(ForeignKey("discounts.id", ondelete="CASCADE"), index=True)
+    code: Mapped[str] = mapped_column(String(40))
+
+
+class DiscountRedemption(TimestampMixin, Base):
+    __tablename__ = "discount_redemptions"
+    __table_args__ = (UniqueConstraint("discount_id", "order_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    discount_id: Mapped[str] = mapped_column(ForeignKey("discounts.id"), index=True)
+    order_id: Mapped[str] = mapped_column(ForeignKey("orders.id"), index=True)
+    customer_email: Mapped[str] = mapped_column(String(320))
+    amount_minor: Mapped[int] = mapped_column(Integer)
+
+
 class Order(TimestampMixin, Base):
     __tablename__ = "orders"
     __table_args__ = (
@@ -1241,3 +1293,71 @@ class CatalogueSettings(TimestampMixin, Base):
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
     site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
     low_stock_threshold: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ShippingZone(TimestampMixin, Base):
+    __tablename__ = "shipping_zones"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    countries_json: Mapped[list] = mapped_column(JSON, default=list)
+    states_json: Mapped[list] = mapped_column(JSON, default=list)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ShippingRate(TimestampMixin, Base):
+    __tablename__ = "shipping_rates"
+    __table_args__ = (CheckConstraint("amount_minor >= 0"),
+                      CheckConstraint("minimum >= 0"),
+                      CheckConstraint("maximum IS NULL OR maximum >= minimum"))
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    zone_id: Mapped[str] = mapped_column(ForeignKey("shipping_zones.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    kind: Mapped[str] = mapped_column(String(24), default="flat")
+    amount_minor: Mapped[int] = mapped_column(Integer, default=0)
+    minimum: Mapped[int] = mapped_column(Integer, default=0)
+    maximum: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    free_shipping_threshold_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    local_pickup: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class TaxRate(TimestampMixin, Base):
+    __tablename__ = "tax_rates"
+    __table_args__ = (UniqueConstraint("site_id", "country", "region"),
+                      CheckConstraint("rate_bps >= 0 AND rate_bps <= 10000"))
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    country: Mapped[str] = mapped_column(String(2))
+    region: Mapped[str] = mapped_column(String(20), default="")
+    name: Mapped[str] = mapped_column(String(100), default="Sales tax")
+    rate_bps: Mapped[int] = mapped_column(Integer)
+    prices_include_tax: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class NotificationTemplate(TimestampMixin, Base):
+    __tablename__ = "notification_templates"
+    __table_args__ = (UniqueConstraint("site_id", "event"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    event: Mapped[str] = mapped_column(String(40))
+    subject: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class StaffInvite(TimestampMixin, Base):
+    __tablename__ = "staff_invites"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    role: Mapped[str] = mapped_column(String(30))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    invited_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

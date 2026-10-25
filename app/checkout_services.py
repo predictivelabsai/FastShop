@@ -76,7 +76,7 @@ def eligible_offer(db, site, customer, code):
     return offer
 
 
-def prepare(db, site, customer_id, selections, destination, gateway, *, request_key, code="", recipient_name="", subscription_consent=False, renewal_contract=None, recovery_cycle=None):
+def prepare(db, site, customer_id, selections, destination, gateway, *, request_key, code="", recipient_name="", subscription_consent=False, renewal_contract=None, recovery_cycle=None, shipping_rate_id=None):
     """Atomically quote and reserve. Retrying the same command returns the same attempt.
 
     A savepoint prevents partially allocated stock even if the caller catches errors
@@ -88,7 +88,7 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
     code = str(code).strip().upper()
     fingerprint = hashlib.sha256(json.dumps({"customer": customer_id, "lines": selections,
         "destination": destination, "code": code, "recipient_name": recipient_name,
-        "subscription_consent": subscription_consent,
+        "subscription_consent": subscription_consent, "shipping_rate_id": shipping_rate_id,
         "renewal_contract": renewal_contract.id if renewal_contract else None,
         "recovery_cycle": recovery_cycle.id if recovery_cycle else None}, sort_keys=True).encode()).hexdigest()
     with db.begin_nested():
@@ -111,12 +111,16 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
             CheckoutAttempt.state.in_(ACTIVE)))
         if pending:
             raise CommerceError("Resume or cancel your existing checkout before starting another.")
-        offer = eligible_offer(db, site, customer, code)
+        from app import discounts
+        discounts.bridge_vouchers(db, site)
+        growth_rule = discounts.code_rule(db, site, code) if code else None
+        offer = eligible_offer(db, site, customer, code) if not growth_rule else None
         config = commerce.settings_for(db, site)
         if not config:
             raise CommerceError("Commerce is not configured.")
         quote = commerce.quote_order(db, site, config, selections, destination, gateway,
-            first_order_discount=offer is not None)
+            first_order_discount=offer is not None, discount_code=code if growth_rule else "",
+            customer_email=customer.email, shipping_rate_id=shipping_rate_id)
         quote.snapshot_json = quote.snapshot_json | {"recipient_name": recipient_name or customer.name}
         if any(line["subscription"] for line in quote.snapshot_json["lines"]):
             from app.subscriptions import consent_snapshot
@@ -294,6 +298,8 @@ def _paid_order(db, site, attempt, quote, provider):
         customer_id=customer.id, quote_id=quote.id, stripe_checkout_id=attempt.stripe_session_id)
     db.add(link)
     db.flush()
+    from app.discounts import redeem
+    redeem(db, site, order, quote.snapshot_json.get("discounts", []))
     from app.customer_services import queue_order_mail
     queue_order_mail(db, site, link)
     db.add(PaymentTransaction(order_id=order.id, provider="stripe:" + site.id,
