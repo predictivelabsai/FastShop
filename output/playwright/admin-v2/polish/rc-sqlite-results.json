@@ -1,0 +1,58 @@
+{
+  "status": "passed",
+  "journeys": [
+    "desktop: catalogue product",
+    "desktop: catalogue csv",
+    "desktop: catalogue collections",
+    "desktop: catalogue inventory",
+    "desktop: orders, refunds, returns, drafts, customers",
+    {
+      "device": "desktop",
+      "roles": {
+        "foreign_tenant_url_families_denied": 47,
+        "editor_publish_denied_without_mutation": true,
+        "editor_staff_invite_and_role_change_denied": true,
+        "staff_role_changes_persisted": true,
+        "last_administrator_guard": true
+      }
+    },
+    "desktop: Liquid home, one-time and subscription product/cart/delivery/confirmed local payment; email challenge sign-in; account/order/subscription pages; merchant subscription skip/pause/resume/cancel with persisted state",
+    "desktop: analytics 1/7/30/90-day and custom ranges, CSV; published blog content and dragged header menu order visible on storefront",
+    "desktop: discounts, shipping, tax, content, staff, settings",
+    {
+      "device": "desktop",
+      "features": 10
+    },
+    "mobile: catalogue product",
+    "mobile: catalogue csv",
+    "mobile: catalogue collections",
+    "mobile: catalogue inventory",
+    "mobile: orders, refunds, returns, drafts, customers",
+    {
+      "device": "mobile",
+      "roles": {
+        "foreign_tenant_url_families_denied": 47,
+        "editor_publish_denied_without_mutation": true,
+        "editor_staff_invite_and_role_change_denied": true,
+        "staff_role_changes_persisted": true,
+        "last_administrator_guard": true
+      }
+    },
+    "mobile: Liquid home, one-time and subscription product/cart/delivery/confirmed local payment; email challenge sign-in; account/order/subscription pages; merchant subscription skip/pause/resume/cancel with persisted state",
+    "mobile: analytics 1/7/30/90-day and custom ranges, CSV; published blog content and dragged header menu order visible on storefront",
+    "mobile: discounts, shipping, tax, content, staff, settings",
+    {
+      "device": "mobile",
+      "features": 10
+    },
+    "visual editor: drag, nesting, inline, styling, undo/redo, save, publish, restore"
+  ],
+  "browser_errors": [],
+  "screenshots": "C:\\Users\\Joosep\\h24you\\fastshop-lovable\\output\\playwright\\admin-v2\\polish",
+  "count": 259,
+  "payment_boundary": "Local provider doubles; no live Stripe payment or email delivery",
+  "isolation": "One fresh disposable SQLite database and one app instance",
+  "successful_downloads": 12,
+  "server_errors": [],
+  "server_stopped": true
+}

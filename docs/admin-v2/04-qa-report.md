@@ -345,3 +345,203 @@ count. Browser-owned disposable folders are removed by their normal teardown.
 
 No unresolved product question was found in the tested polish journeys. Live
 provider acceptance and the separate feature worktree remain outside this pass.
+
+## Release candidate
+
+25 October 2026, `merchant-admin-v2`, this checkout only. Merge `c23addb`
+retains the UX polish and all gap features. Follow-up commits preserve Liquid
+role promotions, ensure the existing Helen account has Liquid admin membership,
+integrate saved views with live filter bars, humanise edit/gift/activity events
+and apply shared headers, controls and empty states to the new pages. The order
+header Edit link is exercised through the real edit page and manual settlement.
+Generic audit updates are grouped by actor/day in the merchant timeline; the
+append-only activity history remains available. Its preview shows five readable
+entries, with staff names and minute-precision UTC dates.
+
+No push, deployment or branch switch occurred. No secrets or environment files
+were read, and no database files are committed. Application-dependent commands
+disabled dotenv, scheduler and external provider credentials and selected
+disposable storage explicitly.
+
+### Commands and results
+
+Final full pytest: **1,182 passed, 1 skipped, 8 warnings in 378.11 seconds**.
+This was the complete default collection after the final application changes.
+
+```powershell
+$env:PYTHON_DOTENV_DISABLED='1'
+$env:PYTHONUTF8='1'
+$env:FASTSHOP_ENV='development'
+$env:FASTSHOP_ENABLE_SCHEDULER='0'
+$env:DB_URL=''
+uv run --with pytest-xdist python -m pytest -n 8 --dist loadfile `
+  -p _rc_test_isolation -o addopts='' -q --tb=short --durations=12
+.venv\Scripts\ruff.exe check .
+.venv\Scripts\python.exe -m compileall -q app tests scripts migrations web_app.py
+Get-ChildItem static -Recurse -File -Filter *.js | ForEach-Object { node --check $_.FullName }
+.venv\Scripts\alembic.exe heads
+git diff --check
+```
+
+The temporary pytest plugin sets `FASTSHOP_DATA_DIR` in `pytest_configure` to
+`output/rc-final-validation/<workerid>` before application imports, using
+`config.workerinput['workerid']` (or `main`). A fresh directory is needed for
+each repeat. No test selections, assertions or required checks were removed.
+The existing optional presentation dependency accounts for the skip; the
+Starlette/AnyIO BlockingPortal deprecation accounts for worker warnings.
+Ruff, compilation, all **25** JavaScript syntax checks and whitespace checks
+passed. Alembic has the single head `20261025_0034_admin_gaps`.
+
+On explicit disposable SQLite storage, all of the following passed:
+
+```powershell
+$env:DB_URL='sqlite:///output/rc-migration-final/migration.db'
+$env:FASTSHOP_AUTO_CREATE_SCHEMA='0'
+.venv\Scripts\alembic.exe upgrade 20261011_0029
+.venv\Scripts\alembic.exe upgrade head
+.venv\Scripts\alembic.exe check
+.venv\Scripts\alembic.exe downgrade 20261011_0029
+.venv\Scripts\alembic.exe upgrade head
+.venv\Scripts\alembic.exe check
+```
+
+The round trip exposed copied-column indexes with SQLite temporary-table names.
+Revision `0030` now suppresses implicit copied-column indexes and creates the
+stable model indexes explicitly. The graph regression now downgrades to `0029`
+and checks for drift after re-upgrading.
+
+### PostgreSQL evidence
+
+Docker was available. PostgreSQL 16 used a disposable container with tmpfs data,
+no persistent volume, loopback-only dynamic port `56615` and schema `fast_shop`:
+
+```powershell
+docker run --detach --rm --name fastshop-admin-v2-pg-check `
+  --env POSTGRES_HOST_AUTH_METHOD=trust --env POSTGRES_DB=fastshop_validation `
+  --publish 127.0.0.1::5432 --tmpfs /var/lib/postgresql/data postgres:16
+docker port fastshop-admin-v2-pg-check 5432
+$env:DB_URL='postgresql+psycopg://postgres@127.0.0.1:56615/fastshop_validation'
+$env:DB_SCHEMA='fast_shop'
+$env:FASTSHOP_AUTO_CREATE_SCHEMA='0'
+$env:FASTSHOP_H24YOU_LIQUID_HOSTNAME='h24you.example.test'
+uv run alembic upgrade 20261011_0029
+# Direct local seed functions: seed, seed_h24you and seed_h24you_liquid.
+uv run alembic upgrade head
+uv run alembic check
+uv run alembic downgrade 20261011_0029
+uv run alembic upgrade head
+uv run alembic check
+```
+
+All migration commands passed. Representative data retained 3 tenants, 2 sites,
+11 products, 23 variants, 2 warehouses and 3 memberships. Historical revision
+`0001` imports current metadata, so an initial fresh `0029` upgrade alone does
+not recreate the old schema. The populated downgrade to `0029` followed by
+upgrade genuinely exercised adding the new columns/tables to old tables.
+The final round trip was repeated after the `0030` index fix and passed.
+No application tables appeared in `public`; no explicit constraint/index name
+exceeded 63 characters. Alembic's schema-qualified internal version table was
+excluded from application drift comparison, fixing a PostgreSQL false positive.
+
+The full test suite's fixtures largely select SQLite directly. The shared
+commerce fixture now optionally selects PostgreSQL using a unique, disposable
+schema per test and removes that schema afterwards. With dotenv disabled,
+`DB_URL=''` and `FASTSHOP_TEST_DB_URL` selecting the test container:
+
+```powershell
+uv run pytest -o addopts='' tests/test_us_commerce.py tests/test_checkout_services.py `
+  tests/test_checkout_payments.py tests/test_gift_cards.py tests/test_locations_checkout.py `
+  tests/test_growth_checkout.py tests/test_subscriptions.py tests/test_subscription_payments.py `
+  tests/test_subscription_renewals.py -q --tb=short
+```
+
+**97 passed**, one existing warning, **115.78 seconds**: 83 PostgreSQL-backed
+tests, 13 pure/provider-double tests and one SQLite-only test. Five gift-card
+tests exercised PostgreSQL, including the three cases that exposed
+`gift_card:<site_id>` exceeding `payment_transactions.provider VARCHAR(40)`.
+The new tender identifier is `gift:<site_id>`; those cases now pass. Cross-tenant
+test fixtures also create real foreign tenants rather than invalid foreign keys.
+No per-test PostgreSQL schemas remained afterwards.
+
+### Browser and visual evidence
+
+```powershell
+.venv\Scripts\python.exe scripts/verify_admin_v2_browser.py
+.venv\Scripts\python.exe scripts/verify_admin_v2_catalog_browser.py
+.venv\Scripts\python.exe scripts/verify_admin_v2_orders_browser.py
+.venv\Scripts\python.exe scripts/verify_admin_v2_growth_browser.py
+.venv\Scripts\python.exe scripts/verify_admin_v2_editor_browser.py
+.venv\Scripts\python.exe scripts/verify_admin_v2_gaps_browser.py
+.venv\Scripts\python.exe scripts/verify_legacy_browser.py
+.venv\Scripts\python.exe scripts/verify_admin_v2_all_browser.py
+$env:FASTSHOP_BROWSER_DB_URL='postgresql+psycopg://postgres@127.0.0.1:56615/fastshop_browser_final'
+$env:DB_SCHEMA='fast_shop'
+.venv\Scripts\python.exe scripts/verify_admin_v2_all_browser.py
+```
+
+The PostgreSQL browser database was separately created and upgraded to head
+before boot, with automatic table creation disabled. The five phase verifiers,
+standalone gaps and all **12 strict legacy journeys** passed. The legacy runner
+includes demo through builder and both checkout variants, covering all 17
+pre-existing verifier modules. Its browser observation reports contain zero
+unexpected console, page, HTTP or request errors.
+
+Final combined runs passed on both SQLite and PostgreSQL at **1440x900** and
+**390x844**, including all ten functional gaps and the full visual editor.
+Each recorded **zero browser/console/network errors**, **zero server errors**,
+**12 successful downloads** and a clean server shutdown. Canonical evidence has
+**259 combined screenshots plus 36 gap screenshots**. Database-specific summaries
+are `polish/rc-sqlite-results.json` and `polish/rc-postgresql-results.json`.
+The standalone gap verifier also passed after the final assertion/capture changes.
+
+Browser assertions now cover saved-view toolbar integration, hidden columns
+after asynchronous filtering, retained search focus, the header Edit link and
+humanised edit settlement in the timeline. Activity assertions target rendered
+labels and accommodate mobile card labels, retaining the same object/actor
+checks. No application error was added to an allowlist. Reviewed desktop/mobile
+samples include order actions/timeline, custom data, saved views, preferences,
+redirects, order editing, activity and theme library. No clipping or overlapping
+controls were found in those samples. Supplementary historical tracked captures
+were restored; release captures and database-specific summaries are retained
+under `output/playwright/admin-v2/polish/` and `gaps/`.
+
+### Deployment risks and cleanup
+
+Back up PostgreSQL and persistent storage before release. Downgrade to `0029`
+is verified on populated PostgreSQL and SQLite, but removes v2 feature data.
+Real-provider payments, email delivery, production-scale concurrent locking,
+reverse-proxy/TLS and live Helen login remain operator acceptance checks.
+No implementation question remains open.
+
+Automatic approval review rejected native PowerShell cleanup with **blocked by
+policy**, after absolute paths were checked inside this repository. No alternate
+deletion method was used. These task-created temporary paths remain local and
+uncommitted:
+
+- `output/rc-full-validation`
+- `output/rc-final-validation`
+- `output/rc-focused-validation`
+- `output/rc-migration-validation`
+- `output/rc-migration-final`
+- `output/seed-role-validation` (including `app.db`)
+- `_rc_test_isolation.py`
+- `output/playwright/admin-v2/polish/failure-0-0.png`
+- `output/playwright/admin-v2/polish/failure-16-0.png`
+- `output/playwright/admin-v2/gaps/desktop-failure.png`
+- `output/playwright/admin-v2/gaps/mobile-failure.png`
+- `output/playwright/admin-v2/p4/desktop-blog-post-new.png`
+- `output/playwright/admin-v2/p4/desktop-content-pages.png`
+- `output/playwright/admin-v2/p4/desktop-discount-resource-picker.png`
+- `output/playwright/admin-v2/p4/desktop-discount-type-picker.png`
+- `output/playwright/admin-v2/p4/mobile-blog-post-new.png`
+- `output/playwright/admin-v2/p4/mobile-content-pages.png`
+- `output/playwright/admin-v2/p4/mobile-discount-resource-picker.png`
+- `output/playwright/admin-v2/p4/mobile-discount-type-picker.png`
+- `output/playwright/admin-v2/p5/desktop-media-dropzone.png`
+- `output/playwright/admin-v2/p5/desktop-section-picker.png`
+
+Pre-existing local untracked artefacts listed earlier in this report were retained.
+No database files, temporary plugin or failed-run diagnostics were committed.
+`docker stop fastshop-admin-v2-pg-check` succeeded; `docker ps -a --filter
+name=fastshop-admin-v2-pg-check --format '{{.Names}}'` returned no container.
+The `--rm` container's tmpfs data was discarded, with no persistent volume kept.

@@ -1,5 +1,40 @@
 # H24YOU Liquid demo deployment
 
+## Merchant Admin v2 release
+
+25 October 2026. Prepared on `merchant-admin-v2`; nothing was pushed or deployed.
+From production revision `20261011_0029`, the normal `alembic upgrade head`
+applies catalogue `20261025_0030`, orders/customers
+`20261025_0031_orders_customers`, growth/settings
+`20261025_0032_growth_settings`, merge `20261025_0033_merge_admin_v2` and
+functional gaps `20261025_0034_admin_gaps`, the single head.
+
+No new required runtime environment variables. Preserve `DB_URL`,
+`DB_SCHEMA=fast_shop`, existing secrets and the existing optional
+`FASTSHOP_H24YOU_LIQUID_HOSTNAME` demo-cutover setting. `FASTSHOP_BROWSER_DB_URL`
+and `FASTSHOP_TEST_DB_URL` are optional local validation settings for explicitly
+disposable PostgreSQL databases, never production deployment settings.
+
+Back up PostgreSQL and persistent media/storage before upgrading; verify the
+backup can be restored and retain the deployed application commit/configuration.
+Apply migrations with one release instance before admitting merchant writes.
+Populated PostgreSQL 16 (`fast_shop`) and SQLite downgrade to `0029`, upgrade
+back to head and schema checks were verified. Downgrade removes v2 feature data;
+it is not a lossless application rollback. Prefer a reviewed backup/restore plan
+if rollback is needed, with an explicit decision about post-backup writes. Do
+not simply run older code against an unknown schema revision.
+
+Liquid boot now preserves higher target roles and ensures existing
+`helen@h24you.com` is an admin, creating only a missing membership. No user or
+password is created or reset. Repeated boot is idempotent. After deployment,
+check Helen's Liquid Settings/Staff access, both merchant logins, tenant
+isolation, `/healthz` and `/readyz`, and confirm migration head `0034` in logs.
+The detailed commands, PostgreSQL evidence and remaining provider/concurrency
+limits are in `docs/admin-v2/04-qa-report.md`, under Release candidate.
+
+The sections below retain the original Liquid deployment preparation; the
+release section above supersedes its migration endpoint and membership policy.
+
 Prepared 21 October 2026 for `h24you-lovable`, starting at `add8451`.
 Nothing was pushed or deployed. The reference repository was read only.
 This remains a sandbox demonstration. Content, policies, photography and
@@ -76,9 +111,12 @@ Normal Liquid seeding creates missing fixture records and pages. With
   go-live still uses `site_golive.py` and its audited readiness transitions.
 - Ensures `SiteCommerceSettings` exists, sets sandbox mode and opts into
   customer accounts. Existing sandbox origin/shipping/stock remain fixtures.
-- Copies every Kinetic tenant membership to Liquid with the same role,
-  including editors. Existing target roles follow the source. No users are
-  created and no passwords or source memberships are changed.
+- Copies every Kinetic tenant membership to Liquid, including editors. Existing
+  target roles can only be upgraded: admin > merchant > editor. Each Liquid seed
+  also ensures admin membership for existing users in `H24YOU_LIQUID_ADMIN_EMAILS`
+  (`helen@h24you.com`), including when hostname cutover is disabled. Missing users
+  are silently skipped. No users are created and no passwords or source
+  memberships are changed.
 - Marks Liquid as a sandbox demo. Host responses receive
   `X-Robots-Tag: noindex, nofollow`; the sandbox footer remains visible.
 
@@ -93,7 +131,8 @@ The ported `ensure_admin.py` diagnostic/repair helper is available separately,
 with `DRY_RUN=1` for no writes. It grants roles only on `h24you`,
 `h24you-kinetic` and `h24you-liquid`, preventing the old helper from granting
 Helen Northstar access. It is not run at boot. Automatic boot copies Kinetic
-memberships rather than hard-coding accounts.
+memberships without downgrades and ensures the named Liquid administrators
+in the H24YOU seed module.
 
 Admin catalogue, orders, stock, promotions, customers, channels, outbox
 status/sync and merchant copilot facts now respect membership tenants. Only

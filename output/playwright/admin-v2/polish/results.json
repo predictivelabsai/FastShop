@@ -19,6 +19,10 @@
     "desktop: Liquid home, one-time and subscription product/cart/delivery/confirmed local payment; email challenge sign-in; account/order/subscription pages; merchant subscription skip/pause/resume/cancel with persisted state",
     "desktop: analytics 1/7/30/90-day and custom ranges, CSV; published blog content and dragged header menu order visible on storefront",
     "desktop: discounts, shipping, tax, content, staff, settings",
+    {
+      "device": "desktop",
+      "features": 10
+    },
     "mobile: catalogue product",
     "mobile: catalogue csv",
     "mobile: catalogue collections",
@@ -37,6 +41,10 @@
     "mobile: Liquid home, one-time and subscription product/cart/delivery/confirmed local payment; email challenge sign-in; account/order/subscription pages; merchant subscription skip/pause/resume/cancel with persisted state",
     "mobile: analytics 1/7/30/90-day and custom ranges, CSV; published blog content and dragged header menu order visible on storefront",
     "mobile: discounts, shipping, tax, content, staff, settings",
+    {
+      "device": "mobile",
+      "features": 10
+    },
     "visual editor: drag, nesting, inline, styling, undo/redo, save, publish, restore"
   ],
   "browser_errors": [],
@@ -44,7 +52,7 @@
   "count": 259,
   "payment_boundary": "Local provider doubles; no live Stripe payment or email delivery",
   "isolation": "One fresh disposable SQLite database and one app instance",
-  "successful_downloads": 10,
+  "successful_downloads": 12,
   "server_errors": [],
   "server_stopped": true
 }

@@ -48,8 +48,8 @@
     "visual editor: drag, nesting, inline, styling, undo/redo, save, publish, restore"
   ],
   "browser_errors": [],
-  "screenshots": "C:\\Users\\Joosep\\h24you\\fastshop-admin-editor\\output\\playwright\\admin-v2\\final",
-  "count": 203,
+  "screenshots": "C:\\Users\\Joosep\\h24you\\fastshop-lovable\\output\\playwright\\admin-v2\\polish",
+  "count": 259,
   "payment_boundary": "Local provider doubles; no live Stripe payment or email delivery",
   "isolation": "One fresh disposable SQLite database and one app instance",
   "successful_downloads": 12,
