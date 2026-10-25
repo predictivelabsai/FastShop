@@ -203,7 +203,7 @@ def capture(page, device, name):
 
 
 def foundation_journey(page, site_id, device):
-    catalogue.login(page)
+    foundation.login(page, "/admin/sites")
     capture(page, device, "stores")
     prefix = f"/admin/sites/{site_id}"
     page.goto(prefix)
