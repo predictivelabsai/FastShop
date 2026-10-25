@@ -19,8 +19,8 @@ def test_catalogue_migration_upgrade_downgrade_backfills(tmp_path):
                                 env=env, capture_output=True, text=True, timeout=60)
         assert result.returncode == 0, result.stdout + result.stderr
 
-    alembic('upgrade', 'head')
-    alembic('downgrade', '-1')
+    alembic('upgrade', '20261025_0030')
+    alembic('downgrade', '20261011_0029')
     engine = create_engine(url)
     with engine.begin() as connection:
         connection.execute(text("INSERT INTO tenants (id,slug,name,status,plan) "
@@ -34,7 +34,7 @@ def test_catalogue_migration_upgrade_downgrade_backfills(tmp_path):
             "(id,tenant_id,product_type_id,category_id,slug,name,subtitle,description,seo_title,"
             "seo_description,image_url,is_published,is_featured) VALUES "
             "('p','t','pt','c','test','Test','','<script>old</script>','','','https://example.com/a.png',1,0)"))
-    alembic('upgrade', 'head')
+    alembic('upgrade', '20261025_0030')
     with engine.connect() as connection:
         product = connection.execute(text('SELECT status,description_html FROM products')).one()
         assert product.status == 'active'

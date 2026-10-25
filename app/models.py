@@ -345,6 +345,11 @@ class OrderLine(TimestampMixin, Base):
     unit_price_minor: Mapped[int] = mapped_column(Integer)
     total_minor: Mapped[int] = mapped_column(Integer)
     order: Mapped[Order] = relationship(back_populates="lines")
+    fulfilled_quantity: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    refunded_quantity: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    unfulfilled_refunded_quantity: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    restocked_quantity: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
 
 
 class PaymentTransaction(TimestampMixin, Base):
@@ -748,6 +753,17 @@ class ShopCustomer(TimestampMixin, Base):
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     stripe_customer_id: Mapped[str] = mapped_column(String(100), default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    phone: Mapped[str] = mapped_column(String(60), default="", server_default="")
+    note: Mapped[str] = mapped_column(Text, default="", server_default="")
+    tags_json: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    account_state: Mapped[str] = mapped_column(String(24), default="active", server_default="active")
+    email_marketing_consent: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    sms_marketing_consent: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    email_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sms_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_consent_source: Mapped[str] = mapped_column(String(80), default="", server_default="")
+    sms_consent_source: Mapped[str] = mapped_column(String(80), default="", server_default="")
+
 
 
 class CustomerChallenge(TimestampMixin, Base):
@@ -900,6 +916,10 @@ class SiteOrder(TimestampMixin, Base):
     quote_id: Mapped[str | None] = mapped_column(ForeignKey("commerce_quotes.id"), nullable=True)
     stripe_checkout_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
     stripe_invoice_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
+    tags_json: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    note: Mapped[str] = mapped_column(Text, default="", server_default="")
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+
 
 
 class RefundCommand(TimestampMixin, Base):
@@ -926,10 +946,16 @@ class RefundCommand(TimestampMixin, Base):
     command_json: Mapped[dict] = mapped_column(JSON)
     result_json: Mapped[dict] = mapped_column(JSON, default=dict)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    selection_json: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    inventory_applied: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class ShipmentEvent(TimestampMixin, Base):
     __tablename__ = "shipment_events"
+    __table_args__ = (UniqueConstraint("site_id", "request_key", name="uq_shipment_request"),)
+    request_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    request_hash: Mapped[str] = mapped_column(String(64), default="", server_default="")
+
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
     site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
@@ -1241,3 +1267,139 @@ class CatalogueSettings(TimestampMixin, Base):
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
     site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
     low_stock_threshold: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class OrderComment(TimestampMixin, Base):
+    __tablename__ = "order_comments"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    site_order_id: Mapped[str] = mapped_column(ForeignKey("site_orders.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    body: Mapped[str] = mapped_column(Text)
+    internal: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ShipmentLine(TimestampMixin, Base):
+    __tablename__ = "shipment_lines"
+    __table_args__ = (CheckConstraint("quantity > 0", name="ck_shipment_line_quantity"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    shipment_id: Mapped[str] = mapped_column(ForeignKey("shipment_events.id", ondelete="CASCADE"), index=True)
+    order_line_id: Mapped[str] = mapped_column(ForeignKey("order_lines.id"), index=True)
+    stock_id: Mapped[str | None] = mapped_column(ForeignKey("stocks.id"), nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer)
+
+
+class OrderRestock(TimestampMixin, Base):
+    __tablename__ = "order_restocks"
+    __table_args__ = (UniqueConstraint("site_id", "source_key", "order_line_id", "stock_id", name="uq_order_restock_source"),
+                      CheckConstraint("quantity > 0", name="ck_order_restock_quantity"))
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    order_line_id: Mapped[str] = mapped_column(ForeignKey("order_lines.id"), index=True)
+    stock_id: Mapped[str | None] = mapped_column(ForeignKey("stocks.id"), nullable=True)
+    source_key: Mapped[str] = mapped_column(String(100))
+    quantity: Mapped[int] = mapped_column(Integer)
+
+
+class ReturnRequest(TimestampMixin, Base):
+    __tablename__ = "return_requests"
+    __table_args__ = (CheckConstraint("status IN ('requested','approved','received','closed','declined')", name="ck_return_status"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    site_order_id: Mapped[str] = mapped_column(ForeignKey("site_orders.id"), index=True)
+    author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="requested")
+    reason: Mapped[str] = mapped_column(String(500))
+    restock: Mapped[bool] = mapped_column(Boolean, default=True)
+    refund_command_id: Mapped[str | None] = mapped_column(ForeignKey("refund_commands.id"), nullable=True)
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lines: Mapped[list[ReturnLine]] = relationship(cascade="all, delete-orphan")
+
+
+class ReturnLine(TimestampMixin, Base):
+    __tablename__ = "return_lines"
+    __table_args__ = (UniqueConstraint("return_request_id", "order_line_id"),
+                      CheckConstraint("quantity > 0", name="ck_return_line_quantity"))
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    return_request_id: Mapped[str] = mapped_column(ForeignKey("return_requests.id", ondelete="CASCADE"), index=True)
+    order_line_id: Mapped[str] = mapped_column(ForeignKey("order_lines.id"), index=True)
+    quantity: Mapped[int] = mapped_column(Integer)
+
+
+class DraftOrder(TimestampMixin, Base):
+    __tablename__ = "draft_orders"
+    __table_args__ = (CheckConstraint("status IN ('open','invoice_sent','completed')", name="ck_draft_status"),
+                      CheckConstraint("discount_minor >= 0 AND shipping_minor >= 0", name="ck_draft_amounts"))
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[str | None] = mapped_column(ForeignKey("shop_customers.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="open")
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    discount_minor: Mapped[int] = mapped_column(Integer, default=0)
+    shipping_minor: Mapped[int] = mapped_column(Integer, default=0)
+    note: Mapped[str] = mapped_column(Text, default="")
+    destination_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    order_id: Mapped[str | None] = mapped_column(ForeignKey("orders.id"), nullable=True, unique=True)
+    site_order_id: Mapped[str | None] = mapped_column(ForeignKey("site_orders.id"), nullable=True, unique=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    lines: Mapped[list[DraftOrderLine]] = relationship(cascade="all, delete-orphan")
+
+
+class DraftOrderLine(TimestampMixin, Base):
+    __tablename__ = "draft_order_lines"
+    __table_args__ = (CheckConstraint("quantity > 0 AND unit_price_minor >= 0", name="ck_draft_line_amounts"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    draft_order_id: Mapped[str] = mapped_column(ForeignKey("draft_orders.id", ondelete="CASCADE"), index=True)
+    variant_id: Mapped[str | None] = mapped_column(ForeignKey("product_variants.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(220))
+    sku: Mapped[str] = mapped_column(String(100), default="")
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    unit_price_minor: Mapped[int] = mapped_column(Integer)
+
+
+class CustomerAddress(TimestampMixin, Base):
+    __tablename__ = "customer_addresses"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(160), default="")
+    phone: Mapped[str] = mapped_column(String(60), default="")
+    line1: Mapped[str] = mapped_column(String(240), default="")
+    line2: Mapped[str] = mapped_column(String(240), default="")
+    city: Mapped[str] = mapped_column(String(120), default="")
+    state: Mapped[str] = mapped_column(String(120), default="")
+    postal_code: Mapped[str] = mapped_column(String(40), default="")
+    country: Mapped[str] = mapped_column(String(2), default="")
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class CustomerComment(TimestampMixin, Base):
+    __tablename__ = "customer_comments"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("shop_customers.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    body: Mapped[str] = mapped_column(Text)
+    internal: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class CustomerSegment(TimestampMixin, Base):
+    __tablename__ = "customer_segments"
+    __table_args__ = (UniqueConstraint("site_id", "name"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    filters_json: Mapped[dict] = mapped_column(JSON, default=dict)
