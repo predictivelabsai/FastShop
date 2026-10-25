@@ -17,7 +17,7 @@ from playwright.sync_api import Error, expect, sync_playwright
 from verify_admin_v2_browser import EMAIL, PASSWORD, isolate
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "output/playwright/admin-v2/p3"
+OUTPUT = ROOT / "output/playwright/admin-v2/polish/orders"
 PRODUCT = "Everyday canvas tote"
 
 
@@ -84,13 +84,16 @@ def stock(fixture):
         return row.quantity, row.allocated
 
 
-def capture(page, device, name):
+def capture(page, device, name, dismiss_toast=True):
     dismiss = page.get_by_role("button", name="Dismiss notification", exact=True)
-    if dismiss.count():
+    if dismiss_toast and dismiss.count():
         dismiss.click()
     page.evaluate("document.fonts.ready")
+    page.evaluate("document.activeElement?.blur(); window.scrollTo(0, 0)")
+    page.wait_for_function("window.scrollY === 0")
+    page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), name
-    page.screenshot(path=str(OUTPUT / f"{device}-{name}.png"), full_page=True)
+    page.screenshot(path=str(OUTPUT / f"{device}-{name}.png"), full_page=True, timeout=60000)
 
 
 def journey(browser, address, fixture, device, width, height):
@@ -99,7 +102,20 @@ def journey(browser, address, fixture, device, width, height):
     page = context.new_page()
     page.set_default_timeout(12000)
     errors = []
+    downloads = set()
+    def response_checked(response):
+        if "attachment" in response.headers.get("content-disposition", ""):
+            downloads.add(response.url)
+        if response.status >= 400:
+            errors.append(f"HTTP {response.status}: {response.url}")
+    def request_failed(request):
+        if request.failure == "net::ERR_ABORTED" and request.url in downloads:
+            return
+        errors.append(f"Request failed: {request.url}: {request.failure}")
     page.on("pageerror", lambda exc: errors.append(str(exc)))
+    page.on("console", lambda message: errors.append(message.text) if message.type == "error" else None)
+    page.on("response", response_checked)
+    page.on("requestfailed", request_failed)
     prefix = "/admin/sites/" + fixture["site"]
     detail = prefix + "/orders/" + fixture["link"]
     try:
@@ -110,8 +126,16 @@ def journey(browser, address, fixture, device, width, height):
         page.wait_for_url("**/admin/sites")
         page.goto(detail)
         capture(page, device, "order-before-fulfilment")
-        fulfil = page.locator("details").filter(has=page.locator("summary", has_text="Fulfil items")).first
-        fulfil.locator("summary").click()
+        more = page.locator(".p3-more-actions > summary")
+        more.focus()
+        more.press("Enter")
+        expect(page.get_by_role("link", name="Packing slip", exact=True)).to_be_visible()
+        more.press("Escape")
+        expect(page.locator(".p3-more-actions")).not_to_have_attribute("open", "")
+        expect(more).to_be_focused()
+        page.get_by_role("link", name="Fulfil", exact=True).click()
+        fulfil = page.locator("form.p3-form")
+        capture(page, device, "fulfil-items")
         fulfil.get_by_label("Quantity: " + PRODUCT, exact=True).fill("3")
         fulfil.get_by_label("Carrier", exact=True).fill("UPS")
         fulfil.get_by_label("Tracking number", exact=True).fill("1ZLOCALP3")
@@ -119,8 +143,9 @@ def journey(browser, address, fixture, device, width, height):
         fulfil.get_by_role("button", name="Fulfil selected items", exact=True).click()
         expect(page.locator(".a-toast")).to_contain_text("fulfilled")
         assert stock(fixture) == (7, 0), stock(fixture)
-        refund = page.locator("details").filter(has=page.locator("summary", has_text="Refund items")).first
-        refund.locator("summary").click()
+        page.get_by_role("link", name="Refund", exact=True).click()
+        refund = page.locator("form.p3-form")
+        capture(page, device, "refund-items")
         refund.get_by_label("Quantity: " + PRODUCT, exact=True).fill("1")
         refund.get_by_label("Restock returned items", exact=True).check()
         refund.get_by_label("Reason for refund", exact=True).fill("One tote was returned unopened.")
@@ -131,8 +156,9 @@ def journey(browser, address, fixture, device, width, height):
         page.get_by_role("button", name="Issue refund", exact=True).click()
         expect(page.locator(".a-toast")).to_contain_text("succeeded")
         assert stock(fixture) == (8, 0), stock(fixture)
-        create_return = page.locator("details").filter(has=page.locator("summary", has_text="Create return")).first
-        create_return.locator("summary").click()
+        page.get_by_role("link", name="Return", exact=True).click()
+        create_return = page.locator("form.p3-form")
+        capture(page, device, "create-return")
         create_return.get_by_label("Quantity: " + PRODUCT, exact=True).fill("1")
         create_return.get_by_label("Reason for return", exact=True).fill("A second tote has a damaged seam.")
         create_return.get_by_role("button", name="Create return", exact=True).click()
@@ -146,19 +172,43 @@ def journey(browser, address, fixture, device, width, height):
         assert stock(fixture) == (9, 0), stock(fixture)
         page.get_by_label("Add an internal note", exact=True).fill("Customer confirmed the remaining tote is perfect.")
         page.get_by_role("button", name="Post comment", exact=True).click()
-        page.get_by_label("Tags, separated by commas", exact=True).fill("VIP, Return reviewed")
+        page.get_by_role("textbox", name="Add tag", exact=True).fill("VIP, Return reviewed")
+        page.get_by_role("textbox", name="Add tag", exact=True).press("Enter")
+        page.get_by_role("button", name="Remove tag Return reviewed", exact=True).click()
+        expect(page.get_by_role("button", name="Remove tag Return reviewed", exact=True)).to_have_count(0)
+        page.get_by_role("textbox", name="Add tag", exact=True).fill("Return reviewed")
+        page.get_by_role("textbox", name="Add tag", exact=True).press("Enter")
+        expect(page.get_by_role("button", name="Remove tag Return reviewed", exact=True)).to_be_visible()
         page.get_by_role("button", name="Save tags", exact=True).click()
         page.get_by_label("Order note", exact=True).fill("Contact Ada before the next delivery.")
         page.get_by_role("button", name="Save note", exact=True).click()
         capture(page, device, "order-after-return")
         page.goto(prefix + "/orders")
         page.get_by_label("Search orders", exact=True).fill(fixture["email"])
-        page.get_by_role("button", name="Apply", exact=True).click()
+        expect(page.locator(".a-filter-status")).to_have_text("Results updated")
+        expect(page.get_by_label("Search orders", exact=True)).to_be_focused()
         expect(page.locator("tbody tr")).to_have_count(1)
-        page.get_by_text("Add filters", exact=True).click()
+        page.locator(".a-sort-popover > summary").press("Enter")
+        page.locator(".a-sort-popover select").select_option("number")
+        expect(page.locator(".a-filter-status")).to_have_text("Results updated")
+        assert "sort=number" in page.url
+        page.keyboard.press("Escape")
+        expect(page.locator(".a-sort-popover > summary")).to_be_focused()
+        page.keyboard.press("Escape")
+        page.locator(".a-filter-search input").press("Enter")
+        expect(page.locator(".a-content")).not_to_have_attribute("aria-busy", "true")
+        expect(page.locator("tbody tr")).to_have_count(1)
+        page.get_by_text("Add filter", exact=True).click()
+        page.get_by_label("Tag", exact=True).focus()
+        page.get_by_label("Tag", exact=True).press("Escape")
+        expect(page.locator(".a-filter-popover > summary")).to_be_focused()
+        expect(page.get_by_label("Tag", exact=True)).to_be_hidden()
+        page.locator(".a-filter-popover > summary").press("Enter")
         page.get_by_label("Tag", exact=True).fill("VIP")
         page.get_by_label("Payment status", exact=True).select_option("partially_refunded")
-        page.get_by_role("button", name="Apply", exact=True).click()
+        page.keyboard.press("Escape")
+        page.locator(".a-filter-search input").press("Enter")
+        expect(page.locator(".a-content")).not_to_have_attribute("aria-busy", "true")
         expect(page.locator("tbody tr")).to_have_count(1)
         expect(page.locator("#order-bulk")).to_be_hidden()
         page.locator("[data-order-select-all]").check()
@@ -167,9 +217,24 @@ def journey(browser, address, fixture, device, width, height):
         page.locator("[data-order-select-all]").uncheck()
         expect(page.locator("#order-bulk")).to_be_hidden()
         capture(page, device, "orders-filtered")
+        page.get_by_role("button", name="Remove tag filter", exact=True).click()
+        expect(page.locator(".a-filter-status")).to_have_text("Results updated")
+        assert "tag=VIP" not in page.url
+        expect(page.get_by_role("button", name="Remove tag filter", exact=True)).to_have_count(0)
         with page.expect_download() as download:
             page.get_by_role("link", name="Export", exact=True).click()
         assert download.value.suggested_filename == "orders.csv"
+        no_script = browser.new_context(base_url=address, java_script_enabled=False,
+                                        storage_state=context.storage_state())
+        try:
+            fallback = no_script.new_page()
+            fallback.goto(prefix + "/orders")
+            fallback.get_by_label("Search orders", exact=True).fill(fixture["email"])
+            fallback.get_by_role("button", name="Apply", exact=True).click()
+            expect(fallback.locator("tbody tr")).to_have_count(1)
+            assert "q=" in fallback.url
+        finally:
+            no_script.close()
         verify_draft(page, prefix, fixture, device)
         verify_customer(page, prefix, fixture, device)
         assert not errors, errors
@@ -203,12 +268,25 @@ def verify_draft(page, prefix, fixture, device):
 def verify_customer(page, prefix, fixture, device):
     page.goto(prefix + "/customers")
     page.get_by_label("Search customers", exact=True).fill("Ada")
-    page.get_by_role("button", name="Apply filters", exact=True).click()
+    page.keyboard.press("Escape")
+    page.locator(".a-filter-search input").press("Enter")
+    expect(page.locator(".a-content")).not_to_have_attribute("aria-busy", "true")
     expect(page.locator("tbody tr")).to_have_count(1)
     page.goto(prefix + "/customers/" + fixture["customer"])
     page.get_by_label("Phone", exact=True).fill("+44 7700 900123")
     page.get_by_label("Email marketing consent", exact=True).check()
     page.get_by_label("SMS marketing consent", exact=True).check()
+    page.evaluate("""() => {
+        window.polishOriginalFetch = window.fetch;
+        window.fetch = () => Promise.reject(new Error('Connection unavailable. Try again.'));
+    }""")
+    page.get_by_role("button", name="Save customer", exact=True).click()
+    expect(page.locator(".a-toast[role=alert]")).to_have_text("Connection unavailable. Try again.×")
+    expect(page.get_by_label("Phone", exact=True)).to_have_value("+44 7700 900123")
+    expect(page.get_by_role("button", name="Save customer", exact=True)).to_be_enabled()
+    assert page.url.endswith("/customers/" + fixture["customer"])
+    capture(page, device, "customer-save-error", dismiss_toast=False)
+    page.evaluate("window.fetch = window.polishOriginalFetch; delete window.polishOriginalFetch")
     page.get_by_role("button", name="Save customer", exact=True).click()
     page.get_by_text("Add address", exact=True).click()
     address = page.locator('form[action$="/addresses"]')
@@ -224,9 +302,12 @@ def verify_customer(page, prefix, fixture, device):
     capture(page, device, "customer-address-consent")
     page.goto(prefix + "/customers")
     page.get_by_label("Search customers", exact=True).fill("Ada")
+    page.get_by_text("Add filter", exact=True).click()
     page.get_by_label("Email consent", exact=True).select_option("subscribed")
     page.get_by_label("Location", exact=True).fill("Bristol")
-    page.get_by_role("button", name="Apply filters", exact=True).click()
+    page.keyboard.press("Escape")
+    page.locator(".a-filter-search input").press("Enter")
+    expect(page.locator(".a-content")).not_to_have_attribute("aria-busy", "true")
     expect(page.locator("tbody tr")).to_have_count(1)
     select_all = page.locator("[data-select-all]")
     select_all.check()
@@ -235,8 +316,11 @@ def verify_customer(page, prefix, fixture, device):
     bulk.locator('input[name="tags"]').fill("browser-vip")
     bulk.get_by_role("button", name="Add tags", exact=True).click()
     page.get_by_label("Search customers", exact=True).fill("Ada")
+    page.get_by_text("Add filter", exact=True).click()
     page.get_by_label("Tag", exact=True).fill("browser-vip")
-    page.get_by_role("button", name="Apply filters", exact=True).click()
+    page.keyboard.press("Escape")
+    page.locator(".a-filter-search input").press("Enter")
+    expect(page.locator(".a-content")).not_to_have_attribute("aria-busy", "true")
     expect(page.locator("tbody tr")).to_have_count(1)
     capture(page, device, "customers-filtered")
     with page.expect_download() as download:

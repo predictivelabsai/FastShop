@@ -59,7 +59,7 @@ def screenshot(page, device: str, name: str) -> None:
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (
         f"Horizontal overflow on {device} {name}"
     )
-    page.screenshot(path=str(OUTPUT / f"{device}-{name}.png"), full_page=True)
+    page.screenshot(path=str(OUTPUT / f"{device}-{name}.png"), full_page=True, timeout=60000)
 
 
 def login(page) -> None:
@@ -107,7 +107,9 @@ def verify_product(page, prefix: str, device: str) -> None:
     page.get_by_label("Online store", exact=True).check()
     page.get_by_label("Vendor", exact=True).fill("Northfield")
     page.get_by_label("Product type", exact=True).fill("Bags")
-    page.get_by_label("Tags (comma separated)", exact=True).fill("everyday, canvas")
+    page.get_by_role("textbox", name="Add tag", exact=True).fill("everyday, canvas")
+    page.get_by_role("textbox", name="Add tag", exact=True).press("Enter")
+    expect(page.get_by_role("button", name="Remove tag canvas", exact=True)).to_be_visible()
     page.get_by_label("SEO title", exact=True).fill("Everyday canvas tote | Northfield Supply")
     page.get_by_label("SEO description", exact=True).fill("A dependable canvas tote, made for everyday essentials.")
     page.get_by_label("URL handle", exact=True).fill("everyday-canvas-tote")
@@ -146,9 +148,11 @@ def verify_product(page, prefix: str, device: str) -> None:
     screenshot(page, device, "product-editor")
     page.goto(prefix + "/products")
     page.get_by_label("Search products", exact=True).fill("canvas")
+    page.get_by_text("Add filter", exact=True).click()
     page.get_by_label("Vendor", exact=True).fill("Northfield")
     page.get_by_label("Tag", exact=True).fill("everyday")
-    page.get_by_role("button", name="Apply filters", exact=True).click()
+    page.locator(".a-filter-search input").press("Enter")
+    expect(page.locator('.a-filter-status')).to_have_text("Results updated")
     expect(page.get_by_role("link", name=PRODUCT_TITLE, exact=True)).to_be_visible()
     screenshot(page, device, "products-filtered")
     page.get_by_label(f"Select {PRODUCT_TITLE}", exact=True).check()
@@ -219,7 +223,8 @@ def verify_collections(page, prefix: str, device: str) -> None:
 def verify_inventory(page, prefix: str, device: str) -> None:
     page.goto(prefix + "/inventory")
     page.get_by_label("Search inventory", exact=True).fill("TOTE-NAT")
-    page.get_by_role("button", name="Filter", exact=True).click()
+    page.locator(".a-filter-search input").press("Enter")
+    expect(page.locator(".a-filter-status")).to_have_text("Results updated")
     expect(page.get_by_role("main")).to_contain_text("12 available")
     page.get_by_text("Adjust inventory", exact=True).click()
     page.get_by_label("Mode", exact=True).select_option("adjust")
@@ -230,7 +235,8 @@ def verify_inventory(page, prefix: str, device: str) -> None:
     page.get_by_role("button", name="Save adjustment", exact=True).click()
     # Adjustment returns to the inventory index, so apply the SKU filter again.
     page.get_by_label("Search inventory", exact=True).fill("TOTE-NAT")
-    page.get_by_role("button", name="Filter", exact=True).click()
+    page.locator(".a-filter-search input").press("Enter")
+    expect(page.locator(".a-filter-status")).to_have_text("Results updated")
     expect(page.get_by_role("main")).to_contain_text("15 available")
     page.get_by_role("button", name="Adjustment history", exact=True).click()
     expect(page.get_by_role("row").filter(has_text="Local browser receipt")).to_contain_text("+3")
@@ -238,8 +244,10 @@ def verify_inventory(page, prefix: str, device: str) -> None:
     page.get_by_role("dialog", name="Adjustment history").get_by_role("button", name="Close", exact=True).click()
     page.get_by_label("Low-stock threshold", exact=True).fill("20")
     page.get_by_role("button", name="Save threshold", exact=True).click()
+    page.get_by_text("Add filter", exact=True).click()
     page.get_by_label("Low stock only", exact=True).check()
-    page.get_by_role("button", name="Filter", exact=True).click()
+    page.locator(".a-filter-search input").press("Enter")
+    expect(page.locator(".a-filter-status")).to_have_text("Results updated")
     expect(page.get_by_role("main")).to_contain_text("TOTE-NAT")
     screenshot(page, device, "inventory-low-stock")
     page.goto(prefix)

@@ -1,5 +1,6 @@
 """Local fixture subscription controls; no real Stripe calls or persisted browser sessions."""
 
+import json
 import threading
 import time
 from datetime import UTC, datetime, timedelta
@@ -126,6 +127,16 @@ def main():
             page = browser.new_page(viewport={"width": 1440, "height": 1000})
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             page.route("https://checkout.stripe.com/**", lambda route: route.fulfill(content_type="text/html", body="<h1>Local card-update simulation</h1>"))
+
+            def local_handoff(route):
+                response = route.fetch(max_redirects=0)
+                destination = response.headers.get("location", "")
+                assert response.status == 303 and destination.startswith("https://checkout.stripe.com/")
+                route.fulfill(status=200, content_type="text/html", body="<script>location.replace(" +
+                    json.dumps(destination) + ")</script>")
+
+            page.route("**/checkout/*/pay", local_handoff)
+            page.route("**/account/subscriptions/*/payment", local_handoff)
             page.goto(root + "/account")
             assert page.get_by_role("heading", name="Sign in with an email link").is_visible()
             assert page.locator('form[action$="/account/login"]').count() == 1

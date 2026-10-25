@@ -1,0 +1,7 @@
+{
+  "unexpected_errors": [],
+  "expected_negative_checks": [
+    "Console: /sites/h24you/account: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "HTTP 404: GET /sites/h24you/account"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "status": "passed",
+  "pytest": {
+    "passed": 1088,
+    "skipped": 1,
+    "warnings": 4,
+    "seconds": 1002.21
+  },
+  "ruff": "passed",
+  "compileall": "passed",
+  "static_js_syntax": {
+    "files": 22,
+    "status": "passed"
+  },
+  "git_diff_check": "passed",
+  "combined_browser": {
+    "status": "passed",
+    "screenshots": 259,
+    "browser_errors": [],
+    "server_errors": [],
+    "viewports": [
+      [
+        1440,
+        900
+      ],
+      [
+        390,
+        844
+      ]
+    ]
+  },
+  "standalone_admin_phases": 5,
+  "legacy_journeys": 12,
+  "legacy_unexpected_errors": [],
+  "cleanup": "Native PowerShell cleanup rejected by automatic approval review: blocked by policy. Temporary validation folders remain local and uncommitted."
+}

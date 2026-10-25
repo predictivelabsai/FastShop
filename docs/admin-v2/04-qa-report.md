@@ -240,3 +240,108 @@ removed automatically after clean server shutdown; none remains.
 
 No unresolved product question blocks the tested local journeys. Live provider,
 database and merchant-content acceptance remain separate deployment prerequisites.
+
+## Polish pass
+
+25 October 2026. Scope: section 3 of `05-post-build-audit.md`. Work stayed on
+`merchant-admin-v2` in this checkout. No models, migrations, feature-worktree
+changes, environment files, push, deployment or branch switch were involved.
+
+The shared merchant shell now supplies consistent select chevrons, date/time
+controls, file dropzones, boolean switches, editable tag chips and button
+hierarchy. Detail headers use a proper back icon button; legacy leading back
+links move into that header. Breadcrumbs remain in the top strip. Links underline
+on hover. Older media, menu, review, placeholder, snippet, integration, go-live
+and inbox empty states use the shared SVG icon, title, explanation and action.
+
+Index search is debounced and uses the existing tenant-authorised GET route.
+Filters live in an Add filter popover with removable chips and a compact Sort
+menu. Sorting covers products, orders, customers, discounts, collections,
+inventory, drafts, subscriptions, pages and blog posts; draft sorting happens
+before pagination. Search/filter forms still submit normally without JavaScript.
+Selection bars reveal existing bulk commands only after selection. Rows open
+their linked record, and mobile tables become labelled cards with an accessible
+Select all control. Refreshes retain search focus, caret and filter controls,
+and reinitialise selection and dialog handlers.
+
+Discount creation starts with four described type cards. Method and value type
+use segmented radios; eligibility and minimum requirements reveal their relevant
+inputs. Product/collection selection uses a searchable dialog and removable
+chips. The search authorises the site and scopes the existing shared catalogue
+by tenant; those catalogue models have no site-id column. Native selection
+controls remain available without JavaScript.
+
+Orders expose Fulfil, Refund and Return in the header, with dedicated operation
+pages and a More actions menu. Edit appears only when its GET route is actually
+registered. Existing command URLs, CSRF checks, ownership checks and transaction
+behaviour remain intact. Timelines group events by day, show merchant wording,
+merge duplicate provider/refund-command events by reference and retain distinct
+same-value refunds. Integration delivery and reconciliation details are behind
+Show integration details.
+
+The editor tree, widgets and section picker use schema labels and SVG icons,
+with headings as muted subtitles. Hover actions, media dropzones, loading
+feedback, toasts, modal labels, Escape handling, focus trapping and focus
+restoration were refined. Shared asynchronous mutations retain entered values
+and show an error toast on failure, while successful redirects restore focus
+and show confirmation. Direct HTML POST results such as CSV previews retain
+their server-rendered content. Reduced-motion preferences are respected.
+
+Browser verification also exposed unused FastHTML CDN scripts in offline
+journeys. Those unused defaults are disabled while charset and viewport headers
+remain. Legacy payment verifiers now verify the real local POST and provider
+303 before separately intercepting the simulated provider navigation, avoiding
+accidental requests to fake live checkout URLs.
+
+Validation passed on explicitly isolated local storage with dotenv loading and
+the scheduler disabled:
+
+- Full pytest: **1,088 passed, 1 skipped, 4 warnings in 1,002.21 seconds**. The
+  existing optional-dependency skip and Starlette/AnyIO deprecation remain.
+- Ruff, application/script compilation, all **22** static JavaScript syntax
+  checks and `git diff --check` passed.
+- The combined browser verifier passed at **1440x900** and **390x844**, with
+  **259 canonical screenshots**, zero browser/network errors, zero server
+  exceptions, 10 successful downloads and a clean server shutdown. Both
+  viewports retained all 47 foreign-tenant URL-family denials.
+- All five standalone admin phase verifiers passed. Assertions additionally
+  exercise keyboard sorting, filter-chip removal, selection bars, modal focus,
+  tag add/remove, search caret retention, JavaScript-disabled GET submission and
+  a failed asynchronous save retaining entered values and enabling a retry.
+
+Browser clicks now wait for enhanced POSTs to settle, just as native form clicks
+previously waited for navigation. The wait observes the actual submitting state;
+it does not suppress responses, skip assertions or relax persisted-state checks.
+Screenshot rendering has a 60-second budget for concurrent Windows validation.
+The normal action assertions remain in place.
+
+Canonical evidence is in `output/playwright/admin-v2/polish/`, including
+`results.json`, desktop/mobile captures of every admin page type and dedicated
+discount/resource-picker, order-action, editor, sorted-index and error states.
+Desktop/mobile product, index, content, settings and older-page contact sheets
+were reviewed, together with individual order, discount and editor captures.
+Spacing, double dropzone borders, mobile selection, content bulk bars and
+refreshed-control handlers were corrected during that review. Supplementary
+phase screenshots remain local and excluded from commits to avoid duplication.
+
+The strict legacy runner passed **12/12 journeys**, covering every pre-existing
+legacy verifier, demo through the builder journey, and both checkout variants.
+Together with the five admin phases, all **17 pre-existing verifier modules**
+passed. Its 12 `browser-observations.json` reports contain **zero unexpected
+console, page, HTTP or request errors**. Explicit disabled-account, missing-page,
+missing-checkout and invalid-cart negative assertions remain separately recorded;
+no generic HTTP-error allowlist was introduced. The builder rerun confirms its
+existing custom submit handler retains section selection and is not intercepted
+by the shared enhancement. Results are in `polish/legacy/results.json`.
+
+Automatic approval review rejected native PowerShell cleanup of the verified
+temporary validation folders with **blocked by policy**. No alternate deletion
+mechanism was used. The following newly created folders remain local and
+uncommitted: `output/polish-focused-validation`, `output/polish-full-validation`,
+`output/polish-final-validation`, `output/polish-sort-validation`,
+`output/polish-release-validation` and `output/polish-review`. Failed-run PNGs
+inside the polish evidence folder are ignored and excluded from its canonical
+count. Browser-owned disposable folders are removed by their normal teardown.
+
+No unresolved product question was found in the tested polish journeys. Live
+provider acceptance and the separate feature worktree remain outside this pass.

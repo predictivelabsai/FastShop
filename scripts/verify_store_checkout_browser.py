@@ -1,6 +1,7 @@
 """Local-only UI acceptance with a clearly simulated Stripe boundary, not sandbox payment proof."""
 
 import argparse
+import json
 import threading
 import time
 from functools import partial
@@ -75,7 +76,18 @@ def main():
             page = context.new_page()
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             page.route("https://checkout.stripe.com/**", lambda route: route.fulfill(
-                content_type="text/html", body="<h1>Local provider simulation — no payment made</h1>"))
+                content_type="text/html", body="<h1>Local provider simulation. No payment made.</h1>"))
+
+            def local_handoff(route):
+                # Redirect chains bypass Playwright's destination route. Verify
+                # the real POST, then navigate separately into the local double.
+                response = route.fetch(max_redirects=0)
+                destination = response.headers.get("location", "")
+                assert response.status == 303 and destination.startswith("https://checkout.stripe.com/")
+                route.fulfill(status=200, content_type="text/html", body="<script>location.replace(" +
+                    json.dumps(destination) + ")</script>")
+
+            page.route("**/checkout/*/pay", local_handoff)
             page.goto(root + product_path)
             page.locator('#h-cookie button[data-consent="none"]').click()
             if args.subscription:

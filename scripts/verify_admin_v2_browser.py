@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
-from playwright.sync_api import Error, expect, sync_playwright
+from playwright.sync_api import Error, Locator, expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "output/playwright/admin-v2/p1"
@@ -25,8 +25,27 @@ PASSWORD = "LocalBrowser2026$"
 ORDER_NUMBER = "LOCAL-P1-1001"
 
 
+def settle_admin_actions():
+    """Wait for enhanced POST results as native clicks previously waited for navigation."""
+    if getattr(Locator.click, "admin_settled", False):
+        return
+    native_click = Locator.click
+
+    def click_and_settle(locator, *args, **kwargs):
+        result = native_click(locator, *args, **kwargs)
+        if not locator.page.is_closed():
+            locator.page.wait_for_function(
+                "!document.querySelector('.a-shell form[data-submitting=true]')", timeout=30000,
+            )
+        return result
+
+    click_and_settle.admin_settled = True
+    Locator.click = click_and_settle
+
+
 def isolate(data_dir: str, port: int) -> None:
     """Set isolation before the first application import, including config."""
+    settle_admin_actions()
     os.environ.update({
         "PYTHON_DOTENV_DISABLED": "1",
         "DB_URL": "",

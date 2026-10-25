@@ -94,7 +94,7 @@ def main():
             db.commit()
             order_id, order_number = link.id, order.number
         admin.goto(base + f"/admin/sites/{site_id}/orders/{order_id}")
-        admin.get_by_text("Fulfil items", exact=True).click()
+        admin.get_by_role("link", name="Fulfil", exact=True).click()
         tracking = admin.locator(f'form[action="/admin/sites/{site_id}/orders/{order_id}/fulfil-items"]')
         tracking.get_by_label("Quantity: Local fixture item", exact=True).fill("1")
         tracking.locator('input[name="carrier"]').fill("Local test carrier")

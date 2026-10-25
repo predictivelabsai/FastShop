@@ -1,0 +1,11 @@
+{
+  "unexpected_errors": [],
+  "expected_negative_checks": [
+    "Console: /sites/h24you-liquid/cart/update: Failed to load resource: the server responded with a status of 400 (Bad Request)",
+    "Console: /sites/h24you-liquid/checkout/missing: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Console: /sites/h24you-liquid/missing-page: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "HTTP 400: POST /sites/h24you-liquid/cart/update",
+    "HTTP 404: GET /sites/h24you-liquid/checkout/missing",
+    "HTTP 404: GET /sites/h24you-liquid/missing-page"
+  ]
+}

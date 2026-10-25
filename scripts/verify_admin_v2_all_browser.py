@@ -25,7 +25,7 @@ import verify_admin_v2_orders_browser as orders
 from playwright.sync_api import Error, expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "output/playwright/admin-v2/final"
+OUTPUT = ROOT / "output/playwright/admin-v2/polish"
 
 
 class LocalCheckoutGateway(growth.LocalTaxGateway):
@@ -197,7 +197,7 @@ def capture(page, device, name):
     page.evaluate("window.scrollTo(0, 0)")
     page.wait_for_function("window.scrollY === 0")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), name
-    page.screenshot(path=str(OUTPUT / f"{device}-{name}.png"), full_page=True)
+    page.screenshot(path=str(OUTPUT / f"{device}-{name}.png"), full_page=True, timeout=60000)
 
 
 def foundation_journey(page, site_id, device):
@@ -280,6 +280,7 @@ def remaining_orders(page, fixture, device):
     page.goto(prefix + "/orders/" + fixture["link"])
     packing = page.get_by_role("link", name="Print packing slip", exact=True)
     if not packing.count():
+        page.locator('.p3-more-actions > summary').click()
         packing = page.get_by_role("link", name="Packing slip", exact=True)
     with page.expect_popup() as popup:
         packing.click()
@@ -312,6 +313,38 @@ def inspect_navigation(page, prefix, device):
         assert "/coming-soon/" not in target, target
         response = page.goto(target)
         assert response.status == 200, (target, response.status)
+    for suffix in ("menus", "media", "snippets", "reviews", "placeholders", "integrations",
+                   "golive", "samples", "inbox", "content/pages", "content/files",
+                   "collections", "inventory", "drafts"):
+        response = page.goto(prefix + "/" + suffix)
+        assert response.status == 200, (suffix, response.status)
+        capture(page, device, "polish-" + suffix.replace("/", "-"))
+    for suffix in ("discounts", "collections", "inventory", "drafts", "subscriptions",
+                   "content/pages", "content/blog-posts"):
+        page.goto(prefix + "/" + suffix)
+        page.locator(".a-sort-popover > summary").click()
+        select = page.locator(".a-sort-popover select")
+        selected = select.locator("option").last.get_attribute("value")
+        select.select_option(selected)
+        expect(page.locator(".a-filter-status")).to_have_text("Results updated")
+        assert "sort=" in page.url, suffix
+        page.keyboard.press("Escape")
+        expect(page.locator(".a-sort-popover > summary")).to_be_focused()
+        capture(page, device, "sorted-" + suffix.replace("/", "-"))
+    page.goto(prefix + "/discounts")
+    bulk = page.locator("[data-bulk-bar]")
+    expect(bulk).to_be_hidden()
+    page.locator('tbody input[type="checkbox"]').first.check()
+    expect(bulk).to_be_visible()
+    page.locator('tbody input[type="checkbox"]').first.uncheck()
+    expect(bulk).to_be_hidden()
+    page.goto(prefix + "/content/pages")
+    bulk = page.locator('form[action$="/pages/bulk"] > .a-actions')
+    expect(bulk).to_be_hidden()
+    page.locator("[data-select-all]").check()
+    expect(bulk).to_be_visible()
+    page.locator("[data-select-all]").uncheck()
+    expect(bulk).to_be_hidden()
     capture(page, device, "navigation-last-screen")
 
 
@@ -493,7 +526,8 @@ def liquid_shopper(browser, base, merchant, site_id, device):
         prefix = f"/admin/sites/{site_id}/subscriptions"
         merchant.goto(prefix)
         merchant.get_by_label("Search subscriptions", exact=True).fill(email)
-        merchant.get_by_role("button", name="Filter", exact=True).click()
+        merchant.locator(".a-filter-search input").press("Enter")
+        expect(merchant.locator(".a-filter-status")).to_have_text("Results updated")
         capture(merchant, device, "subscriptions-index")
         merchant.get_by_role("link", name=email, exact=True).click()
         expect(merchant).to_have_url(base + prefix + "/" + contract_id)
