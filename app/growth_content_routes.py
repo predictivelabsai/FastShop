@@ -750,7 +750,7 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
                                     name="name",
                                     required=True,
                                     maxlength=40,
-                                    pattern="[a-z][a-z0-9-]*",
+                                    pattern=r"[a-z][a-z0-9\-]*",
                                 ),
                             ),
                             Input(type="hidden", name="items", value="[]"),

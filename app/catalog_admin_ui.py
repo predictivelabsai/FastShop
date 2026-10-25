@@ -422,7 +422,7 @@ def product_editor(
         ),
         field("SEO title", "seo_title", get("seo_title"), maxlength="70"),
         area("SEO description", "seo_description", get("seo_description"), maxlength="320"),
-        field("URL handle", "slug", get("slug"), pattern="[a-z0-9-]+"),
+        field("URL handle", "slug", get("slug"), pattern=r"[a-z0-9\-]+"),
         title="Search engine listing",
     )
     main = Div(

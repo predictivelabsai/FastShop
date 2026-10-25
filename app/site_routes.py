@@ -357,7 +357,7 @@ def register_site_routes(rt):
                                 H3("Create a website"),
                                 P("Start with the editorial commerce theme. Your site stays private until you publish."),
                                 Form(csrf(session), Label("Site name", Input(name="name", required=True, maxlength=160)),
-                                    Label("Site address", Input(name="slug", required=True, pattern="[a-z][a-z0-9-]{2,60}", placeholder="your-brand")),
+                                    Label("Site address", Input(name="slug", required=True, pattern=r"[a-z][a-z0-9\-]{2,60}", placeholder="your-brand")),
                                     Label("Build your way", Select(Option("Classical editor", value="classical"), Option("Build with AI / guided presets", value="chat"), name="flow")),
                                     Label(Input(type="checkbox", name="samples"), " Start with clearly labelled sample merchant details"),
                                     Button("Create site", cls="e-button"), method="post", action="/admin/sites", cls="e-form"),
