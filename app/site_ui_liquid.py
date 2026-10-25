@@ -36,6 +36,7 @@ from fasthtml.common import (
     Section,
     Small,
     Span,
+    Style,
     Summary,
     Sup,
     Title,
@@ -183,6 +184,15 @@ def add_form(db, site, item, base, csrf, enabled, *, flavors=None, specs=None, c
 
 
 def render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
+    from app.site_widgets import decorate_block, render_widget
+    node = render_widget(db, site, page, config, b, base, csrf, preview,
+                         lambda child: render_block(db, site, page, config, child, base, csrf, enabled, preview))
+    if node is not None:
+        return node
+    return decorate_block(_render_block(db, site, page, config, b, base, csrf, enabled, preview), b, preview)
+
+
+def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
     from app.site_ui_liquid_editorial import render_editorial
     from app.site_ui_liquid_products import render_product_block
     from app.site_ui_liquid_support import render_support
@@ -639,7 +649,7 @@ def newsletter(shell, base, csrf, identity, enabled):
     )
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, message="", content=None, cart_count=0):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", content=None, cart_count=0):
     config = (site.settings_json if preview else site.published_settings_json) or {}
     document = resolve_document(
         page.draft_json if preview else page.published_json, default_locale(site, preview=preview)
@@ -684,6 +694,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         if b.get("hidden"):
             continue
         node = render_block(db, site, page, config, b, base, csrf, enabled, preview)
+        if not editor:
+            from app.site_widgets import strip_editor_hooks
+            strip_editor_hooks(node)
         nodes = node if isinstance(node, (list, tuple)) else [node]
         for child in nodes:
             if preview and child is not None and hasattr(child, "attrs"):
@@ -694,7 +707,10 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
             blocks.append(child)
     if content is not None:
         blocks = list(content)
+    from app.site_theme import theme_style
+    from app.site_widgets import LIQUID_DESIGN_CSS, WIDGET_CSS, needs_widget_css
     result = (
+        Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(document["title"] if document["title"].endswith(" | " + site.name)
               else document["title"] + " | " + site.name),
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
@@ -908,6 +924,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
                 cls="metal-footer",
             ),
             cls="h-site theme-metal",
+            style=theme_style(config) or None, data_themed="true" if theme_style(config) else None,
             data_pack="liquid",
             data_tone="rose",
             data_site=site.id,
