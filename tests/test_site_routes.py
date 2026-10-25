@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlencode
 
 from sqlalchemy import select
 from starlette.testclient import TestClient
@@ -48,9 +49,10 @@ def test_all_brief_pages_render_and_articles_have_required_length():
 def test_draft_preview_requires_real_site_membership():
     site, pages = h24()
     client = TestClient(app)
-    response = client.get(f"/admin/sites/{site.id}/preview/{pages[0].id}")
-    assert response.status_code == 400
-    assert "Sign in" in response.text
+    preview = f"/admin/sites/{site.id}/preview/{pages[0].id}"
+    response = client.get(preview, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login?" + urlencode({"next": preview})
     authorized, _ = signed_in()
     response = authorized.get(f"/admin/sites/{site.id}/preview/{pages[0].id}")
     assert response.status_code == 200
@@ -149,7 +151,9 @@ def test_commerce_settings_keep_fastshop_brand_and_require_csrf():
     assert "US commerce · FastShop" in response.text
     assert 'aria-label="Store administration"' in response.text
     assert re.search(r'href="/static/admin/admin\.css\?v=\d+"', response.text)
-    assert TestClient(app).get(path).status_code == 400
+    anonymous = TestClient(app).get(path, follow_redirects=False)
+    assert anonymous.status_code == 303
+    assert anonymous.headers["location"] == "/login?" + urlencode({"next": path})
     form = {"csrf_token": token, "version": "1", "mode": "disabled", "origin_country": "EE",
         "site_version": str(site.version), "shipping_minor": "",
         "free_shipping_threshold_minor": "7500", "states": ["CA", "NY"]}

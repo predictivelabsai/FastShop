@@ -87,6 +87,34 @@ def test_detail_comments_tags_notes_archive_and_csrf(web):
     assert slip.status_code == 200 and "Packing slip" in slip.text and "ORDER-SKU" in slip.text
 
 
+def test_detail_links_use_site_order_ids_and_hide_other_stores(web):
+    from app.models import Site
+
+    w = web
+    index = w.client.get(w.base)
+    assert f'href="{w.detail}"' in index.text
+    assert w.link.id != w.order.id
+    assert w.client.get(w.detail).status_code == 200
+    # A raw commerce Order ID is not a public workspace detail identifier.
+    raw = w.client.get(w.base + "/" + w.order.id)
+    missing = w.client.get(w.base + "/missing-order")
+    assert raw.status_code == missing.status_code == 400
+    assert raw.text == missing.text
+    with w.sessions() as db:
+        sibling = Site(tenant_id=w.site.tenant_id, channel_id=w.site.channel_id,
+                       name="Sibling store", slug="sibling-order-store")
+        db.add(sibling)
+        db.commit()
+        sibling_id = sibling.id
+    # Even membership in the same tenant cannot move an order across stores.
+    sibling_base = f"/admin/sites/{sibling_id}/orders"
+    hidden = w.client.get(sibling_base + "/" + w.link.id)
+    absent = w.client.get(sibling_base + "/missing-order")
+    assert hidden.status_code == absent.status_code == 400
+    assert hidden.text == absent.text
+    assert w.order.number not in w.client.get(sibling_base).text
+
+
 def test_line_fulfilment_is_idempotent_and_invalid_quantity_is_rejected(web):
     w = web
     line = w.order.lines[0]

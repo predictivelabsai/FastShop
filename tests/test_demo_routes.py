@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlencode
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -25,7 +26,9 @@ def test_private_demo_requires_membership_csrf_and_explicit_start():
         foreign = content.create_site(db, stranger.id, "Foreign demo", "demo-" + uuid4().hex[:10])
         db.commit()
     base = f"/admin/sites/{site.id}/demo"
-    assert TestClient(app).get(base).status_code == 400
+    anonymous = TestClient(app).get(base, follow_redirects=False)
+    assert anonymous.status_code == 303
+    assert anonymous.headers["location"] == "/login?" + urlencode({"next": base})
     assert client.get(f"/admin/sites/{foreign.id}/demo").status_code == 400
     response = client.get(base)
     assert response.status_code == 200 and "Start private demo" in response.text

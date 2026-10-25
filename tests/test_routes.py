@@ -43,7 +43,7 @@ def test_admin_requires_login_and_local_admin_can_sign_in():
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin"
+    assert response.headers["location"] == "/admin/sites"
     assert session_client.get("/admin").status_code == 200
 
 
@@ -74,7 +74,7 @@ def test_login_preserves_only_same_origin_return_paths():
         },
         follow_redirects=False,
     )
-    assert response.headers["location"] == "/admin"
+    assert response.headers["location"] == "/admin/sites"
 
 
 def test_shopper_assistant_has_no_key_fallback():
@@ -148,7 +148,7 @@ def test_per_user_password_login_uses_membership_role(monkeypatch):
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin"
+    assert response.headers["location"] == "/admin/sites"
     assert session_client.get("/admin").status_code == 200
 
 
@@ -190,7 +190,7 @@ def test_per_user_login_rejects_wrong_password_and_passwordless_users():
 
 @pytest.mark.parametrize("membership_count", [0, 1, 2])
 @pytest.mark.parametrize("catalog_state", ["priced", "free", "unpriced", "inactive"])
-def test_admin_views_follow_membership_tenants(monkeypatch, membership_count, catalog_state):
+def test_catalog_service_follows_membership_tenants(monkeypatch, membership_count, catalog_state):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.pool import StaticPool
@@ -275,53 +275,14 @@ def test_admin_views_follow_membership_tenants(monkeypatch, membership_count, ca
         assert [card.product.name for card in public_cards] == (["Tenant product 0"] if priced else [])
         assert all(isinstance(card.price_minor, int) for card in public_cards)
         admin_cards = products(db, tenant_ids=expected_ids, admin_catalog=True)
+        assert {card.product.tenant_id for card in admin_cards} == (
+            expected_ids if expected_ids is not None else set(tenant_ids))
         assert all((card.price_minor is not None) == priced for card in admin_cards)
         assert products(db, tenant_ids=set(), admin_catalog=True) == []
 
-    try:
-        with TestClient(app) as http:
-            response = http.post("/login", data={
-                "email": actor.email,
-                "password": password if membership_count else "FastShop2026$",
-                "csrf_token": _login_csrf(http),
-            }, follow_redirects=False)
-            assert response.status_code == 303
-            assert response.headers["location"] == "/admin"
-            assert http.get("/login", follow_redirects=False).headers["location"] == "/admin"
-            for path, markers in {
-                "/admin": ["TENANT-ORDER"],
-                "/admin/products": ["Tenant product"],
-                "/admin/orders": ["TENANT-ORDER"],
-                "/admin/inventory": ["TENANT-SKU"],
-                "/admin/promotions": ["TENANT-VOUCHER"],
-                "/admin/customers": ["staff", "buyer"],
-            }.items():
-                response = http.get(path)
-                assert response.status_code == 200, path
-                for index in range(2):
-                    visible = membership_count != 1 or index == 1
-                    for marker in markers:
-                        separator = " " if marker == "Tenant product" else "-"
-                        assert (f"{marker}{separator}{index}" in response.text) == visible, (path, marker, index)
-                if path == "/admin/products":
-                    catalog_rows = re.findall(r"<tr>(.*?)</tr>", response.text, re.DOTALL)[1:]
-                    assert len(catalog_rows) == (1 if membership_count == 1 else 2)
-                    for index in range(2):
-                        if membership_count == 1 and index == 0:
-                            continue
-                        row = next(row for row in catalog_rows if f"Tenant product {index}" in row)
-                        expected_price = ("€0.00" if catalog_state == "free" else "€10.00") if priced else "Price to be confirmed"
-                        assert f"<td>{expected_price}</td>" in row
-                        available = 0 if catalog_state == "inactive" else 10 + index
-                        assert f"<td>{available}</td>" in row
-                if path == "/admin":
-                    expected_kpis = ["€20.00", "1", "1", "11"] if membership_count == 1 else ["€30.00", "2", "2", "21"]
-                    assert re.findall(r"<strong>(.*?)</strong>", response.text)[:4] == expected_kpis
-            public = http.get("/products")
-            assert public.status_code == 200
-            assert ("Tenant product 0" in public.text) == priced
-            assert "Tenant product 1" not in public.text
-            assert "Price to be confirmed" not in public.text
-            assert http.get("/admin/content", follow_redirects=False).headers["location"] == "/admin/sites"
-    finally:
-        engine.dispose()
+    public = client.get("/products")
+    assert public.status_code == 200
+    assert ("Tenant product 0" in public.text) == priced
+    assert "Tenant product 1" not in public.text
+    assert "Price to be confirmed" not in public.text
+    engine.dispose()

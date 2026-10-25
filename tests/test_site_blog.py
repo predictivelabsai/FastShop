@@ -195,6 +195,7 @@ def test_alembic_empty_and_populated_pre_taxonomy_upgrade(tmp_path, populated):
 
 def test_public_filters_seo_draft_preview_and_csrf_forms():
     import re
+    from urllib.parse import urlencode
     from uuid import uuid4
 
     from starlette.testclient import TestClient
@@ -242,7 +243,9 @@ def test_public_filters_seo_draft_preview_and_csrf_forms():
     preview = f"/admin/sites/{site_id}/preview/{draft_id}"
     assert client.get(preview).status_code == 200
     assert 'content="noindex,nofollow"' in client.get(preview).text
-    assert anonymous.get(preview).status_code != 200
+    denied = anonymous.get(preview, follow_redirects=False)
+    assert denied.status_code == 303
+    assert denied.headers["location"] == "/login?" + urlencode({"next": preview})
     editor = f"/admin/sites/{site_id}/pages/{draft_id}"
     assert 'name="article_state"' in client.get(editor).text
     form = {"version": version, "title": "Edited privately", "action": "draft", "article_state": "published",

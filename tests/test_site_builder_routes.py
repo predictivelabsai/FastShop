@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import pytest
@@ -38,7 +39,9 @@ def test_builder_preview_and_classical_share_draft(editor, monkeypatch):
     client, site, page, token = editor
     base = f"/admin/sites/{site.id}/build"
     assert "Live draft preview" in client.get(base).text
-    assert TestClient(app).get(base).status_code == 400
+    anonymous = TestClient(app).get(base, follow_redirects=False)
+    assert anonymous.status_code == 303
+    assert anonymous.headers["location"] == "/login?" + urlencode({"next": base})
     form = message_form(site, page, token)
     assert client.post(base + "/message", data=form | {"csrf_token": "wrong"}).status_code == 400
     result = client.post(base + "/message", data=form)
