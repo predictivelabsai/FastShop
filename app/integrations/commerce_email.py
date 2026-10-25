@@ -93,6 +93,27 @@ def render_message(db, row, site, customer=None, user=None):
         )
     if not customer:
         return None
+    if row.kind == "draft_invoice":
+        from app import draft_orders
+        from app.models import DraftOrder
+        reference = row.reference_json or {}
+        draft = db.scalar(select(DraftOrder).where(DraftOrder.id == reference.get("draft_id"),
+            DraftOrder.site_id == site.id, DraftOrder.tenant_id == site.tenant_id,
+            DraftOrder.customer_id == customer.id, DraftOrder.status == "invoice_sent",
+            DraftOrder.version == reference.get("version")))
+        if not draft:
+            return None
+        subtotal, total = draft_orders.totals(db, site, draft)
+        body = f"{site.name}\nDraft invoice #{draft.id[:8].upper()}\n\n"
+        for line in draft_orders.lines_for(db, site, draft):
+            body += f"{line.title} × {line.quantity}: {money(line.quantity*line.unit_price_minor, draft.currency)}\n"
+        body += (f"\nSubtotal: {money(subtotal, draft.currency)}\n"
+            f"Discount: {money(draft.discount_minor, draft.currency)}\n"
+            f"Shipping: {money(draft.shipping_minor, draft.currency)}\n"
+            f"Total: {money(total, draft.currency)}\n\n"
+            "Arrange payment directly with the merchant. This invoice has no online payment link "
+            "and does not confirm receipt of payment. No automatic tax calculation is included.\n")
+        return f"Draft invoice - {site.name}", body
     if row.kind in {"renewal_failed", "renewal_upcoming"}:
         return render_subscription_message(db, row, site, customer)
     if row.kind in {"order_confirmation", "shipment_update"}:
@@ -134,16 +155,21 @@ def render_order_message(db, row, site, customer):
     order = db.scalar(select(Order).where(Order.id == link.order_id, Order.tenant_id == site.tenant_id))
     if not order or order.payment_status != "paid":
         return None
-    # Phase 2 currently permits test payments only; never imply real fulfilment.
-    heading = "Sandbox order confirmation"
-    body = f"{site.name}\nOrder {order.number}\n\nTEST ORDER — no real payment or shipment.\n\n"
+    from app.models import PaymentTransaction
+    manual = db.scalar(select(PaymentTransaction.id).where(
+        PaymentTransaction.order_id == order.id, PaymentTransaction.provider == "manual:"+site.id,
+        PaymentTransaction.kind == "charge", PaymentTransaction.status == "succeeded")) is not None
+    heading = "Order confirmation" if manual else "Sandbox order confirmation"
+    body = f"{site.name}\nOrder {order.number}\n\n"
+    body += ("Payment was recorded manually by the merchant. No online charge was made.\n\n"
+        if manual else "TEST ORDER - no real payment or shipment.\n\n")
     if row.kind == "shipment_update":
         shipment = db.scalar(select(ShipmentEvent).where(ShipmentEvent.id == reference.get("shipment_id"),
             ShipmentEvent.site_order_id == link.id, ShipmentEvent.site_id == site.id,
             ShipmentEvent.tenant_id == site.tenant_id))
         if not shipment:
             return None
-        heading = "Sandbox delivery update"
+        heading = "Delivery update" if manual else "Sandbox delivery update"
         body += f"Status: {shipment.status.replace('_', ' ').title()}\n"
         if shipment.carrier or shipment.tracking_number:
             body += f"Carrier: {shipment.carrier}\nTracking number: {shipment.tracking_number}\n"
@@ -162,7 +188,7 @@ def render_order_message(db, row, site, customer):
         url = customers.customer_base(site) + "/account/orders/" + link.id
         body += f"\nView your order and delivery updates (sign-in required): {url}\n"
     body += "\nThis is a transactional message about your order, not a marketing subscription.\n\nPowered by FastShop."
-    return f"{heading} — {order.number} — {site.name}", body
+    return f"{heading} - {order.number} - {site.name}", body
 
 
 def render_subscription_message(db, row, site, customer):
