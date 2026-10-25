@@ -289,10 +289,13 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                 return shell("Pages",
                     Div(*[A(label, href=prefix + "/" + key) for label, key in (
                         ("Snippets", "snippets"), ("Reviews", "reviews"),
-                        ("Placeholders", "placeholders"), ("Inbox", "inbox"))], cls="e-actions"),
-                    card(index_table(["Title", "Path", "Status"], [
-                    [A(page.title, href=prefix + f"/pages/{page.id}"), page.path,
-                     badge("Published", "success") if page.published_json is not None else badge("Draft")]
+                        ("Placeholders", "placeholders"), ("Inbox", "inbox"),
+                        ("Open visual editor", "editor"))], cls="e-actions"),
+                    card(index_table(["Title", "Path", "Status", "Edit"], [
+                    [A(page.title, href=prefix + f"/editor?page={page.id}"), page.path,
+                     badge("Published", "success") if page.published_json is not None else badge("Draft"),
+                     Div(A("Visual editor", href=prefix + f"/editor?page={page.id}"),
+                         A("Classic editor", href=prefix + f"/pages/{page.id}"), cls="e-actions")]
                     for page in pages]) if pages else empty_state("Add your first page",
                     "Share your story, store details and policies.")),
                     card(Form(csrf(session), Label("Title", Input(name="title", required=True)),

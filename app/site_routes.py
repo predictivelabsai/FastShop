@@ -145,6 +145,8 @@ def register_site_routes(rt):
 
     from app.site_media_routes import register_media_routes
     register_media_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_editor_routes import register_site_editor_routes
+    register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_menu_routes import register_menu_routes
     register_menu_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_snippet_routes import register_snippet_routes
@@ -653,6 +655,7 @@ def register_site_routes(rt):
                 revisions = list(db.scalars(select(SiteRevision).where(SiteRevision.page_id == page.id,
                     SiteRevision.site_id == site.id, SiteRevision.tenant_id == site.tenant_id).order_by(SiteRevision.created_at.desc()).limit(20)))
                 return shell(document["title"], Div(A("← Pages", href=f"/admin/sites/{site.id}/pages"),
+                    A("Open visual editor", href=f"/admin/sites/{site.id}/editor?page={page.id}"),
                     A("Browse media library", href=f"/admin/sites/{site.id}/media", target="_blank"), cls="e-actions"),
                     Div(Form(csrf(session), Input(type="hidden", name="version", value=page.version),
                         Label("Page title", Input(name="title", value=document["title"], required=True, maxlength=240)),
@@ -740,7 +743,8 @@ def register_site_routes(rt):
                         document = remove_block(document, section["id"])
                 document = reorder_blocks(document, order)
                 if form.get("new_section") in content.SECTION_TYPES:
-                    document = add_block(document, {"type": form["new_section"], "heading": "New section", "body": "Add your story here."})
+                    from app.site_block_schema import default_block
+                    document = add_block(document, default_block(form["new_section"]))
                 action = str(form.get("action", "draft"))
                 if action not in {"draft", "publish", "unpublish"}:
                     raise CommerceError("Unknown publication action.")
