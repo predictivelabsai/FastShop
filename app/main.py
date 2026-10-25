@@ -4,15 +4,28 @@ from __future__ import annotations
 
 import secrets
 from datetime import UTC, datetime
+from urllib.parse import urlencode
 
 from fasthtml.common import RedirectResponse, fast_app
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
+from starlette.middleware import Middleware
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.staticfiles import StaticFiles
 
 from app import __version__, ai, auth, signup_services, ui
+from app.admin_entry import (
+    LEGACY_DESTINATIONS,
+    ORDER_FILTERS,
+    AdminEntryMiddleware,
+    accessible_sites,
+    authentication_destination,
+    current_site,
+    login_destination,
+    merchant_destination,
+    safe_next_path,
+)
 from app.api import api
 from app.config import settings
 from app.db import SessionLocal, health, prepare_schema
@@ -79,6 +92,8 @@ app.add_middleware(SiteHostMiddleware)
 from app.admin_ui import AdminContextMiddleware  # noqa: E402
 
 app.add_middleware(AdminContextMiddleware)
+# Append inside FastHTML's session middleware so entry handling can use the session.
+app.user_middleware.append(Middleware(AdminEntryMiddleware))
 
 from app.scheduler import start_scheduler  # noqa: E402
 
@@ -90,11 +105,6 @@ def csrf_token(session: dict) -> str:
     if "csrf_token" not in session:
         session["csrf_token"] = secrets.token_urlsafe(32)
     return session["csrf_token"]
-
-
-def safe_next_path(value: str, fallback: str = "") -> str:
-    """Accept only same-origin absolute paths after authentication."""
-    return value if value.startswith("/") and not value.startswith("//") else fallback
 
 
 def require_csrf(session: dict, supplied: str) -> None:
@@ -157,15 +167,6 @@ def public_response(session: dict, route: str, title: str, content, active: str 
         route=route,
         active=active,
     )
-
-
-def admin_guard(session: dict):
-    user = current_user(session)
-    if not user:
-        return None, RedirectResponse("/login?next=/admin", status_code=303)
-    if user["role"] not in {"admin", "merchant"}:
-        return None, RedirectResponse("/account", status_code=303)
-    return user, None
 
 
 def membership_tenants(db, user: dict) -> set[str] | None:
@@ -355,7 +356,11 @@ def get(session, error: str = "", next: str = ""):
         with SessionLocal() as db:
             membership = db.scalar(select(Membership).where(Membership.user_id == user["id"]))
         if membership or user["role"] in {"admin", "merchant"}:
-            return RedirectResponse(destination or "/admin", status_code=303)
+            with SessionLocal() as db:
+                default = authentication_destination(db, session)
+            return RedirectResponse(
+                safe_next_path(session.pop("login_next", ""), default), status_code=303
+            )
     return login_page(
         csrf_token(session),
         error,
@@ -388,14 +393,13 @@ def post(session, email: str, password: str, csrf_token: str = ""):
                 db.commit()
                 establish_session(session, user, "admin")
                 session["csrf_token"] = secrets.token_urlsafe(32)
-                session.pop("login_next", None)
                 if result.message_id:
                     dispatch_mail(result.message_id)
                 return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
             role = membership.role
             establish_session(session, user, role)
             db.commit()
-            default = "/admin" if role in {"admin", "merchant"} else "/account"
+            default = authentication_destination(db, session)
             return RedirectResponse(
                 safe_next_path(session.pop("login_next", ""), default), status_code=303
             )
@@ -405,8 +409,10 @@ def post(session, email: str, password: str, csrf_token: str = ""):
         user = find_or_create_user(db, email, "FastShop Admin")
         establish_session(session, user, "admin")
         db.commit()
+    with SessionLocal() as db:
+        default = merchant_destination(db, session)
     return RedirectResponse(
-        safe_next_path(session.pop("login_next", ""), "/admin"), status_code=303
+        safe_next_path(session.pop("login_next", ""), default), status_code=303
     )
 
 
@@ -494,7 +500,6 @@ def get(session, request, code: str = "", state: str = "", error: str = ""):
                 return RedirectResponse(failure_path, status_code=303)
             establish_session(session, result.user, "admin")
             session["csrf_token"] = secrets.token_urlsafe(32)
-            session.pop("login_next", None)
             if result.message_id:
                 dispatch_mail(result.message_id)
             return RedirectResponse(f"/admin/onboarding/{result.site.id}", status_code=303)
@@ -523,8 +528,13 @@ def get(session, request, code: str = "", state: str = "", error: str = ""):
                 return RedirectResponse(
                     f"/admin/onboarding/{site.id}", status_code=303
                 )
-            return RedirectResponse(f"/admin/sites/{site.id}", status_code=303)
-    default = "/admin" if role in {"admin", "merchant"} else "/account"
+            with SessionLocal() as db:
+                default = merchant_destination(db, session)
+            return RedirectResponse(
+                safe_next_path(session.pop("login_next", ""), default), status_code=303
+            )
+    with SessionLocal() as db:
+        default = authentication_destination(db, session)
     return RedirectResponse(
         safe_next_path(session.pop("login_next", ""), default), status_code=303
     )
@@ -618,173 +628,89 @@ def post(session, message: str, route: str = "/", surface: str = "shopper", csrf
     return JSONResponse({"answer": response, "surface": "merchant" if merchant else "shopper"})
 
 
+def legacy_entry(session, request, section: str = ""):
+    user = current_user(session)
+    if not user:
+        return RedirectResponse(
+            login_destination(request.url.path, request.url.query), status_code=303
+        )
+    with SessionLocal() as db:
+        if not section:
+            destination = merchant_destination(db, session)
+        else:
+            site = current_site(db, session)
+            if not site:
+                return RedirectResponse("/admin/sites", status_code=303)
+            manager_only = section in {
+                "orders", "channels", "assistant", "developers", "integrations",
+                "integrations/stripe", "integrations/woocommerce", "integrations/paypal",
+                "integrations/fasterp",
+            }
+            if manager_only:
+                from app.content import owned_site
+
+                try:
+                    owned_site(db, site.id, user["id"], publish=True)
+                except CommerceError as exc:
+                    return PlainTextResponse(str(exc), status_code=403)
+            suffix = ("settings/developers" if section == "developers"
+                      else LEGACY_DESTINATIONS[section])
+            destination = f"/admin/sites/{site.id}/{suffix}"
+    supported = ORDER_FILTERS if section == "orders" else {"message"}
+    query = [(key, value) for key, value in request.query_params.multi_items()
+             if key in supported]
+    return RedirectResponse(destination + ("?" + urlencode(query) if query else ""),
+                            status_code=303)
+
+
 @rt("/admin")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        content = ui.dashboard(db, tenant_ids=membership_tenants(db, user))
-        site = signup_services.first_site_for_user(db, user["id"])
-        if site:
-            content = (ui.Div(ui.A("Open store admin →", href=f"/admin/sites/{site.id}", cls="btn btn-primary"), cls="panel"), *content)
-    return ui.merchant_page("Commerce overview", "dashboard", *content, user=user, csrf=csrf_token(session), route="/admin")
+def get(session, request):
+    return legacy_entry(session, request)
 
 
-@rt("/admin/products")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        content = ui.admin_products(db, tenant_ids=membership_tenants(db, user))
-    return ui.merchant_page("Products", "products", content, user=user, csrf=csrf_token(session), route="/admin/products")
+def register_legacy_entry(section):
+    @rt("/admin/" + section, methods=["GET"])
+    def get(session, request):
+        return legacy_entry(session, request, section)
 
 
-@rt("/admin/orders")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        tenant_ids = membership_tenants(db, user)
-        statement = select(Order).order_by(Order.created_at.desc())
-        if tenant_ids is not None:
-            statement = statement.where(Order.tenant_id.in_(tenant_ids))
-        orders = list(db.scalars(statement))
-        content = ui.panel("All orders", ui.order_table(orders))
-    return ui.merchant_page("Orders", "orders", content, user=user, csrf=csrf_token(session), route="/admin/orders")
-
-
-@rt("/admin/inventory")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        content = ui.admin_inventory(db, tenant_ids=membership_tenants(db, user))
-    return ui.merchant_page("Inventory", "inventory", content, user=user, csrf=csrf_token(session), route="/admin/inventory")
-
-
-@rt("/admin/promotions")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        content = ui.admin_promotions(db, tenant_ids=membership_tenants(db, user))
-    return ui.merchant_page("Promotions", "promotions", content, user=user, csrf=csrf_token(session), route="/admin/promotions")
-
-
-@rt("/admin/channels")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        content = ui.admin_channels(db, tenant_ids=membership_tenants(db, user))
-    return ui.merchant_page("Channels", "channels", content, user=user, csrf=csrf_token(session), route="/admin/channels")
-
-
-@rt("/admin/integrations")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        content = ui.integrations_hub(db)
-    return ui.merchant_page("Integrations", "integrations", *content, user=user, csrf=csrf_token(session), route="/admin/integrations")
-
-
-@rt("/admin/integrations/stripe")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    return ui.merchant_page("Stripe setup", "integrations", *ui.stripe_guide(), user=user, csrf=csrf_token(session), route="/admin/integrations/stripe")
-
-
-@rt("/admin/integrations/woocommerce")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    return ui.merchant_page("WooCommerce setup", "integrations", *ui.woocommerce_guide(), user=user, csrf=csrf_token(session), route="/admin/integrations/woocommerce")
-
-
-@rt("/admin/integrations/paypal")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        content = ui.paypal_guide(db)
-    return ui.merchant_page("PayPal setup & keys", "integrations", *content, user=user, csrf=csrf_token(session), route="/admin/integrations/paypal")
-
-
-@rt("/admin/integrations/fasterp")
-def get(session, message: str = ""):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        content = ui.integration_page(db, message, tenant_ids=membership_tenants(db, user))
-    return ui.merchant_page("FastERP integration", "integrations", *content, user=user, csrf=csrf_token(session), route="/admin/integrations/fasterp")
+for _section in LEGACY_DESTINATIONS:
+    register_legacy_entry(_section)
 
 
 @rt("/admin/integrations/fasterp/sync")
-def post(session, csrf_token: str = ""):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
+def post(session, request, csrf_token: str = ""):
+    user = current_user(session)
+    if not user:
+        return RedirectResponse(
+            login_destination(request.url.path, request.url.query), status_code=303
+        )
     try:
         require_csrf(session, csrf_token)
         with SessionLocal() as db:
-            delivered, failed = fasterp.deliver_pending(db, tenant_ids=membership_tenants(db, user))
+            site = current_site(db, session)
+            if not site:
+                return RedirectResponse("/admin/sites", status_code=303)
+            from app.content import owned_site
+
+            owned_site(db, site.id, user["id"], publish=True)
+            delivered, failed = fasterp.deliver_pending(db, tenant_ids={site.tenant_id})
             db.commit()
+            destination = f"/admin/sites/{site.id}/settings/integrations/fasterp"
         message = f"Sync finished: {delivered} delivered, {failed} deferred or failed."
     except CommerceError as exc:
-        message = str(exc)
-    return RedirectResponse(f"/admin/integrations/fasterp?message={message.replace(' ', '+')}", status_code=303)
-
-
-@rt("/admin/assistant")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    content = ui.panel("Permission-aware assistant", ui.Div(ui.P("Use the copilot rail for grounded operational questions."), ui.P("Deterministic commands: /orders, /stock, /sync."), style="padding:20px"))
-    return ui.merchant_page("AI Assistant", "assistant", content, user=user, csrf=csrf_token(session), route="/admin/assistant")
-
-
-@rt("/admin/customers")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    with SessionLocal() as db:
-        tenant_ids = membership_tenants(db, user)
-        statement = select(User).order_by(User.created_at.desc())
-        if tenant_ids is not None:
-            statement = statement.where(
-                User.id.in_(select(Membership.user_id).where(Membership.tenant_id.in_(tenant_ids)))
-                | User.id.in_(select(Order.user_id).where(Order.tenant_id.in_(tenant_ids)))
-            )
-        rows = list(db.scalars(statement))
-        content = ui.panel("Customers and staff", ui.Div(ui.Table(ui.Thead(ui.Tr(ui.Th("Name"), ui.Th("Email"), ui.Th("Status"))), ui.Tbody(*[ui.Tr(ui.Td(row.name), ui.Td(row.email), ui.Td(ui.Span("Active", cls="pill green"))) for row in rows])), cls="table-scroll"))
-    return ui.merchant_page("Customers", "customers", content, user=user, csrf=csrf_token(session), route="/admin/customers")
-
-
-@rt("/admin/content")
-def get(session):
-    user, redirect = admin_guard(session)
-    if redirect:
-        return redirect
-    return RedirectResponse("/admin/sites", status_code=303)
+        return PlainTextResponse(str(exc), status_code=403)
+    return RedirectResponse(destination + "?" + urlencode({"message": message}), status_code=303)
 
 
 @rt("/developers")
-def get(session):
+def get(session, request):
+    user = current_user(session)
+    if user:
+        with SessionLocal() as db:
+            merchant = bool(accessible_sites(db, user["id"]))
+        if merchant or user["role"] in {"admin", "merchant", "editor"}:
+            return legacy_entry(session, request, "developers")
     return public_response(session, "/developers", "Developers", ui.developers_page())
 
 
