@@ -114,7 +114,7 @@ def register_growth_reports_routes(rt, actor, csrf, check_csrf, shell, error):
                         ("Excluded currency orders", str(current.excluded_currency_orders)),
                         ("Excluded currency refunds", str(current.excluded_currency_refunds)),
                     ]), P("Total sales include shipping and tax. Product revenue uses historical "
-                        "line totals before any order-level adjustment. Refunds use their payment "
+                        "line totals. Refunds use their payment "
                         "transaction date. Returning customers have an earlier paid order at this store. "
                         "Dates are in UTC."), title="Report definitions"))
         except CommerceError as exc:

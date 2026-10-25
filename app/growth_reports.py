@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.models import Channel, CommerceQuote, Order, SiteOrder
+from app.models import Channel, CommerceQuote, Order, Product, ProductVariant, SiteOrder
 from app.order_management import REPORT_PAYMENT_STATES, report_dates, revenue_report
 from app.services import CommerceError
 
@@ -42,6 +42,13 @@ def aggregate(db, site, start: date, end: date):
                Order.payment_status.in_(REPORT_PAYMENT_STATES), Order.created_at < stop)
         .options(selectinload(Order.lines)).order_by(Order.created_at, Order.id)))
     daily = {start + timedelta(days=n): 0 for n in range((end - start).days + 1)}
+    variant_ids = {line.variant_id for _, order, _, _ in rows for line in order.lines
+                   if line.variant_id}
+    product_for_variant = {variant_id: (product_id, name) for variant_id, product_id, name
+        in db.execute(select(ProductVariant.id, Product.id, Product.name).join(
+            Product, Product.id == ProductVariant.product_id).where(
+                ProductVariant.tenant_id == site.tenant_id, Product.tenant_id == site.tenant_id,
+                ProductVariant.id.in_(variant_ids)))}
     products, channels, discounts = {}, defaultdict(lambda: [0, 0]), defaultdict(lambda: [0, 0, 0])
     seen, buyers, returning = set(), set(), set()
     for link, order, channel, quote in rows:
@@ -73,9 +80,12 @@ def aggregate(db, site, start: date, end: date):
             discounts[label][1] += order.discount_minor + shipping_saving
             discounts[label][2] += 1
             for line in order.lines:
-                # Historical names survive deleted variants and catalogue renames.
-                key = line.product_name
-                product = products.setdefault(key, {"name": key, "revenue_minor": 0, "units": 0})
+                # Variants roll up to their product. Manual/historical lines without
+                # a catalogue reference retain their stored label as a fallback.
+                identity = product_for_variant.get(line.variant_id)
+                key = ("product", identity[0]) if identity else ("historical", line.product_name)
+                name = identity[1] if identity else line.product_name
+                product = products.setdefault(key, {"name": name, "revenue_minor": 0, "units": 0})
                 product["revenue_minor"] += line.total_minor
                 product["units"] += line.quantity
         seen.add(customer)

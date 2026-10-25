@@ -98,6 +98,25 @@ def test_free_shipping_savings_are_included_in_discount_report():
         assert report["discounts"] == [("Free delivery", [w.order.total_minor, 650, 1])]
 
 
+def test_variants_roll_up_to_one_product(ready):  # noqa: F811
+    from app.models import Product, ProductVariant
+    r = ready
+    variant = ProductVariant(tenant_id=r.site.tenant_id, product_id=r.variant.product_id,
+        sku="REPORT-SECOND", name="Second option")
+    r.db.add(variant)
+    r.db.flush()
+    order, _ = add_order(r.db, r.site, r.customer, "VARIANT-REPORT", 800)
+    for option, quantity, total in ((r.variant, 2, 200), (variant, 3, 600)):
+        r.db.add(OrderLine(order_id=order.id, variant_id=option.id, sku=option.sku,
+            product_name="Stored label · " + option.name, variant_name=option.name,
+            quantity=quantity, unit_price_minor=total // quantity, total_minor=total))
+    r.db.flush()
+    report = growth_reports.report(r.db, r.site, order.created_at.date(), order.created_at.date())
+    title = r.db.get(Product, r.variant.product_id).name
+    product = next(row for row in report["top_products"] if row["name"] == title)
+    assert product == {"name": title, "revenue_minor": 800, "units": 5}
+
+
 def test_merchant_actions_share_idempotency_versions_and_actor_audit(contract):
     r, sub = contract
     owner = r.db.scalar(select(Membership).where(Membership.tenant_id == r.site.tenant_id,
