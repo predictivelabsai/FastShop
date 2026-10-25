@@ -29,20 +29,26 @@ def menu_name(name):
     return name
 
 
-def validate_items(items) -> list[MenuItem]:
+def validate_items(items, *, _depth=0, _ids=None) -> list[MenuItem]:
     if not isinstance(items, list) or len(items) > MAX_ITEMS:
         raise CommerceError("A menu accepts up to 40 items.")
-    result, ids = copy.deepcopy(items), set()
+    if _depth > 2 and items:
+        raise CommerceError("Menus support up to three levels.")
+    result, ids = copy.deepcopy(items), set() if _ids is None else _ids
     for item in result:
         if not isinstance(item, dict):
             raise CommerceError("Menu items must be objects.")
         kind = item.get("kind")
         fields = {"page": {"path"}, "anchor": {"path", "block_id"}, "external": {"url"}}
-        if not isinstance(kind, str) or kind not in fields or set(item) != {"id", "label", "kind"} | fields[kind]:
+        if not isinstance(kind, str) or kind not in fields or (set(item) - {"children"}) != {"id", "label", "kind"} | fields[kind]:
             raise CommerceError("Choose a page, block anchor or external URL target.")
         if not isinstance(item["id"], str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", item["id"]) or item["id"] in ids:
             raise CommerceError("Menu items need unique identifiers.")
         ids.add(item["id"])
+        if len(ids) > MAX_ITEMS:
+            raise CommerceError("A menu accepts up to 40 items in total.")
+        if "children" in item:
+            item["children"] = validate_items(item["children"], _depth=_depth + 1, _ids=ids)
         _text(item["label"], "label", 200)
         if kind == "external":
             if not isinstance(item["url"], str) or len(item["url"]) > 2048:
@@ -59,10 +65,16 @@ def validate_items(items) -> list[MenuItem]:
     return result
 
 
+def walk_items(items):
+    for item in items:
+        yield item
+        yield from walk_items(item.get("children", []))
+
+
 def validate_targets(db, site, items, *, published=False):
     items = validate_items(items)
     pages = {page.path: page for page in content.site_pages(db, site)}
-    for item in items:
+    for item in walk_items(items):
         if not resolve_text(item["label"], default_locale(site, preview=not published)).strip():
             raise CommerceError("Give each item a label in the default locale.")
         if item["kind"] == "external":
@@ -144,7 +156,7 @@ def rendered_navigation(db, site, name, *, preview=False):
              "path": item["url"] if item["kind"] == "external" else item["path"] + (
                  "#block-" + item["block_id"] if item["kind"] == "anchor" else ""),
              "kind": item["kind"], "block_id": item.get("block_id", "")}
-            for item in items]
+            for item in walk_items(items)]
 
 
 def snapshot(db, site):
