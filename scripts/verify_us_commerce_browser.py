@@ -18,7 +18,7 @@ def main():
     errors = []
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel="chrome", headless=True)
-        context = browser.new_context(viewport={"width": 1440, "height": 1000})
+        context = browser.new_context(viewport={"width": 1440, "height": 1000}, reduced_motion="reduce")
         page = context.new_page()
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
@@ -27,16 +27,15 @@ def main():
         page.locator('input[name="password"]').fill(os.environ["FASTSHOP_ADMIN_PASSWORD"])
         page.get_by_role("button", name="Sign in", exact=True).click()
         page.wait_for_url("**/admin/sites")
-        page.get_by_role("link", name="Open editor →").first.click()
+        page.get_by_role("link", name="Open store →").first.click()
         site_url = page.url
-        assert page.locator(".e-top .brand").inner_text().replace("\n", " ") == "F FastShop"
+        assert page.locator(".a-shell").is_visible()
         page.screenshot(path=str(output / "desktop-phase1-site-settings.png"), full_page=True)
-        page.get_by_role("link", name="Commerce", exact=True).click()
-        assert page.title() == "US commerce — FastShop"
+        page.goto(site_url + "/commerce")
+        assert "FastShop" in page.title()
         assert page.get_by_text("Stripe test key: required", exact=True).is_visible()
-        assert page.locator(".e-button").first.evaluate("el => getComputedStyle(el).backgroundColor") == "rgb(8, 127, 91)"
         page.locator('input[name="shipping_minor"]').fill("1000")
-        page.locator('input[name="origin_line1"]').fill("Test warehouse — not a live origin")
+        page.locator('input[name="origin_line1"]').fill("Local test warehouse")
         page.locator('input[name="origin_city"]').fill("Tallinn")
         page.locator('input[name="origin_postal_code"]').fill("10111")
         page.get_by_role("button", name="Save commerce settings", exact=True).click()

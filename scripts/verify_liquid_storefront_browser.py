@@ -178,8 +178,7 @@ def main():
             cookie = next(c["value"] for c in context.cookies() if c["name"] == "session_")
             session = json.loads(base64.b64decode(cookie.split(".")[0]))
             cart_id = next(v for k, v in session.items() if k.startswith("cart:"))
-            environment = os.environ | {"PYTHONUTF8":"1", "DB_URL":"",
-                "FASTSHOP_DATA_DIR":str(OUT / "fixture-config"), "FASTSHOP_ENV":"development"}
+            environment = os.environ | {"PYTHONUTF8": "1", "PYTHONPATH": str(Path.cwd())}
             fixture = subprocess.run([sys.executable, "scripts/liquid_storefront_fixtures.py", cart_id],
                 env=environment, capture_output=True, text=True, check=True)
             data = json.loads(fixture.stdout)
@@ -196,7 +195,7 @@ def main():
             capture("account-signed-in")
             page.goto(BASE + "/account/subscriptions")
             assert "Your subscriptions" in page.locator("h1").inner_text()
-            capture("subscriptions")
+            capture("account-subscriptions")
             response = page.goto(BASE + "/checkout/missing")
             assert response.status == 404
             check_message(response.status)

@@ -14,8 +14,8 @@ from app.config import settings
 
 
 def main():
-    if settings.db_url or not str(settings.data_dir).startswith("/tmp/fastshop-") or settings.public_url != "http://127.0.0.1:5042":
-        raise SystemExit("Requires isolated /tmp/fastshop-* data, empty DB_URL and http://127.0.0.1:5042 public URL.")
+    if settings.db_url or not Path(settings.data_dir).name.startswith("fastshop-") or settings.public_url != "http://127.0.0.1:5042":
+        raise SystemExit("Requires isolated fastshop-* data, empty DB_URL and http://127.0.0.1:5042 public URL.")
     from app import (
         checkout_payments,
         checkout_services,

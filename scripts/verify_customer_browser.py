@@ -11,12 +11,12 @@ from app import commerce
 from app import customer_services as customers
 from app.config import settings
 from app.db import SessionLocal
-from app.models import CustomerChallenge, MarketingConsent, Order, Site, SiteOrder
+from app.models import CustomerChallenge, MarketingConsent, Order, OrderLine, Site, SiteOrder
 
 
 def main():
-    if settings.db_url or not str(settings.data_dir).startswith("/tmp/fastshop-"):
-        raise SystemExit("Run with DB_URL empty and an isolated /tmp/fastshop-* data directory.")
+    if settings.db_url or not Path(settings.data_dir).name.startswith("fastshop-"):
+        raise SystemExit("Run with DB_URL empty and an isolated fastshop-* data directory.")
     base = settings.public_url
     if not base.startswith(("http://127.0.0.1:", "http://localhost:")):
         raise SystemExit("This mutating browser test is local-only.")
@@ -27,6 +27,8 @@ def main():
     with SessionLocal() as db:
         site = db.scalar(select(Site).where(Site.slug == "h24you"))
         site_id = site.id
+        commerce.settings_for(db, site, create=True).mode = "sandbox"
+        db.commit()
 
     def verify_link(page, purpose):
         with SessionLocal() as db:
@@ -48,11 +50,6 @@ def main():
         admin.locator('input[name="password"]').fill(os.environ["FASTSHOP_ADMIN_PASSWORD"])
         admin.get_by_role("button", name="Sign in", exact=True).click()
         admin.wait_for_url("**/admin/sites")
-        admin.goto(base + f"/admin/sites/{site_id}/commerce")
-        admin.locator('select[name="mode"]').select_option("sandbox")
-        admin.get_by_role("button", name="Save commerce settings").click()
-        admin.wait_for_load_state("networkidle")
-
         context = browser.new_context(viewport={"width": 1440, "height": 1000}, reduced_motion="reduce")
         page = context.new_page()
         page.on("pageerror", lambda error: errors.append(str(error)))
@@ -90,17 +87,19 @@ def main():
                 currency="USD", subtotal_minor=2995, tax_minor=205, total_minor=3200, payment_status="paid")
             db.add(order)
             db.flush()
+            db.add(OrderLine(order_id=order.id, sku="LOCAL-TRACKING", product_name="Local fixture item",
+                variant_name="Default", quantity=1, unit_price_minor=2995, total_minor=2995))
             link = SiteOrder(tenant_id=site.tenant_id, site_id=site.id, order_id=order.id, customer_id=customer.id)
             db.add(link)
             db.commit()
             order_id, order_number = link.id, order.number
-        admin.goto(base + f"/admin/sites/{site_id}/customers")
-        tracking = admin.locator(f'form[action="/admin/sites/{site_id}/shipments/{order_id}"]')
-        tracking.locator('select[name="status"]').select_option("in_transit")
+        admin.goto(base + f"/admin/sites/{site_id}/orders/{order_id}")
+        admin.get_by_text("Fulfil items", exact=True).click()
+        tracking = admin.locator(f'form[action="/admin/sites/{site_id}/orders/{order_id}/fulfil-items"]')
+        tracking.get_by_label("Quantity: Local fixture item", exact=True).fill("1")
         tracking.locator('input[name="carrier"]').fill("Local test carrier")
         tracking.locator('input[name="tracking_number"]').fill("FIXTURE-TRACKING-123")
-        tracking.locator('input[name="note"]').fill("Local browser fixture — not a real shipment")
-        tracking.get_by_role("button", name="Add tracking update").click()
+        tracking.get_by_role("button", name="Fulfil selected items").click()
         admin.wait_for_load_state("networkidle")
         admin.screenshot(path=str(output / "merchant-customers-tracking.png"), full_page=True)
 

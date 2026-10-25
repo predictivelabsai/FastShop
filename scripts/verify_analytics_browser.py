@@ -14,8 +14,8 @@ from app.config import settings
 
 
 def main():
-    if settings.db_url or not str(settings.data_dir).startswith("/tmp/fastshop-") or settings.public_url != "http://127.0.0.1:5043":
-        raise SystemExit("Requires isolated /tmp/fastshop-* data, empty DB_URL and http://127.0.0.1:5043.")
+    if settings.db_url or not Path(settings.data_dir).name.startswith("fastshop-") or settings.public_url != "http://127.0.0.1:5043":
+        raise SystemExit("Requires isolated fastshop-* data, empty DB_URL and http://127.0.0.1:5043.")
     from app.db import SessionLocal
     from app.main import app
     from app.models import Site
@@ -61,7 +61,7 @@ def main():
             page.locator('input[name="email"]').fill(settings.admin_email)
             page.locator('input[name="password"]').fill(settings.admin_password)
             page.get_by_role("button", name="Sign in", exact=True).click()
-            page.goto(settings.public_url + "/admin/sites/" + site_id)
+            page.goto(settings.public_url + "/admin/sites/" + site_id + "/settings/general")
             page.locator('input[name="ga4_measurement_id"]').fill(measurement)
             page.get_by_role("button", name="Publish shared settings", exact=True).click()
             page.wait_for_load_state("networkidle")
@@ -98,7 +98,7 @@ def main():
             second.wait_for_function("window.__gaFixtureLoaded === true")
             assert len(requests) == 2
             second.get_by_role("button", name="Cookie preferences", exact=True).click()
-            with page.expect_navigation(wait_until="networkidle"):
+            with second.expect_navigation(wait_until="networkidle"):
                 second.locator('[data-consent="none"]').click()
             second.wait_for_load_state("networkidle")
             second.close()

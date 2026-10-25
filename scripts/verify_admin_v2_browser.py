@@ -109,20 +109,18 @@ def verify_device(browser, base: str, site_id: str, device: str,
     prefix = f"/admin/sites/{site_id}"
     for name, path in (
         ("home", ""), ("products", "/products"), ("orders", "/orders"),
-        ("settings", "/settings"), ("placeholder", "/coming-soon/collections"),
+        ("settings", "/settings"), ("collections", "/collections"),
     ):
         response = page.goto(prefix + path)
         assert response.status == 200, f"{device} {path}: HTTP {response.status}"
         expect(page.get_by_role("navigation", name="Main navigation", include_hidden=True)).to_be_attached()
         active = {"home": "Home", "products": "Products", "orders": "Orders",
-                  "settings": "Settings", "placeholder": "Products"}[name]
+                  "settings": "Settings", "collections": "Products"}[name]
         expect(page.get_by_role("complementary", name="Store administration", include_hidden=True)
                .get_by_role("link", name=active, exact=True, include_hidden=True)
                ).to_have_attribute("aria-current", "page")
         if name in {"home", "orders"}:
             expect(page.get_by_role("link", name=ORDER_NUMBER, exact=True)).to_be_visible()
-        if name == "placeholder":
-            expect(page.get_by_role("heading", name="Coming in this release", exact=True)).to_be_visible()
         screenshot(page, device, name)
     if device == "mobile":
         toggle = page.get_by_role("button", name="Open navigation", exact=True)

@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app import checkout_services, customer_services
+from app.config import settings
 from app.integrations.stripe_commerce import TaxResult
 from app.models import CustomerChallenge, Site, SiteCart, new_id
 
@@ -25,9 +26,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("cart")
     args = parser.parse_args()
-    path = Path("output/playwright/h24you-liquid/m2-preview-data/fastshop.sqlite3").resolve()
-    assert path.is_file() and path.is_relative_to(Path("output/playwright").resolve())
-    engine = create_engine("sqlite:///" + path.as_posix())
+    if settings.db_url or not Path(settings.data_dir).name.startswith("fastshop-"):
+        raise SystemExit("Requires an isolated fastshop-* data directory and empty DB_URL.")
+    engine = create_engine(settings.database_url)
     with Session(engine) as db:
         site = db.scalar(select(Site).where(Site.slug == "h24you-liquid"))
         cart = db.scalar(select(SiteCart).where(SiteCart.id == args.cart,

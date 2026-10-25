@@ -17,8 +17,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--subscription", action="store_true")
     args = parser.parse_args()
-    if settings.db_url or not str(settings.data_dir).startswith("/tmp/fastshop-"):
-        raise SystemExit("Requires DB_URL empty and an isolated /tmp/fastshop-* data directory.")
+    if settings.db_url or not Path(settings.data_dir).name.startswith("fastshop-"):
+        raise SystemExit("Requires DB_URL empty and an isolated fastshop-* data directory.")
     if settings.public_url != "http://127.0.0.1:5041":
         raise SystemExit("Requires FASTSHOP_PUBLIC_URL=http://127.0.0.1:5041.")
     from app import checkout_payments, commerce, store_checkout_routes
