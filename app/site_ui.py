@@ -38,6 +38,7 @@ from fasthtml.common import (
     Source,
     Span,
     Strong,
+    Style,
     Summary,
     Textarea,
     Title,
@@ -49,6 +50,13 @@ from app.content import catalog_product, site_pages
 from app.models import Category, Product, ProductVariant, SiteMedia, VariantChannelListing
 from app.services import money
 from app.site_blocks import default_locale, resolve_document
+from app.site_widgets import (
+    WIDGET_CSS,
+    decorate_block,
+    needs_widget_css,
+    render_widget,
+    strip_editor_hooks,
+)
 from app.ui import static_asset
 
 
@@ -154,6 +162,14 @@ def product_cards(db, site, base, category=""):
 
 
 def render_section(db, site, page, config, section, base, csrf, preview=False, first=False, *, blog_articles=None):
+    node = render_widget(db, site, page, config, section, base, csrf, preview,
+                         lambda child: render_section(db, site, page, config, child, base, csrf, preview))
+    if node is not None:
+        return node
+    return decorate_block(_render_section(db, site, page, config, section, base, csrf, preview, first, blog_articles=blog_articles), section, preview)
+
+
+def _render_section(db, site, page, config, section, base, csrf, preview=False, first=False, *, blog_articles=None):
     image = partial(owned_image, db, site)
     kind = section["type"]
     heading = section.get("heading", "")
@@ -271,13 +287,13 @@ def render_section(db, site, page, config, section, base, csrf, preview=False, f
     return Section(intro, cta(section, base), cls="h-section h-container h-editorial")
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, message="", blog_listing=False, blog_category="", blog_tag=""):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag=""):
     from app.site_theme import theme_pack
     config = site.settings_json if preview else site.published_settings_json
     if theme_pack(config or {}) == "liquid":
         from app.site_ui_liquid import storefront as liquid_storefront
         return liquid_storefront(db, site, page, base, csrf, canonical,
-                                 preview=preview, message=message)
+                                 preview=preview, editor=editor, message=message)
     from app.commerce import payments_enabled, settings_for
     from app.customer_services import consent_text
     from app.site_analytics import measurement_id
@@ -335,6 +351,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
     home = page.path == "/"
     def section_view(section, index):
         rendered = render_section(db, site, page, config, section, base, csrf, preview, index == 0, blog_articles=listing_articles)
+        if not editor:
+            strip_editor_hooks(rendered)
         if rendered is not None and section["id"] in anchor_ids:
             rendered.attrs["id"] = "block-" + section["id"]
         if preview and rendered is not None:
@@ -355,6 +373,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, message=
         Script(NotStr(json.dumps(ga4_item)), type="application/json", id="h-ga4-item") if ga4_item else None,
         Link(rel="stylesheet", href=static_asset("site-theme.css")),
         Link(rel="stylesheet", href=static_asset("site-blog.css")) if blog_listing else None,
+        Style(NotStr(WIDGET_CSS)) if needs_widget_css(document["blocks"]) else None,
         Script(src=static_asset("site-preview.js"), defer=True) if preview else None,
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if customer_services_enabled and not preview else None,

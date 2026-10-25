@@ -35,6 +35,23 @@ def test_word_boundaries_avoid_false_positives():
     assert compliance.scan_text("Your secure checkout is here.")["banned"] == []
 
 
+def test_nested_localised_richtext_cannot_bypass_publication_checks():
+    document = {"blocks": [{"type": "container", "children": [
+        {"type": "richtext", "body": {"en": "<p>clinically <b>proven</b></p>"}},
+        {"type": "container", "children": [
+            {"type": "heading", "heading": "A mir&#97;cle"},
+        ]},
+    ]}]}
+    findings = compliance.scan_document(document)
+    assert "clinically proven" in findings["banned"]
+    assert "miracle" in findings["banned"]
+    assert "detox" in compliance.scan_document({"blocks": [
+        {"type": "heading", "heading": "A <detox> promise"},
+    ]})["banned"]
+    with pytest.raises(CommerceError, match="cannot be published"):
+        compliance.assert_document_compliant(document)
+
+
 def test_research_sections_allow_disease_names_but_not_banned_words():
     document = {
         "sections": [

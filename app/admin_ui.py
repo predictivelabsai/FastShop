@@ -200,7 +200,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         ("Content", base + "/pages", [("Pages", base + "/pages"), ("Blog posts", coming("blog-posts")), ("Menus", base + "/menus"), ("Files", base + "/media")]),
         ("Analytics", base + "/revenue", []),
         ("Marketing/Integrations", base + "/integrations", []),
-        ("Online Store", base + "/build", [("Editor/Themes", base + "/build"), ("Design", base + "/build?view=design"), ("Preferences", base + "/settings/general")]),
+        ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Preferences", base + "/settings/general")]),
     ]
     navigation = []
     for label, href, subs in groups if site else []:

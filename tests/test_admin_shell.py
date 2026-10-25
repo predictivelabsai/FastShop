@@ -80,6 +80,22 @@ def test_design_controls_highlight_the_design_sub_item():
     assert re.search(r'href="[^\"]+/build\?view=design"[^>]+aria-current="page"', response.text)
 
 
+def test_visual_editor_navigation_and_classic_fallback_links():
+    client, site, _ = merchant()
+    prefix = f"/admin/sites/{site.id}"
+    pages = client.get(prefix + "/pages")
+    assert 'href="' + prefix + '/editor"' in pages.text
+    assert "/editor?page=" in pages.text
+    assert "Classic editor" in pages.text
+    guided = client.get(prefix + "/build")
+    assert 'href="' + prefix + '/editor"' in guided.text
+    with SessionLocal() as db:
+        from app import content
+        page = content.site_pages(db, site)[0]
+    classic = client.get(prefix + f"/pages/{page.id}")
+    assert prefix + f"/editor?page={page.id}" in classic.text
+
+
 def test_general_settings_keeps_csrf_and_version_checks():
     client, site, token = merchant()
     url = f"/admin/sites/{site.id}/settings"
