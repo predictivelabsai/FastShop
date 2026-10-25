@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import socket
 import sys
 import tempfile
@@ -57,9 +58,9 @@ def seed_store(device):
 
 def capture(page, device, name):
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    dismiss = page.locator("[data-toast-dismiss]")
-    if dismiss.count() and dismiss.first.is_visible():
-        dismiss.first.click()
+    for dismiss in page.locator(".a-toast button").all():
+        if dismiss.is_visible():
+            dismiss.click()
     page.evaluate("document.fonts.ready")
     page.evaluate("document.querySelectorAll('.a-table-wrap').forEach(table => table.scrollLeft = 0)")
     page.evaluate("window.scrollTo(0, 0)")
@@ -246,7 +247,8 @@ def journey(browser, base, fixture, device, width, height):
         page.goto(prefix + "/activity")
         page.get_by_label("Object type", exact=True).fill("location")
         page.get_by_role("button", name="Filter activity", exact=True).click()
-        expect(page.get_by_role("main")).to_contain_text("location")
+        expect(page.get_by_role("cell", name=re.compile(r"^(?:Object )?Location$")).first).to_be_visible()
+        expect(page.get_by_role("cell", name=re.compile(r"^(?:Actor )?FastShop Admin$")).first).to_be_visible()
         capture(page, device, "08-activity")
 
         # 9. Copy the current theme, edit its isolated design, publish and roll back.
