@@ -8,7 +8,7 @@ from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Li, P, Small
 from sqlalchemy import select
 from starlette.responses import RedirectResponse
 
-from app import commerce, content
+from app import commerce
 from app import customer_services as customers
 from app.customer_accounts import (
     CustomerAccountsUnavailable,
@@ -269,24 +269,3 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
             return unavailable_response(exc, request)
         except CommerceError as exc:
             return public_message(request, slug, exc)
-
-    @rt("/admin/sites/{site_id}/customers", methods=["GET"])
-    def get(session, site_id: str):
-        try:
-            with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session))
-                rows = list(db.scalars(select(ShopCustomer).where(ShopCustomer.site_id == site.id,
-                    ShopCustomer.tenant_id == site.tenant_id).order_by(ShopCustomer.created_at.desc()).limit(100)))
-                messages = list(db.scalars(select(CommerceMail).where(CommerceMail.site_id == site.id,
-                    CommerceMail.tenant_id == site.tenant_id).order_by(CommerceMail.created_at.desc()).limit(50)))
-                orders = list(db.execute(select(SiteOrder, Order).join(Order, Order.id == SiteOrder.order_id).where(
-                    SiteOrder.site_id == site.id, SiteOrder.tenant_id == site.tenant_id,
-                    Order.tenant_id == site.tenant_id).order_by(Order.created_at.desc()).limit(50)))
-                return merchant_shell("Customers & email", A("← Site", href=f"/admin/sites/{site.id}"),
-                    Div(H2("Customers"), *[P(row.email + (" · verified" if row.verified_at else " · verification pending")) for row in rows], cls="e-card"),
-                    Div(H2("Email queue"), *[P(row.kind + " · " + row.status + f" · attempts {row.attempts}") for row in messages], cls="e-card"),
-                    Div(H2("Order management"), P("Fulfillment transitions, tracking details, refunds and the complete order timeline now live on the dedicated order surface."),
-                        A("Open orders", href=f"/admin/sites/{site.id}/orders", cls="e-button"),
-                        *[P(A(order.number, href=f"/admin/sites/{site.id}/orders/{link.id}"), " · " + order.email + " · " + order.status) for link, order in orders], cls="e-card"))
-        except CommerceError as exc:
-            return error(exc)
