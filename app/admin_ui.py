@@ -7,7 +7,7 @@ authorisation; shell queries independently check active users and memberships.
 from contextvars import ContextVar
 from urllib.parse import parse_qs
 
-from fastcore.xml import NotStr
+from fastcore.xml import FT, NotStr
 from fasthtml.common import (
     H1,
     H2,
@@ -152,6 +152,13 @@ def icon(name):
                   'stroke-linejoin="round" aria-hidden="true">' + _ICONS[name] + '</svg>')
 
 
+def _has_page_header(child):
+    if not isinstance(child, FT):
+        return False
+    return "a-header" in child.attrs.get("class", "").split() or any(
+        _has_page_header(item) for item in child.children)
+
+
 def nav_section(path):
     """Map existing detail and utility routes to their primary navigation section."""
     path = path.split("?", 1)[0]
@@ -187,7 +194,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
     groups = [
         ("Home", base, []),
         ("Orders", base + "/orders", [("Drafts", coming("drafts")), ("Abandoned checkouts", coming("abandoned-checkouts"))]),
-        ("Products", base + "/products", [("Collections", coming("collections")), ("Inventory", coming("inventory"))]),
+        ("Products", base + "/products", [("Collections", base + "/collections"), ("Inventory", base + "/inventory")]),
         ("Customers", base + "/customers", []),
         ("Discounts", coming("discounts"), []),
         ("Content", base + "/pages", [("Pages", base + "/pages"), ("Blog posts", coming("blog-posts")), ("Menus", base + "/menus"), ("Files", base + "/media")]),
@@ -238,8 +245,10 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
                 id="admin-sidebar", cls="a-sidebar", aria_label="Store administration"),
             Main(Header(Button("☰", type="button", data_sidebar_toggle="",
                           aria_controls="admin-sidebar", aria_expanded="false", aria_label="Open navigation"),
-                   Span(name), cls="a-topbar"),
-                 Div(page_header(title.replace("—", "·")),
+                   Nav(A(name, href=base), Span("/", aria_hidden="true"),
+                       Span(title.replace("—", "·")), aria_label="Page breadcrumb"), cls="a-topbar"),
+                 Div(None if any(_has_page_header(child) for child in children)
+                     else page_header(title.replace("—", "·")),
                      Div(notice[:300], role="status", cls="a-toast") if notice else None,
                      *children, cls="a-content"), id="admin-main", cls="a-canvas"),
             Div(Span("Unsaved changes"), Button("Discard", type="button", data_discard=""),

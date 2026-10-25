@@ -152,6 +152,8 @@ def register_site_routes(rt):
     from app.site_integration_routes import register_integration_routes
     register_integration_routes(rt, actor, csrf, check_csrf, shell, error)
     register_catalog_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.catalog_admin_routes import register_catalog_admin_routes
+    register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_builder_routes import register_builder_routes
     register_builder_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_sample_routes import register_sample_routes
@@ -781,8 +783,9 @@ def register_site_routes(rt):
                 site = content.owned_site(db, site_id, actor(session))
                 page = content.site_page(db, site, page_id)
                 csrf(session)
-                return site_ui.storefront(db, site, page, f"/sites/{site.slug}", session["csrf_token"],
-                                          settings.public_url + f"/sites/{site.slug}" + page.path, preview=True)
+                with content.catalogue_view(db, site, page, preview=True):
+                    return site_ui.storefront(db, site, page, f"/sites/{site.slug}", session["csrf_token"],
+                                              settings.public_url + f"/sites/{site.slug}" + page.path, preview=True)
         except CommerceError as exc:
             return error(exc)
 
@@ -889,10 +892,22 @@ def register_site_routes(rt):
                         return public_message(request, slug, "Tag not found", status_code=404, plain=False)
             if not page or not page.published_json:
                 return public_message(request, slug, "Page not found", status_code=404, plain=False)
+            if page.product_id:
+                product = content.catalog_product(db, site, page.product_id)
+                if not product or product.status != "active" or not product.is_published:
+                    return public_message(request, slug, "Page not found", status_code=404, plain=False)
+            if page.collection_id:
+                from app.models import Collection
+                collection = db.scalar(select(Collection).where(
+                    Collection.id == page.collection_id, Collection.tenant_id == site.tenant_id,
+                    Collection.is_published.is_(True)))
+                if not collection:
+                    return public_message(request, slug, "Page not found", status_code=404, plain=False)
             if page.kind == "article" and not is_listed(page):
                 return public_message(request, slug, "Page not found", status_code=404, plain=False)
             csrf(session)
             base = request.scope.get("site_base", f"/sites/{site.slug}") if request else f"/sites/{site.slug}"
             canonical_base = request.scope.get("site_canonical", settings.public_url + base) if request else settings.public_url + base
-            return site_ui.storefront(db, site, page, base, session["csrf_token"], canonical_base + normalized_path,
-                message=message, blog_listing=page.kind == "blog", blog_category=category, blog_tag=tag)
+            with content.catalogue_view(db, site, page):
+                return site_ui.storefront(db, site, page, base, session["csrf_token"], canonical_base + normalized_path,
+                    message=message, blog_listing=page.kind == "blog", blog_category=category, blog_tag=tag)

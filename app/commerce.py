@@ -99,6 +99,8 @@ class PricedLine:
     sku: str = ""
     variant_name: str = ""
     subscription_eligible: bool = False
+    track_inventory: bool = True
+    continue_selling_when_out_of_stock: bool = False
 
 
 def convert_cart_purchase(selections, variant_id, subscription, target_subscription):
@@ -153,6 +155,7 @@ def price_lines(db, site, config, selections, *, first_order_discount=False):
             VariantChannelListing.variant_id == ProductVariant.id).where(
                 ProductVariant.id == variant_id, ProductVariant.tenant_id == site.tenant_id,
                 Product.tenant_id == site.tenant_id, Product.is_published.is_(True),
+                Product.status == "active",
                 ProductVariant.is_active.is_(True), VariantChannelListing.channel_id == site.channel_id,
                 VariantChannelListing.currency == "USD")).first()
         if not row:
@@ -171,7 +174,8 @@ def price_lines(db, site, config, selections, *, first_order_discount=False):
         unit = discounted(listing.price_minor, 10) if subscription else listing.price_minor
         lines.append(PricedLine(reference, product.id, variant.id, f"{product.name} · {variant.name}",
             quantity, unit, listing.price_minor * quantity, unit * quantity, tax_code, subscription, variant.sku, variant.name,
-            product.id in config.subscription_product_ids_json))
+            product.id in config.subscription_product_ids_json,
+            variant.track_inventory, variant.continue_selling_when_out_of_stock))
     # Allocate the rounded first-order saving proportionally, using largest remainders.
     # A single cart-level rounding avoids depending on how the customer split lines.
     if first_order_discount:

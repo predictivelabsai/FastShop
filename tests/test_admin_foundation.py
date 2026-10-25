@@ -116,7 +116,7 @@ def test_dashboard_empty_and_seeded(foundation):
         db.commit()
     seeded = w.client.get(base + "?days=1")
     assert seeded.status_code == 200
-    assert "HOME-REAL-ORDER" in seeded.text and "1 orders to fulfil" in seeded.text
+    assert "HOME-REAL-ORDER" in seeded.text and "1 order to fulfil" in seeded.text
     assert "Daily total sales" in seeded.text
     assert w.client.get(base + "?days=invalid").status_code == 200
     assert w.client.get(f"/admin/sites/{w.other.id}").status_code == 400

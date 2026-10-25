@@ -34,7 +34,7 @@ def test_shell_components_and_active_navigation():
     assert 'aria-label="Main navigation"' in html
     assert re.search(r'aria-current="page"[^>]*>.*?Products', html, re.S)
     assert "Collections" in html and "Inventory" in html
-    assert "/coming-soon/collections" in html
+    assert "/admin/sites/store-one/collections" in html
     assert "Blog posts" not in html  # Only the active section expands.
     assert "admin/admin.css?v=" in html and "admin/admin.js?v=" in html
     assert 'aria-controls="admin-search-results"' in html

@@ -202,8 +202,16 @@
 .admin-task-list li:last-child { border-bottom: 0; }
 .admin-task-list a { color: var(--a-ink); }
 .admin-task-list a:hover { text-decoration: underline; }
-.admin-dashboard-controls { margin: -12px 0 20px; }
+.admin-dashboard-controls { margin: 0 0 12px; }
 .admin-dashboard-controls .e-actions { justify-content: flex-end; }
+.admin-dashboard-controls label { display: flex; align-items: center; gap: 8px; }
+.admin-dashboard-controls select { width: auto; min-width: 150px; }
+.admin-dashboard-controls form { align-items: end; }
+.a-topbar nav { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.a-topbar nav > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.a-shell .a-card a:not(.e-button), .a-shell .e-card a:not(.e-button) { text-decoration: none; }
+.a-shell .a-card a:not(.e-button):hover, .a-shell .e-card a:not(.e-button):hover { text-decoration: underline; }
+.a-shell a.e-button:hover { text-decoration: none; }
 .admin-settings-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 24px; align-items: start; }
 .admin-settings-nav { display: grid; gap: 4px; margin-top: 12px; }
 .admin-settings-nav a { padding: 8px; border-radius: 6px; color: var(--a-ink); }

@@ -88,6 +88,26 @@ def test_retry_reserves_once_and_rejects_changed_payload(ready):
     assert r.stock.allocated == 2
 
 
+@pytest.mark.parametrize("tracked,backorder,expected_allocated", [
+    (False, False, 0), (True, True, 5),
+])
+def test_catalogue_inventory_policy_allows_untracked_and_backordered_sales(
+        ready, tracked, backorder, expected_allocated):
+    r = ready
+    r.variant.track_inventory = tracked
+    r.variant.continue_selling_when_out_of_stock = backorder
+    r.selections[0]["quantity"] = 6
+    r.db.commit()
+    attempt = prepare(r)
+    r.db.commit()
+    r.db.refresh(r.stock)
+    assert r.stock.allocated == expected_allocated
+    snapshot = r.db.get(CommerceQuote, attempt.quote_id).snapshot_json["lines"][0]
+    assert snapshot["track_inventory"] is tracked
+    assert snapshot["continue_selling_when_out_of_stock"] is backorder
+    assert attempt.state == "prepared"
+
+
 def test_stock_failure_rolls_back_partial_allocations_even_if_outer_transaction_commits(ready):
     r = ready
     r.selections[0]["quantity"] = 6

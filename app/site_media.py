@@ -7,7 +7,7 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
 
 from app import content
-from app.models import Product, SiteChangeSet, SiteMedia, SiteMenu, SiteRevision
+from app.models import Product, ProductImage, SiteChangeSet, SiteMedia, SiteMenu, SiteRevision
 from app.services import CommerceError
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -80,6 +80,8 @@ def documents(db, site):
                 yield f"{label}: {row.id}", getattr(row, field)
     for product in db.scalars(select(Product).where(Product.tenant_id == site.tenant_id)):
         yield f"Product: {product.id}", product.image_url
+    for image in db.scalars(select(ProductImage).where(ProductImage.tenant_id == site.tenant_id)):
+        yield f"Product gallery: {image.product_id}", image.image_url
 
 
 def strings(value):

@@ -26,6 +26,7 @@ from app.models import (
     User,
     VariantChannelListing,
     Voucher,
+    Warehouse,
     WishlistItem,
 )
 from app.seed import CHANNEL_SLUG, TENANT_SLUG
@@ -96,7 +97,7 @@ def products(
         select(Product)
         .options(selectinload(Product.variants))
         .join(Category, Category.id == Product.category_id)
-        .where(Product.is_published.is_(True))
+        .where(Product.is_published.is_(True), Product.status == "active")
         .order_by(Product.is_featured.desc(), Product.created_at, Product.name)
     )
     if not admin_catalog:
@@ -149,7 +150,8 @@ def product_by_slug(session: Session, slug: str) -> Product | None:
     return session.scalar(
         select(Product)
         .options(selectinload(Product.variants))
-        .where(Product.tenant_id == tenant.id, Product.slug == slug, Product.is_published.is_(True))
+        .where(Product.tenant_id == tenant.id, Product.slug == slug,
+               Product.is_published.is_(True), Product.status == "active")
     )
 
 
@@ -206,13 +208,16 @@ def add_to_cart(session: Session, cart: Cart, variant_id: str, quantity: int = 1
     if quantity < 1 or quantity > 25:
         raise CommerceError("Choose a quantity between 1 and 25.")
     variant = session.get(ProductVariant, variant_id)
-    if not variant or not variant.is_active:
+    if (not variant or not variant.is_active or variant.tenant_id != cart.tenant_id
+            or variant.product.tenant_id != cart.tenant_id
+            or not variant.product.is_published or variant.product.status != "active"):
         raise CommerceError("That product option is unavailable.")
     current = session.scalar(
         select(CartLine).where(CartLine.cart_id == cart.id, CartLine.variant_id == variant.id)
     )
     target = quantity + (current.quantity if current else 0)
-    if target > available_stock(session, variant.id):
+    if (variant.track_inventory and not variant.continue_selling_when_out_of_stock
+            and target > available_stock(session, variant.id)):
         raise CommerceError("There is not enough stock for that quantity.")
     if current:
         current.quantity = target
@@ -229,7 +234,8 @@ def update_cart_line(session: Session, cart: Cart, line_id: str, quantity: int) 
         raise CommerceError("Cart line not found.")
     if quantity <= 0:
         session.delete(line)
-    elif quantity <= available_stock(session, line.variant_id):
+    elif (not line.variant.track_inventory or line.variant.continue_selling_when_out_of_stock
+          or quantity <= available_stock(session, line.variant_id)):
         line.quantity = min(quantity, 25)
     else:
         raise CommerceError("There is not enough stock for that quantity.")
@@ -245,6 +251,10 @@ def cart_summary(session: Session, cart: Cart) -> CartSummary:
     lines = []
     subtotal = 0
     for line in cart.lines:
+        if (not line.variant.is_active or not line.variant.product.is_published
+                or line.variant.product.status != "active"
+                or line.variant.tenant_id != cart.tenant_id):
+            raise CommerceError("That product option is unavailable.")
         listing = variant_price(session, line.variant_id, cart.channel_id)
         line_total = listing.price_minor * line.quantity
         subtotal += line_total
@@ -318,17 +328,19 @@ def complete_checkout(
     if "@" not in email or not full_name.strip() or not address_line.strip() or not city.strip():
         raise CommerceError("Complete your contact and delivery details.")
 
-    stock_rows: list[Stock] = []
+    tracked_ids = [item["variant"].id for item in summary.lines if item["variant"].track_inventory]
+    stock_rows: dict[str, Stock] = {}
+    for stock in session.scalars(select(Stock).join(Warehouse).where(
+            Stock.variant_id.in_(tracked_ids), Warehouse.tenant_id == cart.tenant_id)
+            .order_by(Stock.id).with_for_update().execution_options(populate_existing=True)):
+        stock_rows.setdefault(stock.variant_id, stock)
     for item in sorted(summary.lines, key=lambda row: row["variant"].id):
-        stock = session.scalar(
-            select(Stock)
-            .where(Stock.variant_id == item["variant"].id)
-            .order_by(Stock.id)
-            .with_for_update()
-        )
-        if not stock or stock.quantity - stock.allocated < item["line"].quantity:
+        if not item["variant"].track_inventory:
+            continue
+        stock = stock_rows.get(item["variant"].id)
+        if ((not stock or stock.quantity - stock.allocated < item["line"].quantity)
+                and not item["variant"].continue_selling_when_out_of_stock):
             raise CommerceError(f"{item['product'].name} no longer has enough stock.")
-        stock_rows.append(stock)
 
     count = session.scalar(select(func.count(Order.id)).where(Order.tenant_id == cart.tenant_id)) or 0
     order = Order(
@@ -354,9 +366,11 @@ def complete_checkout(
     )
     session.add(order)
     session.flush()
-    for item, stock in zip(sorted(summary.lines, key=lambda row: row["variant"].id), stock_rows, strict=True):
+    for item in summary.lines:
         line = item["line"]
-        stock.allocated += line.quantity
+        stock = stock_rows.get(item["variant"].id)
+        if stock:
+            stock.allocated += min(line.quantity, max(0, stock.quantity - stock.allocated))
         session.add(
             OrderLine(
                 order_id=order.id,

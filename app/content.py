@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import copy
 import re
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import case, event, or_, select
+from sqlalchemy.orm import Session, with_loader_criteria
 
 from app.models import (
     Channel,
+    Collection,
     Membership,
     Product,
+    ProductImage,
     Site,
     SiteMedia,
     SitePage,
@@ -94,6 +97,47 @@ def site_pages(db: Session, site: Site) -> list[SitePage]:
     return list(db.scalars(select(SitePage).where(
         SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
     ).order_by(SitePage.path)))
+
+
+@contextmanager
+def catalogue_view(db: Session, site: Site, page: SitePage, *, preview=False):
+    """Limit this render's catalogue queries without changing renderer layouts."""
+    members = None
+    if page.collection_id:
+        collection = db.scalar(select(Collection).where(
+            Collection.id == page.collection_id, Collection.tenant_id == site.tenant_id))
+        from app.catalog_admin import collection_products
+        members = [p.id for p in collection_products(db, site, collection)] if collection else []
+    visible = Product.tenant_id == site.tenant_id
+    if not preview:
+        visible &= (Product.status == "active") & Product.is_published.is_(True)
+    if members is not None:
+        visible &= Product.id.in_(members)
+    active_products = list(db.scalars(select(Product.id).where(
+        Product.tenant_id == site.tenant_id, Product.status == "active", Product.is_published.is_(True))))
+    active_collections = list(db.scalars(select(Collection.id).where(
+        Collection.tenant_id == site.tenant_id, Collection.is_published.is_(True))))
+
+    def constrain(execute_state):
+        if execute_state.is_select:
+            criteria = [with_loader_criteria(Product, visible, include_aliases=True)]
+            if not preview:
+                criteria.append(with_loader_criteria(SitePage,
+                    or_(SitePage.product_id.is_(None), SitePage.product_id.in_(active_products))
+                    & or_(SitePage.collection_id.is_(None), SitePage.collection_id.in_(active_collections)),
+                    include_aliases=True))
+            execute_state.statement = execute_state.statement.options(*criteria)
+            if members and any(
+                    item.get("expr") is Product for item in execute_state.statement.column_descriptions):
+                execute_state.statement = execute_state.statement.order_by(None).order_by(
+                    case({product_id: position for position, product_id in enumerate(members)},
+                         value=Product.id, else_=len(members)))
+
+    event.listen(db, "do_orm_execute", constrain)
+    try:
+        yield
+    finally:
+        event.remove(db, "do_orm_execute", constrain)
 
 
 def create_page(db: Session, site: Site, title: str, path: str, kind: str = "content", document=None) -> SitePage:
@@ -186,9 +230,14 @@ def media_is_public(db, site, media_id):
     if any(references(page.published_json) for page in pages):
         return True
     product_ids = [page.product_id for page in pages if page.product_id]
-    return bool(product_ids and db.scalar(select(Product.id).where(
+    if not product_ids:
+        return False
+    active = select(Product.id).where(
         Product.tenant_id == site.tenant_id, Product.id.in_(product_ids),
-        Product.is_published.is_(True), Product.image_url == target)))
+        Product.is_published.is_(True), Product.status == "active")
+    return bool(db.scalar(active.where(Product.image_url == target)) or db.scalar(
+        select(ProductImage.id).where(ProductImage.tenant_id == site.tenant_id,
+            ProductImage.product_id.in_(active), ProductImage.image_url == target)))
 
 
 def restore_page(db: Session, site: Site, page_id: str, revision_id: str, user_id: str, version: int):

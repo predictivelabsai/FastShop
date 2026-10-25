@@ -54,6 +54,7 @@ def workspace(monkeypatch):
     # tests/test_signup.py does).
     monkeypatch.setattr(site_routes, "SessionLocal", sessions)
     monkeypatch.setattr("app.site_catalog.SessionLocal", sessions)
+    monkeypatch.setattr("app.catalog_admin_routes.SessionLocal", sessions)
     monkeypatch.setattr("app.plan_routes.SessionLocal", sessions)
 
     app, rt = fast_app(

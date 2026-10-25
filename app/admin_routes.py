@@ -28,6 +28,7 @@ from app import content, order_management, site_golive
 from app.admin_ui import badge, card, empty_state, index_table
 from app.db import SessionLocal
 from app.models import (
+    CatalogueSettings,
     Membership,
     Order,
     Product,
@@ -67,7 +68,7 @@ def search_results(db, site, user_id: str, query: str) -> list[dict]:
         Product.name.ilike(pattern, escape="\\"),
     ).order_by(Product.name).limit(6))
     for product in products:
-        add("Product", product.name, prefix + "/products", product.slug)
+        add("Product", product.name, prefix + f"/products/{product.id}", product.slug)
     role = db.scalar(select(Membership.role).where(
         Membership.tenant_id == site.tenant_id, Membership.user_id == user_id,
     ))
@@ -167,21 +168,24 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                         RefundCommand.site_id == site.id, RefundCommand.tenant_id == site.tenant_id,
                         RefundCommand.state.in_(order_management.REFUND_STATES_HOLDING_FUNDS)))
                     if unfulfilled:
-                        tasks.append((f"{unfulfilled} orders to fulfil", prefix + "/orders?status_filter=unfulfilled"))
+                        tasks.append((f"{unfulfilled} {'order' if unfulfilled == 1 else 'orders'} to fulfil", prefix + "/orders?status_filter=unfulfilled"))
                     if pending:
-                        tasks.append((f"{pending} refunds pending", prefix + "/orders"))
-                # There is no configured low-stock threshold yet. Report only recorded stock-outs.
-                stockout_variants = (select(Stock.variant_id)
-                    .join(ProductVariant, ProductVariant.id == Stock.variant_id)
-                    .where(ProductVariant.tenant_id == site.tenant_id)
-                    .group_by(Stock.variant_id)
-                    .having(func.sum(Stock.quantity - Stock.allocated) <= 0).subquery())
+                        tasks.append((f"{pending} {'refund' if pending == 1 else 'refunds'} pending", prefix + "/orders"))
+                catalogue_settings = db.scalar(select(CatalogueSettings).where(
+                    CatalogueSettings.tenant_id == site.tenant_id, CatalogueSettings.site_id == site.id))
+                threshold = catalogue_settings.low_stock_threshold if catalogue_settings else 5
+                stockout_variants = (select(ProductVariant.id)
+                    .outerjoin(Stock, Stock.variant_id == ProductVariant.id)
+                    .where(ProductVariant.tenant_id == site.tenant_id,
+                           ProductVariant.is_active.is_(True), ProductVariant.track_inventory.is_(True))
+                    .group_by(ProductVariant.id)
+                    .having(func.coalesce(func.sum(Stock.quantity - Stock.allocated), 0) <= threshold).subquery())
                 stockouts = db.scalar(select(func.count()).select_from(stockout_variants))
                 if stockouts:
-                    tasks.append((f"{stockouts} variants out of stock", prefix + "/coming-soon/inventory"))
+                    tasks.append((f"{stockouts} {'variant' if stockouts == 1 else 'variants'} low in stock", prefix + "/inventory?low_stock=1"))
                 drafts = sum(page.published_json is None for page in pages)
                 if drafts:
-                    tasks.append((f"{drafts} unpublished drafts", prefix + "/pages"))
+                    tasks.append((f"{drafts} unpublished {'draft' if drafts == 1 else 'drafts'}", prefix + "/pages"))
                 tasks.extend((check.label, prefix + "/pages" if check.action_url == prefix else check.action_url)
                              for check in report.failures)
                 completed = sum(check.passed for check in report.checks)

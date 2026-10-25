@@ -140,8 +140,12 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
         db.add(attempt)
         db.flush()
         quantities = Counter()
+        backorders = set()
         for line in quote.snapshot_json["lines"]:
-            quantities[line["variant_id"]] += line["quantity"]
+            if line.get("track_inventory", True):
+                quantities[line["variant_id"]] += line["quantity"]
+                if line.get("continue_selling_when_out_of_stock", False):
+                    backorders.add(line["variant_id"])
         # Lock the entire relevant stock set in stable primary-key order, not cart order.
         stocks = db.scalars(select(Stock).join(Warehouse, Warehouse.id == Stock.warehouse_id)
             .join(ProductVariant, ProductVariant.id == Stock.variant_id).where(
@@ -160,7 +164,7 @@ def prepare(db, site, customer_id, selections, destination, gateway, *, request_
                 db.add(InventoryReservation(tenant_id=site.tenant_id, site_id=site.id,
                     attempt_id=attempt.id, stock_id=stock.id, quantity=quantity))
                 quantities[stock.variant_id] -= quantity
-        if any(quantities.values()):
+        if any(quantity for variant_id, quantity in quantities.items() if variant_id not in backorders):
             raise CommerceError("There is not enough stock at the configured fulfilment origin.")
         db.flush()
         return attempt
