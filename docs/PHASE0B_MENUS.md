@@ -41,8 +41,7 @@ pre-menu database.
 `adapt_navigation(db, site)` imports the existing `navigation` settings into
 default header and footer menus, preserving order and labels. Draft settings and
 published settings are imported separately. Existing menus are never overwritten.
-The helper runs after demo-site creation, after H2 seed creation, when an existing
-H2 seed is found, during the migration, and through the explicit merchant import
+The helper runs after demo-site creation, after explicit sample fixture creation, during the migration, and through the explicit merchant import
 action. The migration enumerates sites; each adaptation operates within that
 site's tenant scope.
 
@@ -93,7 +92,7 @@ a published menu.
 ## Regression and verification
 
 Before changing either renderer, 50 normalized HTML SHA-256 baselines were
-captured in `tests/fixtures/phase0b_storefront_sha256.json`: all 17 H2 pages and
+captured in `tests/fixtures/phase0b_storefront_sha256.json`: all 17 sample pages and
 8 demo pages in preview and published modes. They matched the existing Phase 0
 fixture at capture time. Post-change tests assert actual seeded menus exist and
 compare all 50 menu-backed renders against those hashes. A separate test removes
@@ -138,7 +137,7 @@ Verification on 2026-10-08:
 ## Changed files
 
 - Model/services/seeding: `app/models.py`, `app/site_menus.py`, `app/content.py`,
-  `app/site_seed.py`.
+  `scripts/demo_site.py`.
 - Migration: `migrations/versions/20261008_0017_site_menus.py`.
 - Rendering/editor: `app/site_ui.py`, `app/site_menu_routes.py`,
   `app/site_routes.py`, `app/site_builder_routes.py`,

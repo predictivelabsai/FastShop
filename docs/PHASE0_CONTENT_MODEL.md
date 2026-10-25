@@ -62,7 +62,7 @@ booleans, versions, lists) are not locale maps. Locale tags use a bounded langua
 syntax such as en, et, or en-US; keys are matched exactly.
 
 `default_locale` lives in Site.settings_json and its published settings snapshot.
-New demo and H2 sites explicitly use `en`; existing settings fall back to `en`
+New demo and sample sites explicitly use `en`; existing settings fall back to `en`
 without a write. ORM settings assignment validates an explicitly supplied locale.
 `default_locale(site, preview=...)` chooses the draft or published setting.
 `resolve_document` resolves content before rendering and displaying editor fields.
@@ -103,7 +103,7 @@ so their existing symbols work on Windows.
 ## Regression evidence
 
 The golden JSON fixture in tests/fixtures/phase0_storefront_sha256.json contains
-SHA-256 hashes captured from the pre-change renderer for all 17 H2 pages and all
+SHA-256 hashes captured from the pre-change renderer for all 17 sample pages and all
 8 demo pages, each in preview and published mode (50 renders). The test fixes article
 ordering and replaces generated UUIDs/preview block IDs before comparing HTML bytes.
 All other markup must match. Separate tests cover legacy raw SQL rows without read
@@ -143,7 +143,7 @@ also outside this slice.
 - Editors: app/site_routes.py, app/site_builder_routes.py,
   app/site_builder_services.py, app/integrations/site_builder_llm.py.
 - Consumers and seeds: app/site_ui.py, app/site_placeholders.py,
-  app/compliance.py, app/site_seed.py.
+  app/compliance.py, scripts/demo_site.py.
 - Evals/tests: evals/site_builder_chat.py, tests/test_site_builder.py,
   tests/test_site_blocks.py, tests/test_block_builder.py,
   tests/test_site_content_render.py,

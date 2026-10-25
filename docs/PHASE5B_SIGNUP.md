@@ -35,7 +35,7 @@ Password signup performs the following work in one database transaction:
    character site rule, and choose a globally unique numeric suffix when needed.
 3. Call `app.content.create_site` once. That shared clean seeding path creates the `Tenant`,
    admin `Membership`, USD `Channel`, first draft `Site`, eight structured starter pages,
-   navigation menus, and media backfill. It does not copy the H2 4 You fixture or legacy demo
+   navigation menus, and media backfill. It does not copy the Northstar Goods fixture or legacy demo
    catalog.
 4. Create a bounded, expiring, single-use account email-verification record and enqueue the
    matching transactional message in `commerce_mail` in the same transaction.

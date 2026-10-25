@@ -1,4 +1,4 @@
-# H24YOU payment-method acceptance
+# FastShop payment-method acceptance
 
 Audit date: 2026-09-21. This is an implementation/readiness audit, not evidence
 that a merchant account or a wallet payment has been verified. No real provider
@@ -38,7 +38,7 @@ directly, such as Shopify; eligible marketplaces have different conditions.
 FastShop currently accepts separately scoped merchant Stripe credentials; it
 does not implement Connect onboarding. Do not assume this proves platform-wide
 PayPal eligibility, infer account country from warehouse location, or reuse
-another merchant's payment account. Confirm the H24YOU merchant's own account
+another merchant's payment account. Confirm the merchant's own account
 and the intended platform onboarding arrangement before adding PayPal to the
 allowlist. Native card-only renewal commands must not silently receive a PayPal
 payment method. Selecting a different PayPal architecture requires a reviewed

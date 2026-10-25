@@ -7,13 +7,8 @@
 
 ## Scope and architecture
 
-Reviewed `data/feature-requests/h24you/h24you_website_build_brief WooCommerce.md`.
-This request adds a connector boundary; it does not migrate FastShop into WordPress.
-The new brief requires native WooCommerce cart/checkout/My Account, a maintained
-subscription plugin, private staging, replaceable WordPress media, backups/security,
-US-style legal drafts, and a plugin/cost inventory. Those WordPress deliverables
-are **not** implemented by an API stub. Its reference to a US Ltd also differs from
-the earlier Estonian legal entity: confirm the actual merchant entity before onboarding.
+The connector supports reviewed imports from a merchant-owned WooCommerce store.
+Confirm the merchant entity and payment owner before onboarding.
 
 Choose one billing owner per storefront before enabling synchronization:
 
@@ -85,7 +80,7 @@ merchant-entered origins later requires DNS/IP pinning and additional SSRF contr
 3. Set site-specific `FASTSHOP_STRIPE_<UPPERCASE_SITE_ID>_SECRET_KEY` and
    `FASTSHOP_STRIPE_<UPPERCASE_SITE_ID>_WEBHOOK_SECRET` in the secret manager.
    The existing `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` fallback is reserved
-   for `FASTSHOP_STRIPE_PRIMARY_SITE` (default `h24you`), not shared among tenants.
+   for `FASTSHOP_STRIPE_PRIMARY_SITE` (no default store), not shared among tenants.
 4. Create the test webhook endpoint on the platform HTTPS host:
    `/api/v1/commerce/SITE_ID/stripe-webhook`. Use its signing secret and the
    existing sandbox operations/event handling instructions. A configured secret
@@ -119,7 +114,7 @@ merchant-entered origins later requires DNS/IP pinning and additional SSRF contr
 
 See [sandbox operations](PHASE2_SANDBOX_OPERATIONS.md) for workers and provider
 acceptance cases. Its historical deployment statement is superseded by
-[production verification](PRODUCTION_GUIDE_VERIFICATION.md); provider acceptance remains open.
+production verification (historical evidence removed); provider acceptance remains open.
 Stripe retries preserve the original [idempotency key](https://docs.stripe.com/api/idempotent_requests)
 and durable command. An unknown outcome is not a failed payment and must not be
 reissued as a new order.
@@ -135,7 +130,7 @@ reissued as a new order.
 - Keep payment data on provider-hosted forms; never mirror raw card details.
 
 No schema or CSS/HTML changes are required for this backend-only scaffolding.
-FastShop branding and existing H24YOU storefront behavior remain unchanged.
+FastShop branding and existing merchant storefront behaviour remain unchanged.
 
 ## Local verification — 21 September 2026
 

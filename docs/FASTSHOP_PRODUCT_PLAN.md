@@ -33,7 +33,7 @@ Key work:
 
 | Area | Scope |
 | --- | --- |
-| Block content | Block schema + migration of existing section payloads (H2 4 You included). |
+| Block content | Block schema + migration of existing section payloads (including legacy section documents). |
 | Navigation | Menu model. |
 | Localization | Locale-keyed content fields. |
 | Regression coverage | Regression harness. |

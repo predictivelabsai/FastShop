@@ -147,7 +147,7 @@ a new validated revision; it never rewinds payments, stock or customer records.
 Theme v1: palette, approved font stacks, type scale, spacing, content width,
 corner radius, button style, hero alignment and supported section layouts.
 Render bounded values as CSS variables scoped to the storefront root. Preserve
-H24YOU's current design as a compatible preset. Do not accept arbitrary CSS.
+existing merchant designs as a compatible preset. Do not accept arbitrary CSS.
 
 Supported initial operations: update design tokens; edit/reorder/add supported
 sections; update copy/navigation; create a supported page; propose catalog or
@@ -172,7 +172,7 @@ On provider failure, preserve the draft and allow continued manual editing.
    zero external calls and prominent simulation labels.
 2. **Shared design/editing foundation.** Tokenize theme, add shared setting
    revisions/undo and route both editing paths through the same services.
-   Existing H24YOU pages retain their design; classical editing remains usable.
+   Existing merchant pages retain their design; classical editing remains usable.
 3. **First conversational slice.** Add flow selector, chat plus private preview,
    progressive questions and validated theme/hero/copy operations. Demonstrate
    “cream and green, more editorial” updating the real draft on desktop/mobile.
