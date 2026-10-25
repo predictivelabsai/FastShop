@@ -6,22 +6,25 @@ from fasthtml.common import (
     A,
     Button,
     Div,
+    Fieldset,
     Form,
     Input,
     Label,
+    Legend,
     Link,
     Option,
     P,
     Script,
     Select,
     Small,
+    Span,
     Strong,
 )
 from sqlalchemy import select
-from starlette.responses import RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
 from app import content, discounts
-from app.admin_ui import badge, card, index_table, page_header, two_column
+from app.admin_ui import badge, card, icon, index_table, modal, page_header, two_column
 from app.db import SessionLocal
 from app.models import Collection, Discount, DiscountCode, Product
 from app.services import CommerceError
@@ -116,30 +119,49 @@ def register_discount_routes(rt, actor, csrf, check_csrf, shell, error):
             return Label(label, Input(name=name, value=val(name, default), **attrs))
         def choice(label, name, options, default):
             return Label(label, Select(*[Option(text, value=value, selected=val(name, default) == value)
-                         for value, text in options], name=name))
+                         for value, text in options], name=name, aria_label=label))
+        def radios(label, name, options, default, segmented=False):
+            return Fieldset(Legend(label), Div(*[
+                Label(Input(type="radio", name=name, value=value,
+                            checked=val(name, default) == value), Span(text))
+                for value, text in options], cls="a-segmented" if segmented else "a-radio-options"),
+                data_discount_field=name)
+        def resources(model_name, model, label):
+            title_attr = Product.name if model is Product else Collection.title
+            objects = list(db.scalars(select(model).where(
+                model.tenant_id == site.tenant_id).order_by(title_attr)))
+            return Div(
+                Label(label, Select(*[Option(obj.name if model is Product else obj.title,
+                    value=obj.id, selected=obj.id in val(model_name + "_ids_json", []))
+                    for obj in objects], name=model_name + "_ids", multiple=True,
+                    data_resource_fallback="")),
+                Div(data_resource_chips="", aria_live="polite"),
+                Button("Browse " + model_name + "s", type="button", cls="e-button secondary",
+                       data_discount_resources=model_name + "s", hidden=True),
+                data_discount_resource_group=model_name + "s")
         def check(label, name, default=False):
             return Label(Input(type="checkbox", name=name, checked=val(name, default)), label)
         codes = ", ".join(db.scalars(select(DiscountCode.code).where(DiscountCode.discount_id == rule.id))) if rule else ""
         form = Form(csrf(session), two_column(Div(
             card(field("Title", "title", required=True),
-                 choice("Discount type", "type", discounts.TYPES.items(), kind),
-                 choice("Method", "method", [("code", "Discount code"), ("automatic", "Automatic")], "code"),
+                 Input(type="hidden", name="type", value=val("type", kind)),
+                 Div(badge(discounts.TYPES[val("type", kind)]),
+                     A("Change type", href=prefix + "/new") if not rule else None,
+                     cls="e-actions"),
+                 radios("Method", "method", [("code", "Discount code"), ("automatic", "Automatic")], "code", True),
                  Label("Codes (comma separated)", Input(name="codes", value=codes)),
                  Button("Generate code", type="button", data_generate_discount="", cls="e-button secondary"), title="Details"),
-            card(choice("Value type", "value_type", [("percentage", "Percentage"), ("fixed", "Fixed amount in minor units")], "percentage"),
+            card(radios("Value type", "value_type", [("percentage", "Percentage"), ("fixed", "Fixed amount")], "percentage", True),
                  field("Value", "value", 10, type="number", min=0),
                  field("Customer buys quantity", "buy_quantity", 1, type="number", min=1),
                  field("Customer gets quantity", "get_quantity", 1, type="number", min=1),
                  P("For Buy X get Y, the customer adds both quantities to the bag. The cheapest qualifying units receive the discount."),
                  choice("Applies to", "applies_to", [("all", "All products"), ("products", "Specific products"), ("collections", "Specific collections")], "all"),
-                 *[Label(label, Select(*[Option(obj.name if model is Product else obj.title, value=obj.id,
-                     selected=obj.id in val(model_name + "_ids_json", [])) for obj in db.scalars(query)],
-                     name=model_name + "_ids", multiple=True)) for label, model_name, model, query in (
-                     ("Products", "product", Product, select(Product).where(Product.tenant_id == site.tenant_id)),
-                     ("Collections", "collection", Collection, select(Collection).where(Collection.tenant_id == site.tenant_id)))], title="Value and products"),
-            card(choice("Customer eligibility", "eligibility", [("all", "All customers"), ("emails", "Specific emails")], "all"),
+                 resources("product", Product, "Products"),
+                 resources("collection", Collection, "Collections"), title="Value and products"),
+            card(radios("Customer eligibility", "eligibility", [("all", "All customers"), ("emails", "Specific emails")], "all"),
                  Label("Eligible emails (comma separated)", Input(name="emails", value=", ".join(val("emails_json", [])))),
-                 choice("Minimum requirement", "minimum_type", [("none", "No minimum"), ("amount", "Purchase amount in minor units"), ("quantity", "Item quantity")], "none"),
+                 radios("Minimum requirement", "minimum_type", [("none", "No minimum"), ("amount", "Minimum purchase amount"), ("quantity", "Minimum quantity of items")], "none"),
                  field("Minimum value", "minimum_value", 0, type="number", min=0), title="Conditions"),
             card(field("Maximum total uses", "usage_limit", type="number", min=1),
                  check("Once per customer", "once_per_customer"),
@@ -154,18 +176,26 @@ def register_discount_routes(rt, actor, csrf, check_csrf, shell, error):
                  Small("Savings are checked against the customer's purchase at checkout."), title="Summary")),
             Button("Save discount", cls="e-button"), method="post",
             action=prefix + ("/" + rule.id if rule else "/new"), cls="e-form",
-            data_discount_form="", data_dirty_guard=True)
+            data_discount_resources_url=prefix + "/resources",
+            data_discount_form="", data_discount_kind_label=discounts.TYPES[val("type", kind)], data_dirty_guard=True)
         return shell("Edit discount" if rule else "Create discount",
             page_header(rule.title if rule else "Create discount", back_href=prefix), form,
             Form(csrf(session),
                 *[Button(label, name="action", value=action, cls="e-button secondary") for label, action in
                   (("Duplicate", "duplicate"), ("Deactivate", "deactivate"), ("Delete", "delete"))],
                 method="post", action=prefix + "/" + rule.id + "/action", cls="e-actions") if rule else None,
+            modal("Select products or collections",
+                Label("Search resources", Input(type="search", data_discount_resource_search="",
+                      autocomplete="off", placeholder="Search by name")),
+                P("", data_discount_resource_status="", role="status"),
+                Div(data_discount_resource_results="", cls="a-resource-results"),
+                Button("Done", type="button", data_modal_close="", cls="e-button"),
+                id="discount-resources"),
             Script(src="/static/admin/discounts.js", defer=True),
             Link(rel="stylesheet", href="/static/admin/growth.css"))
 
     @rt("/admin/sites/{site_id}/discounts", methods=["GET"])
-    def get(session, site_id: str, q: str = "", status: str = "All"):
+    def get(session, site_id: str, q: str = "", status: str = "All", sort: str = "recent"):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
@@ -175,19 +205,30 @@ def register_discount_routes(rt, actor, csrf, check_csrf, shell, error):
                     Discount.tenant_id == site.tenant_id, Discount.deleted_at.is_(None))
                     .order_by(Discount.created_at.desc())))
                 prefix = f"/admin/sites/{site.id}/discounts"
-                rules = [r for r in rules if (status == "All" or discounts.status(r) == status)
+                rules = [r for r in rules if (status.casefold() == "all" or discounts.status(r) == status)
                          and (not q or q.lower() in r.title.lower() or any(q.lower() in c.lower()
                          for c in db.scalars(select(DiscountCode.code).where(DiscountCode.discount_id == r.id))))]
+                if sort == "title":
+                    rules.sort(key=lambda rule: rule.title.casefold())
                 return shell("Discounts", page_header("Discounts", primary_action=A("Create discount", href=prefix + "/new", cls="e-button")),
                     Form(Label("Search discounts", Input(name="q", value=q, type="search")),
-                         Button("Search", cls="e-button"), method="get", cls="e-actions"),
-                    Div(*[A(s, href=prefix + "?status=" + s, cls="e-button secondary") for s in ("All", "Active", "Scheduled", "Expired", "Inactive")], cls="e-actions"),
+                         Label("Status", Select(*[Option(label, value=value,
+                             selected=status.casefold() == value.casefold()) for value, label in
+                             (("all", "All statuses"), ("Active", "Active"), ("Scheduled", "Scheduled"),
+                              ("Expired", "Expired"), ("Inactive", "Inactive"))], name="status", aria_label="Status")),
+                         Label("Sort", Select(Option("Newest first", value="recent", selected=sort != "title"),
+                             Option("Title A to Z", value="title", selected=sort == "title"), name="sort", aria_label="Sort")),
+                         Button("Search", cls="e-button secondary"), method="get", cls="e-actions"),
                     Form(csrf(session), index_table(["Discount", "Status", "Method", "Type", "Used", "Select"], [
                         [A(r.title, href=prefix + "/" + r.id), badge(discounts.status(r), "success" if discounts.status(r) == "Active" else "neutral"),
                          r.method.title(), discounts.TYPES[r.type], str(discounts.usage(db, r)),
                          Input(type="checkbox", name="ids", value=r.id, aria_label="Select " + r.title)] for r in rules]),
-                         Select(Option("Activate", value="activate"), Option("Deactivate", value="deactivate"), name="action"),
-                         Button("Apply to selected", cls="e-button"), method="post", action=prefix + "/bulk", cls="e-form"))
+                         Div(Span("", data_selected_count=""),
+                             Select(Option("Activate", value="activate"), Option("Deactivate", value="deactivate"),
+                                    name="action", aria_label="Bulk action"),
+                             Button("Apply to selected", cls="e-button secondary"),
+                             data_bulk_bar="", hidden=True, cls="e-actions"),
+                         method="post", action=prefix + "/bulk", cls="e-form"))
         except CommerceError as exc:
             return error(exc)
 
@@ -197,9 +238,40 @@ def register_discount_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
                 if type not in discounts.TYPES:
-                    return shell("Create discount", card(*[Div(A(label, href=f"?type={kind}", cls="e-button secondary"))
-                        for kind, label in discounts.TYPES.items()], title="Select a discount type"))
+                    descriptions = {
+                        "amount_off_products": "Discount specific products or collections with a percentage or fixed amount.",
+                        "amount_off_order": "Take a percentage or fixed amount off the entire order.",
+                        "buy_x_get_y": "Reward customers with discounted items when they buy qualifying products.",
+                        "free_shipping": "Offer free shipping on eligible orders.",
+                    }
+                    return shell("Create discount",
+                        page_header("Create discount", back_href=f"/admin/sites/{site.id}/discounts"),
+                        card(P("Choose the type of discount you want to offer."),
+                            Div(*[A(icon("Discounts"), Div(Strong(label), P(descriptions[kind])),
+                                Span(">", aria_hidden="true"), href=f"?type={kind}",
+                                aria_label=label, cls="a-discount-type")
+                                for kind, label in discounts.TYPES.items()], cls="a-discount-types"),
+                            title="Select a discount type"),
+                        Link(rel="stylesheet", href="/static/admin/growth.css"))
                 return editor(db, session, site, kind=type)
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/discounts/resources", methods=["GET"])
+    def resources(session, site_id: str, kind: str = "products", q: str = ""):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session), publish=True)
+                if kind not in {"products", "collections"}:
+                    raise CommerceError("Choose products or collections.")
+                model, title = (Product, Product.name) if kind == "products" else (Collection, Collection.title)
+                query = select(model).where(model.tenant_id == site.tenant_id)
+                needle = q.strip()[:160]
+                if needle:
+                    query = query.where(title.icontains(needle, autoescape=True))
+                rows = db.scalars(query.order_by(title).limit(100))
+                return JSONResponse({"results": [{"id": row.id,
+                    "title": row.name if kind == "products" else row.title} for row in rows]})
         except CommerceError as exc:
             return error(exc)
 

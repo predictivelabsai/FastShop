@@ -112,12 +112,31 @@ def register_order_admin_routes(rt, actor, csrf, check_csrf, shell, error):
             return error(exc)
 
     @rt("/admin/sites/{site_id}/orders/{site_order_id}", methods=["GET"])
-    def get(session, site_id: str, site_order_id: str, notice: str = ""):
+    def get(session, request, site_id: str, site_order_id: str, notice: str = ""):
         try:
             with SessionLocal() as db:
                 site, _ = access(db, session, site_id)
                 data = orders.detail(db, site, site_order_id)
+                edit_path = f"/admin/sites/{site_id}/orders/{site_order_id}/edit"
+                if any(getattr(route, "path_regex", None)
+                       and route.path_regex.fullmatch(edit_path)
+                       and "GET" in (getattr(route, "methods", None) or ())
+                       for route in request.app.routes):
+                    data["edit_url"] = edit_path
                 return shell(data["order"].number, ui.order_detail(site, data, lambda: csrf(session), notice))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/orders/{site_order_id}/actions/{operation}", methods=["GET"])
+    def get(session, site_id: str, site_order_id: str, operation: str):
+        try:
+            if operation not in {"fulfil", "refund", "return", "cancel"}:
+                raise CommerceError("Order action not found.")
+            with SessionLocal() as db:
+                site, _ = access(db, session, site_id)
+                data = orders.detail(db, site, site_order_id)
+                return shell(data["order"].number,
+                             ui.order_detail(site, data, lambda: csrf(session), operation=operation))
         except CommerceError as exc:
             return error(exc)
 

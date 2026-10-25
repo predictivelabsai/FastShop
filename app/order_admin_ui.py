@@ -68,8 +68,9 @@ def quantity_fields(order, operation="fulfil"):
         available = max(0, line.quantity - used)
         rows.append(Div(
             Div(Strong(line.product_name), Small(line.variant_name), Small(line.sku)),
-            field(f"Quantity: {line.product_name}", "qty_" + line.id, 0,
-                  "number", min=0, max=available, step=1, disabled=available == 0),
+            field("Quantity", "qty_" + line.id, 0,
+                  "number", min=0, max=available, step=1, disabled=available == 0,
+                  aria_label=f"Quantity: {line.product_name}"),
             Small(f"{available} available"), cls="p3-quantity-row"))
     return rows
 
@@ -157,7 +158,52 @@ def _address(address):
         cls="p3-address") if address else P("No address supplied", cls="p3-muted")
 
 
-def order_detail(site, data, csrf_factory, notice=""):
+def merchant_timeline(events, currency):
+    """Present one merchant event per refund, retaining technical events separately."""
+    visible, integration = [], []
+    refunds = [event for event in events if event.get("command")]
+    seen_payments = set()
+    for original in events:
+        event = dict(original)
+        kind, detail = event.get("kind"), event.get("detail", "")
+        if kind in {"outbox", "reconciliation"}:
+            integration.append(event)
+            continue
+        if kind == "payment":
+            reference = event.get("payment_reference")
+            identity = (event.get("payment_provider"), reference,
+                        event.get("payment_kind"), event.get("payment_status"))
+            if reference and identity in seen_payments:
+                continue
+            if reference:
+                seen_payments.add(identity)
+            if event.get("payment_kind") == "refund" and any(
+                    reference and reference == refund["command"].provider_refund_id
+                    for refund in refunds):
+                continue
+        command = event.get("command")
+        if command:
+            status = {"succeeded": "succeeded", "failed": "failed", "pending": "is pending",
+                      "creating": "is being processed",
+                      "reconciliation_required": "needs review"}.get(command.state, "was updated")
+            event["title"] = f"Refund of {money(command.amount_minor, currency)} {status}"
+            event["detail"] = command.reason
+        elif kind == "order":
+            event["detail"] = detail.replace("Payment state: ", "Payment ").replace("_", " ")
+        elif kind == "payment":
+            amount = money(event["amount_minor"], event.get("currency", currency))
+            status = {"succeeded": "succeeded", "paid": "received", "pending": "is pending",
+                      "partially_refunded": "partially refunded", "refunded": "refunded",
+                      "failed": "failed", "cancelled": "cancelled"}.get(
+                          event.get("payment_status"), "was updated")
+            event["title"] = (f"Refund of {amount} {status}" if event.get("payment_kind") == "refund"
+                              else f"Payment of {amount} {status}")
+            event["detail"] = ""
+        visible.append(event)
+    return visible, integration
+
+
+def order_detail(site, data, csrf_factory, notice="", operation=""):
     order, link, customer = data["order"], data["link"], data["customer"]
     url = base(site, link.id)
     def form(*children, endpoint, **attrs):
@@ -175,7 +221,7 @@ def order_detail(site, data, csrf_factory, notice=""):
                     Strong(money(line.unit_price_minor * quantity, order.currency)), cls="p3-line"))
         if lines:
             groups.append(card(H2(title), *lines))
-    fulfil = Details(Summary("Fulfil items"), form(
+    fulfil = card(H2("Fulfil items"), form(
         Input(type="hidden", name="request_key", value=new_id()), *quantity_fields(order),
         Div(field("Carrier", "carrier", required=True, maxlength=100),
             field("Tracking number", "tracking_number", required=True, maxlength=100),
@@ -183,20 +229,31 @@ def order_detail(site, data, csrf_factory, notice=""):
             cls="p3-fields"),
         Label(Input(type="checkbox", name="notify", value="on", checked=True), " Notify customer by email"),
         Button("Fulfil selected items", type="submit", cls="p3-primary"),
-        endpoint="/fulfil-items", cls="p3-form"), cls="a-card p3-disclosure") if (
+        endpoint="/fulfil-items", cls="p3-form")) if (
             order.status != "cancelled" and any(line.fulfilled_quantity + line.unfulfilled_refunded_quantity < line.quantity for line in order.lines)) else None
-    refund = Details(Summary("Refund items"), Form(
+    refund = card(H2("Refund items"), Form(
         *quantity_fields(order, "refund"), field("Shipping refund", "shipping", "0.00", "number",
             min=0, step="0.01", max=f"{order.shipping_minor / 100:.2f}"),
         Label(Input(type="checkbox", name="restock", value="on"), " Restock returned items"),
         field("Reason for refund", "reason", required=True, minlength=10, maxlength=500),
         Button("Review refund", cls="p3-primary"), action=url + "/refund-items", method="get",
-        cls="p3-form"), cls="a-card p3-disclosure") if data["available"] else None
-    return_flow = Details(Summary("Create return"), form(
+        cls="p3-form")) if data["available"] else None
+    return_flow = card(H2("Create return"), form(
         *quantity_fields(order, "return"), field("Reason for return", "reason", required=True, maxlength=500),
         Label(Input(type="checkbox", name="restock", checked=True, value="on"), " Restock on receipt"),
-        Button("Create return", cls="p3-primary"), endpoint="/returns", cls="p3-form"),
-        cls="a-card p3-disclosure")
+        Button("Create return", cls="p3-primary"), endpoint="/returns", cls="p3-form"))
+    cancel = card(H2("Cancel order"), P("Cancelling fulfilment does not refund a payment."),
+        form(Input(type="hidden", name="expected_status", value=order.status),
+             Input(type="hidden", name="target", value="cancelled"),
+             field("Cancellation reason", "note", required=True, maxlength=500),
+             Button("Cancel order", cls="p3-danger"), endpoint="/fulfillment", cls="p3-form"))
+    if operation:
+        title, panel = {"fulfil": ("Fulfil items", fulfil), "refund": ("Refund items", refund),
+                        "return": ("Create return", return_flow), "cancel": ("Cancel order", cancel)}[operation]
+        return Div(*assets(), page_header(title, back_href=url),
+                   P(order.number, cls="p3-muted"), panel or empty_state(
+                       "Nothing to " + operation, "There are no eligible items for this action."),
+                   cls="p3-orders p3-operation")
     returns = []
     for row in data["returns"]:
         buttons = []
@@ -215,7 +272,13 @@ def order_detail(site, data, csrf_factory, notice=""):
                    if row.restock else "No restock")),
             Div(*buttons, cls="p3-actions"), cls="p3-return"))
     events = []
-    for event in data["timeline"]:
+    merchant_events, integration_events = merchant_timeline(data["timeline"], order.currency)
+    last_day = None
+    for event in merchant_events:
+        day = event["at"].date()
+        if day != last_day:
+            events.append(H3(event["at"].strftime("%d %B %Y"), cls="p3-timeline-day"))
+            last_day = day
         command = event.get("command")
         retry = form(Input(type="hidden", name="amount_minor", value=command.amount_minor),
             Input(type="hidden", name="reason", value=command.reason),
@@ -223,7 +286,7 @@ def order_detail(site, data, csrf_factory, notice=""):
             Input(type="hidden", name="retry", value="on"), Button("Reconcile exact refund"),
             endpoint="/refund") if command and command.state in {
                 "creating", "pending", "reconciliation_required"} else None
-        events.append(Div(Div(Strong(event["title"]), Small(event["at"].strftime("%d %b %Y, %H:%M"))),
+        events.append(Div(Div(Strong(event["title"]), Small(event["at"].strftime("%H:%M"))),
             P(event.get("detail", "")), A("View tracking", href=event["tracking_url"], target="_blank",
                 rel="noopener noreferrer") if event.get("tracking_url") else None, retry, cls="p3-event"))
     payment = card(H2("Payment summary"), *[Div(Span(label), Strong(money(value, order.currency)),
@@ -236,7 +299,7 @@ def order_detail(site, data, csrf_factory, notice=""):
             if data.get("payment_provider") == "manual" else None)
     notes = card(H2("Notes"), form(Label("Order note", Textarea(link.note or "", name="note", maxlength=5000)),
         Button("Save note"), endpoint="/note", cls="p3-form"))
-    tags = card(H2("Tags"), Div(*[badge(tag) for tag in link.tags_json or []], cls="p3-chips"),
+    tags = card(H2("Tags"),
         form(field("Tags, separated by commas", "tags", ", ".join(link.tags_json or []), maxlength=1000),
              Button("Save tags"), endpoint="/tags", cls="p3-form"))
     customer_card = card(H2("Customer"), A(customer.name or customer.email,
@@ -244,32 +307,38 @@ def order_detail(site, data, csrf_factory, notice=""):
         P(order.email), P(customer.phone) if getattr(customer, "phone", "") else None,
         H3("Shipping address"), _address(order.shipping_address_json or {}),
         H3("Billing address"), _address(getattr(order, "billing_address_json", {}) or {}))
-    actions = card(H2("Order actions"), form(Input(type="hidden", name="archived",
+    actions = Details(Summary("More actions", cls="p3-button"), Div(form(Input(type="hidden", name="archived",
         value="0" if link.is_archived else "1"), Button("Unarchive order" if link.is_archived else "Archive order"),
-        endpoint="/archive"), Details(Summary("Cancel order"),
-            P("Cancelling fulfilment does not refund a payment."),
-            form(Input(type="hidden", name="expected_status", value=order.status),
-                 Input(type="hidden", name="target", value="cancelled"),
-                 field("Cancellation reason", "note", required=True, maxlength=500),
-                 Button("Cancel order", cls="p3-danger"), endpoint="/fulfillment", cls="p3-form"))
+        endpoint="/archive"), A("Cancel order", href=url + "/actions/cancel", cls="p3-button p3-danger")
         if order.status in {"unfulfilled", "partially_fulfilled", "fulfilled"} else None,
-        form(Button("Re-sync payment status"), endpoint="/resync"))
+        form(Button("Re-sync payment status"), endpoint="/resync"),
+        A("Packing slip", href=url + "/packing-slip", target="_blank", cls="p3-button"),
+        cls="p3-order-menu"), cls="p3-more-actions")
     return Div(*assets(), page_header(order.number, back_href=base(site),
         badges=[state(order.payment_status), state(data["fulfilment_label"]),
-                badge("Archived") if link.is_archived else None], secondary_actions=[
-            A("Packing slip", href=url + "/packing-slip", target="_blank", cls="p3-button"),
+                badge("Archived") if link.is_archived else None],
+        primary_action=A("Fulfil", href=url + "/actions/fulfil", cls="p3-button p3-primary") if fulfil else None,
+        secondary_actions=[
+            A("Refund", href=url + "/actions/refund", cls="p3-button") if refund else None,
+            A("Return", href=url + "/actions/return", cls="p3-button"),
+            A("Edit", href=data["edit_url"], cls="p3-button") if data.get("edit_url") else None,
+            actions,
             A("←", href=base(site, data["prev_id"]), aria_label="Previous order", cls="p3-button")
                 if data.get("prev_id") else None,
             A("→", href=base(site, data["next_id"]), aria_label="Next order", cls="p3-button")
                 if data.get("next_id") else None]),
         P(order.created_at.strftime("%d %B %Y at %H:%M"), cls="p3-muted"),
-        two_column(Div(*groups, fulfil, payment, refund, return_flow,
+        two_column(Div(*groups, payment,
             card(H2("Returns"), *returns) if returns else None,
             card(H2("Timeline"), form(Label("Add an internal note", Textarea(name="body", required=True,
                 maxlength=5000, rows=3, placeholder="Leave a note for your team")),
                 Input(type="hidden", name="internal", value="on"), Button("Post comment"),
-                endpoint="/comments", cls="p3-form"), Div(*events, cls="p3-timeline"))),
-            Div(notes, customer_card, tags, actions)), cls="p3-orders")
+                endpoint="/comments", cls="p3-form"), Div(*events, cls="p3-timeline"),
+                Details(Summary("Show integration details"), *[Div(Strong(event["title"]),
+                    P(event.get("detail", "")), Small(event["at"].strftime("%d %b %Y, %H:%M")),
+                    cls="p3-integration-event") for event in integration_events],
+                    cls="p3-integration-details") if integration_events else None)),
+            Div(notes, customer_card, tags)), cls="p3-orders")
 
 
 def refund_review(site, data, preview, values, csrf):

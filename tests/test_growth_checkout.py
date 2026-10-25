@@ -15,7 +15,7 @@ from starlette.testclient import TestClient
 
 from app import checkout_services, commerce, customer_services, discounts
 from app.growth_settings_models import TaxRate
-from app.models import CommerceQuote, DiscountCode, Membership
+from app.models import Collection, CommerceQuote, DiscountCode, Membership, Product, Tenant
 from app.services import CommerceError
 from tests.test_checkout_services import prepare, ready  # noqa: F401
 from tests.test_growth_discounts import lines, rule
@@ -200,9 +200,33 @@ def test_discount_form_round_trip_csrf_scope_and_actions_inside_shell(ready, mon
         "codes": "WELCOME",
         "is_active": "on",
     }
+    foreign_tenant = Tenant(name="Other merchant", slug="discount-picker-foreign")
+    db.add(foreign_tenant)
+    db.flush()
+    own_collection = Collection(tenant_id=site.tenant_id, title="Polish collection", handle="polish")
+    foreign_collection = Collection(tenant_id=foreign_tenant.id, title="Polish private", handle="polish")
+    db.add_all([own_collection, foreign_collection])
+    db.commit()
     with TestClient(app) as client:
+        picker = client.get(base + "/new")
+        assert picker.status_code == 200
+        assert picker.text.count('class="a-discount-type"') == 4
+        assert "Discount specific products or collections" in picker.text
+        resources = client.get(base + "/resources?kind=collections&q=polish")
+        assert resources.status_code == 200
+        assert resources.json()["results"] == [{"id": own_collection.id, "title": own_collection.title}]
+        assert client.get(base + "/resources?kind=collections&q=missing").json()["results"] == []
+        assert client.get(base + "/resources?kind=unsupported").status_code == 400
+        assert client.get("/admin/sites/foreign/discounts/resources").status_code == 400
+        product = db.scalar(select(Product).where(Product.tenant_id == site.tenant_id))
+        products = client.get(base + "/resources", params={"kind": "products", "q": product.name})
+        assert products.status_code == 200
+        assert product.id in [row["id"] for row in products.json()["results"]]
         create = client.get(base + "/new?type=amount_off_order")
         assert create.status_code == 200 and 'name="csrf_token"' in create.text
+        assert 'data-discount-resource-search' in create.text
+        for name in ("method", "value_type", "eligibility", "minimum_type"):
+            assert f'type="radio" name="{name}"' in create.text
         assert client.post(base + "/new", data=data).status_code == 400
         assert (
             client.post(
@@ -215,6 +239,23 @@ def test_discount_form_round_trip_csrf_scope_and_actions_inside_shell(ready, mon
         )
         assert response.status_code == 303, response.text
         target = response.headers["location"]
+        second = client.post(base + "/new", data=data | {"csrf_token": "test-token",
+            "title": "Zulu offer", "codes": "ZULU", "is_active": ""}, follow_redirects=False)
+        assert second.status_code == 303
+        welcome_rule = discounts.code_rule(db, site, "WELCOME")
+        welcome_rule.created_at -= timedelta(days=1)
+        db.commit()
+        recent = client.get(base)
+        assert recent.status_code == 200
+        assert recent.text.index("Zulu offer") < recent.text.index(">Welcome</a>")
+        alphabetical = client.get(base + "?sort=title")
+        assert alphabetical.text.index(">Welcome</a>") < alphabetical.text.index("Zulu offer")
+        inactive = client.get(base + "?status=Inactive&sort=title")
+        assert "Zulu offer" in inactive.text and ">Welcome</a>" not in inactive.text
+        active = client.get(base + "?status=Active&q=Welcome")
+        assert ">Welcome</a>" in active.text and "Zulu offer" not in active.text
+        assert 'data-bulk-bar="" hidden' in recent.text
+        assert 'name="status"' in recent.text and 'name="sort"' in recent.text
         detail = client.get(target)
         assert detail.status_code == 200 and 'value="WELCOME"' in detail.text
         parser = ShellParser()

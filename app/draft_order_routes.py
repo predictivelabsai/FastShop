@@ -38,7 +38,9 @@ def register_draft_order_routes(rt, actor, csrf, check_csrf, shell, error):
                 site = site_for(db, session, site_id)
                 page = drafts.integer(request.query_params.get("page", "1"), "page", minimum=1)
                 filters = dict(request.query_params)
-                rows, count = drafts.list_drafts(db, site, q=filters.get("q", ""), status=filters.get("status", ""), page=page)
+                rows, count = drafts.list_drafts(db, site, q=filters.get("q", ""),
+                    status=filters.get("status", ""), page=page,
+                    sort=filters.get("sort", "updated_desc"))
                 people = {row.id: row.name or row.email for row in db.scalars(select(ShopCustomer).where(
                     ShopCustomer.site_id == site.id, ShopCustomer.tenant_id == site.tenant_id))}
                 values = {row.id: sum(line.quantity*line.unit_price_minor for line in drafts.lines_for(db, site, row))

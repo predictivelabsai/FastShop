@@ -51,6 +51,10 @@ def index(site, rows, total, page, filters, people, totals, csrf):
             Label("Status", Select(Option("All", value=""), *[Option(label, value=value,
                 selected=filters.get("status")==value) for value, label in
                 (("open", "Open"), ("invoice_sent", "Invoice sent"), ("completed", "Completed"))], name="status")),
+            Label("Sort", Select(*[Option(label, value=value,
+                selected=filters.get("sort", "updated_desc") == value) for value, label in
+                (("updated_desc", "Updated newest first"), ("updated_asc", "Updated oldest first"))],
+                name="sort", aria_label="Sort drafts")),
             Button("Filter"), method="get", cls="d-fields"),
             Div(Table(Thead(Tr(*[Th(x) for x in ("Draft", "Updated", "Customer", "Status", "Total")])),
                 Tbody(*[Tr(Td(A("#"+row.id[:8].upper(), href=base+"/"+row.id)),

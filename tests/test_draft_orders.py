@@ -1,5 +1,7 @@
 """Draft completion uses the real checkout reservation and order finaliser."""
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from sqlalchemy import event, func, select
 
@@ -163,6 +165,34 @@ def test_draft_scope_price_validation_versions_and_filter_pagination(ready):
     assert len(drafts.list_drafts(r.db, r.site, page=2)[0]) == 2
     assert drafts.list_drafts(r.db, r.site, q=r.customer.email)[1] == 1
     assert drafts.list_drafts(r.db, other)[1] == 1
+
+
+def test_draft_updated_sort_precedes_pagination_and_preserves_scope(ready):
+    r = ready
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    expected = []
+    for index in range(27):
+        row = drafts.create(r.db, r.site)
+        row.updated_at = start + timedelta(hours=index)
+        expected.append(row.id)
+    owner = User(email="draft-sort-other@example.test", name="Other merchant")
+    r.db.add(owner)
+    r.db.flush()
+    other = content.create_site(r.db, owner.id, "Other sort store", "other-draft-sort")
+    foreign = drafts.create(r.db, other)
+    foreign.updated_at = start - timedelta(days=1)
+    r.db.flush()
+    for sort, ordered in (("updated_asc", expected), ("updated_desc", expected[::-1])):
+        first, count = drafts.list_drafts(r.db, r.site, sort=sort, page=1)
+        second, second_count = drafts.list_drafts(r.db, r.site, sort=sort, page=2)
+        assert count == second_count == 27
+        assert [row.id for row in first] == ordered[:25]
+        assert [row.id for row in second] == ordered[25:]
+        assert foreign.id not in [row.id for row in first + second]
+    assert [row.id for row in drafts.list_drafts(r.db, r.site)[0]] == expected[::-1][:25]
+    assert [row.id for row in drafts.list_drafts(r.db, other, sort="updated_asc")[0]] == [foreign.id]
+    with pytest.raises(CommerceError, match="sort order"):
+        drafts.list_drafts(r.db, r.site, sort="unrecognised")
 
 
 def test_new_customer_remove_line_discount_cap_and_stock_pk_order(ready):

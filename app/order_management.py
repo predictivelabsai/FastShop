@@ -668,7 +668,10 @@ def timeline(db, site: Site, link: SiteOrder, order: Order) -> list[dict]:
         PaymentTransaction.order_id == order.id,
     )))
     events.extend({"at": row.created_at, "kind": "payment", "title": row.kind.replace("_", " ").title(),
-                   "detail": f"{row.status.replace('_', ' ').title()} · {money(row.amount_minor, row.currency)}."}
+                   "detail": f"{row.status.replace('_', ' ').title()} · {money(row.amount_minor, row.currency)}.",
+                   "payment_reference": row.external_id, "payment_provider": row.provider,
+                   "payment_kind": row.kind, "payment_status": row.status,
+                   "amount_minor": row.amount_minor, "currency": row.currency}
                   for row in payments)
     shipments = list(db.scalars(select(ShipmentEvent).where(
         ShipmentEvent.site_order_id == link.id,

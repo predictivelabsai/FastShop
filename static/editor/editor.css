@@ -235,7 +235,7 @@ body {
 .tree-row {
   display: flex;
   align-items: center;
-  min-height: 39px;
+  min-height: 48px;
   padding: 3px 8px 3px calc(10px + var(--depth, 0) * 15px);
   gap: 5px;
   border-left: 3px solid transparent;
@@ -250,7 +250,7 @@ body {
   color: #004cad;
 }
 .tree-row.is-hidden {
-  opacity: 0.5;
+  background: #f4f4f5;
 }
 .tree-row.drop-before {
   box-shadow: 0 -2px #005bd3;
@@ -274,7 +274,14 @@ body {
   white-space: nowrap;
   flex: 1;
   font-size: 12px;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
 }
+.tree-title > span, .tree-title small { overflow: hidden; text-overflow: ellipsis; }
+.tree-title small { color: #616166; font-size: 11px; font-weight: 400; }
+.block-icon { width: 20px; height: 20px; flex-shrink: 0; }
+.tree-row > .block-icon { color: #616166; width: 17px; height: 17px; }
 .editor-shell .tree-toggle {
   font-size: 10px;
   min-height: 24px;
@@ -285,13 +292,20 @@ body {
   width: 16px;
 }
 .tree-actions {
-  display: none;
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
   gap: 2px;
 }
 .tree-row:hover .tree-actions,
 .tree-row.selected .tree-actions,
 .tree-row:focus-within .tree-actions {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
+}
+.tree-row:focus-visible, .editor-shell button:focus-visible, .editor-shell summary:focus-visible {
+  outline: 2px solid #005bd3;
+  outline-offset: -2px;
 }
 .editor-shell .tree-actions button {
   padding: 2px 4px;
@@ -614,9 +628,39 @@ body {
   gap: 3px;
 }
 .picker-item small {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
+  color: #616166;
 }
+.widget-tile > span:last-child { min-width: 0; }
+.widget-tile small { display: block; color: #616166; font-size: 11px; font-weight: 400; line-height: 1.4; margin-top: 4px; }
+.tile-preview .block-icon, .picker-thumbnail .block-icon { width: 24px; height: 24px; }
+.editor-shell select {
+  appearance: none;
+  min-height: 36px;
+  border-radius: 8px;
+  padding-right: 30px;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23616166' stroke-width='2'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 10px center;
+}
+.editor-shell input[role="switch"] {
+  appearance: none;
+  width: 34px !important;
+  height: 20px;
+  min-height: 20px;
+  border: 0;
+  border-radius: 20px;
+  background: #77777c;
+  position: relative;
+  cursor: pointer;
+}
+.editor-shell input[role="switch"]::after { content: ""; position: absolute; width: 16px; height: 16px; top: 2px; left: 2px; background: #fff; border-radius: 50%; }
+.editor-shell input[role="switch"]:checked { background: #303033; }
+.editor-shell input[role="switch"]:checked::after { transform: translateX(14px); }
+#editor-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 50; padding: 12px 20px; border-radius: 10px; background: #303033; color: #fff; box-shadow: 0 4px 16px #0002; max-width: calc(100vw - 32px); font-size: 13px; }
+#editor-toast.is-error { background: #8e1f1f; }
+.editor-skeleton { min-height: 90px; background: #ededee; border-radius: 8px; animation: editor-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes editor-pulse { to { opacity: .45; } }
+@media (hover: none) { .tree-actions { opacity: 1; pointer-events: auto; } .editor-shell .tree-actions button { min-width: 32px; min-height: 36px; } }
 .repeater-item {
   border: 1px solid var(--a-line);
   border-radius: 6px;
@@ -658,16 +702,31 @@ body {
   border: 1px solid #0002;
 }
 .upload-label {
-  display: block;
+  display: grid;
+  position: relative;
+  justify-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-align: center;
+  background: #fafafa;
   padding: 18px;
   border: 1px dashed #a6a6ac;
   border-radius: 7px;
   margin-bottom: 16px;
 }
 .upload-label input {
-  display: block;
-  margin-top: 10px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
+.upload-label svg { width: 24px; height: 24px; color: #616166; }
+.upload-label small, .upload-label > span { color: #616166; }
+.upload-label:hover, .upload-label.drag-over { background: #edf4ff; border-color: #005bd3; }
+.upload-label:focus-within { outline: 2px solid #005bd3; outline-offset: 3px; }
+.upload-label[aria-busy="true"] { opacity: .65; cursor: progress; }
 #media-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -869,5 +928,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
+    animation: none !important;
   }
 }

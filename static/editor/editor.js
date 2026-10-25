@@ -32,6 +32,27 @@ let state,
   linkCallback,
   conflictVersion;
 const collapsed = new Set();
+let toastTimer;
+function openDialog(selector) {
+  const dialog = $(selector);
+  dialog.editorOpener = document.activeElement;
+  dialog.showModal();
+}
+function toast(message, error = false) {
+  let notice = $("#editor-toast");
+  if (!notice) {
+    notice = document.createElement("div");
+    notice.id = "editor-toast";
+    notice.setAttribute("role", "status");
+    notice.setAttribute("aria-live", "polite");
+  }
+  (error && $("dialog[open]") ? $("dialog[open]") : $("#editor")).append(notice);
+  clearTimeout(toastTimer);
+  notice.textContent = message;
+  notice.classList.toggle("is-error", error);
+  notice.hidden = false;
+  toastTimer = setTimeout(() => (notice.hidden = true), 4500);
+}
 async function api(path, method = "GET", data) {
   const headers = { "X-CSRF-Token": boot.csrf_token };
   let body;
@@ -58,6 +79,7 @@ async function api(path, method = "GET", data) {
   return result;
 }
 function showError(e) {
+  toast(e.message || String(e), true);
   if (e.site_version !== undefined) state.site_version = e.site_version;
   $("#editor-error").hidden = false;
   $("#editor-error").innerHTML =
@@ -65,7 +87,7 @@ function showError(e) {
   $("#editor-error button").onclick = () => ($("#editor-error").hidden = true);
   if (e.conflict) {
     conflictVersion = e.version;
-    $("#conflict-dialog").showModal();
+    openDialog("#conflict-dialog");
   }
 }
 function status(s) {
@@ -81,7 +103,21 @@ function walk(blocks = state.document.blocks, parent = null, result = []) {
 const locate = (id) => walk().find((n) => n.block.id === id),
   siblings = (n) => (n.parent ? n.parent.children : state.document.blocks);
 const spec = (t) => state.schema[t] || {},
-  label = (b) => spec(b.type).label || b.type;
+  schemaLabel = (type) => (spec(type).label || type.replaceAll("_", " ")).replace(/^./, (c) => c.toUpperCase()),
+  label = (b) => schemaLabel(b.type);
+function blockIcon(type) {
+  const category = spec(type).category || "";
+  const path = /image|hero|video|gallery|split/.test(type)
+    ? '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 5"/>'
+    : /product|catalog|collection|Commerce/.test(type + category)
+      ? '<path d="m4 7 8-4 8 4v10l-8 4-8-4Z M4 7l8 4 8-4 M12 11v10"/>'
+      : /review|testimonial/.test(type)
+        ? '<path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z M7 9h10 M7 13h6"/>'
+        : /heading|richtext|text/.test(type)
+          ? '<path d="M4 5h16 M12 5v15 M8 20h8 M4 5v4 M20 5v4"/>'
+          : '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18 M9 10v10"/>';
+  return `<svg class="block-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+}
 const get = (o, p) => p.split(".").reduce((v, k) => v?.[k], o);
 function set(o, p, v) {
   const keys = p.split("."),
@@ -372,7 +408,8 @@ function drop(id, position, payload) {
 }
 function row(b, depth = 0) {
   const children = b.children || [];
-  return `<div class="tree-node"><div class="tree-row ${selected === b.id ? "selected" : ""} ${b.hidden ? "is-hidden" : ""}" data-block-id="${esc(b.id)}" draggable="true" tabindex="0" role="treeitem" aria-selected="${selected === b.id}" style="--depth:${depth}"><span class="drag-handle" aria-hidden="true">⠿</span><button class="tree-toggle" data-collapse="${esc(b.id)}" aria-label="Expand or collapse ${esc(label(b))}">${children.length ? (collapsed.has(b.id) ? "▸" : "▾") : "·"}</button><span class="tree-title">${esc(label(b))}</span><div class="tree-actions"><button data-action="hide" aria-label="Hide or show block">◉</button><button data-action="duplicate" aria-label="Duplicate block">⧉</button><button data-action="delete" aria-label="Delete block">×</button></div></div>${collapsed.has(b.id) ? "" : children.map((c) => row(c, depth + 1)).join("")}${spec(b.type).accepts_children && !collapsed.has(b.id) ? `<button class="add-section" data-add-child="${esc(b.id)}">+ Add block</button>` : ""}</div>`;
+  const subtitle = String(text(b.heading || b.title) || "").replace(/<[^>]*>/g, "").trim();
+  return `<div class="tree-node"><div class="tree-row ${selected === b.id ? "selected" : ""} ${b.hidden ? "is-hidden" : ""}" data-block-id="${esc(b.id)}" draggable="true" tabindex="0" role="treeitem" aria-selected="${selected === b.id}" ${children.length ? `aria-expanded="${!collapsed.has(b.id)}"` : ""} aria-label="${esc(label(b))}${subtitle ? `: ${esc(subtitle)}` : ""}" style="--depth:${depth}"><span class="drag-handle" aria-hidden="true">⠿</span><button class="tree-toggle" ${children.length ? "" : "disabled tabindex=\"-1\""} data-collapse="${esc(b.id)}" aria-label="Expand or collapse ${esc(label(b))}">${children.length ? (collapsed.has(b.id) ? "▸" : "▾") : "·"}</button>${blockIcon(b.type)}<span class="tree-title"><span>${esc(label(b))}</span>${subtitle ? `<small>${esc(subtitle)}</small>` : ""}</span><div class="tree-actions"><button data-action="hide" aria-label="${b.hidden ? "Show" : "Hide"} ${esc(label(b))}" aria-pressed="${Boolean(b.hidden)}" title="${b.hidden ? "Show" : "Hide"} block">◉</button><button data-action="duplicate" aria-label="Duplicate block" title="Duplicate block">⧉</button><button data-action="delete" aria-label="Delete block" title="Delete block">×</button></div></div>${collapsed.has(b.id) ? "" : children.map((c) => row(c, depth + 1)).join("")}${spec(b.type).accepts_children && !collapsed.has(b.id) ? `<button class="add-section" data-add-child="${esc(b.id)}">+ Add block</button>` : ""}</div>`;
 }
 function renderTree() {
   if (mode !== "sections") return;
@@ -389,6 +426,7 @@ function renderTree() {
         const id = b.dataset.collapse;
         collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id);
         renderTree();
+        $$("[data-collapse]").find((node) => node.dataset.collapse === id)?.focus();
       }),
   );
   $$(".tree-row").forEach((r) => {
@@ -398,12 +436,23 @@ function renderTree() {
       else select(r.dataset.blockId);
     };
     r.onkeydown = (e) => {
-      if (e.key === "Enter") {
+      if (e.target !== r) return;
+      if (["Enter", " "].includes(e.key)) {
+        e.preventDefault();
         select(r.dataset.blockId);
+        $$(".tree-row").find((node) => node.dataset.blockId === r.dataset.blockId)?.focus();
+      }
+      if (!e.altKey && ["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+        const rows = $$(".tree-row"), index = rows.indexOf(r);
+        const next = e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1
+          : index + (e.key === "ArrowDown" ? 1 : -1);
+        rows[Math.max(0, Math.min(next, rows.length - 1))]?.focus();
       }
       if (e.altKey && ["ArrowUp", "ArrowDown"].includes(e.key)) {
         e.preventDefault();
         action(e.key === "ArrowUp" ? "up" : "down", r.dataset.blockId);
+        $$(".tree-row").find((node) => node.dataset.blockId === r.dataset.blockId)?.focus();
       }
     };
     r.ondragstart = (e) => startDrag(e, { block_id: r.dataset.blockId });
@@ -464,7 +513,7 @@ function widgetHTML(query = "") {
   return [...groups]
     .map(
       ([category, items]) =>
-        `<div class="widget-category">${esc(category)}</div><div class="widget-grid">${items.map(([type, s]) => `<button class="widget-tile" draggable="true" data-widget-type="${esc(type)}" title="${esc(s.description)}"><span class="tile-preview" aria-hidden="true">${esc(glyph[type] || "▤")}</span><span>${esc(s.label)}</span></button>`).join("")}</div>`,
+        `<div class="widget-category">${esc(category)}</div><div class="widget-grid">${items.map(([type, s]) => `<button class="widget-tile" draggable="true" data-widget-type="${esc(type)}" title="${esc(s.description)}"><span class="tile-preview" aria-hidden="true">${blockIcon(type)}</span><span>${esc(schemaLabel(type))}<small>${esc(s.description || "")}</small></span></button>`).join("")}</div>`,
     )
     .join("");
 }
@@ -527,6 +576,7 @@ function openPicker(parent = null) {
   const draw = () => {
     let category = "";
     $("#picker-results").innerHTML = Object.entries(state.schema)
+      .sort(([, a], [, b]) => (a.category || "").localeCompare(b.category || ""))
       .filter(
         ([, s]) =>
           s.insertable !== false &&
@@ -540,7 +590,7 @@ function openPicker(parent = null) {
             ? `<div class="picker-category">${esc(s.category)}</div>`
             : "";
         category = s.category;
-        return `${header}<button class="picker-item" data-insert="${esc(type)}"><span class="picker-thumbnail" aria-hidden="true">${esc(glyph[type] || "▤")}</span><span>${esc(s.label)}<small>${esc(s.description)}</small></span></button>`;
+        return `${header}<button class="picker-item" data-insert="${esc(type)}"><span class="picker-thumbnail" aria-hidden="true">${blockIcon(type)}</span><span>${esc(schemaLabel(type))}<small>${esc(s.description)}</small></span></button>`;
       })
       .join("");
     $$("[data-insert]").forEach(
@@ -553,7 +603,7 @@ function openPicker(parent = null) {
   };
   $("#picker-search").oninput = draw;
   draw();
-  $("#picker-dialog").showModal();
+  openDialog("#picker-dialog");
   $("#picker-search").focus();
 }
 function options(opts) {
@@ -573,7 +623,7 @@ function fieldHTML(f, obj, prefix = "") {
     attrs = `id="${esc(id)}" data-setting="${esc(path)}" data-type="${esc(f.type)}"`;
   let html = "";
   if (f.type === "toggle")
-    html = `<input ${attrs} type="checkbox" ${raw ? "checked" : ""}>`;
+    html = `<input ${attrs} type="checkbox" role="switch" ${raw ? "checked" : ""}>`;
   else if (f.type === "select")
     html = `<select ${attrs}>${options(f.options)
       .map(
@@ -627,7 +677,7 @@ function renderSettings() {
     $("#selection-header").innerHTML =
       '<h2>Page settings</h2><span class="subtle">Build your storefront</span>';
     $("#settings-content").innerHTML =
-      '<div class="settings-empty"><div class="empty-icon">▤</div><strong>Make this page your own</strong><p>Select a section in the preview or drag a widget onto the page.</p><button id="empty-add">Add section</button></div>';
+      `<div class="settings-empty"><div class="empty-icon">${blockIcon("container")}</div><strong>Make this page your own</strong><p>Select a section in the preview or drag a widget onto the page.</p><button id="empty-add">Add section</button></div>`;
     $("#empty-add").onclick = () => openPicker();
     return;
   }
@@ -877,8 +927,8 @@ async function saveTheme() {
 }
 async function openMedia(callback) {
   mediaCallback = callback;
-  $("#media-dialog").showModal();
-  $("#media-grid").textContent = "Loading media…";
+  openDialog("#media-dialog");
+  $("#media-grid").innerHTML = `<div class="editor-skeleton" role="status" aria-label="Loading media"></div>`.repeat(3);
   try {
     const r = await api("/media");
     $("#media-grid").innerHTML =
@@ -946,7 +996,7 @@ async function openLink(callback, type = "url") {
   $("#link-apply").hidden = ["product", "collection"].includes(type);
   $("#link-search").oninput = draw;
   draw();
-  $("#link-dialog").showModal();
+  openDialog("#link-dialog");
   $("#link-search").focus();
 }
 async function save() {
@@ -966,6 +1016,7 @@ async function save() {
     dirty = JSON.stringify(state.document) !== lastSaved;
     status(dirty || themeDirty ? "Unsaved changes" : "Saved");
     $("#editor-error").hidden = true;
+    toast("Changes saved");
     return true;
   } catch (e) {
     status("Error");
@@ -1125,15 +1176,77 @@ $$("[data-device]").forEach(
 $$("[data-close-dialog]").forEach(
   (b) => (b.onclick = () => b.closest("dialog").close()),
 );
+// Native modal dialogs provide Escape handling and make the background inert.
+// Keep labels and focus restoration explicit, including when a tree rerendered.
+$$("dialog").forEach((dialog) => {
+  const heading = dialog.querySelector("h2");
+  if (heading) {
+    heading.id ||= `${dialog.id}-title`;
+    dialog.setAttribute("aria-labelledby", heading.id);
+  }
+  new MutationObserver(() => {
+    if (dialog.open) {
+      requestAnimationFrame(() => {
+        if (!dialog.contains(document.activeElement))
+          dialog.querySelector("input, button, [tabindex]")?.focus();
+      });
+    }
+  }).observe(dialog, { attributes: true, attributeFilter: ["open"] });
+  dialog.addEventListener("close", () => {
+    if (dialog.editorOpener?.isConnected) dialog.editorOpener.focus();
+    else if (!$("dialog[open]")) $("#left-title").focus();
+  });
+  dialog.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const focusable = [...dialog.querySelectorAll("button, input, select, textarea, a[href], [tabindex]")]
+      .filter((el) => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+    const first = focusable[0], last = focusable.at(-1);
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last?.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first?.focus();
+    }
+  });
+});
+$("#left-title").tabIndex = -1;
+const pageSwitcher = $(".page-switcher");
+pageSwitcher.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    pageSwitcher.open = false;
+    pageSwitcher.querySelector("summary").focus();
+  }
+});
+document.addEventListener("click", (e) => {
+  if (!pageSwitcher.contains(e.target)) pageSwitcher.open = false;
+});
+const uploadZone = $(".upload-label");
+uploadZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  uploadZone.classList.add("drag-over");
+});
+uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("drag-over"));
+uploadZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove("drag-over");
+  const files = e.dataTransfer.files;
+  if (!files.length || $("#media-upload").disabled) return;
+  $("#media-upload").files = files;
+  $("#media-upload").dispatchEvent(new Event("change", { bubbles: true }));
+});
 $("#undo").onclick = undo;
 $("#redo").onclick = redo;
 $("#save").onclick = save;
 $("#page-search").oninput = (e) => renderPages(e.target.value);
-$("#publish").onclick = () => $("#publish-dialog").showModal();
+$("#publish").onclick = () => openDialog("#publish-dialog");
 $("#confirm-publish").onclick = async () => {
   if (!state) return;
   $("#publish-dialog").close();
   if ((dirty || themeDirty) && !(await save())) return;
+  $("#publish").disabled = true;
+  $("#publish").setAttribute("aria-busy", "true");
+  status("Publishing…");
   try {
     const r = await api("/publish", "POST", {
       version: state.version,
@@ -1142,17 +1255,21 @@ $("#confirm-publish").onclick = async () => {
     state.version = r.version;
     state.site_version = r.site_version;
     status("Published");
+    toast("Page published");
     $(".live-badge").textContent = "Live";
     $("#editor-error").hidden = true;
   } catch (e) {
     showError(e);
     status("Error");
+  } finally {
+    $("#publish").disabled = !state.can_publish;
+    $("#publish").removeAttribute("aria-busy");
   }
 };
 $("#revisions").onclick = async () => {
   if (!state) return;
-  $("#revision-dialog").showModal();
-  $("#revision-list").textContent = "Loading revisions…";
+  openDialog("#revision-dialog");
+  $("#revision-list").innerHTML = `<div class="editor-skeleton" role="status" aria-label="Loading revisions"></div>`;
   try {
     const r = await api("/revisions");
     $("#revision-list").innerHTML =
@@ -1165,6 +1282,8 @@ $("#revisions").onclick = async () => {
     $$("[data-restore]").forEach(
       (b) =>
         (b.onclick = async () => {
+          b.disabled = true;
+          b.setAttribute("aria-busy", "true");
           try {
             const r = await api("/restore", "POST", {
               revision_id: b.dataset.restore,
@@ -1181,9 +1300,13 @@ $("#revisions").onclick = async () => {
             renderSettings();
             await preview();
             status("Saved");
+            toast("Draft restored");
             $("#revision-dialog").close();
           } catch (e) {
             showError(e);
+          } finally {
+            b.disabled = false;
+            b.removeAttribute("aria-busy");
           }
         }),
     );
@@ -1197,14 +1320,22 @@ $("#media-upload").onchange = async (e) => {
   const data = new FormData();
   data.append("file", f);
   data.append("alt", f.name);
+  e.target.disabled = true;
+  const dropzone = e.target.closest(".upload-label");
+  dropzone.setAttribute("aria-busy", "true");
+  dropzone.querySelector("strong").textContent = "Uploading image…";
   try {
     const r = await api("/media", "POST", data);
     mediaCallback(r.media.url);
+    toast("Image uploaded");
     $("#media-dialog").close();
   } catch (e) {
     showError(e);
   }
   e.target.value = "";
+  e.target.disabled = false;
+  dropzone.removeAttribute("aria-busy");
+  dropzone.querySelector("strong").textContent = "Add image";
 };
 $("#link-apply").onclick = () => {
   linkCallback($("#link-search").value);
@@ -1229,7 +1360,7 @@ window.addEventListener("keydown", (e) => {
     save();
     return;
   }
-  if (editing) return;
+  if (editing || $("dialog[open]")) return;
   if (mod && e.key.toLowerCase() === "z") {
     e.preventDefault();
     e.shiftKey ? redo() : undo();

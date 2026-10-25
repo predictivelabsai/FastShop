@@ -413,6 +413,13 @@ def test_order_routes_are_tenant_scoped_csrf_protected_and_prg():
     assert "FS-ROUTE-ORDER" in list_page.text and "FS-OTHER-ORDER" not in list_page.text
     assert client.get(f"/admin/sites/{site_id}/orders/{other_link_id}").status_code == 400
     detail = client.get(f"/admin/sites/{site_id}/orders/{link_id}")
+    for operation in ("fulfil", "refund", "return", "cancel"):
+        assert client.get(
+            f"/admin/sites/{site_id}/orders/{link_id}/actions/{operation}").status_code == 200
+        assert client.get(
+            f"/admin/sites/{site_id}/orders/{other_link_id}/actions/{operation}").status_code == 400
+    assert client.get(
+        f"/admin/sites/{site_id}/orders/{link_id}/actions/missing").status_code == 400
     form = {
         "csrf_token": "wrong",
         "expected_status": "unfulfilled",

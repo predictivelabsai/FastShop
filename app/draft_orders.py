@@ -266,7 +266,7 @@ def complete(db, site, draft_id, *, mark_as_paid=False):
         return draft
 
 
-def list_drafts(db, site, *, q="", status="", page=1):
+def list_drafts(db, site, *, q="", status="", page=1, sort="updated_desc"):
     query = select(DraftOrder).where(DraftOrder.tenant_id == site.tenant_id, DraftOrder.site_id == site.id)
     if status in {"open", "invoice_sent", "completed"}:
         query = query.where(DraftOrder.status == status)
@@ -277,7 +277,10 @@ def list_drafts(db, site, *, q="", status="", page=1):
                 ShopCustomer.name.ilike(pattern, escape="\\")))
         query = query.where(or_(DraftOrder.id.ilike(pattern, escape="\\"), DraftOrder.customer_id.in_(ids)))
     count = db.scalar(select(func.count()).select_from(query.subquery()))
-    return list(db.scalars(query.order_by(DraftOrder.updated_at.desc(), DraftOrder.id)
+    if sort not in {"updated_desc", "updated_asc"}:
+        raise CommerceError("Choose a valid draft sort order.")
+    ordering = DraftOrder.updated_at.asc() if sort == "updated_asc" else DraftOrder.updated_at.desc()
+    return list(db.scalars(query.order_by(ordering, DraftOrder.id)
         .offset((page-1)*25).limit(25))), count
 
 
