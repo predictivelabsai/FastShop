@@ -125,6 +125,11 @@
     "click",
     (e) => {
       if (e.target.closest(".fs-editor-tools,.fs-rich-tools")) return;
+      // Application-owned preview controls remain usable while links stay inert.
+      if (e.target.closest("[data-widget-control]")) {
+        if (e.target.closest("a")) e.preventDefault();
+        return;
+      }
       if (e.target.closest("a,button,input,select,textarea,form")) {
         if (!e.target.closest("[contenteditable=true]")) e.preventDefault();
       }
@@ -158,7 +163,7 @@
     (e) => {
       const node = e.target.closest("[data-block-id]");
       if (!node) return;
-      const image = e.target.closest("img");
+      const image = e.target.closest('img,[data-field-type="image"]');
       if (image) {
         e.preventDefault();
         send({
@@ -238,6 +243,7 @@
   });
   document.addEventListener("keydown", (e) => {
     const mod = e.ctrlKey || e.metaKey;
+    if (!mod && e.target.closest("[data-widget-control]")) return;
     if (editing) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -270,7 +276,7 @@
   }
   document.addEventListener("dragstart", (e) => {
     const n = e.target.closest("[data-block-id]");
-    if (!n || e.target.closest("[contenteditable=true]")) {
+    if (!n || e.target.closest("[contenteditable=true],[data-widget-control]")) {
       e.preventDefault();
       return;
     }

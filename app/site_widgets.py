@@ -118,6 +118,13 @@ WIDGETS = {
     "html": WidgetDefinition("HTML / secure embed", "Advanced", {"body": "<p>Add your content.</p>", "url": ""},
         {"body": text("richtext", help="Safe formatting only. Scripts and inline event handlers are removed."), "url": text("url", https=True)}),
 }
+# Packs declare their metadata without importing this registry, avoiding import cycles.
+from app.site_widgets_pack1 import pack_definitions  # noqa: E402
+
+WIDGETS.update(pack_definitions(WidgetDefinition))
+PACK1_WIDGETS = frozenset({"slideshow", "image_banner", "before_after", "logo_cloud", "icon_box", "image_hotspots", "section_heading", "video_embed"})
+INTERACTIVE_WIDGETS = frozenset({"slideshow", "before_after", "image_hotspots"})
+
 WIDGET_FIELDS = set().union(*(set(v.defaults) for v in WIDGETS.values())) - {"children", "items"}
 STYLE_FIELDS = {
     "padding_top",
@@ -273,8 +280,8 @@ def validate_widget(block):
         if key in block:
             block[key] = validate_widget_field(block[key], key, spec)
     schema = definition.item_schema
-    if schema and "items" in block:
-        items = block["items"]
+    if schema:
+        items = block.get("items", [])
         if not isinstance(items, list) or not schema.get("min", 0) <= len(items) <= schema.get("max", 200):
             raise CommerceError(f"Block entries must contain between {schema.get('min', 0)} and {schema.get('max', 200)} objects.")
         for item in items:
@@ -306,6 +313,14 @@ def strip_editor_hooks(node):
 def needs_widget_css(blocks):
     return any(block["type"] in WIDGETS or block.get("style") or
                needs_widget_css(block.get("children", [])) for block in blocks)
+
+
+def needs_widget_js(blocks):
+    return any(block["type"] in INTERACTIVE_WIDGETS or needs_widget_js(block.get("children", [])) for block in blocks)
+
+
+def needs_pack1_css(blocks):
+    return any(block["type"] in PACK1_WIDGETS or needs_pack1_css(block.get("children", [])) for block in blocks)
 
 
 def decorate_block(node, block, preview=False):
@@ -391,6 +406,10 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
     kind = block["type"]
     if kind not in WIDGETS:
         return None
+    if kind in PACK1_WIDGETS:
+        from app.site_widgets_pack1 import render_pack_widget
+
+        return decorate_block(render_pack_widget(block, base, preview), block, preview)
 
     def field(name):
         return (

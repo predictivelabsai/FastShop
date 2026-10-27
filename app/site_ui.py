@@ -53,7 +53,9 @@ from app.site_blocks import default_locale, resolve_document
 from app.site_widgets import (
     WIDGET_CSS,
     decorate_block,
+    needs_pack1_css,
     needs_widget_css,
+    needs_widget_js,
     render_widget,
     strip_editor_hooks,
 )
@@ -379,6 +381,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Link(rel="stylesheet", href=static_asset("site-theme.css")),
         Link(rel="stylesheet", href=static_asset("site-blog.css")) if blog_listing else None,
         Style(NotStr(WIDGET_CSS)) if needs_widget_css(document["blocks"]) else None,
+        Link(rel="stylesheet", href=static_asset("widgets-pack1.css")) if needs_pack1_css(document["blocks"]) else None,
+        Script(src=static_asset("widgets-pack1.js"), defer=True) if needs_widget_js(document["blocks"]) else None,
         Script(src=static_asset("site-preview.js"), defer=True) if preview else None,
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if customer_services_enabled and not preview else None,

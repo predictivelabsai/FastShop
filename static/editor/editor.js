@@ -107,7 +107,7 @@ const spec = (t) => state.schema[t] || {},
   label = (b) => schemaLabel(b.type);
 function blockIcon(type) {
   const category = spec(type).category || "";
-  const path = /image|hero|video|gallery|split/.test(type)
+  const path = /image|hero|video|gallery|split|slideshow|before_after|logo_cloud/.test(type)
     ? '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 5"/>'
     : /product|catalog|collection|Commerce/.test(type + category)
       ? '<path d="m4 7 8-4 8 4v10l-8 4-8-4Z M4 7l8 4 8-4 M12 11v10"/>'
@@ -481,29 +481,13 @@ function renderTree() {
     };
   });
 }
-const glyph = {
-  heading: "H",
-  richtext: "¶",
-  container: "▥",
-  image: "▧",
-  button: "▰",
-  video: "▷",
-  divider: "―",
-  spacer: "↕",
-  icon_list: "☷",
-  image_gallery: "▦",
-  testimonial: "❞",
-  product_card: "♧",
-  product_grid: "▦",
-  newsletter: "✉",
-  accordion: "≡",
-  html: "‹/›",
-};
 function widgetHTML(query = "") {
   const groups = new Map();
+  // The container schema already declares every registered generic widget.
+  const widgets = new Set(spec("container").allowed_children || []);
   for (const [type, s] of Object.entries(state.schema)) {
     if (
-      !Object.hasOwn(glyph, type) ||
+      !widgets.has(type) ||
       s.insertable === false ||
       !`${s.label} ${s.category} ${s.description}`
         .toLowerCase()
@@ -622,7 +606,7 @@ function fieldHTML(f, obj, prefix = "") {
     raw = get(obj, f.id) ?? f.default ?? "",
     v = text(raw),
     id = `field-${path.replace(/[^a-z0-9]/gi, "-")}`,
-    attrs = `id="${esc(id)}" data-setting="${esc(path)}" data-type="${esc(f.type)}"`;
+    attrs = `id="${esc(id)}" data-setting="${esc(path)}" data-type="${esc(f.type)}"${f.max_length ? ` maxlength="${f.max_length}"` : ""}`;
   let html = "";
   if (f.type === "toggle")
     html = `<input ${attrs} type="checkbox" role="switch" ${raw ? "checked" : ""}>`;
@@ -645,16 +629,16 @@ function fieldHTML(f, obj, prefix = "") {
       rows
         .map(
           (item, i) =>
-            `<details class="repeater-item" draggable="true" data-repeater="${esc(path)}" data-index="${i}"><summary>${esc(text(item.heading || item.label) || `Item ${i + 1}`)}</summary>${f.value_list ? `<div class="field-inline"><input data-setting="${esc(path)}.${i}" data-type="${esc(f.fields[0].type)}" value="${esc(item)}" aria-label="${esc(f.fields[0].label)} ID"><button data-link="${esc(path)}.${i}" data-resource-type="${esc(f.fields[0].type)}" aria-label="Choose ${esc(f.fields[0].label)}">↗</button></div>` : (f.fields || f.item_fields || []).map((sub) => fieldHTML(sub, item, `${path}.${i}.`)).join("")}<div class="repeater-actions"><button data-repeat-action="up" data-path="${esc(path)}" data-index="${i}" aria-label="Move item up">↑</button><button data-repeat-action="down" data-path="${esc(path)}" data-index="${i}" aria-label="Move item down">↓</button>${f.fixed ? "" : `<button data-repeat-action="remove" data-path="${esc(path)}" data-index="${i}">Remove</button>`}</div></details>`,
+            `<details class="repeater-item" draggable="true" data-repeater="${esc(path)}" data-index="${i}"><summary>${esc(text(item.heading || item.label) || `Item ${i + 1}`)}</summary>${f.value_list ? `<div class="field-inline"><input data-setting="${esc(path)}.${i}" data-type="${esc(f.fields[0].type)}" value="${esc(item)}" aria-label="${esc(f.fields[0].label)} ID"><button data-link="${esc(path)}.${i}" data-resource-type="${esc(f.fields[0].type)}" aria-label="Choose ${esc(f.fields[0].label)}">↗</button></div>` : (f.fields || f.item_fields || []).map((sub) => fieldHTML(sub, item, `${path}.${i}.`)).join("")}<div class="repeater-actions"><button data-repeat-action="up" data-path="${esc(path)}" data-index="${i}" aria-label="Move item up" ${i === 0 ? "disabled" : ""}>↑</button><button data-repeat-action="down" data-path="${esc(path)}" data-index="${i}" aria-label="Move item down" ${i === rows.length - 1 ? "disabled" : ""}>↓</button>${f.fixed ? "" : `<button data-repeat-action="remove" data-path="${esc(path)}" data-index="${i}" ${rows.length <= (f.min ?? 0) ? "disabled" : ""}>Remove</button>`}</div></details>`,
         )
         .join("") +
       (f.fixed
         ? ""
-        : `<button data-repeat-add="${esc(path)}">+ Add item</button>`);
+        : `<button data-repeat-add="${esc(path)}" ${rows.length >= (f.max ?? 50) ? "disabled" : ""}>+ Add item</button>`);
   } else if (["image", "video"].includes(f.type))
     html = `${f.type === "image" && v && !v.startsWith("metafield:") ? `<img class="field-media-preview" src="${esc(v)}" alt="Selected image">` : ""}<input ${attrs} value="${esc(v)}" placeholder="Media URL"><button data-media="${esc(path)}">Choose media</button>`;
   else
-    html = `<div class="field-inline"><input ${attrs} type="${f.type === "number" ? "number" : "text"}" value="${esc(Array.isArray(v) ? v.join(", ") : v)}" ${f.min !== undefined ? `min="${f.min}"` : ""} ${f.max !== undefined ? `max="${f.max}"` : ""}>${["url", "link", "product", "collection"].includes(f.type) ? `<button data-link="${esc(path)}" aria-label="Choose ${esc(f.label)}">↗</button>` : ""}</div>`;
+    html = `<div class="field-inline"><input ${attrs} type="${f.type === "number" ? "number" : f.type === "datetime" ? "datetime-local" : "text"}" value="${esc(Array.isArray(v) ? v.join(", ") : v)}" ${f.min !== undefined ? `min="${f.min}"` : ""} ${f.max !== undefined ? `max="${f.max}"` : ""}>${["url", "link", "product", "collection"].includes(f.type) ? `<button data-link="${esc(path)}" aria-label="Choose ${esc(f.label)}">↗</button>` : ""}</div>`;
   const dynamicKind = f.dynamic_source || (!f.id.startsWith("style.") && ["text", "textarea", "richtext"].includes(f.type) ? "text" : f.type === "image" ? "image" : "");
   const sources = (state?.page?.kind === "product" || state?.page?.product_id) && dynamicKind ? (state.dynamic_sources?.[dynamicKind] || []) : [];
   if (sources.length) html += `<label class="field-help">Connect dynamic source<select data-dynamic-for="${esc(id)}"><option value="">Choose a custom data definition</option>${sources.map(source => `<option value="${esc(source.source)}" ${v === source.source ? "selected" : ""}>${esc(source.name)}</option>`).join("")}</select></label>`;
@@ -1132,7 +1116,7 @@ window.addEventListener("message", (e) => {
   if (d.type === "select") select(d.block_id);
   if (d.type === "inline") {
     const n = locate(d.block_id),
-      f = n && (spec(n.block.type).fields || []).find((f) => f.id === d.field);
+      f = n && findField(d.field, spec(n.block.type).fields || []);
     if (!f || !["text", "textarea", "richtext"].includes(f.type)) return;
     setField(n.block, d.field, d.value);
     dirty = true;
@@ -1145,7 +1129,7 @@ window.addEventListener("message", (e) => {
   if (d.type === "action") action(d.action, d.block_id);
   if (d.type === "media") {
     const n = locate(d.block_id);
-    if (n)
+    if (n && findField(d.field || "image", spec(n.block.type).fields || []).type === "image")
       openMedia((url) => {
         setField(n.block, d.field || "image", url);
         changed("Change image", true);

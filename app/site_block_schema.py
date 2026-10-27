@@ -52,23 +52,7 @@ def _field(key, default="", *, choices=None):
         kind = "toggle"
     elif type(default) is int:
         kind = "range"
-        minimum = 1 if bare in {"columns", "rating", "thickness", "limit"} else 0
-        maximum = {
-            "columns": 4,
-            "gap": 120,
-            "height": 600,
-            "rating": 5,
-            "thickness": 20,
-            "limit": 24,
-            "rounded": 100,
-            "max_width": 2400,
-        }.get(bare, 300)
-        data = {
-            "min": minimum,
-            "max": maximum,
-            "step": 1,
-            "unit": "" if bare in {"columns", "rating", "limit"} else "px",
-        }
+        data = {"min": 0, "max": 2400 if bare == "max_width" else 300, "step": 1, "unit": "px"}
     elif bare == "body":
         kind = "textarea"
     return {
@@ -126,13 +110,7 @@ ADVANCED_IDS = {
     "style.hide_tablet",
     "style.hide_mobile",
 }
-CHOICES = {
-    "level": {"h1", "h2", "h3", "h4", "h5", "h6"},
-    "alignment": {"left", "centre", "right"},
-    "vertical_alignment": {"start", "center", "end", "stretch"},
-    "aspect": {"auto", "1/1", "4/3", "16/9", "3/4"},
-    "button_style": {"primary", "secondary", "link"},
-}
+
 
 
 def _registry():
@@ -234,7 +212,7 @@ def _registry():
                 continue
             value = default.get(key, False if key in {"hidden", "subscription_preview"} else "")
             field = _field(
-                key, value, choices=layouts if key == "layout" and layouts else CHOICES.get(key)
+                key, value, choices=layouts if key == "layout" and layouts else None
             )
             if kind in {"richtext", "html"} and key == "body":
                 field["type"] = "richtext"
