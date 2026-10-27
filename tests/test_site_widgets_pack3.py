@@ -213,6 +213,22 @@ def test_collection_and_rating_exclude_products_without_this_channel_listing(con
     assert not render(context, default_block('star_rating'), preview=False).strip()
 
 
+def test_editor_picker_excludes_products_without_this_channel_listing(workspace):
+    w = workspace
+    load(w)
+    with w.sessions() as db:
+        catalogue = seed_catalog(db, w.site)
+        listing = db.scalar(select(VariantChannelListing).where(
+            VariantChannelListing.variant_id == catalogue.product.variants[0].id,
+            VariantChannelListing.channel_id == w.site.channel_id))
+        db.delete(listing)
+        product_id = catalogue.product.id
+        db.commit()
+    response = w.client.get(w.base + '/resources')
+    assert response.status_code == 200
+    assert product_id not in {product['id'] for product in response.json()['products']}
+
+
 def test_star_rating_only_approved_real_reviews_and_no_manual_rating(context):
     db, site, page = context
     catalogue = seed_catalog(db, site)
