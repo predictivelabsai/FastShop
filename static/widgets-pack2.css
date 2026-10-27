@@ -35,8 +35,9 @@
 .fs-pack2[data-alert][data-notice-style=warning]{background:color-mix(in srgb,#b9760a 10%,var(--store-background,#fff))}
 .fs-pack2[data-alert][data-notice-style=neutral]{background:color-mix(in srgb,currentColor 4%,var(--store-background,#fff))}
 .fs-pack2-notice-copy{flex:1;min-width:0}
+.fs-pack2[data-alert] .fs-pack2-notice-copy :is(h2,h3){font-family:inherit;font-size:1.125rem;font-weight:600;line-height:1.3;letter-spacing:normal;margin:0 0 .35rem}
 .fs-pack2-notice-copy p:last-child{margin-bottom:0}
-.fs-pack2-notice-icon{font-size:1.4em;line-height:1.2;flex:none}
+.fs-pack2-notice-icon{display:flex;flex:none}
 .fs-pack2 [data-alert-dismiss]{padding:0;font-size:1.5em;background:transparent;border:0;flex:none;margin:-10px -10px 0 0}
 .fs-pack2-table-scroll{max-width:100%;min-width:0;overflow-x:auto;overscroll-behavior-x:contain;padding-bottom:8px}
 .fs-pack2 table{width:100%;border-collapse:collapse;text-align:left;font-size:inherit;line-height:1.5}
