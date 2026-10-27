@@ -44,6 +44,7 @@
 .fs-pack3-announcements>[data-announcement-message]{padding-block:8px;line-height:1.5}
 .fs-pack3[data-announcement] button{font-size:.8em;padding:8px}
 .fs-widget-promo_banner{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:clamp(24px,5vw,64px);align-items:center}
+.fs-widget-promo_banner[data-has-image=false]{grid-template-columns:minmax(0,1fr)}
 .fs-widget-promo_banner>img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--store-radius,6px)}
 .fs-pack3-code{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:24px}
 .fs-pack3-code code{font-size:1.15em;letter-spacing:.08em;border:1px dashed currentColor;padding:12px 16px;user-select:all;max-width:100%;overflow-wrap:anywhere}

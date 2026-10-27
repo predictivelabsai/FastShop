@@ -131,7 +131,8 @@ def render_pack_widget(db, site, block, base="", preview=False):
             cells = []
             for j in range(1, block.get("options", 2) + 1):
                 value = item.get(f"cell_{j}", "")
-                content = [Span("✓" if value.lower() == "yes" else "×", aria_hidden="true"), Span("Included" if value.lower() == "yes" else "Not included", cls="fs-pack3-sr")] if value.lower() in {"yes", "no"} else [value]
+                cross = NotStr('<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>')
+                content = [_icon("check") if value.lower() == "yes" else cross, Span("Included" if value.lower() == "yes" else "Not included", cls="fs-pack3-sr")] if value.lower() in {"yes", "no"} else [value]
                 cells.append(ft_hx("td", *content, **field(f"items.{i}.cell_{j}")))
             rows.append(ft_hx("tr", ft_hx("th", item["feature"], scope="row", **field(f"items.{i}.feature")), *cells))
         children = [Div(ft_hx("table", ft_hx("caption", block["caption"], **field("caption")),
@@ -145,6 +146,7 @@ def render_pack_widget(db, site, block, base="", preview=False):
             Button("Pause announcements", type="button", data_announcement_pause="", hidden=True) if len(items) > 1 else None,
             Button("Dismiss announcement", type="button", data_announcement_dismiss="", hidden=True) if block.get("dismissible") else None]
     elif kind == "promo_banner":
+        attrs = {"data_has_image": str(bool(block.get("image"))).lower()}
         code = next((c for c in active_discount_codes(db, site) if c.id == block.get("discount_code")), None) if block.get("discount_code") else None
         children = [Div(heading(block["heading"]), P(block["body"], **field("body")),
             A(block["button_label"], href=href(block["link"]), cls="fs-widget-button", **field("button_label")) if block.get("link") else None,
@@ -167,7 +169,7 @@ def render_pack_widget(db, site, block, base="", preview=False):
         if not count:
             return placeholder("No approved reviews yet. Ratings appear only from approved customer reviews.")
         summary = f"Rated {average:.1f} out of 5 from {count} {'review' if count == 1 else 'reviews'}"
-        children = [Span("★★★★★", aria_hidden="true", cls="fs-pack3-stars"), P(summary), A(block.get("link_label", "Read reviews"), href=href(block["link"]), cls="fs-pack3-link", **field("link_label")) if block.get("link") else None]
+        children = [Span(_icon("star"), aria_hidden="true", cls="fs-pack3-stars"), P(summary), A(block.get("link_label", "Read reviews"), href=href(block["link"]), cls="fs-pack3-link", **field("link_label")) if block.get("link") else None]
     elif kind == "contact_card":
         children = [heading(block["heading"]), ft_hx("address", P(block["address"], cls="fs-pack3-address", **field("address")),
             A(block["phone"], href="tel:" + re.sub(r"[^+0-9]", "", block["phone"]), **field("phone")) if block.get("phone") else None,
