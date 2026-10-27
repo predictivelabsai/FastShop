@@ -139,9 +139,17 @@ WIDGETS = {
 }
 # Packs declare their metadata without importing this registry, avoiding import cycles.
 from app.site_widgets_pack1 import pack_definitions  # noqa: E402
+from app.site_widgets_pack2_definitions import (  # noqa: E402
+    pack_definitions as pack2_definitions,
+)
+from app.site_widgets_pack2_definitions import (  # noqa: E402
+    validate_pack_widget,
+)
 
 WIDGETS.update(pack_definitions(WidgetDefinition))
+WIDGETS.update(pack2_definitions(WidgetDefinition))
 PACK1_WIDGETS = frozenset({"slideshow", "image_banner", "before_after", "logo_cloud", "icon_box", "image_hotspots", "section_heading", "video_embed"})
+PACK2_WIDGETS = frozenset(pack2_definitions(WidgetDefinition))
 INTERACTIVE_WIDGETS = frozenset({"slideshow", "before_after", "image_hotspots"})
 
 WIDGET_FIELDS = set().union(*(set(v.defaults) for v in WIDGETS.values())) - {"children", "items"}
@@ -310,6 +318,8 @@ def validate_widget(block):
                 raise CommerceError("Block entry is missing required fields.")
             for key, value in item.items():
                 item[key] = validate_widget_field(value, key, schema["fields"][key])
+    if block["type"] in PACK2_WIDGETS:
+        validate_pack_widget(block)
     return block
 
 
@@ -335,11 +345,24 @@ def needs_widget_css(blocks):
 
 
 def needs_widget_js(blocks):
-    return any(block["type"] in INTERACTIVE_WIDGETS or needs_widget_js(block.get("children", [])) for block in blocks)
+    return needs_widgets(blocks, INTERACTIVE_WIDGETS)
+
+
+def needs_widgets(blocks, kinds):
+    """Find pack assets recursively, including widgets nested in containers."""
+    return any(block["type"] in kinds or needs_widgets(block.get("children", []), kinds) for block in blocks)
 
 
 def needs_pack1_css(blocks):
-    return any(block["type"] in PACK1_WIDGETS or needs_pack1_css(block.get("children", [])) for block in blocks)
+    return needs_widgets(blocks, PACK1_WIDGETS)
+
+
+def needs_pack2_css(blocks):
+    return needs_widgets(blocks, PACK2_WIDGETS)
+
+
+def needs_pack2_js(blocks):
+    return needs_widgets(blocks, {"tabs", "countdown", "stats", "alert", "map"})
 
 
 def decorate_block(node, block, preview=False):
@@ -429,6 +452,10 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
         from app.site_widgets_pack1 import render_pack_widget
 
         return decorate_block(render_pack_widget(block, base, preview), block, preview)
+    if kind in PACK2_WIDGETS:
+        from app.site_widgets_pack2 import render_pack_widget
+
+        return decorate_block(render_pack_widget(block, base, preview, site_id=site.id), block, preview)
 
     def field(name):
         return (
