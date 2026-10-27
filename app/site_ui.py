@@ -52,10 +52,13 @@ from app.services import money
 from app.site_blocks import default_locale, resolve_document
 from app.site_widgets import (
     WIDGET_CSS,
+    WIDGETS,
     decorate_block,
     needs_pack1_css,
     needs_pack2_css,
     needs_pack2_js,
+    needs_pack3_css,
+    needs_pack3_js,
     needs_widget_css,
     needs_widget_js,
     render_widget,
@@ -168,7 +171,7 @@ def product_cards(db, site, base, category=""):
 def render_section(db, site, page, config, section, base, csrf, preview=False, first=False, *, blog_articles=None):
     node = render_widget(db, site, page, config, section, base, csrf, preview,
                          lambda child: render_section(db, site, page, config, child, base, csrf, preview))
-    if node is not None:
+    if node is not None or section["type"] in WIDGETS:
         return node
     return decorate_block(_render_section(db, site, page, config, section, base, csrf, preview, first, blog_articles=blog_articles), section, preview)
 
@@ -387,6 +390,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Script(src=static_asset("widgets-pack1.js"), defer=True) if needs_widget_js(document["blocks"]) else None,
         Link(rel="stylesheet", href=static_asset("widgets-pack2.css")) if needs_pack2_css(document["blocks"]) else None,
         Script(src=static_asset("widgets-pack2.js"), defer=True) if needs_pack2_js(document["blocks"]) else None,
+        Link(rel="stylesheet", href=static_asset("widgets-pack3.css")) if needs_pack3_css(document["blocks"]) else None,
+        Script(src=static_asset("widgets-pack3.js"), defer=True) if needs_pack3_js(document["blocks"]) else None,
         Script(src=static_asset("site-preview.js"), defer=True) if preview else None,
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if customer_services_enabled and not preview else None,

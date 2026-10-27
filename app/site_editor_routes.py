@@ -15,7 +15,7 @@ from starlette.routing import Route
 
 from app import content, site_ui, theme_library
 from app.db import SessionLocal
-from app.models import Collection, Membership, Product, SiteMedia, SitePage, SiteRevision, new_id
+from app.models import Membership, SiteMedia, SitePage, SiteRevision, new_id
 from app.services import CommerceError
 from app.site_blocks import (
     default_locale,
@@ -248,6 +248,16 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 site, selected = editor_context(db, site, page, theme)
                 from app import custom_data
                 from app.site_block_schema import block_schema_registry
+                from app.site_widgets_pack3 import active_discount_codes
+
+                schema = block_schema_registry()
+                code_options = [{"value": "", "label": "No discount code"}] + [
+                    {"value": code.id, "label": code.code}
+                    for code in active_discount_codes(db, site)
+                ]
+                for field in schema["promo_banner"]["fields"]:
+                    if field["id"] == "discount_code":
+                        field.update(type="select", options=code_options)
                 role = db.scalar(select(Membership.role).where(
                     Membership.tenant_id == site.tenant_id, Membership.user_id == user_id))
                 csrf(session)
@@ -255,7 +265,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     "version": selected.version, "site_version": site.version,
                     "default_locale": default_locale(site),
                     "dynamic_sources": custom_data.compatible_sources(db, site),
-                    "schema": block_schema_registry(), "pages": [
+                    "schema": schema, "pages": [
                         {"id": p.id, "title": p.title, "kind": p.kind, "path": p.path}
                         for p in ([theme_library.context(db, site, theme, saved["id"])[1]
                             for saved in theme_library.theme_for(db, site, theme).snapshot_json["pages"]]
@@ -425,14 +435,15 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 pages = content.site_pages(db, site)
                 public = {p.path: p for p in pages if p.published_json}
                 needle = q.strip().casefold()[:160]
-                products = list(db.scalars(select(Product).where(
-                    Product.tenant_id == site.tenant_id, Product.is_published.is_(True),
-                    ("/products/" + Product.slug).in_(list(public)),
-                ).order_by(Product.name).limit(500)))
+                from app.site_widgets_pack3 import (
+                    active_discount_codes,
+                    scoped_collections,
+                    scoped_products,
+                )
+
+                products = scoped_products(db, site)
                 products = [p for p in products if not needle or needle in p.name.casefold()][:100]
-                collections = list(db.scalars(select(Collection).where(
-                    Collection.tenant_id == site.tenant_id, Collection.is_published.is_(True),
-                ).order_by(Collection.title)))
+                collections = scoped_collections(db, site)
                 collections = [c for c in collections
                                if not needle or needle in c.title.casefold()][:100]
                 collection_paths = {p.collection_id: p.path for p in public.values()
@@ -446,6 +457,9 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                                      "path": collection_paths.get(c.id, ""),
                                      "source": "collection"} for c in collections],
                     "collection_label": "Collection",
+                    "discount_codes": [{"id": code.id, "code": code.code}
+                                       for code in active_discount_codes(db, site)
+                                       if not needle or needle in code.code.casefold()],
                 })
         except CommerceError as exc:
             return failure(exc)

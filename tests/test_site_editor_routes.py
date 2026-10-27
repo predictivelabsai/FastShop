@@ -239,7 +239,14 @@ def test_restore_never_changes_publication_and_cannot_cross_pages(workspace):
         assert page.version == version + 1
 
 def test_resource_picker_scopes_products_and_uses_published_collections(workspace):
-    from app.models import Category, Collection, Product, ProductType
+    from app.models import (
+        Category,
+        Collection,
+        Product,
+        ProductType,
+        ProductVariant,
+        VariantChannelListing,
+    )
 
     w = workspace
     load(w)
@@ -255,6 +262,12 @@ def test_resource_picker_scopes_products_and_uses_published_collections(workspac
             product_type_id=product_type.id, name="Unlinked private product", slug="unlinked", is_published=True)
         db.add_all([product, hidden])
         db.flush()
+        variant = ProductVariant(tenant_id=site.tenant_id, product_id=product.id,
+                                 sku="sample-standard", name="Standard", is_active=True)
+        db.add(variant)
+        db.flush()
+        db.add(VariantChannelListing(variant_id=variant.id, channel_id=site.channel_id,
+                                     currency="EUR", price_minor=1999))
         page = content.create_page(db, site, product.name, "/products/" + product.slug, "product")
         page.product_id = product.id
         content.save_page(db, site, page.id, w.owner.id, page.draft_json, page.version, "publish")

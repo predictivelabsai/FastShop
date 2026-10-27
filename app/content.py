@@ -193,9 +193,15 @@ def save_page(db: Session, site: Site, page_id: str, user_id: str, document: dic
 
 
 def validate_media_ownership(db, site, document):
-    """Media IDs are references, not permission to attach another tenant's assets."""
+    """Check site ownership of media and widget catalogue references."""
     def visit(value):
         if isinstance(value, dict):
+            from app.site_widgets import PACK3_WIDGETS
+
+            if isinstance(value.get("type"), str) and value["type"] in PACK3_WIDGETS:
+                from app.site_widgets_pack3 import validate_resources
+
+                validate_resources(db, site, value)
             for item in value.values():
                 visit(item)
         elif isinstance(value, list):
