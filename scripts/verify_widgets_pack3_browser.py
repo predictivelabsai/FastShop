@@ -223,6 +223,12 @@ def journey(browser, base, site_id, page_id, resources):
     expect(live.locator('.fs-widget-steps ol')).to_have_count(1)
     expect(live.locator('.fs-widget-contact_card address')).to_have_count(1)
     expect(live.locator('[data-announcement-pause]')).to_be_hidden()
+    short_link = live.locator('.fs-widget-featured_collection .fs-pack3-link')
+    original_label = short_link.inner_text()
+    short_link.evaluate('element => { element.textContent = "X"; }')
+    bounds = short_link.bounding_box()
+    assert bounds and bounds['width'] >= 44 and bounds['height'] >= 44, bounds
+    short_link.evaluate('(element, label) => { element.textContent = label; }', original_label)
     capture(live, 'desktop-storefront-all-widgets', full_page=True)
     for kind in ('featured_collection', 'pricing_table', 'comparison_table', 'trust_badges',
                  'steps', 'star_rating', 'contact_card'):

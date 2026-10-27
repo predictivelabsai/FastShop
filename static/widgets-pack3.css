@@ -6,7 +6,7 @@
 .fs-pack3 h2{font-size:clamp(1.5rem,3vw,2.4rem)}
 .fs-pack3 h3{font-size:1.15rem}
 .fs-pack3 p{margin:0 0 1em;line-height:1.6}
-.fs-pack3 a{color:inherit;text-underline-offset:4px;min-height:44px;display:inline-flex;align-items:center;max-width:100%}
+.fs-pack3 a{color:inherit;text-underline-offset:4px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;max-width:100%}
 .fs-pack3 .fs-widget-button{background:var(--store-accent,#145cce);color:var(--store-accent-text,#fff);justify-content:center}
 .fs-pack3 button{font:inherit;cursor:pointer;min-width:44px;min-height:44px;padding:10px 16px;color:inherit;background:transparent;border:1px solid currentColor;border-radius:var(--store-radius,6px);touch-action:manipulation}
 .fs-pack3 :focus-visible{outline:3px solid var(--store-accent,#145cce);outline-offset:4px}
