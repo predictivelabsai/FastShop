@@ -164,7 +164,8 @@ def journey(browser, base, site_id, page_id):
     expect(map_widget.locator('iframe')).to_have_count(0)
     map_widget.scroll_into_view_if_needed()
     capture(live, 'desktop-map-before-load')
-    map_widget.get_by_role('button', name='Load map', exact=True).click()
+    with live.expect_request('https://www.openstreetmap.org/**'):
+        map_widget.get_by_role('button', name='Load map', exact=True).click()
     expect(map_widget.locator('iframe')).to_have_count(1)
     live.wait_for_function("document.querySelector('[data-map] iframe').src.includes('openstreetmap.org')")
     assert map_requests, 'Click must request the map provider'

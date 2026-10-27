@@ -30,7 +30,7 @@
 .fs-pack2-progress-label{display:flex;justify-content:space-between;gap:16px;margin-bottom:10px}
 .fs-pack2-progress-track{height:12px;background:color-mix(in srgb,var(--store-accent,#145cce) 15%,var(--store-background,#fff));border-radius:var(--store-radius,6px);overflow:hidden}
 .fs-pack2-progress-fill{height:100%;background:var(--store-accent,#145cce)}
-.fs-pack2[data-alert]{display:flex;gap:16px;align-items:flex-start;background:color-mix(in srgb,var(--store-accent,#145cce) 7%,var(--store-background,#fff));border:1px solid color-mix(in srgb,currentColor 30%,transparent);border-radius:var(--store-radius,6px);padding:24px}
+.fs-pack2[data-alert]{width:calc(100% - 48px);max-width:calc(var(--store-width,1200px) - 48px);display:flex;gap:16px;align-items:flex-start;background:color-mix(in srgb,var(--store-accent,#145cce) 7%,var(--store-background,#fff));border:1px solid color-mix(in srgb,currentColor 30%,transparent);border-radius:var(--store-radius,6px);padding:24px}
 .fs-pack2[data-alert][data-notice-style=success]{background:color-mix(in srgb,#267044 8%,var(--store-background,#fff))}
 .fs-pack2[data-alert][data-notice-style=warning]{background:color-mix(in srgb,#b9760a 10%,var(--store-background,#fff))}
 .fs-pack2[data-alert][data-notice-style=neutral]{background:color-mix(in srgb,currentColor 4%,var(--store-background,#fff))}
@@ -58,3 +58,5 @@
 .fs-pack2[data-alignment=right] .fs-pack2-social{justify-content:flex-end}
 @media(max-width:640px){.fs-pack2[data-layout=vertical][data-enhanced]{display:block}.fs-pack2[data-layout=vertical] .fs-pack2-tab-list{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent);padding:0 0 12px}.fs-pack2[data-alert]{padding:20px 16px;gap:12px}.fs-pack2-stats{gap:24px}.fs-pack2 :is(th,td){padding:12px;min-width:130px}}
 @media(prefers-reduced-motion:reduce){.fs-pack2 *,.fs-pack2 *:before,.fs-pack2 *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+.fs-widget .fs-pack2[data-alert]{width:calc(100% - 32px);max-width:none}

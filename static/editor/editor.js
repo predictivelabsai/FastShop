@@ -153,6 +153,15 @@ const widgetIcons = {
   "contact": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M7 7h10 M7 11h10 M7 15h5 m3 2 2 2 3-4\"/>",
   "product-detail": "<path d=\"m3 7 5-3 5 3v6l-5 3-5-3Z M3 7l5 3 5-3 M8 10v6 M17 5h4 M17 9h4 M17 13h4 M3 20h18\"/>",
   "references": "<path d=\"M5 2h10l4 4v16H5Z M15 2v5h4 M8 11h8 M8 15h8 M8 19h5\"/>",
+  "featured-collection": "<path d=\"M3 7h18v14H3Z M3 7V3h7l2 4 M7 12h10 M7 16h6\"/>",
+  "pricing-table": "<rect x=\"2\" y=\"6\" width=\"6\" height=\"15\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"19\"/><rect x=\"16\" y=\"6\" width=\"6\" height=\"15\"/><path d=\"M11 6h2 M4 10h2 M18 10h2\"/>",
+  "comparison-table": "<path d=\"M3 3h18v18H3Z M3 8h18 M9 3v18 m3-9 2 2 3-3 m-5 7 4-4 m-4 0 4 4\"/>",
+  "trust-badges": "<path d=\"m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6Z m-4 10 3 3 5-6\"/><path d=\"M2 6v9 M22 6v9\"/>",
+  "announcement-bar": "<path d=\"m3 10 13-6v16L3 14Z M3 10v4 M7 16v5h4l-1-4 M19 8l3-2 M19 12h3 M19 16l3 2\"/>",
+  "promo-banner": "<path d=\"M3 4h18v16H3Z M3 9h18 M8 4v16 m4-3 5-5 M12 12h.01 M17 17h.01\"/>",
+  "steps": "<circle cx=\"4\" cy=\"6\" r=\"2\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><circle cx=\"20\" cy=\"18\" r=\"2\"/><path d=\"M6 6h6v4 M14 12h6v4\"/>",
+  "star-rating": "<path d=\"m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z M12 7v10\"/>",
+  "contact-card": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><circle cx=\"8\" cy=\"10\" r=\"2\"/><path d=\"M4 17c0-5 8-5 8 0 M15 9h4 M15 13h4 M15 17h3\"/>",
   "embed": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"M2 8h20 m-13 3-3 3 3 3 m6-6 3 3-3 3\"/>"
 };
 function blockIcon(type) {

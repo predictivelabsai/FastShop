@@ -22,11 +22,14 @@ def approved_reviews(db, site, product_id: str | None = None, limit: int = 6) ->
     return list(db.scalars(query.order_by(Review.created_at.desc()).limit(limit)))
 
 
-def review_summary(db, site, product_id: str | None = None) -> tuple[int, float]:
+def review_summary(db, site, product_id: str | None = None, *, product_ids=None) -> tuple[int, float]:
+    """Aggregate approved reviews, optionally within a site's visible catalogue."""
     query = select(func.count(Review.id), func.avg(Review.rating)).where(
         Review.tenant_id == site.tenant_id, Review.is_approved.is_(True))
     if product_id:
         query = query.where(Review.product_id == product_id)
+    if product_ids is not None:
+        query = query.where(Review.product_id.in_(product_ids))
     count, average = db.execute(query).one()
     return int(count or 0), round(float(average), 1) if average else 0.0
 
