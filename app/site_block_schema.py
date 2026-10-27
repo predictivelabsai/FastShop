@@ -52,23 +52,7 @@ def _field(key, default="", *, choices=None):
         kind = "toggle"
     elif type(default) is int:
         kind = "range"
-        minimum = 1 if bare in {"columns", "rating", "thickness", "limit"} else 0
-        maximum = {
-            "columns": 4,
-            "gap": 120,
-            "height": 600,
-            "rating": 5,
-            "thickness": 20,
-            "limit": 24,
-            "rounded": 100,
-            "max_width": 2400,
-        }.get(bare, 300)
-        data = {
-            "min": minimum,
-            "max": maximum,
-            "step": 1,
-            "unit": "" if bare in {"columns", "rating", "limit"} else "px",
-        }
+        data = {"min": 0, "max": 2400 if bare == "max_width" else 300, "step": 1, "unit": "px"}
     elif bare == "body":
         kind = "textarea"
     return {
@@ -80,6 +64,21 @@ def _field(key, default="", *, choices=None):
         "dynamic_source": "image" if kind == "image" else "text" if not key.startswith("style.") and kind in {"text", "textarea", "richtext"} else None,
         **data,
     }
+
+
+def _widget_field(key, default, spec):
+    """Translate registry constraints into the established editor schema shape."""
+    kind = spec.get("kind", "text")
+    result = _field(key, default, choices=spec.get("options"))
+    result["type"] = kind
+    result["help"] = spec.get("help", "")
+    if kind in {"range", "number", "int"}:
+        result.update(type="range", min=spec["min"], max=spec["max"], step=1, unit=spec.get("unit", ""))
+    elif kind == "resource_list":
+        resource = spec["resource"]
+        result.update(type="repeater", fields=[{"id": resource, "label": resource.capitalize(), "type": resource, "default": ""}], min=0, max=spec.get("max", 24), value_list=True)
+    result["dynamic_source"] = "image" if kind == "image" else "text" if kind in {"text", "textarea", "richtext"} else None
+    return result
 
 
 STYLE_DEFAULTS = {
@@ -111,12 +110,25 @@ ADVANCED_IDS = {
     "style.hide_tablet",
     "style.hide_mobile",
 }
-CHOICES = {
-    "level": {"h1", "h2", "h3", "h4", "h5", "h6"},
-    "alignment": {"left", "centre", "right"},
-    "vertical_alignment": {"start", "center", "end", "stretch"},
-    "aspect": {"auto", "1/1", "4/3", "16/9", "3/4"},
-    "button_style": {"primary", "secondary", "link"},
+
+
+
+LEGACY_PICKER = {
+    "hero": ("hero", "Open with a large image or video"),
+    "text": ("text", "Add an editorial text section"),
+    "split": ("split", "Place an image beside your story"),
+    "products": ("catalogue", "Feature a selection from your catalogue"),
+    "facts": ("chart", "Present key figures at a glance"),
+    "claims": ("shield", "Share reviewed statements with evidence"),
+    "reviews": ("reviews", "Show a selection of customer reviews"),
+    "articles": ("articles", "Highlight your latest articles"),
+    "research": ("library", "Collect research and supporting resources"),
+    "faq": ("question", "Answer common customer questions"),
+    "team": ("people", "Introduce the people behind your business"),
+    "contact": ("contact", "Let visitors send you a message"),
+    "product": ("product-detail", "Show product information and purchasing options"),
+    "references": ("references", "Link to studies and source material"),
+    "embed": ("embed", "Include content from an external page"),
 }
 
 
@@ -161,16 +173,28 @@ def _registry():
         for key in keys:
             if key == "children":
                 continue
+            definition = WIDGETS.get(kind)
+            if definition and key == "items" and definition.item_schema:
+                item_schema = definition.item_schema
+                item_default = copy.deepcopy(item_schema["defaults"])
+                item_keys = item_schema.get("editor_fields", list(item_schema["fields"]))
+                item_fields = [_widget_field(k, item_default.get(k, ""), item_schema["fields"][k]) for k in item_keys]
+                fields.append({
+                    "id": "items", "label": "Entries", "type": "repeater",
+                    "default": copy.deepcopy(default.get("items", [])),
+                    "fields": item_fields, "item_fields": item_fields,
+                    "item_default": item_default,
+                    "theme_defaults": {theme: dict(item_default, theme=theme) for theme in item_schema.get("themes", ())},
+                    "min": item_schema.get("min", 0), "max": item_schema.get("max", 200),
+                    "help": "", "required": list(item_schema.get("required", ())), "fixed": False,
+                })
+                continue
+            if definition and key in definition.fields:
+                fields.append(_widget_field(key, default[key], definition.fields[key]))
+                continue
             if key == "items":
                 item_keys = ["heading", "body", "url", "image", "alt", "label", "value"]
-                if kind == "accordion":
-                    item_keys = ["heading", "body"]
-                elif kind == "image_gallery":
-                    item_keys = ["image", "alt", "url"]
-                elif kind == "icon_list":
-                    item_keys = ["heading", "body", "theme"]
-                    themes = {"check", "star", "arrow", "heart"}
-                elif themes:
+                if themes:
                     item_keys = ["theme"] + item_keys
                 required = spec.required_item_fields
                 item_default = {
@@ -207,7 +231,7 @@ def _registry():
                 continue
             value = default.get(key, False if key in {"hidden", "subscription_preview"} else "")
             field = _field(
-                key, value, choices=layouts if key == "layout" and layouts else CHOICES.get(key)
+                key, value, choices=layouts if key == "layout" and layouts else None
             )
             if kind in {"richtext", "html"} and key == "body":
                 field["type"] = "richtext"
@@ -222,17 +246,8 @@ def _registry():
         schemas[kind] = {
             "label": label,
             "category": category,
-            "icon": {
-                "Layout": "layout",
-                "Text": "type",
-                "Media": "image",
-                "Commerce": "shopping-bag",
-                "Forms": "mail",
-                "Social proof": "star",
-                "Advanced": "code",
-                "Theme sections": "layers",
-            }[category],
-            "description": f"Add and customise {label.lower()}.",
+            "icon": WIDGETS[kind].icon if kind in WIDGETS else LEGACY_PICKER[kind][0],
+            "description": WIDGETS[kind].description if kind in WIDGETS else LEGACY_PICKER[kind][1],
             "fields": fields,
             "groups": {
                 "Content": [f["id"] for f in fields if not f["id"].startswith("style.")],
