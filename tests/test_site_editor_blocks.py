@@ -272,7 +272,7 @@ def test_each_liquid_repeater_variant_has_valid_defaults():
             if field["type"] != "repeater":
                 continue
             for entry in field.get("theme_defaults", {}).values():
-                validate_block(default_block(kind) | {"items": [entry]})
+                validate_block(default_block(kind) | {"items": [entry] * max(1, field.get("min", 0))})
 
 
 def test_every_addable_repeater_entry_renders_in_both_themes(context):
@@ -285,7 +285,7 @@ def test_every_addable_repeater_entry_renders_in_both_themes(context):
                 continue
             variants = list(field.get("theme_defaults", {}).values()) or [field["item_default"]]
             for entry in variants:
-                block = validate_block(default_block(kind) | {"items": [entry]})
+                block = validate_block(default_block(kind) | {"items": [entry] * max(1, field.get("min", 0))})
                 assert render_section(db, site, page, {}, block, "", "", True) is not None
                 assert render_block(db, site, page, {}, block, "", "", False, True) is not None
 
