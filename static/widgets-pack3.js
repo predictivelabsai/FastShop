@@ -15,7 +15,8 @@
     function stop() { window.clearInterval(timer); timer = undefined; }
     function start() {
       stop();
-      if (messages.length > 1 && !reduced.matches && !paused) {
+      if (messages.length > 1 && !reduced.matches && !paused
+          && !root.contains(document.activeElement) && !root.matches(':hover')) {
         timer = window.setInterval(() => {
           if (!root.isConnected || root.hidden) { stop(); return; }
           index = (index + 1) % messages.length; show();

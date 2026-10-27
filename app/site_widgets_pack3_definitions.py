@@ -20,9 +20,14 @@ def email(value):
 
 
 def validate_pack_widget(block):
+    for key in ("collection", "product", "discount_code"):
+        if key in block and not isinstance(block[key], str):
+            raise CommerceError(f"Choose a single {key.replace('_', ' ')} identifier.")
     if block["type"] == "pricing_table":
         for item in block.get("items", []):
-            if len([line for line in item.get("features", "").splitlines() if line.strip()]) > 12:
+            features = item.get("features", "")
+            translations = features.values() if isinstance(features, dict) else [features]
+            if any(len([line for line in value.splitlines() if line.strip()]) > 12 for value in translations):
                 raise CommerceError("A plan may contain up to 12 features.")
     if block["type"] == "star_rating" and block.get("scope") == "product" and not block.get("product"):
         raise CommerceError("Choose a product for product reviews.")

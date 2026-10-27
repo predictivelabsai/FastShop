@@ -15,7 +15,6 @@ from app.models import (
     DiscountCode,
     Product,
     ProductVariant,
-    Review,
     VariantChannelListing,
 )
 from app.services import CommerceError, money, variant_price
@@ -161,11 +160,7 @@ def render_pack_widget(db, site, block, base="", preview=False):
         if block.get("scope") == "product" and (not product_id or product_id not in ids):
             return placeholder("Choose a published product from this site.")
 
-        class ScopedReviews:
-            def execute(self, statement):
-                return db.execute(statement.where(Review.product_id.in_(ids)))
-
-        count, average = review_summary(ScopedReviews(), site, product_id)
+        count, average = review_summary(db, site, product_id, product_ids=ids)
         if not count:
             return placeholder("No approved reviews yet. Ratings appear only from approved customer reviews.")
         summary = f"Rated {average:.1f} out of 5 from {count} {'review' if count == 1 else 'reviews'}"
