@@ -54,11 +54,14 @@ from app.site_widgets import (
     WIDGET_CSS,
     WIDGETS,
     decorate_block,
+    is_legacy_team,
     needs_pack1_css,
     needs_pack2_css,
     needs_pack2_js,
     needs_pack3_css,
     needs_pack3_js,
+    needs_pack4_css,
+    needs_pack4_js,
     needs_widget_css,
     needs_widget_js,
     render_widget,
@@ -171,7 +174,7 @@ def product_cards(db, site, base, category=""):
 def render_section(db, site, page, config, section, base, csrf, preview=False, first=False, *, blog_articles=None):
     node = render_widget(db, site, page, config, section, base, csrf, preview,
                          lambda child: render_section(db, site, page, config, child, base, csrf, preview))
-    if node is not None or section["type"] in WIDGETS:
+    if node is not None or section["type"] in WIDGETS and not is_legacy_team(section):
         return node
     return decorate_block(_render_section(db, site, page, config, section, base, csrf, preview, first, blog_articles=blog_articles), section, preview)
 
@@ -392,6 +395,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Script(src=static_asset("widgets-pack2.js"), defer=True) if needs_pack2_js(document["blocks"]) else None,
         Link(rel="stylesheet", href=static_asset("widgets-pack3.css")) if needs_pack3_css(document["blocks"]) else None,
         Script(src=static_asset("widgets-pack3.js"), defer=True) if needs_pack3_js(document["blocks"]) else None,
+        Link(rel="stylesheet", href=static_asset("widgets-pack4.css")) if needs_pack4_css(document["blocks"]) else None,
+        Script(src=static_asset("widgets-pack4.js"), defer=True) if needs_pack4_js(document["blocks"]) or page.kind == "product" and page.product_id and not preview else None,
+        Div(hidden=True, data_recent_product=page.product_id, data_site_id=site.id) if page.kind == "product" and page.product_id and not preview else None,
         Script(src=static_asset("site-preview.js"), defer=True) if preview else None,
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if customer_services_enabled and not preview else None,

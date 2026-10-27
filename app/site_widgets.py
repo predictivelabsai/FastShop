@@ -154,9 +154,15 @@ from app.site_widgets_pack3_definitions import (  # noqa: E402
 
 WIDGETS.update(pack3_definitions(WidgetDefinition))
 PACK3_WIDGETS = frozenset(pack3_definitions(WidgetDefinition))
+from app.site_widgets_pack4_definitions import (  # noqa: E402
+    pack_definitions as pack4_definitions,
+)
+
+WIDGETS.update(pack4_definitions(WidgetDefinition))
+PACK4_WIDGETS = frozenset(pack4_definitions(WidgetDefinition))
 PACK1_WIDGETS = frozenset({"slideshow", "image_banner", "before_after", "logo_cloud", "icon_box", "image_hotspots", "section_heading", "video_embed"})
 PACK2_WIDGETS = frozenset(pack2_definitions(WidgetDefinition))
-INTERACTIVE_WIDGETS = frozenset({"slideshow", "before_after", "image_hotspots"})
+INTERACTIVE_WIDGETS = frozenset({"slideshow", "before_after", "image_hotspots", "shop_the_look"})
 
 WIDGET_FIELDS = set().union(*(set(v.defaults) for v in WIDGETS.values())) - {"children", "items"}
 STYLE_FIELDS = {
@@ -308,6 +314,18 @@ def validate_widget_field(value, key, spec):
 
 
 def validate_widget(block):
+    if is_legacy_team(block):
+        # Existing editorial people blocks retain their original fields and output.
+        if not isinstance(block.get("items", []), list) or len(block.get("items", [])) > 200:
+            raise CommerceError("Block entries must be a list of up to 200 objects.")
+        for item in block.get("items", []):
+            if not isinstance(item, dict) or "heading" not in item or set(item) - {"heading", "body", "url", "theme", "image", "alt", "label", "value"}:
+                raise CommerceError("Choose supported people fields with a heading.")
+            from app.site_blocks import _text
+
+            for key, value in item.items():
+                _text(value, key)
+        return block
     definition = WIDGETS[block["type"]]
     for key, spec in definition.fields.items():
         if key in block:
@@ -330,7 +348,17 @@ def validate_widget(block):
         from app.site_widgets_pack3_definitions import validate_pack_widget as validate_pack3
 
         validate_pack3(block)
+    if block["type"] in PACK4_WIDGETS:
+        from app.site_widgets_pack4_definitions import validate_pack_widget as validate_pack4
+
+        validate_pack4(block)
     return block
+
+
+def is_legacy_team(block):
+    return block.get("type") == "team" and "columns" not in block and isinstance(block.get("items", []), list) and all(
+        isinstance(item, dict) and "heading" in item and "name" not in item
+        for item in block.get("items", []))
 
 
 WIDGET_CSS = """.fs-widget{box-sizing:border-box;max-width:var(--store-width,1200px);margin-inline:auto;padding:24px;position:relative}.fs-widget img{max-width:100%;height:auto;display:block}.fs-widget video,.fs-widget iframe{width:100%;aspect-ratio:16/9;border:0}.fs-widget-grid{display:grid;grid-template-columns:repeat(var(--fs-columns,2),minmax(0,1fr));gap:var(--fs-gap,24px)}.fs-widget .fs-widget{width:100%;padding:16px}.fs-widget-button{display:inline-block;padding:12px 24px;border-radius:var(--store-radius,var(--button-radius,6px));background:var(--store-accent,var(--primary,var(--accent,#145cce)));color:white;text-decoration:none}.fs-widget-secondary{background:transparent;border:1px solid currentColor;color:inherit}.fs-widget-link{background:transparent;color:inherit;padding:0;text-decoration:underline}.fs-widget details{border-bottom:1px solid #ddd;padding:16px 0}.fs-widget summary{cursor:pointer;font-weight:600}.fs-widget-placeholder{min-height:140px;background:#f2f3f4;display:grid;place-items:center;color:#656b73}.fs-widget blockquote{margin:0;font-size:1.2em}.fs-widget ul{padding-left:24px}@media(min-width:1025px){.fs-hide-desktop{display:none!important}}@media(min-width:641px) and (max-width:1024px){.fs-hide-tablet{display:none!important}}@media(max-width:640px){.fs-hide-mobile{display:none!important}.fs-stack-mobile{grid-template-columns:1fr!important}}"""
@@ -350,7 +378,7 @@ def strip_editor_hooks(node):
 
 
 def needs_widget_css(blocks):
-    return any(block["type"] in WIDGETS or block.get("style") or
+    return any(block["type"] in WIDGETS and not is_legacy_team(block) or block.get("style") or
                needs_widget_css(block.get("children", [])) for block in blocks)
 
 
@@ -360,11 +388,11 @@ def needs_widget_js(blocks):
 
 def needs_widgets(blocks, kinds):
     """Find pack assets recursively, including widgets nested in containers."""
-    return any(block["type"] in kinds or needs_widgets(block.get("children", []), kinds) for block in blocks)
+    return any(block["type"] in kinds and not is_legacy_team(block) or needs_widgets(block.get("children", []), kinds) for block in blocks)
 
 
 def needs_pack1_css(blocks):
-    return needs_widgets(blocks, PACK1_WIDGETS)
+    return needs_widgets(blocks, PACK1_WIDGETS | {"shop_the_look"})
 
 
 def needs_pack2_css(blocks):
@@ -381,6 +409,14 @@ def needs_pack3_css(blocks):
 
 def needs_pack3_js(blocks):
     return needs_widgets(blocks, {"announcement_bar", "promo_banner"})
+
+
+def needs_pack4_css(blocks):
+    return needs_widgets(blocks, PACK4_WIDGETS)
+
+
+def needs_pack4_js(blocks):
+    return needs_widgets(blocks, {"marquee", "flip_card", "video_lightbox", "shop_the_look", "recently_viewed"})
 
 
 def decorate_block(node, block, preview=False):
@@ -464,6 +500,8 @@ def _mark_fields(node, block):
 
 def render_widget(db, site, page, config, block, base, csrf, preview, render_child):
     kind = block["type"]
+    if is_legacy_team(block):
+        return None
     if kind not in WIDGETS:
         return None
     if kind in PACK1_WIDGETS:
@@ -476,6 +514,10 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
         return decorate_block(render_pack_widget(block, base, preview, site_id=site.id), block, preview)
     if kind in PACK3_WIDGETS:
         from app.site_widgets_pack3 import render_pack_widget
+
+        return decorate_block(render_pack_widget(db, site, block, base, preview), block, preview)
+    if kind in PACK4_WIDGETS:
+        from app.site_widgets_pack4 import render_pack_widget
 
         return decorate_block(render_pack_widget(db, site, block, base, preview), block, preview)
 
