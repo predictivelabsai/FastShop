@@ -154,9 +154,15 @@ from app.site_widgets_pack3_definitions import (  # noqa: E402
 
 WIDGETS.update(pack3_definitions(WidgetDefinition))
 PACK3_WIDGETS = frozenset(pack3_definitions(WidgetDefinition))
+from app.site_widgets_pack4_definitions import (  # noqa: E402
+    pack_definitions as pack4_definitions,
+)
+
+WIDGETS.update(pack4_definitions(WidgetDefinition))
+PACK4_WIDGETS = frozenset(pack4_definitions(WidgetDefinition))
 PACK1_WIDGETS = frozenset({"slideshow", "image_banner", "before_after", "logo_cloud", "icon_box", "image_hotspots", "section_heading", "video_embed"})
 PACK2_WIDGETS = frozenset(pack2_definitions(WidgetDefinition))
-INTERACTIVE_WIDGETS = frozenset({"slideshow", "before_after", "image_hotspots"})
+INTERACTIVE_WIDGETS = frozenset({"slideshow", "before_after", "image_hotspots", "shop_the_look"})
 
 WIDGET_FIELDS = set().union(*(set(v.defaults) for v in WIDGETS.values())) - {"children", "items"}
 STYLE_FIELDS = {
@@ -330,6 +336,10 @@ def validate_widget(block):
         from app.site_widgets_pack3_definitions import validate_pack_widget as validate_pack3
 
         validate_pack3(block)
+    if block["type"] in PACK4_WIDGETS:
+        from app.site_widgets_pack4_definitions import validate_pack_widget as validate_pack4
+
+        validate_pack4(block)
     return block
 
 
@@ -364,7 +374,7 @@ def needs_widgets(blocks, kinds):
 
 
 def needs_pack1_css(blocks):
-    return needs_widgets(blocks, PACK1_WIDGETS)
+    return needs_widgets(blocks, PACK1_WIDGETS | {"shop_the_look"})
 
 
 def needs_pack2_css(blocks):
@@ -381,6 +391,14 @@ def needs_pack3_css(blocks):
 
 def needs_pack3_js(blocks):
     return needs_widgets(blocks, {"announcement_bar", "promo_banner"})
+
+
+def needs_pack4_css(blocks):
+    return needs_widgets(blocks, PACK4_WIDGETS)
+
+
+def needs_pack4_js(blocks):
+    return needs_widgets(blocks, {"marquee", "flip_card", "video_lightbox", "shop_the_look", "recently_viewed"})
 
 
 def decorate_block(node, block, preview=False):
@@ -476,6 +494,10 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
         return decorate_block(render_pack_widget(block, base, preview, site_id=site.id), block, preview)
     if kind in PACK3_WIDGETS:
         from app.site_widgets_pack3 import render_pack_widget
+
+        return decorate_block(render_pack_widget(db, site, block, base, preview), block, preview)
+    if kind in PACK4_WIDGETS:
+        from app.site_widgets_pack4 import render_pack_widget
 
         return decorate_block(render_pack_widget(db, site, block, base, preview), block, preview)
 

@@ -42,7 +42,7 @@ def fixtures():
         page = content.create_page(db, site, 'Your shop information', '/pages/commerce-marketing',
                                    document={'version': 1, 'title': 'Your shop information', 'blocks': []})
         collection = Collection(tenant_id=site.tenant_id, title='Your collection', handle='your-collection',
-                                description='A selection from your real catalogue.', image_url=PHOTO,
+                                description='Add a short description of this collection.', image_url=PHOTO,
                                 is_published=True)
         db.add(collection)
         db.flush()

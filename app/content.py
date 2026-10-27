@@ -196,12 +196,16 @@ def validate_media_ownership(db, site, document):
     """Check site ownership of media and widget catalogue references."""
     def visit(value):
         if isinstance(value, dict):
-            from app.site_widgets import PACK3_WIDGETS
+            from app.site_widgets import PACK3_WIDGETS, PACK4_WIDGETS
 
             if isinstance(value.get("type"), str) and value["type"] in PACK3_WIDGETS:
                 from app.site_widgets_pack3 import validate_resources
 
                 validate_resources(db, site, value)
+            if isinstance(value.get("type"), str) and value["type"] in PACK4_WIDGETS:
+                from app.site_widgets_pack4 import validate_resources as validate_pack4_resources
+
+                validate_pack4_resources(db, site, value)
             for item in value.values():
                 visit(item)
         elif isinstance(value, list):
