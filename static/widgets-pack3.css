@@ -26,7 +26,7 @@
 .fs-pack3-plan ul{line-height:1.7;margin:8px 0 28px;padding-left:20px}
 .fs-pack3-plan>a{margin-top:auto}
 .fs-pack3-badge{font-size:.8em;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--store-accent,inherit)}
-.fs-pack3-comparison-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;padding-bottom:12px}
+.fs-pack3-comparison-scroll{position:relative;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;padding-bottom:12px}
 .fs-pack3 table{width:100%;border-collapse:separate;border-spacing:0;text-align:left;line-height:1.5}
 .fs-pack3 caption{text-align:left;font-size:1.4em;font-weight:700;padding-bottom:20px}
 .fs-pack3 :is(th,td){min-width:150px;max-width:320px;padding:16px 20px;border-bottom:1px solid color-mix(in srgb,currentColor 20%,transparent)}
