@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import re
+from dataclasses import dataclass
 from html.parser import HTMLParser
 
 from fasthtml.common import (
@@ -33,66 +34,117 @@ from sqlalchemy import select
 
 from app.services import CommerceError
 
+
+@dataclass(frozen=True)
+class WidgetDefinition:
+    """One source for insertion defaults, validation and editor metadata."""
+
+    label: str
+    category: str
+    defaults: dict
+    fields: dict
+    item_schema: dict | None = None
+    icon: str = ""
+    description: str = ""
+
+    def __getitem__(self, key):
+        # Retain the small tuple interface used by existing extensions.
+        return (self.label, self.category, self.defaults)[key]
+
+
+def text(kind="text", **constraints):
+    return {"kind": kind, "max_length": 30000, **constraints}
+
+
+def number(minimum, maximum, unit="px"):
+    return {"kind": "range", "min": minimum, "max": maximum, "unit": unit}
+
+
+def choice(*options, aliases=()):
+    return {"kind": "select", "options": options, "aliases": aliases}
+
+
+def legacy_items(editor_fields, *, themes=()):
+    # Historical generic entries accepted these fields, even when not shown in the editor.
+    fields = {key: text("textarea" if key == "body" else "image" if key == "image" else "url" if key == "url" else "text")
+              for key in ("heading", "body", "url", "theme", "image", "alt", "label", "value")}
+    if themes:
+        fields["theme"] = choice(*themes)
+    defaults = {key: "Your content" if key not in {"url", "image"} else "/" if key == "url" else "" for key in editor_fields}
+    if themes:
+        defaults["theme"] = sorted(themes)[0]
+    return {"fields": fields, "editor_fields": editor_fields, "defaults": defaults,
+            "min": 0, "max": 200, "themes": themes}
+
+
 WIDGETS = {
-    "container": (
-        "Container",
-        "Layout",
-        {
-            "columns": 2,
-            "gap": 24,
-            "vertical_alignment": "start",
-            "stack_mobile": True,
-            "children": [],
-        },
-    ),
-    "heading": ("Heading", "Text", {"heading": "Your heading", "level": "h2", "alignment": "left"}),
-    "richtext": ("Rich text", "Text", {"body": "<p>Tell your story here.</p>"}),
-    "image": (
-        "Image",
-        "Media",
+    "container": WidgetDefinition("Container", "Layout",
+        {"columns": 2, "gap": 24, "vertical_alignment": "start", "stack_mobile": True, "children": []},
+        {"columns": number(1, 4, ""), "gap": number(0, 120), "vertical_alignment": choice("start", "center", "end", "stretch"), "stack_mobile": {"kind": "toggle"}},
+        icon="columns", description="Arrange widgets in flexible columns"),
+    "heading": WidgetDefinition("Heading", "Text",
+        {"heading": "Your heading", "level": "h2", "alignment": "left"},
+        {"heading": text(), "level": choice("h1", "h2", "h3", "h4", "h5", "h6"), "alignment": choice("left", "centre", "right", aliases=("center",))},
+        icon="heading", description="Add a headline at any level"),
+    "richtext": WidgetDefinition("Rich text", "Text", {"body": "<p>Tell your story here.</p>"},
+        {"body": text("richtext", help="Safe formatting only. Scripts and inline event handlers are removed.")},
+        icon="paragraph", description="Tell your story with formatted text"),
+    "image": WidgetDefinition("Image", "Media",
         {"image": "", "alt": "Describe your image", "link": "", "aspect": "auto", "rounded": 0},
-    ),
-    "button": ("Button", "Text", {"button": "Explore", "url": "/", "button_style": "primary"}),
-    "spacer": ("Spacer", "Layout", {"height": 48}),
-    "divider": ("Divider", "Layout", {"thickness": 1}),
-    "video": ("Video", "Media", {"video": "", "poster": "", "alt": "Video"}),
-    "icon_list": (
-        "Icon list",
-        "Text",
-        {"items": [{"heading": "Your feature", "body": "Add a useful detail.", "theme": "check"}]},
-    ),
-    "image_gallery": (
-        "Image gallery",
-        "Media",
+        {"image": text("image"), "alt": text(), "link": text("url"), "aspect": choice("auto", "1/1", "4/3", "16/9", "3/4"), "rounded": number(0, 100)},
+        icon="image", description="Display an image with an optional link"),
+    "button": WidgetDefinition("Button", "Text", {"button": "Explore", "url": "/", "button_style": "primary"},
+        {"button": text(), "url": text("url"), "button_style": choice("primary", "secondary", "link")},
+        icon="button", description="Send visitors to a page or product"),
+    "spacer": WidgetDefinition("Spacer", "Layout", {"height": 48}, {"height": number(0, 600)},
+        icon="spacer", description="Add breathing room between widgets"),
+    "divider": WidgetDefinition("Divider", "Layout", {"thickness": 1}, {"thickness": number(1, 20)},
+        icon="divider", description="Separate content with a simple line"),
+    "video": WidgetDefinition("Video", "Media", {"video": "", "poster": "", "alt": "Video"},
+        {"video": text("video", https=True, allow_relative=True), "poster": text("image"), "alt": text()},
+        icon="video", description="Play an uploaded video with a poster image"),
+    "icon_list": WidgetDefinition("Icon list", "Text",
+        {"items": [{"heading": "Your feature", "body": "Add a useful detail.", "theme": "check"}]}, {},
+        legacy_items(["heading", "body", "theme"], themes=("check", "star", "arrow", "heart")),
+        icon="checklist", description="List benefits with supporting icons"),
+    "image_gallery": WidgetDefinition("Image gallery", "Media",
         {"columns": 3, "gap": 16, "items": [{"image": "", "alt": "Gallery image", "url": ""}]},
-    ),
-    "testimonial": (
-        "Testimonial",
-        "Social proof",
+        {"columns": number(1, 4, ""), "gap": number(0, 120)}, legacy_items(["image", "alt", "url"]),
+        icon="gallery", description="Show a collection of images"),
+    "testimonial": WidgetDefinition("Testimonial", "Social proof",
         {"heading": "Customer name", "body": "Share a customer story.", "rating": 5},
-    ),
-    "product_card": ("Product card", "Commerce", {"product": ""}),
-    "product_grid": (
-        "Product grid",
-        "Commerce",
+        {"heading": text(), "body": text("textarea"), "rating": number(1, 5, "")},
+        icon="quote", description="Share a customer quote and rating"),
+    "product_card": WidgetDefinition("Product card", "Commerce", {"product": ""},
+        {"product": {"kind": "product", "max_length": 128}},
+        icon="tag", description="Highlight a single product"),
+    "product_grid": WidgetDefinition("Product grid", "Commerce",
         {"products": [], "collection": "", "columns": 3, "limit": 6},
-    ),
-    "collection_list": (
-        "Collection list", "Commerce", {"collections": [], "columns": 3, "limit": 6},
-    ),
-    "newsletter": (
-        "Newsletter signup",
-        "Forms",
+        {"products": {"kind": "resource_list", "resource": "product", "max": 24}, "collection": {"kind": "collection", "max_length": 128, "help": "Choose a published catalogue collection."}, "columns": number(1, 4, ""), "limit": number(1, 24, "")},
+        icon="products", description="Display products in a browsable grid"),
+    "collection_list": WidgetDefinition("Collection list", "Commerce",
+        {"collections": [], "columns": 3, "limit": 6},
+        {"collections": {"kind": "resource_list", "resource": "collection", "max": 24}, "columns": number(1, 4, ""), "limit": number(1, 24, "")},
+        icon="collections", description="Help visitors explore your collections"),
+    "newsletter": WidgetDefinition("Newsletter signup", "Forms",
         {"heading": "Stay in the loop", "body": "Hear about our latest updates."},
-    ),
-    "accordion": (
-        "FAQ / accordion",
-        "Text",
-        {"items": [{"heading": "Your question", "body": "Your answer."}]},
-    ),
-    "html": ("HTML / secure embed", "Advanced", {"body": "<p>Add your content.</p>", "url": ""}),
+        {"heading": text(), "body": text("textarea")},
+        icon="mail", description="Invite visitors to receive email updates"),
+    "accordion": WidgetDefinition("FAQ / accordion", "Text",
+        {"items": [{"heading": "Your question", "body": "Your answer."}]}, {}, legacy_items(["heading", "body"]),
+        icon="accordion", description="Keep answers in expandable panels"),
+    "html": WidgetDefinition("HTML / secure embed", "Advanced", {"body": "<p>Add your content.</p>", "url": ""},
+        {"body": text("richtext", help="Safe formatting only. Scripts and inline event handlers are removed."), "url": text("url", https=True)},
+        icon="code", description="Add safe HTML or an embedded page"),
 }
-WIDGET_FIELDS = set().union(*(set(v[2]) for v in WIDGETS.values())) - {"children", "items"}
+# Packs declare their metadata without importing this registry, avoiding import cycles.
+from app.site_widgets_pack1 import pack_definitions  # noqa: E402
+
+WIDGETS.update(pack_definitions(WidgetDefinition))
+PACK1_WIDGETS = frozenset({"slideshow", "image_banner", "before_after", "logo_cloud", "icon_box", "image_hotspots", "section_heading", "video_embed"})
+INTERACTIVE_WIDGETS = frozenset({"slideshow", "before_after", "image_hotspots"})
+
+WIDGET_FIELDS = set().union(*(set(v.defaults) for v in WIDGETS.values())) - {"children", "items"}
 STYLE_FIELDS = {
     "padding_top",
     "padding_bottom",
@@ -201,82 +253,63 @@ def validate_style(style):
     return style
 
 
-def validate_widget(block):
-    kind = block["type"]
-    defaults = WIDGETS[kind][2]
-    for key, default in defaults.items():
-        if key not in block or key in {"children", "items"}:
-            continue
-        value = block[key]
-        if type(default) is bool and type(value) is not bool:
-            raise CommerceError(f"{key} must be true or false.")
-        if type(default) is int:
-            maximum = {
-                "columns": 4,
-                "gap": 120,
-                "height": 600,
-                "rounded": 100,
-                "thickness": 20,
-                "rating": 5,
-                "limit": 24,
-            }[key]
-            minimum = 1 if key in {"columns", "thickness", "rating", "limit"} else 0
-            if type(value) is not int or not minimum <= value <= maximum:
-                raise CommerceError(f"{key} must be between {minimum} and {maximum}.")
-        if isinstance(default, str) and key not in {
-            "heading",
-            "body",
-            "image",
-            "alt",
-            "link",
-            "url",
-            "button",
-            "video",
-            "poster",
-        }:
-            if not isinstance(value, str) or len(value) > 128:
-                raise CommerceError(f"{key} must be a short string.")
-    choices = {
-        "level": {"h1", "h2", "h3", "h4", "h5", "h6"},
-        "alignment": {"left", "centre", "center", "right"},
-        "aspect": {"auto", "1/1", "4/3", "16/9", "3/4"},
-        "button_style": {"primary", "secondary", "link"},
-        "vertical_alignment": {"start", "center", "end", "stretch"},
-    }
-    for key, options in choices.items():
-        if key in block and (not isinstance(block[key], str) or block[key] not in options):
-            raise CommerceError(f"Choose a supported {key}.")
-    for key in {"product", "collection"} & block.keys():
-        if block[key] and not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", block[key]):
-            raise CommerceError("Choose a valid product or collection.")
-    if kind == "icon_list":
-        for item in block.get("items", []):
-            if not isinstance(item.get("theme", "check"), str) or item.get(
-                "theme", "check"
-            ) not in {"check", "star", "arrow", "heart"}:
-                raise CommerceError("Choose a supported list icon.")
-    if kind in {"richtext", "html"} and "body" in block:
-        body = block["body"]
-        block["body"] = (
-            {locale: sanitise_html(v) for locale, v in body.items()}
-            if isinstance(body, dict)
-            else sanitise_html(body)
-        )
-    for key in {"products", "collections"} & block.keys():
-        if (not isinstance(block[key], list) or len(block[key]) > 24 or any(
-            not isinstance(v, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", v)
-            for v in block[key]
-        )):
-            raise CommerceError(f"Choose up to 24 valid {key}.")
-    if kind in {"video", "html"}:
-        from app.content import safe_url
+def validate_widget_field(value, key, spec):
+    """Validate a declared field, retaining localised text and dynamic image sources."""
+    from app.content import safe_url
+    from app.site_blocks import _text
 
-        value = block.get("video" if kind == "video" else "url", "")
-        for v in value.values() if isinstance(value, dict) else [value]:
-            if v and not (
-                safe_url(v).startswith("https://") or kind == "video" and v.startswith("/")
-            ):
-                raise CommerceError("Embedded media must use HTTPS.")
+    kind = spec.get("kind", "text")
+    if kind in {"range", "number", "int"}:
+        if type(value) is not int or not spec["min"] <= value <= spec["max"]:
+            raise CommerceError(f"{key} must be between {spec['min']} and {spec['max']}.")
+    elif kind in {"toggle", "bool"}:
+        if type(value) is not bool:
+            raise CommerceError(f"{key} must be true or false.")
+    elif kind == "select":
+        if not isinstance(value, str) or value not in (*spec["options"], *spec.get("aliases", ())):
+            raise CommerceError(f"Choose a supported {key}.")
+    elif kind == "resource_list":
+        if not isinstance(value, list) or len(value) > spec.get("max", 24) or any(
+            not isinstance(entry, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", entry) for entry in value
+        ):
+            raise CommerceError(f"Choose up to {spec.get('max', 24)} valid {key}.")
+    else:
+        value = _text(value, key, spec.get("max_length", 30000))
+        values = value.values() if isinstance(value, dict) else [value]
+        for entry in values:
+            if kind in {"product", "collection"} and entry and not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", entry):
+                raise CommerceError("Choose a valid product or collection.")
+            if kind in {"image", "video", "url"} and entry:
+                if kind == "image" and re.fullmatch(r"metafield:[a-z][a-z0-9_]{0,79}\.[a-z][a-z0-9_]{0,79}", entry):
+                    continue
+                url = safe_url(entry, media=kind in {"image", "video"})
+                if spec.get("https") and not (url.startswith("https://") or spec.get("allow_relative") and url.startswith("/")):
+                    raise CommerceError("Embedded media must use HTTPS.")
+            if kind == "colour" and not re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", entry):
+                raise CommerceError("Use a hexadecimal colour.")
+        transform = sanitise_html if kind == "richtext" else spec.get("validate")
+        if transform:
+            value = {locale: transform(entry) for locale, entry in value.items()} if isinstance(value, dict) else transform(value)
+    return value
+
+
+def validate_widget(block):
+    definition = WIDGETS[block["type"]]
+    for key, spec in definition.fields.items():
+        if key in block:
+            block[key] = validate_widget_field(block[key], key, spec)
+    schema = definition.item_schema
+    if schema:
+        items = block.get("items", [])
+        if not isinstance(items, list) or not schema.get("min", 0) <= len(items) <= schema.get("max", 200):
+            raise CommerceError(f"Block entries must contain between {schema.get('min', 0)} and {schema.get('max', 200)} objects.")
+        for item in items:
+            if not isinstance(item, dict) or set(item) - schema["fields"].keys():
+                raise CommerceError("Choose supported block entry fields.")
+            if not set(schema.get("required", ())) <= item.keys():
+                raise CommerceError("Block entry is missing required fields.")
+            for key, value in item.items():
+                item[key] = validate_widget_field(value, key, schema["fields"][key])
     return block
 
 
@@ -299,6 +332,14 @@ def strip_editor_hooks(node):
 def needs_widget_css(blocks):
     return any(block["type"] in WIDGETS or block.get("style") or
                needs_widget_css(block.get("children", [])) for block in blocks)
+
+
+def needs_widget_js(blocks):
+    return any(block["type"] in INTERACTIVE_WIDGETS or needs_widget_js(block.get("children", [])) for block in blocks)
+
+
+def needs_pack1_css(blocks):
+    return any(block["type"] in PACK1_WIDGETS or needs_pack1_css(block.get("children", [])) for block in blocks)
 
 
 def decorate_block(node, block, preview=False):
@@ -384,6 +425,10 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
     kind = block["type"]
     if kind not in WIDGETS:
         return None
+    if kind in PACK1_WIDGETS:
+        from app.site_widgets_pack1 import render_pack_widget
+
+        return decorate_block(render_pack_widget(block, base, preview), block, preview)
 
     def field(name):
         return (
