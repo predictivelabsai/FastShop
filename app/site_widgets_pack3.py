@@ -53,9 +53,16 @@ def active_discount_codes(db, site):
 
 
 def validate_resources(db, site, block):
-    for key, entities in (("collection", scoped_collections), ("product", scoped_products)):
-        if block.get(key) and block[key] not in {row.id for row in entities(db, site)}:
-            raise CommerceError(f"Choose a {key} published on this site.")
+    if block.get("collection"):
+        # A saved selection remains owned after unpublishing and can show its empty preview.
+        ids = {page.collection_id for page in site_pages(db, site) if page.collection_id}
+        collection = db.scalar(select(Collection.id).where(
+            Collection.tenant_id == site.tenant_id, Collection.id == block["collection"],
+            Collection.id.in_(ids)))
+        if collection is None:
+            raise CommerceError("Choose a collection belonging to this site.")
+    if block.get("product") and block["product"] not in {row.id for row in scoped_products(db, site)}:
+        raise CommerceError("Choose a product published on this site.")
     if block.get("discount_code"):
         # Existing saved codes may become inactive; ownership is permanent while display is live.
         code = db.scalar(select(DiscountCode).join(Discount).where(
