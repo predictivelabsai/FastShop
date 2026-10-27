@@ -82,6 +82,21 @@ def _field(key, default="", *, choices=None):
     }
 
 
+def _widget_field(key, default, spec):
+    """Translate registry constraints into the established editor schema shape."""
+    kind = spec.get("kind", "text")
+    result = _field(key, default, choices=spec.get("options"))
+    result["type"] = kind
+    result["help"] = spec.get("help", "")
+    if kind in {"range", "number", "int"}:
+        result.update(type="range", min=spec["min"], max=spec["max"], step=1, unit=spec.get("unit", ""))
+    elif kind == "resource_list":
+        resource = spec["resource"]
+        result.update(type="repeater", fields=[{"id": resource, "label": resource.capitalize(), "type": resource, "default": ""}], min=0, max=spec.get("max", 24), value_list=True)
+    result["dynamic_source"] = "image" if kind == "image" else "text" if kind in {"text", "textarea", "richtext"} else None
+    return result
+
+
 STYLE_DEFAULTS = {
     "padding_top": 24,
     "padding_bottom": 24,
@@ -161,16 +176,28 @@ def _registry():
         for key in keys:
             if key == "children":
                 continue
+            definition = WIDGETS.get(kind)
+            if definition and key == "items" and definition.item_schema:
+                item_schema = definition.item_schema
+                item_default = copy.deepcopy(item_schema["defaults"])
+                item_keys = item_schema.get("editor_fields", list(item_schema["fields"]))
+                item_fields = [_widget_field(k, item_default.get(k, ""), item_schema["fields"][k]) for k in item_keys]
+                fields.append({
+                    "id": "items", "label": "Entries", "type": "repeater",
+                    "default": copy.deepcopy(default.get("items", [])),
+                    "fields": item_fields, "item_fields": item_fields,
+                    "item_default": item_default,
+                    "theme_defaults": {theme: dict(item_default, theme=theme) for theme in item_schema.get("themes", ())},
+                    "min": item_schema.get("min", 0), "max": item_schema.get("max", 200),
+                    "help": "", "required": list(item_schema.get("required", ())), "fixed": False,
+                })
+                continue
+            if definition and key in definition.fields:
+                fields.append(_widget_field(key, default[key], definition.fields[key]))
+                continue
             if key == "items":
                 item_keys = ["heading", "body", "url", "image", "alt", "label", "value"]
-                if kind == "accordion":
-                    item_keys = ["heading", "body"]
-                elif kind == "image_gallery":
-                    item_keys = ["image", "alt", "url"]
-                elif kind == "icon_list":
-                    item_keys = ["heading", "body", "theme"]
-                    themes = {"check", "star", "arrow", "heart"}
-                elif themes:
+                if themes:
                     item_keys = ["theme"] + item_keys
                 required = spec.required_item_fields
                 item_default = {

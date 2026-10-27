@@ -161,7 +161,7 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
         for embed_url in urls:
             if embed_url and urlsplit(safe_url(embed_url)).scheme != 'https':
                 raise CommerceError('Embed URLs must use HTTPS.')
-    if 'items' in result:
+    if 'items' in result and not (result['type'] in WIDGETS and WIDGETS[result['type']].item_schema):
         if not isinstance(result['items'], list) or len(result['items']) > 200:
             raise CommerceError('Block entries must be a list of up to 200 objects.')
         for item in result['items']:
@@ -227,7 +227,9 @@ def resolve_document(document, locale='en') -> dict:
     for key in {'title', 'description', 'image', 'category'} & result.keys():
         result[key] = resolve_text(result[key], locale)
     for block in walk_blocks(result['blocks']):
-        for key in TEXT_FIELDS & block.keys():
+        definition = WIDGETS.get(block['type'])
+        fields = TEXT_FIELDS | (set(definition.fields) if definition else set())
+        for key in fields & block.keys():
             block[key] = resolve_text(block[key], locale)
         for item in block.get('items', []):
             for key in item:
