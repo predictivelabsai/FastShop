@@ -252,6 +252,38 @@ def test_editor_picker_excludes_products_without_this_channel_listing(workspace)
     assert product_id not in {product['id'] for product in response.json()['products']}
 
 
+def test_saved_collection_still_previews_and_saves_after_unpublishing(workspace):
+    w = workspace
+    loaded = load(w)
+    with w.sessions() as db:
+        catalogue = seed_catalog(db, w.site)
+        collection_id, collection_page_id = catalogue.collection.id, catalogue.collection_page.id
+        collection_title = catalogue.collection.title
+        db.commit()
+    block = default_block('featured_collection') | {'collection': collection_id}
+    payload = {'document': document(block), 'version': loaded['version']}
+    initial = w.client.post(w.base + '/render', json=payload, headers=w.headers)
+    assert initial.status_code == 200, initial.text
+    assert collection_title in initial.json()['html']
+    saved = w.client.put(w.base + '/draft', json=payload, headers=w.headers)
+    assert saved.status_code == 200, saved.text
+    payload['version'] = saved.json()['version']
+    with w.sessions() as db:
+        db.get(Collection, collection_id).is_published = False
+        db.get(SitePage, collection_page_id).published_json = None
+        db.commit()
+        assert not render((db, w.site, w.page), block, preview=False).strip()
+    preview = w.client.post(w.base + '/render', json=payload, headers=w.headers)
+    assert preview.status_code == 200, preview.text
+    assert 'Choose a published collection from this site.' in preview.json()['html']
+    assert collection_title not in preview.json()['html']
+    resaved = w.client.put(w.base + '/draft', json=payload, headers=w.headers)
+    assert resaved.status_code == 200, resaved.text
+    assert resaved.json()['document']['blocks'][0]['collection'] == collection_id
+    resources = w.client.get(w.base + '/resources').json()
+    assert collection_id not in {collection['id'] for collection in resources['collections']}
+
+
 def test_star_rating_only_approved_real_reviews_and_no_manual_rating(context):
     db, site, page = context
     catalogue = seed_catalog(db, site)
