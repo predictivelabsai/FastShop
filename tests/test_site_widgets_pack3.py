@@ -22,7 +22,7 @@ from app.models import (
 )
 from app.services import CommerceError
 from app.site_block_schema import default_block, editor_schema
-from app.site_blocks import normalize_document, validate_block
+from app.site_blocks import normalize_document, resolve_document, validate_block
 from app.site_catalog import create_catalog_product
 from app.site_generation import MerchantBrief, guided_plan, validate_plan
 from app.site_refinement import apply_operation, derive_operations
@@ -135,6 +135,29 @@ def test_pricing_features_and_highlight_validation(context):
     for patch in ({'features': '\n'.join('Feature' for _ in range(13))}, {'highlighted': 1}):
         with pytest.raises(CommerceError):
             validate_block(block | {'items': [item | patch]})
+
+
+@pytest.mark.parametrize(('locale', 'shown', 'hidden'), [('en', 'English feature', 'Eesti omadus'),
+                                                       ('et', 'Eesti omadus', 'English feature')])
+def test_pricing_translated_features_validate_resolve_and_render(context, locale, shown, hidden):
+    block = default_block('pricing_table')
+    block['items'][0]['features'] = {'en': 'English feature\nAnother feature',
+                                   'et': 'Eesti omadus\nTeine omadus'}
+    validated = validate_block(block)
+    resolved = resolve_document(document(validated), locale)['blocks'][0]
+    markup = render(context, resolved)
+    assert shown in markup and hidden not in markup
+    assert '<li>' + shown + '</li>' in markup
+
+
+@pytest.mark.parametrize('locale', ['en', 'et'])
+def test_pricing_feature_limit_applies_to_every_translation(locale):
+    block = default_block('pricing_table')
+    features = {'en': 'Your feature', 'et': 'Teie omadus'}
+    features[locale] = '\n'.join(f'Feature {index}' for index in range(13))
+    block['items'][0]['features'] = features
+    with pytest.raises(CommerceError, match='12 features'):
+        validate_block(block)
 
 
 @pytest.mark.parametrize('url', ['http://example.test', '//example.test', 'javascript:alert(1)',
@@ -421,6 +444,26 @@ def test_unknown_resource_ids_rejected_by_editor(workspace, kind, field):
     for method, path in ((w.client.put, '/draft'), (w.client.post, '/render'), (w.client.post, '/publish')):
         response = method(w.base + path, json=payload, headers=w.headers)
         assert response.status_code == 422, response.text
+
+
+@pytest.mark.parametrize(('kind', 'field'), [('featured_collection', 'collection'),
+                                          ('star_rating', 'product'), ('promo_banner', 'discount_code')])
+def test_localised_resource_ids_rejected_by_editor_without_database_binding_errors(workspace, kind, field):
+    w = workspace
+    values = load(w)
+    with w.sessions() as db:
+        catalogue = seed_catalog(db, w.site)
+        identifiers = {'collection': catalogue.collection.id, 'product': catalogue.product.id,
+                       'discount_code': catalogue.code.id}
+        db.commit()
+    block = default_block(kind) | {field: {'en': identifiers[field]}}
+    if kind == 'star_rating':
+        block['scope'] = 'product'
+    payload = {'document': document(block), 'version': values['version']}
+    for method, path in ((w.client.put, '/draft'), (w.client.post, '/render'), (w.client.post, '/publish')):
+        response = method(w.base + path, json=payload, headers=w.headers)
+        assert response.status_code == 422, response.text
+        assert 'identifier' in response.text
 
 
 def test_ai_generation_and_refinement_preserve_pack3():
