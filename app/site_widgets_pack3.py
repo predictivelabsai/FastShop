@@ -77,6 +77,18 @@ def _icon(name):
     return NotStr('<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON_PATHS.get(name, ICON_PATHS["check"]) + '</svg>')
 
 
+def product_listing(db, site, product):
+    """Resolve the first active variant price in this site's channel."""
+    variants = list(db.scalars(select(ProductVariant).where(ProductVariant.tenant_id == site.tenant_id,
+        ProductVariant.product_id == product.id, ProductVariant.is_active.is_(True)).order_by(ProductVariant.id)))
+    for variant in variants:
+        try:
+            return variant_price(db, variant.id, site.channel_id)
+        except CommerceError:
+            continue
+    return None
+
+
 def render_pack_widget(db, site, block, base="", preview=False):
     kind, items = block["type"], block.get("items", [])
 
@@ -101,15 +113,7 @@ def render_pack_widget(db, site, block, base="", preview=False):
         products = [p for p in collection_products(db, site, collection) if p.id in allowed][:block.get("limit", 6)]
         cards = []
         for product in products:
-            variants = list(db.scalars(select(ProductVariant).where(ProductVariant.tenant_id == site.tenant_id,
-                ProductVariant.product_id == product.id, ProductVariant.is_active.is_(True)).order_by(ProductVariant.id)))
-            listing = None
-            for variant in variants:
-                try:
-                    listing = variant_price(db, variant.id, site.channel_id)
-                    break
-                except CommerceError:
-                    continue
+            listing = product_listing(db, site, product)
             if listing:
                 cards.append(A(Img(src=product.image_url, alt=product.name, loading="lazy") if product.image_url else Div("Product image", cls="fs-pack3-product-image-placeholder"),
                     ft_hx("h3", product.name), P(money(listing.price_minor, listing.currency)),
