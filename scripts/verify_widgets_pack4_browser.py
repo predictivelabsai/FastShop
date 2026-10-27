@@ -22,7 +22,7 @@ from verify_widgets_pack1_browser import dismiss_consent, open_item, setting
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / 'output/playwright/widgets-pack4'
-KINDS = ('marquee', 'collage', 'flip_card', 'cta_box', 'video_lightbox', 'team',
+KINDS = ('marquee', 'collage', 'flip_card', 'cta_box', 'video_lightbox', 'team_members',
          'pull_quote', 'button_group', 'shop_the_look', 'recently_viewed')
 PHOTO = '/static/img/storefront-object.jpg'
 SECOND_PHOTO = '/static/img/product-interior.jpg'
@@ -39,7 +39,7 @@ def fixtures():
     with SessionLocal() as db:
         owner = db.scalar(select(User).where(User.email == EMAIL))
         site = content.create_site(db, owner.id, 'Your studio', 'widgets-pack4')
-        site.status = 'preview'
+        site.status = 'published'
         page = content.create_page(db, site, 'Your showcase', '/pages/showcase',
             document={'version': 1, 'title': 'Your showcase', 'blocks': []})
         products = []
@@ -101,7 +101,7 @@ def journey(browser, base, site_id, page_id, products):
     expect(frame.locator('.fs-editor-hint')).to_be_attached()
     for index, kind in enumerate(KINDS):
         page.locator('[data-mode="widgets"]').click()
-        page.get_by_role('searchbox', name='Search widgets').fill('call to action box' if kind == 'cta_box' else kind.replace('_', ' '))
+        page.get_by_role('searchbox', name='Search widgets').fill({'cta_box': 'call to action box', 'team_members': 'team'}.get(kind, kind.replace('_', ' ')))
         tile = page.locator(f'[data-widget-type="{kind}"]')
         expect(tile).to_be_visible()
         if index == 0:
@@ -127,7 +127,7 @@ def journey(browser, base, site_id, page_id, products):
         elif kind == 'video_lightbox':
             setting(page, 'url', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
             setting(page, 'poster', PHOTO)
-        elif kind == 'team':
+        elif kind == 'team_members':
             open_item(page)
             setting(page, 'items.0.image', SECOND_PHOTO)
         elif kind == 'button_group':
@@ -161,7 +161,7 @@ def journey(browser, base, site_id, page_id, products):
     live.goto(live_path)
     expect(live.locator('.fs-widget-recently_viewed')).to_be_visible()
     capture(live, 'desktop-storefront-all-widgets', full_page=True)
-    for kind in ('collage', 'cta_box', 'team', 'pull_quote', 'button_group', 'shop_the_look'):
+    for kind in ('collage', 'cta_box', 'team_members', 'pull_quote', 'button_group', 'shop_the_look'):
         live.locator('.fs-widget-' + kind).scroll_into_view_if_needed()
         capture(live, 'desktop-' + kind.replace('_', '-'))
     flip = live.locator('.fs-widget-flip_card button').first
@@ -208,7 +208,7 @@ def journey(browser, base, site_id, page_id, products):
     expect(small.locator('.fs-widget-recently_viewed')).to_contain_text('Your everyday object')
     expect(small.locator('.fs-widget-recently_viewed')).to_contain_text('Your interior object')
     capture(small, 'mobile-storefront-all-widgets', full_page=True)
-    for kind in ('collage', 'cta_box', 'team', 'pull_quote', 'button_group', 'recently_viewed'):
+    for kind in ('collage', 'cta_box', 'team_members', 'pull_quote', 'button_group', 'recently_viewed'):
         small.locator('.fs-widget-' + kind).scroll_into_view_if_needed()
         capture(small, 'mobile-' + kind.replace('_', '-'))
     buttons = small.locator('.fs-widget-button_group a').all()

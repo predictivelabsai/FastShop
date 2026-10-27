@@ -111,7 +111,7 @@ const widgetIcons = {
   "flip-card": '<path d="M7 3h14v18H7ZM3 7v10m-2-7 2-3 2 3m-2 4 2 3 2-3M11 8h6M11 12h6"/>',
   "cta-box": '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M5 9h7M5 13h5m6-3 3 2-3 2"/>',
   "video-lightbox": '<rect x="2" y="3" width="20" height="18" rx="2"/><path d="m9 8 7 4-7 4ZM18 6h1"/>',
-  "team": '<circle cx="8" cy="7" r="3"/><circle cx="18" cy="9" r="2"/><path d="M2 21v-3a6 6 0 0 1 12 0v3m2-6a4 4 0 0 1 6 3v3"/>',
+  "team-members": '<circle cx="8" cy="7" r="3"/><circle cx="18" cy="9" r="2"/><path d="M2 21v-3a6 6 0 0 1 12 0v3m2-6a4 4 0 0 1 6 3v3"/>',
   "pull-quote": '<path d="M3 5h18M3 19h18M5 10h4v5H4v-4l2-3m9 2h4v5h-5v-4l2-3"/>',
   "button-group": '<rect x="1" y="8" width="10" height="8" rx="2"/><rect x="13" y="8" width="10" height="8" rx="2"/><path d="M4 12h4M16 12h4"/>',
   "shop-the-look": '<path d="M2 3h20v18H2ZM2 18l6-6 4 4 4-3 6 5"/><circle cx="16" cy="8" r="3"/><path d="M16 6v4m-2-2h4"/>',

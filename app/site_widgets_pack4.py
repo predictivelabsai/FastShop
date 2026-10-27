@@ -105,7 +105,7 @@ def render_pack_widget(db, site, block, base="", preview=False):
         children = [Div(image(block.get("poster", ""), block.get("alt", ""), "poster"),
             A("Play video", href=block["url"], data_video_open="", aria_haspopup="dialog", aria_controls=uid + "-dialog", cls="video-play") if source else P("Choose a video to play."), cls="video-poster"),
             ft_hx("dialog", heading(block.get("title", "Video"), "title"), Button("Close video", type="button", data_video_close=""), Div(data_video_mount=""), id=uid + "-dialog", data_video_dialog="", aria_label=block.get("title", "Video"))]
-    elif kind == "team":
+    elif kind == "team_members":
         people = []
         for i, item in enumerate(items):
             socials = []

@@ -24,7 +24,7 @@ from tests.test_site_editor_routes import load
 from tests.test_site_editor_routes import workspace as workspace
 from tests.test_site_widgets_pack3 import seed_catalog
 
-PACK = ('marquee', 'collage', 'flip_card', 'cta_box', 'video_lightbox', 'team',
+PACK = ('marquee', 'collage', 'flip_card', 'cta_box', 'video_lightbox', 'team_members',
         'pull_quote', 'button_group', 'shop_the_look', 'recently_viewed')
 
 
@@ -52,7 +52,7 @@ def test_defaults_validate_render_and_round_trip(context, kind):
 @pytest.mark.parametrize(('kind', 'patch'), [
     ('marquee', {'speed': 'instant'}), ('marquee', {'direction': 'up'}),
     ('marquee', {'separator': '<svg>'}), ('collage', {'layout': 'random'}),
-    ('team', {'columns': 1}), ('team', {'columns': 5}), ('team', {'columns': True}),
+    ('team_members', {'columns': 1}), ('team_members', {'columns': 5}), ('team_members', {'columns': True}),
     ('cta_box', {'layout': 'grid'}), ('cta_box', {'box_style': 'unbounded'}),
     ('cta_box', {'overlay_opacity': -1}), ('cta_box', {'overlay_opacity': 101}),
     ('pull_quote', {'quote_style': 'review'}), ('button_group', {'alignment': 'diagonal'}),
@@ -67,7 +67,7 @@ def test_invalid_ranges_layouts_and_choices(kind, patch):
 
 @pytest.mark.parametrize(('kind', 'minimum', 'maximum'), [
     ('marquee', 1, 10), ('collage', 2, 8), ('flip_card', 1, 6),
-    ('team', 1, 12), ('button_group', 1, 4), ('shop_the_look', 0, 8),
+    ('team_members', 1, 12), ('button_group', 1, 4), ('shop_the_look', 0, 8),
 ])
 def test_item_counts_and_unknown_fields(kind, minimum, maximum):
     block = default_block(kind)
@@ -131,9 +131,9 @@ def test_accessible_server_markup_and_generic_people(context):
     quote = render(context, default_block('pull_quote') | {'attribution': 'Your attribution'}, preview=False)
     assert '<figure' in quote and '<blockquote' in quote and '<figcaption' in quote
     assert 'star' not in quote.lower()
-    team = render(context, default_block('team'))
+    team = render(context, default_block('team_members'))
     assert 'Team member name' in team and 'Role' in team
-    block = default_block('team')
+    block = default_block('team_members')
     for patch in ({'social_1_platform': 'invented'}, {'social_1_url': 'http://example.test'}):
         with pytest.raises(CommerceError):
             validate_block(block | {'items': [block['items'][0] | patch]})
@@ -326,3 +326,105 @@ def test_legacy_team_document_retains_original_markup(context):
     markup = render(context, block, preview=False)
     assert 'h-team' in markup and 'Your member' in markup and 'Existing biography' in markup
     assert 'team-grid' not in markup
+
+
+def test_legacy_people_and_team_members_share_a_page(context):
+    db, site, page = context
+    legacy = {'id': 'legacy', 'type': 'team', 'version': 1, 'heading': 'Existing people',
+        'items': [{'heading': 'Existing member', 'body': 'Existing biography'}]}
+    team = default_block('team_members', 'new-team')
+    team.pop('columns')
+    doc = normalize_document(document(legacy, team))
+    assert doc['blocks'] == [legacy, team]
+    page.published_json = doc
+    markup = to_xml(storefront(db, site, page, '', 'csrf', '/'))
+    assert 'h-team' in markup and 'Existing member' in markup
+    assert 'fs-widget-team_members' in markup and 'Team member name' in markup
+    assert editor_schema()['team']['label'] == 'People'
+    assert editor_schema()['team_members']['label'] == 'Team'
+    with pytest.raises(CommerceError):
+        validate_block(legacy | {'columns': 3})
+
+
+def test_recent_recording_requires_widget_on_published_site_page(context):
+    db, site, page = context
+    own = seed_catalog(db, site)
+    site.status = 'published'
+    widget_doc = document(default_block('container') | {
+        'children': [default_block('recently_viewed')]})
+    page.draft_json = widget_doc
+    page.published_json = document(default_block('heading'))
+
+    def markup(preview=False):
+        return to_xml(storefront(db, site, own.product_page, '', 'csrf', '/', preview=preview))
+
+    def assert_recording(expected, preview=False):
+        html = markup(preview)
+        assert ('data-recent-product=' in html) is expected
+        assert ('widgets-pack4.js' in html) is expected
+
+    assert_recording(False)  # A draft-only widget does not opt the site in.
+    sibling = Site(tenant_id=site.tenant_id, channel_id=site.channel_id, name='Sibling', slug='record-sibling')
+    db.add(sibling)
+    db.flush()
+    sibling_page = SitePage(tenant_id=site.tenant_id, site_id=sibling.id, title='Other',
+        path='/', kind='page', draft_json=widget_doc, published_json=widget_doc)
+    db.add(sibling_page)
+    db.flush()
+    assert_recording(False)
+    # Matching text in a published heading is not a widget.
+    page.published_json = document(default_block('heading') | {'heading': 'recently_viewed'})
+    db.flush()
+    assert_recording(False)
+    page.published_json = widget_doc
+    db.flush()
+    assert_recording(True)
+    assert_recording(False, preview=True)
+    site.status = 'preview'
+    assert_recording(False)
+    site.status = 'published'
+    page.published_json = None
+    db.flush()
+    assert_recording(False)
+
+
+@pytest.mark.parametrize('status', ['brief', 'draft', 'preview', 'published'])
+def test_recent_route_requires_publication(workspace, monkeypatch, status):
+    w = workspace
+    with w.sessions() as db:
+        own = seed_catalog(db, w.site)
+        site = db.get(Site, w.site.id)
+        site.status = status
+        site.hostname = 'gated.example.test'
+        db.commit()
+    with public_client(w, monkeypatch) as client:
+        for path, headers in ((f'/sites/{w.site.slug}/widgets/recently-viewed', {}),
+                ('/widgets/recently-viewed', {'Host': 'gated.example.test'})):
+            response = client.get(path, params={'ids': own.product.id}, headers=headers)
+            assert response.status_code == (200 if status == 'published' else 404)
+            assert (own.product.name in response.text) is (status == 'published')
+
+
+def test_recent_route_respects_storefront_password_gate(workspace, monkeypatch):
+    from app import store_preferences
+
+    w = workspace
+    with w.sessions() as db:
+        own = seed_catalog(db, w.site)
+        site = db.get(Site, w.site.id)
+        site.status = 'published'
+        site.hostname = 'private.example.test'
+        preferences = store_preferences.save_preferences(db, site, {
+            'password_enabled': True, 'password': 'widget-store-pass-123'})
+        token = store_preferences.access_token(site, preferences)
+        db.commit()
+    with public_client(w, monkeypatch) as client:
+        for path, headers in ((f'/sites/{w.site.slug}/widgets/recently-viewed', {}),
+                ('/widgets/recently-viewed', {'Host': 'private.example.test'})):
+            denied = client.get(path, params={'ids': own.product.id}, headers=headers, follow_redirects=False)
+            assert denied.status_code == 303
+            assert denied.headers['location'].endswith('/password')
+            assert own.product.name not in denied.text
+            allowed = client.get(path, params={'ids': own.product.id}, headers=headers | {
+                'Cookie': f'fastshop_store_{w.site.id}={token}'})
+            assert allowed.status_code == 200 and own.product.name in allowed.text

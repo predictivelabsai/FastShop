@@ -314,18 +314,6 @@ def validate_widget_field(value, key, spec):
 
 
 def validate_widget(block):
-    if is_legacy_team(block):
-        # Existing editorial people blocks retain their original fields and output.
-        if not isinstance(block.get("items", []), list) or len(block.get("items", [])) > 200:
-            raise CommerceError("Block entries must be a list of up to 200 objects.")
-        for item in block.get("items", []):
-            if not isinstance(item, dict) or "heading" not in item or set(item) - {"heading", "body", "url", "theme", "image", "alt", "label", "value"}:
-                raise CommerceError("Choose supported people fields with a heading.")
-            from app.site_blocks import _text
-
-            for key, value in item.items():
-                _text(value, key)
-        return block
     definition = WIDGETS[block["type"]]
     for key, spec in definition.fields.items():
         if key in block:
@@ -355,12 +343,6 @@ def validate_widget(block):
     return block
 
 
-def is_legacy_team(block):
-    return block.get("type") == "team" and "columns" not in block and isinstance(block.get("items", []), list) and all(
-        isinstance(item, dict) and "heading" in item and "name" not in item
-        for item in block.get("items", []))
-
-
 WIDGET_CSS = """.fs-widget{box-sizing:border-box;max-width:var(--store-width,1200px);margin-inline:auto;padding:24px;position:relative}.fs-widget img{max-width:100%;height:auto;display:block}.fs-widget video,.fs-widget iframe{width:100%;aspect-ratio:16/9;border:0}.fs-widget-grid{display:grid;grid-template-columns:repeat(var(--fs-columns,2),minmax(0,1fr));gap:var(--fs-gap,24px)}.fs-widget .fs-widget{width:100%;padding:16px}.fs-widget-button{display:inline-block;padding:12px 24px;border-radius:var(--store-radius,var(--button-radius,6px));background:var(--store-accent,var(--primary,var(--accent,#145cce)));color:white;text-decoration:none}.fs-widget-secondary{background:transparent;border:1px solid currentColor;color:inherit}.fs-widget-link{background:transparent;color:inherit;padding:0;text-decoration:underline}.fs-widget details{border-bottom:1px solid #ddd;padding:16px 0}.fs-widget summary{cursor:pointer;font-weight:600}.fs-widget-placeholder{min-height:140px;background:#f2f3f4;display:grid;place-items:center;color:#656b73}.fs-widget blockquote{margin:0;font-size:1.2em}.fs-widget ul{padding-left:24px}@media(min-width:1025px){.fs-hide-desktop{display:none!important}}@media(min-width:641px) and (max-width:1024px){.fs-hide-tablet{display:none!important}}@media(max-width:640px){.fs-hide-mobile{display:none!important}.fs-stack-mobile{grid-template-columns:1fr!important}}"""
 
 
@@ -378,7 +360,7 @@ def strip_editor_hooks(node):
 
 
 def needs_widget_css(blocks):
-    return any(block["type"] in WIDGETS and not is_legacy_team(block) or block.get("style") or
+    return any(block["type"] in WIDGETS or block.get("style") or
                needs_widget_css(block.get("children", [])) for block in blocks)
 
 
@@ -388,7 +370,7 @@ def needs_widget_js(blocks):
 
 def needs_widgets(blocks, kinds):
     """Find pack assets recursively, including widgets nested in containers."""
-    return any(block["type"] in kinds and not is_legacy_team(block) or needs_widgets(block.get("children", []), kinds) for block in blocks)
+    return any(block["type"] in kinds or needs_widgets(block.get("children", []), kinds) for block in blocks)
 
 
 def needs_pack1_css(blocks):
@@ -500,8 +482,6 @@ def _mark_fields(node, block):
 
 def render_widget(db, site, page, config, block, base, csrf, preview, render_child):
     kind = block["type"]
-    if is_legacy_team(block):
-        return None
     if kind not in WIDGETS:
         return None
     if kind in PACK1_WIDGETS:

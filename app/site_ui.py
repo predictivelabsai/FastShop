@@ -44,17 +44,16 @@ from fasthtml.common import (
     Title,
     Video,
 )
-from sqlalchemy import select
+from sqlalchemy import String, cast, select
 
 from app.content import catalog_product, site_pages
-from app.models import Category, Product, ProductVariant, SiteMedia, VariantChannelListing
+from app.models import Category, Product, ProductVariant, SiteMedia, SitePage, VariantChannelListing
 from app.services import money
 from app.site_blocks import default_locale, resolve_document
 from app.site_widgets import (
     WIDGET_CSS,
     WIDGETS,
     decorate_block,
-    is_legacy_team,
     needs_pack1_css,
     needs_pack2_css,
     needs_pack2_js,
@@ -64,6 +63,7 @@ from app.site_widgets import (
     needs_pack4_js,
     needs_widget_css,
     needs_widget_js,
+    needs_widgets,
     render_widget,
     strip_editor_hooks,
 )
@@ -174,7 +174,7 @@ def product_cards(db, site, base, category=""):
 def render_section(db, site, page, config, section, base, csrf, preview=False, first=False, *, blog_articles=None):
     node = render_widget(db, site, page, config, section, base, csrf, preview,
                          lambda child: render_section(db, site, page, config, child, base, csrf, preview))
-    if node is not None or section["type"] in WIDGETS and not is_legacy_team(section):
+    if node is not None or section["type"] in WIDGETS:
         return node
     return decorate_block(_render_section(db, site, page, config, section, base, csrf, preview, first, blog_articles=blog_articles), section, preview)
 
@@ -297,6 +297,16 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
     return Section(intro, cta(section, base), cls="h-section h-container h-editorial")
 
 
+def has_published_recently_viewed(db, site):
+    """Load only matching published page documents, within this site and tenant."""
+    documents = db.scalars(select(SitePage.published_json).where(
+        SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+        SitePage.published_json.is_not(None),
+        cast(SitePage.published_json, String).contains('"recently_viewed"')))
+    return any(needs_widgets(doc.get("blocks", doc.get("sections", [])) if isinstance(doc, dict) else doc,
+                             {"recently_viewed"}) for doc in documents)
+
+
 def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag=""):
     from app.site_theme import pack_renderer
     config = site.settings_json if preview else site.published_settings_json
@@ -320,6 +330,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             ga4_item = {"item_id": ga4_product.slug, "item_name": ga4_product.name,
                         "currency": ga4_listing.currency if ga4_listing else "USD",
                         "price": round(ga4_listing.price_minor / 100, 2) if ga4_listing else 0}
+    record_recent_product = bool(not preview and site.status == "published" and
+        page.kind == "product" and page.product_id and has_published_recently_viewed(db, site))
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
     document = resolve_document(page.draft_json if preview else page.published_json, default_locale(site, preview=preview))
@@ -396,8 +408,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Link(rel="stylesheet", href=static_asset("widgets-pack3.css")) if needs_pack3_css(document["blocks"]) else None,
         Script(src=static_asset("widgets-pack3.js"), defer=True) if needs_pack3_js(document["blocks"]) else None,
         Link(rel="stylesheet", href=static_asset("widgets-pack4.css")) if needs_pack4_css(document["blocks"]) else None,
-        Script(src=static_asset("widgets-pack4.js"), defer=True) if needs_pack4_js(document["blocks"]) or page.kind == "product" and page.product_id and not preview else None,
-        Div(hidden=True, data_recent_product=page.product_id, data_site_id=site.id) if page.kind == "product" and page.product_id and not preview else None,
+        Script(src=static_asset("widgets-pack4.js"), defer=True) if needs_pack4_js(document["blocks"]) or record_recent_product else None,
+        Div(hidden=True, data_recent_product=page.product_id, data_site_id=site.id) if record_recent_product else None,
         Script(src=static_asset("site-preview.js"), defer=True) if preview else None,
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if customer_services_enabled and not preview else None,

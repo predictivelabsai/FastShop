@@ -27,7 +27,7 @@ def register_site_widget_routes(rt, actor, csrf, check_csrf, shell, error):
 
         with SessionLocal() as db:
             # Slug is the public site lookup; all subsequent owned queries use its tenant.
-            site = db.scalar(select(Site).where(Site.slug == slug, Site.status.in_(["preview", "published"])))
+            site = db.scalar(select(Site).where(Site.slug == slug, Site.status == "published"))
             if site is None:
                 return HTMLResponse("", status_code=404, headers=headers)
             base = request.scope.get("site_base", f"/sites/{site.slug}")

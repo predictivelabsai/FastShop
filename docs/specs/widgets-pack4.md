@@ -22,7 +22,7 @@ follow the existing numbered pack names.
 | Flip cards | Content | One to six cards with image or icon fronts and readable back content. A real button supports pointer, tap, Enter and Space, with `aria-expanded`. Reduced motion avoids rotation. |
 | Call to action box | Marketing | Bordered or filled message, optional image and overlay, two actions and inline or stacked layout. |
 | Video lightbox | Media | Poster and play link. Opening creates a privacy enhanced YouTube/Vimeo iframe or local MP4 video in a native modal dialog. Closing removes the media and restores focus. No third party video request occurs before opening. Without JavaScript, the link opens the supplied video. |
-| Team | Content | One to twelve generic member cards with photos, names, roles, biographies and up to three validated social links. Two to four desktop columns. Existing legacy team documents retain their original rendering. |
+| Team (`team_members`) | Content | One to twelve generic member cards with photos, names, roles, biographies and up to three validated social links. Two to four desktop columns. Legacy `team` (People) documents retain their original validation, editor and rendering; the two types use distinct keys. |
 | Pull quote | Content | An editorial figure with blockquote, optional attribution/source and plain, bordered or accent styling. It has no review rating. |
 | Button group | Content | One to four links using existing button styles, alignment and mobile stacking/width choices. |
 | Shop the look | Commerce | Lifestyle image with up to eight product hotspots and a plain product list. Products must be published on this site, owned by this tenant and priced in the site's channel. Links lead to product pages. |
@@ -35,15 +35,27 @@ makes no invented merchant or customer claims. Interactive targets are at least
 
 ## Recently viewed privacy and routing
 
-Published site product pages record the product ID in the visitor's localStorage,
-whether or not a recently viewed widget exists on that site. The key is
+Published site product pages record the product ID in the visitor's localStorage
+only when any published page on that site contains a `recently_viewed` widget,
+including inside a container. A tenant- and site-scoped query filters candidate
+published documents before checking their block trees. Draft-only widgets do not
+enable recording, and preview pages never record. Without a published widget,
+product pages emit neither a recording marker nor the pack 4 script (unless
+another interactive pack 4 widget on that page needs it). The key is
 `fastshop:recently-viewed:{siteId}`. The newest product appears first; duplicates
 are removed and the list is capped at eight IDs. Access is guarded with
 try/catch so storage denial or corrupt data leaves the page usable. Nothing is
-stored server-side.
+stored server-side. Existing lists are left untouched when the widget is removed.
+
+Open question: should this storage additionally wait for cookie consent? The
+existing consent model distinguishes essential, analytics and marketing storage
+but does not clearly classify recently viewed preference storage. Consent gating
+is unchanged pending that decision.
 
 The widget requests `GET /sites/{slug}/widgets/recently-viewed?ids=...`. Host routed
 stores use `/widgets/recently-viewed`, rewritten through `SiteHostMiddleware`.
+The fragment route requires a published site; preview and other non-published
+sites return 404. The shared storefront password gate also applies.
 The route accepts at most eight UUID identifiers, rejects malformed or oversized
 lists, preserves visitor order and returns an HTML fragment. Unknown IDs produce
 an empty fragment. Responses use `Cache-Control: private, no-store` and `Vary:
