@@ -157,7 +157,7 @@ def pack_definitions(definition):
                 "show_dots": True,
                 "height": "medium",
                 "text_position": "centre",
-                "overlay_opacity": 30,
+                "overlay_opacity": 60,
             },
             {
                 "autoplay": {"kind": "toggle"},
@@ -169,6 +169,8 @@ def pack_definitions(definition):
                 "overlay_opacity": number(0, 80, "%"),
             },
             items(slide, slide_fields, 1, 8),
+            icon="slideshow",
+            description="Rotating images with text and buttons",
         ),
         "image_banner": definition(
             "Image banner",
@@ -198,6 +200,8 @@ def pack_definitions(definition):
                 "height": height,
                 "text_colour": {"kind": "colour"},
             },
+            icon="banner",
+            description="Pair a full-width image with a message",
         ),
         "before_after": definition(
             "Before and after",
@@ -222,6 +226,8 @@ def pack_definitions(definition):
                 "split": number(10, 90, "%"),
                 "orientation": choice("horizontal", "vertical"),
             },
+            icon="compare",
+            description="Compare two images with a slider",
         ),
         "logo_cloud": definition(
             "Logo cloud",
@@ -229,6 +235,8 @@ def pack_definitions(definition):
             {"heading": "Your logos", "columns": 4, "greyscale": False, "items": [logo.copy()]},
             {"heading": text(), "columns": number(2, 8), "greyscale": {"kind": "toggle"}},
             items(logo, {"image": text("image"), "alt": text(), "link": text("url")}, 0, 24),
+            icon="logos",
+            description="Show brands, partners or accreditations",
         ),
         "icon_box": definition(
             "Icon boxes",
@@ -246,6 +254,8 @@ def pack_definitions(definition):
                 1,
                 12,
             ),
+            icon="features",
+            description="Highlight features with icons and text",
         ),
         "image_hotspots": definition(
             "Image hotspots",
@@ -264,6 +274,8 @@ def pack_definitions(definition):
                 0,
                 10,
             ),
+            icon="hotspots",
+            description="Reveal details at points on an image",
         ),
         "section_heading": definition(
             "Section heading",
@@ -282,6 +294,8 @@ def pack_definitions(definition):
                 "alignment": align,
                 "level": choice("h1", "h2", "h3", "h4", "h5", "h6"),
             },
+            icon="section-title",
+            description="Introduce a section with a title and subtitle",
         ),
         "video_embed": definition(
             "Video embed",
@@ -292,6 +306,8 @@ def pack_definitions(definition):
                 "poster": text("image"),
                 "aspect": choice("16/9", "4/3", "1/1"),
             },
+            icon="embed-video",
+            description="Embed a YouTube or Vimeo video",
         ),
     }
 
@@ -365,7 +381,7 @@ def render_pack_widget(block, base="", preview=False):
             cls="fs-pack-banner",
             data_position=block.get("text_position", block.get("content_position", "centre")),
             data_height=block.get("height", "medium"),
-            style=f"--fs-overlay:{block.get('overlay_opacity', 30) / 100};color:{block.get('text_colour', '#ffffff')}",
+            style=f"--fs-overlay:{block.get('overlay_opacity', 60 if kind == 'slideshow' else 30) / 100};color:{block.get('text_colour', '#ffffff')}",
         )
 
     children, attrs = [], {}
@@ -383,16 +399,28 @@ def render_pack_widget(block, base="", preview=False):
         children = [
             Div(*slides, cls="fs-pack-slides"),
             Div(
-                Button("Previous slide", type="button", data_slide_prev="", cls="fs-pack-control")
+                Button(
+                    NotStr(
+                        '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" '
+                        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+                        'stroke-linejoin="round" aria-hidden="true">'
+                        '<path d="m15 6-6 6 6 6"/></svg>'
+                    ),
+                    type="button",
+                    aria_label="Previous slide",
+                    data_slide_prev="",
+                    cls="fs-pack-control fs-pack-arrow",
+                )
                 if block.get("show_arrows", True)
                 else None,
                 Div(
                     *[
                         Button(
-                            str(i + 1),
+                            Span(aria_hidden="true"),
                             type="button",
                             data_slide_to=str(i),
-                            aria_label=f"Show slide {i + 1}",
+                            aria_label=f"Go to slide {i + 1}",
+                            aria_current="true" if i == 0 else "false",
                             cls="fs-pack-dot",
                         )
                         for i in range(len(slides))
@@ -401,7 +429,18 @@ def render_pack_widget(block, base="", preview=False):
                 )
                 if block.get("show_dots", True)
                 else None,
-                Button("Next slide", type="button", data_slide_next="", cls="fs-pack-control")
+                Button(
+                    NotStr(
+                        '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" '
+                        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+                        'stroke-linejoin="round" aria-hidden="true">'
+                        '<path d="m9 6 6 6-6 6"/></svg>'
+                    ),
+                    type="button",
+                    aria_label="Next slide",
+                    data_slide_next="",
+                    cls="fs-pack-control fs-pack-arrow",
+                )
                 if block.get("show_arrows", True)
                 else None,
                 Button(
@@ -409,7 +448,8 @@ def render_pack_widget(block, base="", preview=False):
                     type="button",
                     data_slide_pause="",
                     aria_pressed="false",
-                    cls="fs-pack-control",
+                    cls="fs-pack-control fs-pack-pause",
+                    hidden=True,
                 )
                 if block.get("autoplay")
                 else None,
@@ -419,6 +459,7 @@ def render_pack_widget(block, base="", preview=False):
                 hidden=True,
             ),
         ]
+        children = [Div(*children, cls="fs-pack-slideshow-stage")]
         attrs = {
             "data_slideshow": "",
             "role": "region",

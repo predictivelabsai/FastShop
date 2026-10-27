@@ -113,6 +113,25 @@ ADVANCED_IDS = {
 
 
 
+LEGACY_PICKER = {
+    "hero": ("hero", "Open with a large image or video"),
+    "text": ("text", "Add an editorial text section"),
+    "split": ("split", "Place an image beside your story"),
+    "products": ("catalogue", "Feature a selection from your catalogue"),
+    "facts": ("chart", "Present key figures at a glance"),
+    "claims": ("shield", "Share reviewed statements with evidence"),
+    "reviews": ("reviews", "Show a selection of customer reviews"),
+    "articles": ("articles", "Highlight your latest articles"),
+    "research": ("library", "Collect research and supporting resources"),
+    "faq": ("question", "Answer common customer questions"),
+    "team": ("people", "Introduce the people behind your business"),
+    "contact": ("contact", "Let visitors send you a message"),
+    "product": ("product-detail", "Show product information and purchasing options"),
+    "references": ("references", "Link to studies and source material"),
+    "embed": ("embed", "Include content from an external page"),
+}
+
+
 def _registry():
 
     schemas = {}
@@ -227,17 +246,8 @@ def _registry():
         schemas[kind] = {
             "label": label,
             "category": category,
-            "icon": {
-                "Layout": "layout",
-                "Text": "type",
-                "Media": "image",
-                "Commerce": "shopping-bag",
-                "Forms": "mail",
-                "Social proof": "star",
-                "Advanced": "code",
-                "Theme sections": "layers",
-            }[category],
-            "description": f"Add and customise {label.lower()}.",
+            "icon": WIDGETS[kind].icon if kind in WIDGETS else LEGACY_PICKER[kind][0],
+            "description": WIDGETS[kind].description if kind in WIDGETS else LEGACY_PICKER[kind][1],
             "fields": fields,
             "groups": {
                 "Content": [f["id"] for f in fields if not f["id"].startswith("style.")],

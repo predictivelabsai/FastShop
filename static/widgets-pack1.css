@@ -17,6 +17,7 @@
 .fs-pack-banner-copy{padding:clamp(28px,5vw,72px);max-width:760px;min-width:0}
 .fs-pack-banner-copy h2{font-size:clamp(1.8rem,4vw,3.4rem)}
 .fs-pack-banner-copy p{color:inherit}
+.fs-pack-banner-copy :is(h1,h2,h3,p){text-shadow:0 1px 4px rgb(0 0 0 / .45)}
 .fs-pack-banner[data-height=small]{min-height:260px}
 .fs-pack-banner[data-height=large]{min-height:560px}
 .fs-pack-banner[data-height=adapt]:has(img){display:grid;min-height:0}
@@ -33,10 +34,37 @@
 .fs-pack-eyebrow{font-size:.85em;letter-spacing:.08em}
 .fs-pack-slide+.fs-pack-slide{margin-top:16px}
 .fs-pack[data-slideshow][data-enhanced] .fs-pack-slide{margin-top:0}
-.fs-pack-slide-controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;margin-top:14px}
-.fs-pack-control,.fs-pack-dot{min-width:44px;min-height:44px;padding:10px 14px;border:1px solid currentColor;background:transparent;color:inherit;border-radius:var(--store-radius,6px)}
-.fs-pack-dots{display:flex;flex-wrap:wrap;gap:4px}
-.fs-pack-dot[aria-current=true]{background:var(--store-accent,#145cce);color:#fff;border-color:transparent}
+.fs-pack-control{min-width:44px;min-height:44px;padding:10px 14px;border:1px solid currentColor;background:transparent;color:inherit;border-radius:var(--store-radius,6px)}
+.fs-pack-slideshow-stage{position:relative}
+.fs-pack-slide-controls{position:absolute;inset:0;pointer-events:none}
+.fs-pack-slide-controls button{pointer-events:auto}
+.fs-pack-slide-controls .fs-pack-control{background:rgb(20 25 30 / .75);color:#fff;border:1px solid rgb(255 255 255 / .6);box-shadow:0 2px 8px #0003}
+.fs-pack-slide-controls button:focus-visible{outline:3px solid #fff;outline-offset:3px;box-shadow:0 0 0 6px #17212b}
+.fs-pack-slide-controls button:hover{background:#17212b}
+.fs-pack-slide-controls .fs-pack-arrow{position:absolute;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:44px;height:44px;padding:0;border-radius:50%}
+.fs-pack-arrow[data-slide-prev]{left:12px}
+.fs-pack-arrow[data-slide-next]{right:12px}
+.fs-widget-slideshow .fs-pack-banner-copy{padding:56px 80px}
+.fs-pack-dots{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;width:max-content;max-width:100%;border-radius:24px;background:rgb(20 25 30 / .75)}
+.fs-pack-dot{display:grid;place-items:center;flex:0 0 44px;width:44px;min-height:44px;padding:0;border:0;border-radius:50%;background:transparent;color:#fff}
+.fs-pack-dot span{width:8px;height:8px;border:1px solid currentColor;border-radius:50%;background:transparent}
+.fs-pack-dot[aria-current=true] span{background:currentColor;transform:scale(1.25)}
+.fs-pack-slide-controls .fs-pack-pause{position:absolute;bottom:8px;right:12px;font-size:.85rem}
+@media(max-width:640px){
+.fs-pack[data-slideshow][data-enhanced]:has(.fs-pack-slide-controls:not([hidden])){padding-bottom:80px}
+.fs-pack-arrow[data-slide-prev]{left:8px}.fs-pack-arrow[data-slide-next]{right:8px}
+.fs-widget-slideshow .fs-pack-banner-copy{padding:40px 64px}
+.fs-pack-dots{bottom:-62px}
+.fs-pack-slide-controls .fs-pack-pause{bottom:-110px;right:50%;transform:translateX(50%);white-space:nowrap}
+.fs-pack[data-slideshow][data-enhanced]:has(.fs-pack-pause:not([hidden])){padding-bottom:128px}
+}
+@media(max-width:399px){
+.fs-pack[data-slideshow][data-enhanced]:has(.fs-pack-slide-controls:not([hidden]) .fs-pack-dot:nth-child(7)){padding-bottom:124px}
+.fs-pack[data-slideshow]:has(.fs-pack-dot:nth-child(7)) .fs-pack-dots{bottom:-106px}
+.fs-pack[data-slideshow][data-enhanced]:has(.fs-pack-dot:nth-child(7)):has(.fs-pack-pause:not([hidden])){padding-bottom:172px}
+.fs-pack[data-slideshow]:has(.fs-pack-dot:nth-child(7)) .fs-pack-pause{bottom:-154px}
+}
+@media(prefers-reduced-motion:reduce){.fs-pack [data-slide-pause]{display:none!important}}
 .fs-pack-sr{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .fs-pack-compare-stage{display:grid;gap:16px;position:relative;border-radius:var(--store-radius,6px);overflow:hidden}
 .fs-pack-compare-before,.fs-pack-compare-after{position:relative;min-width:0}

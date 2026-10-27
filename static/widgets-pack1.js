@@ -24,8 +24,8 @@
       clearInterval(timer);
       timer = null;
       if (pause) {
-        pause.disabled = reduced.matches;
-        pause.textContent = reduced.matches ? "Autoplay disabled for reduced motion" : paused ? "Play slideshow" : "Pause slideshow";
+        pause.hidden = reduced.matches;
+        pause.textContent = paused ? "Play slideshow" : "Pause slideshow";
       }
       if (root.dataset.autoplay === "true" && !reduced.matches && !paused && !hovered && !focused && slides.length > 1 && !document.hidden && root.isConnected) {
         timer = setInterval(() => {

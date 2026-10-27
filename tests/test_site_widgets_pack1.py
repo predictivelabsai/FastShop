@@ -228,3 +228,39 @@ def test_editor_schema_save_and_publish_all_widgets_with_csrf(workspace):
         stored = db.get(SitePage, w.page.id).published_json
         assert stored["published_at"]
         assert {key: stored[key] for key in doc} == doc
+
+
+def test_picker_metadata_covers_widgets_and_legacy_sections():
+    schemas = editor_schema()
+    icons = []
+    for kind, schema in schemas.items():
+        assert schema["description"] and "Add and customise" not in schema["description"]
+        icons.append(schema["icon"])
+        if kind in WIDGETS:
+            assert schema["icon"] == WIDGETS[kind].icon
+            assert schema["description"] == WIDGETS[kind].description
+    assert len(icons) == len(set(icons))
+
+
+def test_slideshow_controls_and_merchant_overlay(context):
+    db, site, page = context
+    block = default_block("slideshow")
+    block["items"] *= 2
+
+    def markup():
+        return to_xml(render_section(db, site, page, {}, block, "", "csrf", False))
+
+    rendered = markup()
+    assert 'aria-label="Previous slide"' in rendered
+    assert 'aria-label="Next slide"' in rendered
+    assert 'aria-label="Go to slide 2"' in rendered
+    assert '<svg' in rendered
+    assert 'data-slide-pause' not in rendered
+    assert '--fs-overlay:0.6' in rendered
+    assert 'aria-live="polite"' in rendered
+    block.update(autoplay=True, show_arrows=False, show_dots=False, overlay_opacity=15)
+    rendered = markup()
+    assert 'data-slide-pause' in rendered
+    assert 'data-slide-prev' not in rendered and 'data-slide-next' not in rendered
+    assert 'data-slide-to' not in rendered
+    assert '--fs-overlay:0.15' in rendered

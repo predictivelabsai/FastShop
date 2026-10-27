@@ -105,17 +105,50 @@ const locate = (id) => walk().find((n) => n.block.id === id),
 const spec = (t) => state.schema[t] || {},
   schemaLabel = (type) => (spec(type).label || type.replaceAll("_", " ")).replace(/^./, (c) => c.toUpperCase()),
   label = (b) => schemaLabel(b.type);
+const widgetIcons = {
+  "columns": "<rect x=\"3\" y=\"4\" width=\"7\" height=\"16\" rx=\"1\"/><rect x=\"14\" y=\"4\" width=\"7\" height=\"16\" rx=\"1\"/>",
+  "heading": "<path d=\"M5 4v16 M19 4v16 M5 12h14\"/>",
+  "paragraph": "<path d=\"M4 5h16 M4 10h16 M4 15h16 M4 20h10\"/>",
+  "image": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"8\" cy=\"8\" r=\"2\"/><path d=\"m3 18 6-6 4 4 3-3 5 5\"/>",
+  "button": "<rect x=\"2\" y=\"6\" width=\"20\" height=\"12\" rx=\"4\"/><path d=\"M7 12h10 m-3-3 3 3-3 3\"/>",
+  "spacer": "<path d=\"M3 3h18 M3 21h18 M12 6v12 m-3-9 3-3 3 3 m-6 6 3 3 3-3\"/>",
+  "divider": "<path d=\"M3 12h18 M6 4v2 M12 4v2 M18 4v2 M6 18v2 M12 18v2 M18 18v2\"/>",
+  "video": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"m10 8 6 4-6 4Z\"/>",
+  "checklist": "<path d=\"m3 6 2 2 3-4 M11 6h10 m-18 8 2 2 3-4 M11 14h10 M11 20h10\"/>",
+  "gallery": "<rect x=\"7\" y=\"3\" width=\"14\" height=\"14\" rx=\"2\"/><path d=\"m7 14 5-5 3 3 2-2 4 4 M3 7v14h14\"/>",
+  "quote": "<path d=\"M4 6h6v7H6c0 3 1 4 3 5 M14 6h6v7h-4c0 3 1 4 3 5\"/>",
+  "tag": "<path d=\"M3 3h9l9 9-9 9-9-9Z\"/><circle cx=\"8\" cy=\"8\" r=\"1.5\"/>",
+  "products": "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/>",
+  "collections": "<path d=\"M3 7h7l2 2h9v11H3Z M3 7V4h7l2 2h9v3 M7 13h10 M7 16h6\"/>",
+  "mail": "<rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"m3 6 9 7 9-7\"/>",
+  "accordion": "<path d=\"M3 4h18v6H3Z M3 14h18v6H3Z m12-7 2 2 2-2 m-4 10 2 2 2-2\"/>",
+  "code": "<path d=\"m7 6-5 6 5 6 m10-12 5 6-5 6 M14 3l-4 18\"/>",
+  "slideshow": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"14\" rx=\"2\"/><path d=\"M2 7v8 M22 7v8 m-12-8 5 4-5 4\"/><circle cx=\"9\" cy=\"21\" r=\".5\"/><circle cx=\"15\" cy=\"21\" r=\".5\"/>",
+  "banner": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"1\"/><path d=\"M7 9h10 M9 12h6 M10 16h4\"/>",
+  "compare": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M12 2v20 m-5-13-3 3 3 3 m10-6 3 3-3 3\"/>",
+  "logos": "<circle cx=\"6\" cy=\"6\" r=\"3\"/><path d=\"m17 3 4 6h-8Z\"/><rect x=\"3\" y=\"14\" width=\"6\" height=\"6\"/><path d=\"m17 13 4 4-4 4-4-4Z\"/>",
+  "features": "<path d=\"m6 3 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z M13 5h8 M13 9h5 M3 15h7 M3 19h7 M14 14h7v7h-7Z\"/>",
+  "hotspots": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"9\" cy=\"9\" r=\"3\"/><path d=\"M9 7v4 M7 9h4\"/><circle cx=\"17\" cy=\"16\" r=\"2\"/>",
+  "section-title": "<path d=\"M8 3h8 M4 7h16 M12 7v8 M8 15h8 M5 20h14\"/>",
+  "embed-video": "<path d=\"m3 7-2 5 2 5 m18-10 2 5-2 5\"/><rect x=\"6\" y=\"5\" width=\"12\" height=\"14\" rx=\"2\"/><path d=\"m10 9 5 3-5 3Z\"/>",
+  "hero": "<rect x=\"2\" y=\"3\" width=\"20\" height=\"18\" rx=\"1\"/><path d=\"m2 16 5-5 5 5 4-4 6 6 M6 7h12 M8 9h8\"/>",
+  "text": "<path d=\"M3 4h11 M3 8h11 M3 12h18 M3 16h18 M3 20h14 M18 4h3v4h-3Z\"/>",
+  "split": "<rect x=\"2\" y=\"4\" width=\"9\" height=\"16\" rx=\"1\"/><path d=\"m2 17 4-5 5 6 M15 6h7 M15 11h7 M15 16h5\"/>",
+  "catalogue": "<path d=\"M4 3h16v18H4Z M7 7h4v4H7Z M14 7h3 M14 10h3 M7 15h10 M7 18h7\"/>",
+  "chart": "<path d=\"M3 3v18h18 M7 17v-5h3v5 M13 17V8h3v9 M19 17V4h3v13\"/>",
+  "shield": "<path d=\"m12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6Z m-5 10 3 3 7-7\"/>",
+  "reviews": "<path d=\"M3 3h18v13H9l-6 5Z m9-10 1-3 1 3h3l-2 2 1 3-3-2-3 2 1-3-2-2Z\"/>",
+  "articles": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"1\"/><path d=\"M6 6h5v5H6Z M14 6h4 M14 10h4 M6 15h12 M6 18h12\"/>",
+  "library": "<path d=\"M3 4h4v17H3Z M10 4h4v17h-4Z m6 1 4-1 3 16-4 1Z\"/>",
+  "question": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M9 8a3 3 0 0 1 6 0c0 3-3 2-3 5 M12 17h.01\"/>",
+  "people": "<circle cx=\"9\" cy=\"7\" r=\"3\"/><path d=\"M3 21v-3a6 6 0 0 1 12 0v3 M17 4a3 3 0 0 1 0 6 M18 14a5 5 0 0 1 3 5v2\"/>",
+  "contact": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M7 7h10 M7 11h10 M7 15h5 m3 2 2 2 3-4\"/>",
+  "product-detail": "<path d=\"m3 7 5-3 5 3v6l-5 3-5-3Z M3 7l5 3 5-3 M8 10v6 M17 5h4 M17 9h4 M17 13h4 M3 20h18\"/>",
+  "references": "<path d=\"M5 2h10l4 4v16H5Z M15 2v5h4 M8 11h8 M8 15h8 M8 19h5\"/>",
+  "embed": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"M2 8h20 m-13 3-3 3 3 3 m6-6 3 3-3 3\"/>"
+};
 function blockIcon(type) {
-  const category = spec(type).category || "";
-  const path = /image|hero|video|gallery|split|slideshow|before_after|logo_cloud/.test(type)
-    ? '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 5"/>'
-    : /product|catalog|collection|Commerce/.test(type + category)
-      ? '<path d="m4 7 8-4 8 4v10l-8 4-8-4Z M4 7l8 4 8-4 M12 11v10"/>'
-      : /review|testimonial/.test(type)
-        ? '<path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z M7 9h10 M7 13h6"/>'
-        : /heading|richtext|text/.test(type)
-          ? '<path d="M4 5h16 M12 5v15 M8 20h8 M4 5v4 M20 5v4"/>'
-          : '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18 M9 10v10"/>';
+  const path = widgetIcons[spec(type).icon] || widgetIcons.columns;
   return `<svg class="block-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
 }
 const get = (o, p) => p.split(".").reduce((v, k) => v?.[k], o);
