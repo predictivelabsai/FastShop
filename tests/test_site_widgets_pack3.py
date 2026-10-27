@@ -273,6 +273,11 @@ def test_editor_only_offers_current_codes_without_writing_discounts(workspace):
         resources = w.client.get(w.base + '/resources').json()
         assert own.code.id in str(resources)
         assert all(code.id not in str(resources) for code in hidden)
+        schema = load(w)['schema']['promo_banner']
+        code_field = next(field for field in schema['fields'] if field['id'] == 'discount_code')
+        assert code_field['type'] == 'select'
+        assert code_field['options'] == [
+            {'value': '', 'label': 'No discount code'}, {'value': own.code.id, 'label': own.code.code}]
         assert own.code.id in str(w.client.get(w.base + '/resources?q=CODEOWN').json())
         assert own.code.id not in str(w.client.get(w.base + '/resources?q=not-found').json())
         for model, count in before.items():
@@ -382,6 +387,10 @@ def test_foreign_resources_reviews_and_demo_data_never_render_or_appear_in_picke
         for excluded in (foreign.product.id, foreign.collection.id, foreign.code.id,
                          hidden.product.id, hidden.collection.id, hidden.code.id):
             assert excluded not in str(resources)
+        code_field = next(field for field in load(w)['schema']['promo_banner']['fields']
+                          if field['id'] == 'discount_code')
+        assert code_field['options'] == [
+            {'value': '', 'label': 'No discount code'}, {'value': own.code.id, 'label': own.code.code}]
 
 
 @pytest.mark.parametrize(('kind', 'field'), [('featured_collection', 'collection'),
