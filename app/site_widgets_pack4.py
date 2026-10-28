@@ -144,7 +144,7 @@ def render_pack_widget(db, site, block, base="", preview=False):
             Div(*product_cards(db, site, identifiers, base), cls="shop-the-look-products"), cls="shop-the-look-layout"),
             Ul(*details, cls="fs-pack-hotspot-details", aria_label="Look products"), Div("Choose products published on this site.", cls="fs-widget-placeholder") if not identifiers and preview else None]
     elif kind == "recently_viewed":
-        attrs = {"data_recently_viewed": "", "data_site_id": site.id, "data_recently_viewed_url": base + "/widgets/recently-viewed", "data_limit": str(block.get("limit", 8)), "data_preview": str(preview).lower(), "hidden": not preview}
+        attrs = {"data_recently_viewed": "", "data_required_consent": "preferences", "data_site_id": site.id, "data_recently_viewed_url": base + "/widgets/recently-viewed", "data_limit": str(block.get("limit", 8)), "data_preview": str(preview).lower(), "hidden": not preview}
         children = [heading(block.get("heading")), Div("Products viewed on this site will appear here for each visitor.", cls="fs-widget-placeholder") if preview else None,
             Div(data_recently_viewed_content="", cls="fs-pack4-products", style=f"--fs-pack4-columns:{block.get('columns', 4)}")]
     else:
