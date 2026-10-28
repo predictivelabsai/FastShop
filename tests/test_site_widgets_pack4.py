@@ -285,6 +285,7 @@ def test_recent_empty_storefront_and_clear_editor_placeholder(context):
     block = default_block('recently_viewed')
     markup = render(context, block, preview=False)
     assert 'hidden' in markup
+    assert 'data-required-consent="preferences"' in markup
     assert 'viewed' in render(context, block).lower()
 
 
@@ -362,6 +363,7 @@ def test_recent_recording_requires_widget_on_published_site_page(context):
         html = markup(preview)
         assert ('data-recent-product=' in html) is expected
         assert ('widgets-pack4.js' in html) is expected
+        assert ('data-required-consent="preferences"' in html) is expected
 
     assert_recording(False)  # A draft-only widget does not opt the site in.
     sibling = Site(tenant_id=site.tenant_id, channel_id=site.channel_id, name='Sibling', slug='record-sibling')
@@ -428,3 +430,16 @@ def test_recent_route_respects_storefront_password_gate(workspace, monkeypatch):
             allowed = client.get(path, params={'ids': own.product.id}, headers=headers | {
                 'Cookie': f'fastshop_store_{w.site.id}={token}'})
             assert allowed.status_code == 200 and own.product.name in allowed.text
+
+
+def test_storefront_banner_offers_preferences_without_preselecting(context):
+    db, site, page = context
+    page.published_json = document(default_block('recently_viewed'))
+    markup = to_xml(storefront(db, site, page, '', 'csrf', '/'))
+    from bs4 import BeautifulSoup
+
+    banner = BeautifulSoup(markup, 'html.parser').select_one('#h-cookie')
+    preferences = banner.select_one('#consent-preferences')
+    assert preferences['type'] == 'checkbox' and not preferences.has_attr('checked')
+    assert 'products you viewed on this device' in preferences.parent.get_text()
+    assert {button['data-consent'] for button in banner.select('button[data-consent]')} == {'all', 'none', 'custom'}

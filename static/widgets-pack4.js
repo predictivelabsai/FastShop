@@ -8,7 +8,21 @@
   const pointer = window.matchMedia('(hover: hover) and (pointer: fine)');
   const validId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(value);
   const storageKey = site => `fastshop:recently-viewed:${site}`;
+  const choices = new Map();
+  function preferencesAllowed(site) {
+    if (!choices.has(site)) {
+      const currentSite = document.querySelector('.h-site')?.dataset.site
+        || document.querySelector('script[src="/static/store-preferences.js"]')?.dataset.site;
+      let choice = currentSite === site ? window.fastshopConsent : null;
+      if (!choice) { try { choice = JSON.parse(localStorage.getItem(`fastshop-consent:${site}`)); } catch (_) { /* denied */ } }
+      choices.set(site, choice);
+    }
+    const choice = choices.get(site);
+    return choice && choice.version === 1 && typeof choice.analytics === 'boolean'
+      && typeof choice.marketing === 'boolean' && choice.preferences === true;
+  }
   function readViewed(site) {
+    if (!preferencesAllowed(site)) return [];
     try {
       const values = JSON.parse(localStorage.getItem(storageKey(site)) || '[]');
       return Array.isArray(values) ? [...new Set(values.filter(validId))].slice(0, 8) : [];
@@ -135,7 +149,7 @@
   function recordProduct(root) {
     const site = root.dataset.siteId;
     const product = root.dataset.recentProduct;
-    if (!site || !validId(product)) return;
+    if (!site || !validId(product) || !preferencesAllowed(site)) return;
     try {
       localStorage.setItem(storageKey(site), JSON.stringify([product, ...readViewed(site).filter(id => id !== product)].slice(0, 8)));
     } catch (_) { /* Viewing products also works when browser storage is unavailable. */ }
@@ -144,7 +158,9 @@
     if (root.dataset.preview === 'true') return;
     const site = root.dataset.siteId, endpoint = root.dataset.recentlyViewedUrl;
     const target = root.querySelector('[data-recently-viewed-content]');
+    disposers.get(root)?.();
     root.hidden = true;
+    target?.replaceChildren();
     const ids = site ? readViewed(site) : [];
     if (!ids.length || !endpoint || !target) return;
     const controller = new AbortController();
@@ -155,7 +171,9 @@
       url.searchParams.set('ids', ids.slice(0, Math.max(1, Math.min(8, Number(root.dataset.limit) || 8))).join(','));
       const response = await fetch(url, {credentials: 'same-origin', cache: 'no-store', signal: controller.signal});
       if (!response.ok || !root.isConnected) return;
-      target.innerHTML = await response.text();
+      const markup = await response.text();
+      if (controller.signal.aborted || !root.isConnected || !preferencesAllowed(site)) return;
+      target.innerHTML = markup;
       root.hidden = !target.querySelector('a[href]');
     } catch (_) { /* An unavailable fragment leaves the optional section hidden. */ }
   }
@@ -172,6 +190,31 @@
       else if (root.matches('.widget-video-lightbox')) video(root);
     });
   }
+  function applyConsent(site, choice) {
+    choices.set(site, choice);
+    if (!preferencesAllowed(site)) {
+      try { localStorage.removeItem(storageKey(site)); } catch (_) { /* Storage may be unavailable. */ }
+    }
+    document.querySelectorAll('[data-recent-product],[data-recently-viewed]').forEach(root => {
+      if (root.dataset.siteId !== site) return;
+      if (root.hasAttribute('data-recent-product')) recordProduct(root);
+      else recentlyViewed(root);
+    });
+  }
+  window.addEventListener('fastshop:consent', event => {
+    const site = document.querySelector('.h-site')?.dataset.site
+      || document.querySelector('[data-recent-product],[data-recently-viewed]')?.dataset.siteId;
+    if (site) applyConsent(site, event.detail);
+  });
+  window.addEventListener('storage', event => {
+    const sites = new Set([...document.querySelectorAll('[data-recent-product],[data-recently-viewed]')].map(root => root.dataset.siteId));
+    sites.forEach(site => {
+      if (event.key !== null && event.key !== `fastshop-consent:${site}`) return;
+      let choice = null;
+      try { choice = JSON.parse(event.newValue); } catch (_) { /* denied */ }
+      applyConsent(site, choice);
+    });
+  });
   function init() {
     scan(document);
     new MutationObserver(records => records.forEach(record => {
