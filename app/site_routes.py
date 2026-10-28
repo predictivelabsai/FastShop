@@ -20,8 +20,11 @@ from fasthtml.common import (
     Iframe,
     Input,
     Label,
+    Link,
+    NotStr,
     Option,
     P,
+    Script,
     Select,
     Small,
     Span,
@@ -436,6 +439,19 @@ def register_site_routes(rt):
                                 ("offer", "First-order banner"), ("logo", "Logo URL"), ("logo_light", "Light logo URL"),
                                 ("science_date", "Research figures checked as of")]],
                             Label("Footer disclaimer", Textarea(config.get("footer", ""), name="footer", rows=4)),
+                            H3("Policies"),
+                            *[Div(Label(label),
+                                Div(*[Button(command, type="button", data_rich_command=command, aria_label=command.title())
+                                      for command in ("bold", "italic", "formatBlock:h2", "formatBlock:h3", "insertUnorderedList", "insertOrderedList", "createLink")],
+                                    cls="e-rich-toolbar"),
+                                Div(NotStr((config.get("policies") or {}).get(key, "")), contenteditable="true", data_rich_editor=key, role="textbox", aria_multiline="true", cls="e-rich-editor"),
+                                Input(type="hidden", name="policy_" + key, value=(config.get("policies") or {}).get(key, "")), cls="e-rich-field")
+                              for key, label in (("privacy", "Privacy policy"), ("terms", "Terms and conditions"), ("refunds", "Returns and refunds"), ("shipping", "Shipping policy"))],
+                            Script(src="/static/site-rich-editor.js", defer=True),
+                            Link(rel="stylesheet", href="/static/site-rich-editor.css"),
+                            H3("Cookie consent banner"),
+                            *[Label(label, Input(name="consent_" + key, value=(config.get("liquid_consent") or {}).get(key, default), maxlength=1000))
+                              for key, label, default in (("heading", "Heading", "Your privacy, your choice."), ("body", "Message", "Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."), ("accept", "Accept button", "Accept all"), ("decline", "Decline button", "Decline"), ("save", "Save button", "Save preferences"), ("privacy_label", "Policy link label", "Privacy policy"))],
                             H3("Analytics"), Label("GA4 measurement ID (optional)", Input(name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""), placeholder="G-ABC1234567", maxlength=22)),
                             P("Disabled when empty. Published public pages load Google Analytics only after analytics consent. Account and checkout pages are excluded; no Meta pixel is installed. Publish shared settings to apply changes."),
                             H3("Checkout payment methods"),
@@ -476,6 +492,11 @@ def register_site_routes(rt):
                 config["payment_methods"] = ["card"] + (["paypal"] if form.get("offer_paypal") == "on" else [])
                 for key in ("name", "tagline", "email", "company", "address", "announcement", "offer", "logo", "logo_light", "science_date", "footer"):
                     config[key] = str(form.get(key, ""))[:2000]
+                from app.site_widgets import sanitise_html
+                config["policies"] = {key: sanitise_html(str(form.get("policy_" + key, ""))[:100000])
+                                      for key in ("privacy", "terms", "refunds", "shipping")}
+                config["liquid_consent"] = {key: str(form.get("consent_" + key, ""))[:1000].strip()
+                                            for key in ("heading", "body", "accept", "decline", "save", "privacy_label")}
                 for key in ("logo", "logo_light"):
                     if config.get(key):
                         config[key] = content.safe_url(config[key], media=True)
@@ -904,6 +925,22 @@ def register_site_routes(rt):
                     if tag and tag not in {t for p in articles_for(db, site) for t in metadata(p.published_json)["tags"]}:
                         return public_message(request, slug, "Tag not found", status_code=404, plain=False)
             if not page:
+                from app.site_theme import theme_pack
+                policy_key = {
+                    "/pages/privacy-policy": "privacy", "/pages/terms-and-conditions": "terms",
+                    "/pages/returns-and-refunds": "refunds", "/pages/shipping-policy": "shipping",
+                }.get(normalized_path)
+                if policy_key and theme_pack(site.published_settings_json or {}) == "liquid":
+                    from fasthtml.common import H1
+
+                    from app.site_widgets import sanitise_html
+                    from app.storefront_ui import liquid_page
+                    csrf(session)
+                    policy_html = sanitise_html(str(((site.published_settings_json or {}).get("policies") or {}).get(policy_key, "")))
+                    title = {"privacy": "Privacy policy", "terms": "Terms and conditions",
+                             "refunds": "Returns and refunds", "shipping": "Shipping policy"}[policy_key]
+                    body = Div(NotStr(policy_html), cls="liquid-policy-content") if policy_html else P("This policy has not been added yet.", cls="liquid-policy-empty")
+                    return liquid_page(site, request, title, H1(title), body)
                 from app.url_redirects import destination
                 target = destination(db, site, normalized_path)
                 if target:

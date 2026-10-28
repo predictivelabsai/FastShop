@@ -742,7 +742,13 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             SitePage.tenant_id == site.tenant_id,
             SitePage.path == "/pages/privacy-policy",
         )
-    ) is not None
+    ) is not None or bool((config.get("policies") or {}).get("privacy", "").strip())
+    consent_copy = {
+        "heading": "Your privacy, your choice.",
+        "body": "Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them.",
+        "accept": "Accept all", "decline": "Decline", "save": "Save preferences",
+        "privacy_label": "Privacy policy",
+    } | (config.get("liquid_consent") or {})
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(document["title"] if document["title"].endswith(" | " + site.name)
@@ -976,8 +982,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 cls="metal-footer",
             ),
             Div(
-                H2("Your privacy, your choice."),
-                P("Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."),
+                H2(consent_copy["heading"]),
+                P(consent_copy["body"]),
                 Details(
                     Summary("Preferences"),
                     Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"),
@@ -986,12 +992,12 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     Label(Input(type="checkbox", id="consent-marketing"), " Marketing"),
                 ),
                 Div(
-                    Button("Accept all", type="button", data_consent="all"),
-                    Button("Decline", type="button", data_consent="none"),
-                    Button("Save preferences", type="button", data_consent="custom"),
+                    Button(consent_copy["accept"], type="button", data_consent="all"),
+                    Button(consent_copy["decline"], type="button", data_consent="none"),
+                    Button(consent_copy["save"], type="button", data_consent="custom"),
                     cls="liquid-cookie-actions",
                 ),
-                A("Privacy policy", href=url(base, "/pages/privacy-policy"))
+                A(consent_copy["privacy_label"], href=url(base, "/pages/privacy-policy"))
                 if has_privacy_policy else None,
                 id="h-cookie",
                 cls="liquid-cookie",

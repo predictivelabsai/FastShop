@@ -81,6 +81,31 @@ def test_liquid_404_message_and_recovery_links(browser, mapped_host):
     assert 'Sandbox · No live payments' in client.get('/sites/' + site.slug + '/cart').text
 
 
+def test_policy_settings_route_and_consent_without_policy(browser):
+    client, db, site = browser
+    site.published_settings_json = site.published_settings_json | {"policies": {"privacy": "<h2>Privacy</h2><p>Stored policy.</p>"}}
+    db.commit()
+    policy = client.get('/sites/' + site.slug + '/pages/privacy-policy')
+    assert policy.status_code == 200
+    assert '<h2>Privacy</h2><p>Stored policy.</p>' in policy.text
+    assert 'This policy has not been added yet.' not in policy.text
+    site.published_settings_json = site.published_settings_json | {"policies": {}}
+    db.commit()
+    missing = client.get('/sites/' + site.slug + '/pages/privacy-policy')
+    assert missing.status_code == 200
+    assert 'This policy has not been added yet.' in missing.text
+    home = client.get('/sites/' + site.slug + '/')
+    assert 'id="h-cookie"' in home.text
+    assert 'Your privacy, your choice.' in home.text
+    assert 'id="h-cookie"' in home.text and 'Privacy policy</a>' not in home.text
+
+
+def test_policy_html_uses_shared_allow_list_sanitiser():
+    from app.site_widgets import sanitise_html
+    cleaned = sanitise_html('<h2>Policy</h2><p onclick="bad()"><strong>Text</strong><script>alert(1)</script><a href="javascript:alert(1)">link</a></p>')
+    assert cleaned == '<h2>Policy</h2><p><strong>Text</strong><a href="" rel="noopener noreferrer">link</a></p>'
+
+
 def test_cart_checkout_native_forms_and_error_shell(browser):
     client, db, site = browser
     base = '/sites/' + site.slug
