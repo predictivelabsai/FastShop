@@ -1,4 +1,5 @@
 /* Dependency-free merchant editor. All saved content passes server validation. */
+import { hotspotPreview, hotspotRowsChanged, wireHotspotPreview } from "./hotspots.js";
 const boot = window.FASTSHOP_EDITOR;
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -696,7 +697,7 @@ function fieldHTML(f, obj, prefix = "") {
         ? ""
         : `<button data-repeat-add="${esc(path)}" ${rows.length >= (f.max ?? 50) ? "disabled" : ""}>+ Add item</button>`);
   } else if (["image", "video"].includes(f.type))
-    html = `${f.type === "image" && v && !v.startsWith("metafield:") ? `<img class="field-media-preview" src="${esc(v)}" alt="Selected image">` : ""}<input ${attrs} value="${esc(v)}" placeholder="Media URL"><button data-media="${esc(path)}">Choose media</button>`;
+    html = `${f.type === "image" && obj.type !== "image_hotspots" && v && !v.startsWith("metafield:") ? `<img class="field-media-preview" src="${esc(v)}" alt="Selected image">` : ""}<input ${attrs} value="${esc(v)}" placeholder="Media URL"><button data-media="${esc(path)}">Choose media</button>`;
   else
     html = `<div class="field-inline"><input ${attrs} type="${f.type === "number" ? "number" : f.type === "datetime" ? "datetime-local" : "text"}" value="${esc(Array.isArray(v) ? v.join(", ") : v)}" ${f.min !== undefined ? `min="${f.min}"` : ""} ${f.max !== undefined ? `max="${f.max}"` : ""}>${["url", "link", "product", "collection"].includes(f.type) ? `<button data-link="${esc(path)}" aria-label="Choose ${esc(f.label)}">↗</button>` : ""}</div>`;
   const dynamicKind = f.dynamic_source || (!f.id.startsWith("style.") && ["text", "textarea", "richtext"].includes(f.type) ? "text" : f.type === "image" ? "image" : "");
@@ -754,7 +755,7 @@ function renderSettings() {
   );
   $("#settings-content").innerHTML =
     `<div class="settings-fields">${selectedFields()
-      .map((f) => fieldHTML(f, n.block))
+      .map((f) => (f.id === "items" ? hotspotPreview(n.block) : "") + fieldHTML(f, n.block))
       .join(
         "",
       )}${tab === "Advanced" ? `<div class="field"><label for="move-into">Move into container</label><select id="move-into"><option value="">Choose container</option><option value="root">Page (top level)</option>${containers.map((x) => `<option value="${esc(x.block.id)}">${esc(label(x.block))} · ${esc(x.block.id.slice(-6))}</option>`).join("")}</select></div>` : ""}</div>`;
@@ -762,6 +763,9 @@ function renderSettings() {
     setField(n.block, path, v);
     changed(`Change ${path}`);
   });
+  // Replacing the panel also replaces its delegated preview input handler.
+  $("#settings-content").oninput = null;
+  wireHotspotPreview($("#settings-content"), n.block);
   if ($("#move-into"))
     $("#move-into").onchange = (e) => {
       if (e.target.value === "root")
@@ -830,7 +834,7 @@ function wireFields(obj, update, root = "#settings-content") {
           `[data-setting="${CSS.escape(el.dataset.companion)}"]`,
         );
         input.value = el.value;
-        input.dispatchEvent(new Event("input"));
+        input.dispatchEvent(new Event("input", { bubbles: true }));
       }),
   );
   host.querySelectorAll("[data-swatch]").forEach(
@@ -888,10 +892,12 @@ function wireFields(obj, update, root = "#settings-content") {
           f = findField(path, spec(obj.type).fields || []);
         if (a === "remove") {
           if (rows.length <= (f.min ?? 0)) return;
+          if (path === "items") hotspotRowsChanged(obj, i, null);
           rows.splice(i, 1);
         } else {
           const j = i + (a === "up" ? -1 : 1);
           if (j < 0 || j >= rows.length) return;
+          if (path === "items") hotspotRowsChanged(obj, i, j);
           [rows[i], rows[j]] = [rows[j], rows[i]];
         }
         update(path, rows);
@@ -918,6 +924,7 @@ function wireFields(obj, update, root = "#settings-content") {
           e.dataTransfer.getData("application/x-fastshop-repeater"),
         );
         if (from.path !== el.dataset.repeater) return;
+        if (from.path === "items") hotspotRowsChanged(obj, from.index, Number(el.dataset.index));
         const rows = copy(get(obj, from.path)),
           [item] = rows.splice(from.index, 1);
         rows.splice(Number(el.dataset.index), 0, item);

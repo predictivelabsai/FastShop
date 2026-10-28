@@ -1,8 +1,13 @@
 """Layout/media registry, safe input and editor persistence contracts."""
 
 import copy
+import json
+import shutil
+import subprocess
+from pathlib import Path
 
 import pytest
+from bs4 import BeautifulSoup
 from fasthtml.common import to_xml
 
 from app.models import SitePage
@@ -264,3 +269,66 @@ def test_slideshow_controls_and_merchant_overlay(context):
     assert 'data-slide-prev' not in rendered and 'data-slide-next' not in rendered
     assert 'data-slide-to' not in rendered
     assert '--fs-overlay:0.15' in rendered
+
+
+@pytest.mark.parametrize("source", ["/static/img/storefront-object.jpg", "", "metafield:custom.photo"])
+def test_hotspot_editor_preview_markup(source):
+    """Exercise the actual dependency-free settings renderer, including escaping."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js is needed to exercise the editor renderer")
+    module = (Path(__file__).resolve().parents[1] / "static/editor/hotspots.js").as_uri()
+    block = default_block("image_hotspots")
+    block.update(image=source, alt='Detail "image" <test>')
+    block["items"] = [block["items"][0] | {"x": 0, "y": 100},
+                      block["items"][0] | {"x": 72, "y": 34}]
+    result = subprocess.run(
+        [node, "--input-type=module", "-e",
+         f"import {{hotspotPreview}} from {json.dumps(module)}; "
+         "let data = ''; for await (const chunk of process.stdin) data += chunk; "
+         "process.stdout.write(hotspotPreview(JSON.parse(data)));"],
+        input=json.dumps(block), text=True, capture_output=True, check=True,
+    )
+    markup = BeautifulSoup(result.stdout, "html.parser")
+    preview = markup.select_one("[data-hotspot-editor]")
+    assert preview is not None
+    stage = preview.select_one("[data-hotspot-stage]")
+    assert stage["aria-label"] == "Hotspot placement preview"
+    instructions = markup.find(id=stage["aria-describedby"])
+    assert "You can also type the position below." in instructions.text
+    assert "tabindex" not in stage.attrs
+    if not source or source.startswith("metafield:"):
+        assert not stage.select("img, button")
+        assert "Add an image" in preview.select_one("[data-hotspot-empty]").text
+        return
+    image = stage.select_one("img")
+    assert image["src"] == source and image["alt"] == block["alt"]
+    markers = stage.select("[data-hotspot-index]")
+    assert len(markers) == 2
+    for index, marker in enumerate(markers):
+        assert marker["type"] == "button"
+        assert marker["data-hotspot-index"] == str(index)
+        assert marker["aria-label"] == f"Select hotspot {index + 1}"
+        assert marker["aria-pressed"] == str(index == 0).lower()
+        item = block["items"][index]
+        assert marker["style"] == f"left:{item['x']}%;top:{item['y']}%"
+
+
+def test_hotspot_typed_coordinates_save_and_reject_invalid_values(workspace):
+    w = workspace
+    loaded = load(w)
+    block = default_block("image_hotspots")
+    block["image"] = "/static/img/storefront-object.jpg"
+    block["items"][0].update(x=27, y=83)
+    values = {"document": document(block), "version": loaded["version"]}
+    params = {"page": w.page.id}
+    assert w.client.put(w.base + "/draft", params=params, json=values).status_code == 403
+    saved = w.client.put(w.base + "/draft", params=params, json=values, headers=w.headers)
+    assert saved.status_code == 200, saved.text
+    assert load(w)["document"]["blocks"][0]["items"][0] == block["items"][0]
+    values["version"] = saved.json()["version"]
+    for invalid in (-1, 101, 27.5):
+        block["items"][0]["x"] = invalid
+        response = w.client.put(w.base + "/draft", params=params, json=values, headers=w.headers)
+        assert response.status_code == 422, response.text
+    assert load(w)["document"]["blocks"][0]["items"][0]["x"] == 27
