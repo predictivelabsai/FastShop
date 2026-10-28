@@ -31,23 +31,29 @@
   const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Consent still applies in memory. */ } };
   const savedConsent = read(consentKey);
   const validConsent = savedConsent && savedConsent.version === 1 && typeof savedConsent.analytics === 'boolean' && typeof savedConsent.marketing === 'boolean';
-  let consent = validConsent ? savedConsent : {analytics: false, marketing: false};
+  let consent = validConsent ? savedConsent : {analytics: false, marketing: false, preferences: false};
   cookie.hidden = Boolean(validConsent);
   document.querySelector('#consent-analytics').checked = Boolean(consent.analytics);
   document.querySelector('#consent-marketing').checked = Boolean(consent.marketing);
+  document.querySelector('#consent-preferences').checked = consent.preferences === true;
   window.fastshopConsent = consent;
   // Adapters must observe this event and stop collection on withdrawal.
-  document.querySelectorAll('[data-consent]').forEach(button => button.addEventListener('click', () => {
+  document.querySelectorAll('button[data-consent]').forEach(button => button.addEventListener('click', () => {
     const mode = button.dataset.consent;
     consent = {essential: true, analytics: mode === 'all' || (mode === 'custom' && document.querySelector('#consent-analytics').checked),
+      preferences: mode === 'all' || (mode === 'custom' && document.querySelector('#consent-preferences').checked),
       marketing: mode === 'all' || (mode === 'custom' && document.querySelector('#consent-marketing').checked), version: 1, at: new Date().toISOString()};
     write(consentKey, consent);
+    if (!consent.preferences) {
+      try { localStorage.removeItem(`fastshop:recently-viewed:${root.dataset.site}`); } catch (_) { /* Storage may be unavailable. */ }
+    }
     window.fastshopConsent = consent;
     window.dispatchEvent(new CustomEvent('fastshop:consent', {detail: consent}));
     cookie.hidden = true;
   }));
   document.querySelectorAll('[data-cookie-open]').forEach(button => button.addEventListener('click', () => {
     cookie.hidden = false;
+    document.querySelector('#consent-preferences').checked = consent.preferences === true;
     document.querySelector('#consent-analytics').checked = consent.analytics;
     document.querySelector('#consent-marketing').checked = consent.marketing;
     cookie.querySelector('button').focus();

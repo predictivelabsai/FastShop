@@ -48,17 +48,23 @@
     const panel = document.createElement('aside');
     panel.setAttribute('aria-label', 'Cookie preferences');
     panel.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;max-width:440px;background:#fff;color:#182a21;padding:20px;border:1px solid #cbd4cf;border-radius:12px;z-index:1000;box-shadow:0 4px 30px #0002;font:14px system-ui';
-    panel.innerHTML = '<strong>Cookie preferences</strong><p>Choose whether to allow analytics and marketing cookies.</p><label><input type="checkbox" data-pref="analytics"> Analytics</label> <label><input type="checkbox" data-pref="marketing"> Marketing</label><div style="margin-top:12px"><button data-choice="all">Accept all</button> <button data-choice="none">Decline</button> <button data-choice="custom">Save preferences</button></div>';
+    panel.innerHTML = '<strong>Cookie preferences</strong><p>Choose whether to allow preferences, analytics and marketing storage.</p><label><input type="checkbox" id="consent-preferences" data-pref="preferences"> Preferences: remembers things like products you viewed on this device</label> <label><input type="checkbox" data-pref="analytics"> Analytics</label> <label><input type="checkbox" data-pref="marketing"> Marketing</label><div style="margin-top:12px"><button data-choice="all">Accept all</button> <button data-choice="none">Decline</button> <button data-choice="custom">Save preferences</button></div>';
     const open = document.createElement('button'); open.textContent = 'Cookie preferences';
     open.style.cssText = 'position:fixed;bottom:12px;right:12px;z-index:999;font:12px system-ui;padding:6px';
     document.body.append(panel, open);
     panel.hidden = Boolean(consent && consent.version === 1);
-    open.onclick = () => { panel.hidden = false; };
+    const syncChoices = () => panel.querySelectorAll('[data-pref]').forEach(input => { input.checked = consent?.[input.dataset.pref] === true; });
+    syncChoices();
+    open.onclick = () => { syncChoices(); panel.hidden = false; };
     panel.querySelectorAll('[data-choice]').forEach(button => { button.onclick = () => {
       const choice = button.dataset.choice;
       consent = {version:1, essential:true, analytics:choice === 'all' || (choice === 'custom' && panel.querySelector('[data-pref="analytics"]').checked),
+        preferences:choice === 'all' || (choice === 'custom' && panel.querySelector('[data-pref="preferences"]').checked),
         marketing:choice === 'all' || (choice === 'custom' && panel.querySelector('[data-pref="marketing"]').checked)};
       try { localStorage.setItem(key, JSON.stringify(consent)); } catch (_) { /* memory only */ }
+      if (!consent.preferences) {
+        try { localStorage.removeItem(`fastshop:recently-viewed:${config.dataset.site}`); } catch (_) { /* Storage may be unavailable. */ }
+      }
       window.fastshopConsent = consent;
       panel.hidden = true;
       window.dispatchEvent(new CustomEvent('fastshop:consent', {detail:consent}));

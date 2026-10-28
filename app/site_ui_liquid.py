@@ -715,7 +715,18 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     if content is not None:
         blocks = list(content)
     from app.site_theme import theme_style
-    from app.site_widgets import LIQUID_DESIGN_CSS, WIDGET_CSS, needs_widget_css
+    from app.site_widgets import (
+        LIQUID_DESIGN_CSS,
+        WIDGET_CSS,
+        needs_pack1_css,
+        needs_pack2_css,
+        needs_pack2_js,
+        needs_pack3_css,
+        needs_pack3_js,
+        needs_pack4_css,
+        needs_pack4_js,
+        needs_widget_css,
+    )
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(document["title"] if document["title"].endswith(" | " + site.name)
@@ -735,6 +746,18 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         faq_jsonld(document["blocks"]) if page.path == "/faq" else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid.css")),
         Script(src=static_asset("site-liquid.js"), defer=True),
+        Link(rel="stylesheet", href=static_asset("site-liquid-consent.css")),
+        Script(src=static_asset("site-liquid-consent.js"), defer=True),
+        Link(rel="stylesheet", href=static_asset("widgets-pack1.css")) if needs_pack1_css(document["blocks"]) else None,
+        Script(src=static_asset("widgets-pack1.js"), defer=True) if needs_pack1_css(document["blocks"]) else None,
+        Link(rel="stylesheet", href=static_asset("widgets-pack2.css")) if needs_pack2_css(document["blocks"]) else None,
+        Script(src=static_asset("widgets-pack2.js"), defer=True) if needs_pack2_js(document["blocks"]) else None,
+        Link(rel="stylesheet", href=static_asset("widgets-pack3.css")) if needs_pack3_css(document["blocks"]) else None,
+        Script(src=static_asset("widgets-pack3.js"), defer=True) if needs_pack3_js(document["blocks"]) else None,
+        Link(rel="stylesheet", href=static_asset("widgets-pack4.css")) if needs_pack4_css(document["blocks"]) else None,
+        Script(src=static_asset("widgets-pack4.js"), defer=True) if needs_pack4_js(document["blocks"]) else None,
+        Script(src=static_asset("store-preferences.js"), defer=True, data_site=site.id)
+        if not preview and preferences and (preferences.analytics_id or preferences.meta_pixel_id) else None,
         Script(src=static_asset("customer.js"), defer=True) if content is not None else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid-products.css")),
         Script(src=static_asset("site-liquid-products.js"), defer=True),
@@ -924,12 +947,36 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 ),
                 Div(
                     P(config.get("footer", "")),
+                        Button("Cookie preferences", type="button", data_cookie_open=""),
                     P("© 2026 " + footer["company"] + ". All rights reserved."),
                     Small("Sandbox · Test purchases only") if enabled else None,
                     cls="liquid-footer-bottom",
                 ),
                 id="footer",
                 cls="metal-footer",
+            ),
+            Div(
+                H2("Your privacy, your choice."),
+                P("Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."),
+                Details(
+                    Summary("Preferences"),
+                    Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"),
+                    Label(Input(type="checkbox", id="consent-preferences"), " Preferences: remembers products you viewed on this device"),
+                    Label(Input(type="checkbox", id="consent-analytics"), " Analytics"),
+                    Label(Input(type="checkbox", id="consent-marketing"), " Marketing"),
+                ),
+                Div(
+                    Button("Accept all", type="button", data_consent="all"),
+                    Button("Decline", type="button", data_consent="none"),
+                    Button("Save preferences", type="button", data_consent="custom"),
+                    cls="liquid-cookie-actions",
+                ),
+                A("Privacy policy", href=url(base, "/pages/privacy-policy")),
+                id="h-cookie",
+                cls="liquid-cookie",
+                role="region",
+                aria_label="Cookie preferences",
+                hidden=True,
             ),
             cls="h-site theme-metal",
             style=theme_style(config) or None, data_themed="true" if theme_style(config) else None,
