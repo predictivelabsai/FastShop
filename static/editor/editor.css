@@ -433,6 +433,41 @@ body {
   color: var(--a-muted);
   line-height: 1.5;
 }
+.hotspot-editor p {
+  margin: 0;
+}
+.hotspot-stage {
+  position: relative;
+  cursor: crosshair;
+  margin: 22px;
+}
+.hotspot-stage > img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.editor-shell .hotspot-stage > button {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #202223;
+  color: #fff;
+  cursor: pointer;
+}
+.editor-shell .hotspot-stage > button[aria-pressed="true"] {
+  background: #005bd3;
+  outline: 2px solid #005bd3;
+  outline-offset: 2px;
+}
+.editor-shell .hotspot-stage > button:focus-visible {
+  outline: 3px solid #202223;
+  outline-offset: 4px;
+}
 .field-inline {
   display: flex;
   gap: 6px;
