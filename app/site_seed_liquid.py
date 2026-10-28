@@ -274,15 +274,27 @@ def ensure_product_pages(db, site):
     from app.site_liquid_products_content import product_documents
 
     for path, title, kind, blocks in product_documents():
-        if db.scalar(select(SitePage.id).where(
+        slug = path.rsplit("/", 1)[-1]
+        product = db.scalar(select(Product).where(
+            Product.tenant_id == site.tenant_id,
+            Product.slug == slug,
+        ))
+        page = db.scalar(select(SitePage).where(
             SitePage.tenant_id == site.tenant_id, SitePage.site_id == site.id,
             SitePage.path == path,
-        )):
+        ))
+        if page:
+            if kind == "product" and page.kind == "content":
+                page.kind = "product"
+            if page.product_id is None and product:
+                page.product_id = product.id
             continue
         page = create_page(db, site, title, path, kind, {
             "version": 1, "title": title,
             "description": blocks[0].get("body", ""), "blocks": blocks,
         })
+        if product:
+            page.product_id = product.id
         page.published_json = copy.deepcopy(page.draft_json)
     db.flush()
 

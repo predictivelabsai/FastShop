@@ -97,6 +97,16 @@ def test_catalog_and_sandbox_prices(liquid):
     }
     assert len(products) == 3
     assert config.subscription_product_ids_json == [products["hydrogen-tablets"].id]
+    for slug, product in products.items():
+        product_page = db.scalar(
+            select(SitePage).where(
+                SitePage.site_id == site.id,
+                SitePage.tenant_id == site.tenant_id,
+                SitePage.path == "/products/" + slug,
+            )
+        )
+        assert product_page is not None
+        assert product_page.kind == "product" and product_page.product_id == product.id
     for slug, prices in [
         ("hydrogen-tablets", [2800] * 4),
         ("h2-4-you-one", [25000, 22500, 21250, 20000]),

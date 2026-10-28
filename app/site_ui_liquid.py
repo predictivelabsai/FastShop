@@ -45,7 +45,7 @@ from fasthtml.common import (
 from sqlalchemy import select
 
 from app.commerce import discounted, payments_enabled, settings_for
-from app.models import Product, ProductVariant, VariantChannelListing
+from app.models import Product, ProductVariant, SitePage, VariantChannelListing
 from app.services import money
 from app.site_blocks import default_locale, resolve_document
 from app.site_menus import rendered_navigation
@@ -715,6 +715,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     if content is not None:
         blocks = list(content)
     from app.site_theme import theme_style
+    from app.site_ui import has_published_recently_viewed
     from app.site_widgets import (
         LIQUID_DESIGN_CSS,
         WIDGET_CSS,
@@ -726,7 +727,22 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         needs_pack4_css,
         needs_pack4_js,
         needs_widget_css,
+        needs_widget_js,
     )
+    record_recent_product = bool(
+        not preview
+        and site.status == "published"
+        and getattr(page, "kind", "") == "product"
+        and getattr(page, "product_id", None)
+        and has_published_recently_viewed(db, site)
+    )
+    has_privacy_policy = db.scalar(
+        select(SitePage.id).where(
+            SitePage.site_id == site.id,
+            SitePage.tenant_id == site.tenant_id,
+            SitePage.path == "/pages/privacy-policy",
+        )
+    ) is not None
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(document["title"] if document["title"].endswith(" | " + site.name)
@@ -749,15 +765,17 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Link(rel="stylesheet", href=static_asset("site-liquid-consent.css")),
         Script(src=static_asset("site-liquid-consent.js"), defer=True),
         Link(rel="stylesheet", href=static_asset("widgets-pack1.css")) if needs_pack1_css(document["blocks"]) else None,
-        Script(src=static_asset("widgets-pack1.js"), defer=True) if needs_pack1_css(document["blocks"]) else None,
+        Script(src=static_asset("widgets-pack1.js"), defer=True) if needs_widget_js(document["blocks"]) else None,
         Link(rel="stylesheet", href=static_asset("widgets-pack2.css")) if needs_pack2_css(document["blocks"]) else None,
         Script(src=static_asset("widgets-pack2.js"), defer=True) if needs_pack2_js(document["blocks"]) else None,
         Link(rel="stylesheet", href=static_asset("widgets-pack3.css")) if needs_pack3_css(document["blocks"]) else None,
         Script(src=static_asset("widgets-pack3.js"), defer=True) if needs_pack3_js(document["blocks"]) else None,
         Link(rel="stylesheet", href=static_asset("widgets-pack4.css")) if needs_pack4_css(document["blocks"]) else None,
-        Script(src=static_asset("widgets-pack4.js"), defer=True) if needs_pack4_js(document["blocks"]) else None,
+        Script(src=static_asset("widgets-pack4.js"), defer=True)
+        if needs_pack4_js(document["blocks"]) or record_recent_product else None,
         Script(src=static_asset("store-preferences.js"), defer=True, data_site=site.id)
-        if not preview and preferences and (preferences.analytics_id or preferences.meta_pixel_id) else None,
+        if getattr(page, "id", "") and not preview and preferences
+        and (preferences.analytics_id or preferences.meta_pixel_id) else None,
         Script(src=static_asset("customer.js"), defer=True) if content is not None else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid-products.css")),
         Script(src=static_asset("site-liquid-products.js"), defer=True),
@@ -881,6 +899,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                      "bottle-page tablet-page" if page.path == "/products/hydrogen-tablets" else
                      "bottle-page" if page.path == "/products/h2-4-you-one" else ""),
             ),
+            Div(hidden=True, data_recent_product=page.product_id, data_site_id=site.id,
+                data_required_consent="preferences") if record_recent_product else None,
             Footer(
                 Div(
                     Div(
@@ -971,7 +991,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     Button("Save preferences", type="button", data_consent="custom"),
                     cls="liquid-cookie-actions",
                 ),
-                A("Privacy policy", href=url(base, "/pages/privacy-policy")),
+                A("Privacy policy", href=url(base, "/pages/privacy-policy"))
+                if has_privacy_policy else None,
                 id="h-cookie",
                 cls="liquid-cookie",
                 role="region",

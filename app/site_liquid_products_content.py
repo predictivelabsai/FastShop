@@ -478,5 +478,5 @@ def product_documents():
                 ),
             )
         ]
-        documents.append(("/products/" + slug, name, "content", blocks))
+        documents.append(("/products/" + slug, name, "product", blocks))
     return documents

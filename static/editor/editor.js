@@ -175,8 +175,37 @@ const widgetIcons = {
   "contact-card": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><circle cx=\"8\" cy=\"10\" r=\"2\"/><path d=\"M4 17c0-5 8-5 8 0 M15 9h4 M15 13h4 M15 17h3\"/>",
   "embed": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"M2 8h20 m-13 3-3 3 3 3 m6-6 3 3-3 3\"/>"
 };
+const liquidIconSources = {
+  "liquid-hero": "hero",
+  "liquid-stats": "chart",
+  "liquid-collection": "collections",
+  "liquid-benefits": "features",
+  "liquid-reviews": "reviews",
+  "liquid-articles": "articles",
+  "liquid-catalog": "catalogue",
+  "liquid-choices": "products",
+  "liquid-trust": "trust-badges",
+  "liquid-product-purchase": "product-detail",
+  "liquid-product-steps": "steps",
+  "liquid-product-technology": "embed",
+  "liquid-product-day": "progress-bars",
+  "liquid-product-lifestyle": "image",
+  "liquid-product-flavors": "products",
+  "liquid-product-benefits": "features",
+  "liquid-product-faq": "question",
+  "liquid-product-pair": "product-detail",
+  "liquid-support-about-opening": "hero",
+  "liquid-support-about-values": "features",
+  "liquid-support-about-closing": "button",
+  "liquid-support-faq-hero": "question",
+  "liquid-support-faq-category": "accordion",
+  "liquid-support-faq-closing": "contact",
+  "liquid-support-contact": "contact",
+  "liquid-editorial": "articles",
+};
 function blockIcon(type) {
-  const path = widgetIcons[spec(type).icon] || widgetIcons.columns;
+  const icon = spec(type).icon;
+  const path = widgetIcons[icon] || widgetIcons[liquidIconSources[icon]] || widgetIcons.columns;
   return `<svg class="block-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
 }
 const get = (o, p) => p.split(".").reduce((v, k) => v?.[k], o);

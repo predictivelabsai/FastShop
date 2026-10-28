@@ -139,6 +139,17 @@ def _registry():
     from app.site_liquid_support_validation import REQUIRED, SCHEMAS
 
     schemas = {}
+
+    def picker_metadata(kind):
+        if kind in WIDGETS:
+            return WIDGETS[kind].icon, WIDGETS[kind].description
+        if kind in LEGACY_PICKER:
+            return LEGACY_PICKER[kind]
+        return (
+            "liquid-" + kind.removeprefix("liquid_").replace("_", "-"),
+            "Edit this Liquid storefront section.",
+        )
+
     for kind, spec in BLOCK_TYPES.items():
         default = {"id": "new-block", "type": kind, "version": 1}
         themes = set()
@@ -311,11 +322,12 @@ def _registry():
                 field["help"] = "Choose a published catalogue collection."
             fields.append(field)
         fields += copy.deepcopy(STYLE_SCHEMA)
+        icon, description = picker_metadata(kind)
         schemas[kind] = {
             "label": label,
             "category": category,
-            "icon": WIDGETS[kind].icon if kind in WIDGETS else LEGACY_PICKER[kind][0],
-            "description": WIDGETS[kind].description if kind in WIDGETS else LEGACY_PICKER[kind][1],
+            "icon": icon,
+            "description": description,
             "fields": fields,
             "groups": {
                 "Content": [f["id"] for f in fields if not f["id"].startswith("style.")],

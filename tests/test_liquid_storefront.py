@@ -209,7 +209,7 @@ def test_custom_data_leaves_synthetic_cart_and_checkout_pages_intact(browser):
     from app.models import Product, SitePage
     page = db.scalar(select(SitePage).where(SitePage.site_id == site.id,
         SitePage.path == "/products/h2-4-you-one"))
-    assert page.product_id is None and page.kind == "content"
+    assert page.product_id == variant.product_id and page.kind == "product"
     assert custom_data.product_id_for_page(db, site, page) == variant.product_id
     resolved = custom_data.resolve_dynamic_document(db, site, page,
         {"title": "Product template", "heading": "metafield:custom.caption"})
