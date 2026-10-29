@@ -60,7 +60,7 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                 config = commerce.settings_for(db, site, create=True)
                 products = list(db.scalars(select(Product).where(Product.tenant_id == site.tenant_id).order_by(Product.name)))
                 variants = list(db.scalars(select(ProductVariant).where(ProductVariant.tenant_id == site.tenant_id).order_by(ProductVariant.sku)))
-                key, webhook = credentials(site)
+                key, webhook, _ = credentials(site)
                 return shell("US commerce", A("← Site settings", href=f"/admin/sites/{site.id}"),
                     P(f"{site.name} · USD · EU fulfilment → United States"),
                     Div(H2("Sandbox setup — no live payments"),

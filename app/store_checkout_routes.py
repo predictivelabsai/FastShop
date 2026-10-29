@@ -10,8 +10,8 @@ from starlette.responses import JSONResponse, RedirectResponse
 from app import checkout_payments, commerce, customer_services, subscriptions
 from app import checkout_services as checkout
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway, make_gateway
-from app.models import CheckoutAttempt, CommerceQuote, Site, SiteCart, SubscriptionCycle
+from app.integrations.stripe_commerce import StripeGateway, credentials, make_gateway
+from app.models import CheckoutAttempt, CommerceQuote, Product, Site, SiteCart, SubscriptionCycle
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
 from app.storefront_ui import commerce_page, public_message
@@ -61,6 +61,20 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 SubscriptionCycle.site_id == site.id, SubscriptionCycle.tenant_id == site.tenant_id)):
             raise CommerceError("Use the subscription controls for this delivery.")
         return attempt, cart
+
+    async def json_input(session, request):
+        try:
+            data = await request.json()
+        except (ValueError, UnicodeDecodeError):
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        token = request.headers.get("X-CSRF-Token") or data.get("csrf_token", "")
+        check_csrf(session, {"csrf_token": token})
+        return data
+
+    def json_error(exc):
+        return JSONResponse({"error": str(exc)}, status_code=422)
 
     @rt("/sites/{slug}/cart", methods=["GET"])
     def get(session, request, slug: str):
@@ -275,6 +289,93 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 return RedirectResponse(base(site, request) + "/checkout/" + attempt.id, status_code=303)
         except CommerceError as exc:
             return public_message(request, slug, exc)
+
+    @rt("/sites/{slug}/checkout/quote", methods=["POST"])
+    async def quote_json(session, request, slug: str):
+        try:
+            data = await json_input(session, request)
+            name = str(data.get("full_name", "")).strip()
+            if not name or len(name) > 160:
+                raise CommerceError("Enter the recipient's full name.")
+            with SessionLocal() as db:
+                site, config = resolve(db, slug)
+                checkout.lock_site(db, site)
+                cart = cart_for(db, site, session)
+                if not cart.lines_json:
+                    raise CommerceError("Your bag is empty.")
+                if (any(line.get("subscription") for line in cart.lines_json) and
+                        data.get("subscription_consent") not in (True, "true", "on", 1)):
+                    raise CommerceError("Confirm recurring-payment consent before subscribing.")
+                email = customer_services.normalized_email(str(data.get("email", "")))
+                customer = customer_services.signed_in_customer(db, site, session)
+                if customer and email != customer.email:
+                    raise CommerceError("Use your signed-in email, or sign out to check out as a guest.")
+                customer = customer or customer_services.customer_for(db, site, email, create=True)
+                if cart.checkout_id:
+                    previous = checkout.owned_attempt(db, site, cart.checkout_id)
+                    if previous.state != "prepared":
+                        raise CommerceError("Resume or cancel your existing checkout before changing the quote.")
+                    checkout.cancel_unstarted(db, site, previous.id)
+                    cart.checkout_id = None
+                cart.request_key = secrets.token_hex(16)
+                destination = {key: data.get(key, "") for key in
+                    ("line1", "line2", "city", "state", "postal_code")}
+                destination["country"] = "US"
+                attempt = checkout.prepare(db, site, customer.id, cart.lines_json, destination,
+                    make_gateway(StripeGateway, site, db), request_key=cart.request_key,
+                    code=data.get("code", ""), recipient_name=name,
+                    gift_card_code=data.get("gift_card_code", ""),
+                    subscription_consent=data.get("subscription_consent") in (True, "true", "on", 1),
+                    shipping_rate_id=data.get("shipping_rate_id") or None)
+                cart.checkout_id = attempt.id
+                quote = db.scalar(select(CommerceQuote).where(CommerceQuote.id == attempt.quote_id,
+                    CommerceQuote.site_id == site.id, CommerceQuote.tenant_id == site.tenant_id))
+                snapshot = quote.snapshot_json
+                from app.growth_settings import shipping_options
+                subtotal = sum(line["amount_minor"] for line in snapshot["lines"])
+                weight = sum((db.get(Product, line["product_id"]).weight_grams or 0) * line["quantity"]
+                    for line in snapshot["lines"])
+                rates = shipping_options(db, site, snapshot["destination"], subtotal, weight_grams=weight)
+                lines = []
+                for line in snapshot["lines"]:
+                    product = db.get(Product, line["product_id"])
+                    image_url = product.image_url if product and product.image_url else ""
+                    lines.append({"name": line["name"], "variant": line.get("variant_name", ""),
+                        "quantity": line["quantity"], "amount": line["amount_minor"],
+                        "subscription": bool(line["subscription"]), "image_url": image_url})
+                db.commit()
+                return JSONResponse({"lines": lines, "subtotal": quote.subtotal_minor,
+                    "discount": quote.discount_minor, "shipping": quote.shipping_minor,
+                    "tax": quote.tax_minor,
+                    "gift_card": snapshot.get("gift_card", {}).get("amount_minor", 0),
+                    "total": quote.total_minor, "currency": quote.currency,
+                    "recurring_subtotal_per_month": sum(line["unit_minor"] * line["quantity"]
+                        for line in snapshot["lines"] if line["subscription"]),
+                    "shipping_rates": [{"id": rate["id"], "name": rate["name"], "amount": rate["amount_minor"]}
+                        for rate in rates], "attempt_id": attempt.id})
+        except CommerceError as exc:
+            return json_error(exc)
+
+    @rt("/sites/{slug}/checkout/{attempt_id}/session", methods=["POST"])
+    async def session_json(session, request, slug: str, attempt_id: str):
+        try:
+            await json_input(session, request)
+            with SessionLocal() as db:
+                site, _ = resolve(db, slug)
+                attempt, _ = allowed_attempt(db, site, session, attempt_id)
+                if attempt.state not in checkout.ACTIVE:
+                    raise CommerceError("This checkout is already closed.")
+                site_id, customer_id = site.id, attempt.customer_id
+                _, _, publishable_key = credentials(site)
+                # Inline card fields need a matching publishable key. Live keys are not stored
+                # for browser use yet, so live mode keeps the hosted Stripe page.
+                hosted_only = site._payment_mode != "sandbox" or not publishable_key
+                fallback = base(site, request) + "/checkout/" + attempt.id + "/pay"
+            if hosted_only:
+                return JSONResponse({"fallback_url": fallback})
+            return JSONResponse(checkout_payments.embedded_session(site_id, customer_id, attempt_id))
+        except CommerceError as exc:
+            return json_error(exc)
 
     def review_line(site, line, quote):
         purchase = ("One-time delivery recovery" if quote.snapshot_json.get("recovery_cycle_id") else
