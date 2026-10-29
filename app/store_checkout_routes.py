@@ -294,7 +294,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                         Div(H3(display_name), P(line.variant_name or (copy["subscription_line"] if line.subscription else "")), cls="checkout-line-copy"),
                         Strong(money(line.amount_minor, "USD")), cls="checkout-line", data_checkout_line="")
                 page = (
-                    Title("Checkout · " + site.name),
+                    Title(copy["page_title"] + " · " + site.name),
                     Meta(name="viewport", content="width=device-width, initial-scale=1"),
                     Link(rel="stylesheet", href=static_asset("fonts.css")),
                     Link(rel="stylesheet", href=static_asset("checkout.css")),
@@ -302,7 +302,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     Div(
                     Header(A(Img(src=logo, alt=site.name, cls="checkout-logo") if logo else Span(site.name, cls="checkout-store-name"),
                              href=root + "/", aria_label=site.name + " home"),
-                        A(Span(cls="checkout-bag-icon", aria_hidden="true"), aria_label="Bag", href=root + "/cart", cls="checkout-bag"), cls="checkout-header"),
+                        A(Span(cls="checkout-bag-icon", aria_hidden="true"), aria_label=copy["bag_label"], href=root + "/cart", cls="checkout-bag"), cls="checkout-header"),
                     Details(Summary(Span(copy["summary_toggle"]), Strong("USD " + money(total, "USD")), cls="checkout-summary-toggle"),
                         Div(*[summary_line(line) for line in lines], id="checkout-mobile-lines"), cls="checkout-mobile-summary"),
                     Main(Div(Form(csrf(session), Input(type="hidden", name="version", value=cart.version),
@@ -325,11 +325,12 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                                 *[Option(commerce.US_STATES[state], value=state) for state in config_states], name="state", required=True,
                                 autocomplete="shipping address-level1"), cls="checkout-field checkout-select-field"),
                             field(copy["zip_label"], "postal_code", required=True, pattern=r"\d{5}(-\d{4})?", autocomplete="shipping postal-code")),
-                        H3(copy["shipping_heading"], cls="checkout-subheading"),
+                        H2(copy["shipping_heading"], cls="checkout-section-title"),
                         Div(copy["shipping_prompt"], id="checkout-shipping-rates", cls="checkout-shipping-prompt", aria_live="polite",
                             data_no_rates=copy["no_shipping_rates"]),
                         Div(H2(copy["payment_heading"], cls="checkout-section-title"),
-                            Div(Span("VISA"), Span("Mastercard"), Span("AMEX"), cls="checkout-card-marks"),
+                            Div(*[Span(mark.strip()) for mark in copy["card_marks"].split(",") if mark.strip()],
+                                cls="checkout-card-marks"),
                             cls="checkout-payment-heading"),
                         P(copy["payment_security"], cls="checkout-help"),
                         Div(id="payment-element", cls="checkout-payment-element"),
@@ -354,7 +355,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                             Div(Span(copy["shipping_label"]), Span(copy["shipping_unknown"], data_summary_shipping=""), cls="checkout-total-row"),
                             Div(Span(copy["tax_label"]), Span("—", data_summary_tax=""), cls="checkout-total-row", data_summary_tax_row="", hidden=True),
                             Div(Span(copy["total_label"]), Strong("USD " + money(total, "USD"), data_summary_total=""), cls="checkout-total-row checkout-grand-total"),
-                            Div(Span(copy["recurring_label"]), Strong(money(sum(line.unit_minor * line.quantity for line in recurring_lines), "USD") + " every month"),
+                            Div(Span(copy["recurring_label"]), Strong(money(sum(line.unit_minor * line.quantity for line in recurring_lines), "USD") + " " + copy["recurring_suffix"]),
                                 cls="checkout-total-row checkout-recurring", data_summary_recurring="") if recurring_lines else None,
                             cls="checkout-summary-inner"), cls="checkout-summary"),
                         cls="checkout-main"),
@@ -363,7 +364,8 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     data_session_url_template=root + "/checkout/{attempt_id}/session",
                     data_detail_error=copy["checkout_details_error"], data_subscription_error=copy["subscription_consent_error"],
                     data_payment_load_error=copy["payment_load_error"], data_payment_prepare_error=copy["payment_prepare_error"],
-                    data_quote_error=copy["quote_update_error"], data_payment_confirm_error=copy["payment_confirm_error"]),
+                    data_quote_error=copy["quote_update_error"], data_payment_confirm_error=copy["payment_confirm_error"],
+                    data_subscription_line=copy["subscription_line"]),
                 )
                 return FtResponse(page, headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
                     "Content-Security-Policy": "frame-ancestors 'self'"})

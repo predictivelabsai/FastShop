@@ -50,4 +50,8 @@ DEFAULT_CHECKOUT_COPY = {
     "payment_prepare_error": "Payment could not be prepared.",
     "quote_update_error": "The order could not be updated.",
     "payment_confirm_error": "Your payment could not be confirmed.",
+    "page_title": "Checkout",
+    "bag_label": "Bag",
+    "recurring_suffix": "every month",
+    "card_marks": "Visa, Mastercard, Amex",
 }
