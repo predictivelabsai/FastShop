@@ -57,6 +57,41 @@ def test_quote_endpoint_returns_json_totals_and_attempt(storefront):
     assert isinstance(body["shipping_rates"], list)
 
 
+def test_checkout_page_renders_editable_standalone_summary_and_policy_links(storefront, monkeypatch):
+    r, client, base, _ = storefront
+    start_cart(client, base, r)
+    r.site.published_settings_json = {
+        "logo": "https://images.example.test/store-logo.png",
+        "policies": {"privacy": "<p>Privacy text</p>", "terms": "", "refunds": "", "shipping": ""},
+        "checkout_copy": {"contact_heading": "Your details", "pay_button": "Complete purchase",
+                          "future_copy": "preserve me"},
+        "design": {"accent": "#1554cc", "background": "#fafaf7", "surface": "#e8f4fb",
+                   "text": "#101922", "font": "modern", "headings": "editorial",
+                   "spacing": "comfortable", "radius": "subtle", "width": "wide", "hero": "left"},
+    }
+    r.db.commit()
+    monkeypatch.setenv("FASTSHOP_STRIPE_" + r.site.id.upper() + "_SECRET_KEY", "sk_test_never_render")
+    response = client.get(base + "/checkout")
+    assert response.status_code == 200
+    assert "Your details" in response.text and "Complete purchase" in response.text
+    assert "United States" in response.text and "California" in response.text
+    assert "Privacy policy" in response.text and "Terms and conditions" not in response.text
+    assert "data-checkout-root" in response.text and "checkout.css" in response.text
+    assert "h-site" not in response.text and "e-top" not in response.text
+    assert "subscription_consent" not in response.text
+    assert "newsletter_label" not in response.text
+    assert "sk_test_never_render" not in response.text
+
+
+def test_checkout_page_shows_subscription_consent_only_for_subscription_lines(storefront):
+    r, client, base, _ = storefront
+    start_cart(client, base, r, subscription=True)
+    response = client.get(base + "/checkout")
+    assert response.status_code == 200
+    assert 'name="subscription_consent"' in response.text
+    assert "I authorize recurring charges" in response.text
+
+
 def test_quote_validation_and_csrf_rejections_are_json(storefront):
     r, client, base, _ = storefront
     page = start_cart(client, base, r)
@@ -162,3 +197,4 @@ def test_session_endpoint_falls_back_to_hosted_without_publishable_key(storefron
         headers={"X-CSRF-Token": csrf(page)})
     assert response.status_code == 200, response.text
     assert response.json() == {"fallback_url": base + "/checkout/" + quote["attempt_id"] + "/pay"}
+

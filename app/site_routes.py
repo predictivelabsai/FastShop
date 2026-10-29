@@ -36,9 +36,9 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import RedirectResponse, Response
 
 from app import content, signup_services, site_ui
-from app.checkout_copy import DEFAULT_CHECKOUT_COPY
 from app import site_builder_services as builder
 from app.admin_ui import empty_state, index_table
+from app.checkout_copy import DEFAULT_CHECKOUT_COPY
 from app.config import settings
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
