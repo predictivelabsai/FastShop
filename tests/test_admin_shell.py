@@ -127,6 +127,28 @@ def test_general_settings_keeps_csrf_and_version_checks():
         assert db.get(Site, site.id).version == site.version
 
 
+def test_general_settings_preserves_unknown_checkout_copy_keys():
+    from app.checkout_copy import DEFAULT_CHECKOUT_COPY
+
+    client, site, _ = merchant()
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        saved.settings_json = saved.settings_json | {"checkout_copy": {"future_label": "Keep this"}}
+        db.commit()
+    url = f"/admin/sites/{site.id}/settings"
+    page = client.get(url + "/general")
+    token = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
+    version = re.search(r'name="version" value="(\d+)"', page.text).group(1)
+    form = {"csrf_token": token, "version": version, "action": "draft"}
+    form.update({"checkout_copy_" + key: default for key, default in DEFAULT_CHECKOUT_COPY.items()})
+    response = client.post(url, data=form, follow_redirects=False)
+    assert response.status_code == 303
+    with SessionLocal() as db:
+        copy = db.get(Site, site.id).settings_json["checkout_copy"]
+        assert copy["future_label"] == "Keep this"
+        assert copy["contact_heading"] == DEFAULT_CHECKOUT_COPY["contact_heading"]
+
+
 def test_shell_sign_out_is_csrf_protected():
     client, _, token = merchant()
     assert client.post("/logout", data={"csrf_token": "wrong"}).status_code == 400

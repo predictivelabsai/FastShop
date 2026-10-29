@@ -137,7 +137,8 @@ def test_subscription_purchase_requires_consent_and_activates_only_recurring_lin
     assert "One-time purchase" in page.text and "Monthly subscription" in page.text
     assert len(r.db.scalar(select(SiteCart)).lines_json) == 2
     page = client.get(base + "/checkout")
-    assert "Recurring merchandise: $26.96" in page.text
+    assert "Recurring subtotal" in page.text and "every month" in page.text
+    assert "I authorize recurring charges" in page.text
     checkbox = re.search(r'<input[^>]+name="subscription_consent"[^>]*>', page.text).group(0)
     assert "checked" not in checkbox
     version = re.search(r'name="version" value="(\d+)"', page.text).group(1)
@@ -146,7 +147,7 @@ def test_subscription_purchase_requires_consent_and_activates_only_recurring_lin
     r.db.refresh(r.stock)
     assert r.stock.allocated == 0 and r.db.scalar(select(func.count(CommerceQuote.id))) == 0
     review = client.post(base + "/checkout", data=data | {"subscription_consent": "on"})
-    assert review.status_code == 200 and "Recurring merchandise: $26.96" in review.text
+    assert review.status_code == 200 and "Monthly subscription" in review.text
     assert "Total: $68.96" in review.text
     quote = r.db.scalar(select(CommerceQuote))
     assert quote.snapshot_json["subscription_consent"]["accepted"] is True

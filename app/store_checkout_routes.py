@@ -2,19 +2,47 @@
 
 import secrets
 
-from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Option, P, Select
+from fasthtml.common import (
+    H2,
+    H3,
+    A,
+    Aside,
+    Button,
+    Details,
+    Div,
+    Footer,
+    Form,
+    Header,
+    Img,
+    Input,
+    Label,
+    Link,
+    Main,
+    Meta,
+    Option,
+    P,
+    Script,
+    Select,
+    Span,
+    Strong,
+    Summary,
+    Title,
+)
 from fasthtml.core import FtResponse
 from sqlalchemy import select
 from starlette.responses import JSONResponse, RedirectResponse
 
 from app import checkout_payments, commerce, customer_services, subscriptions
 from app import checkout_services as checkout
+from app.checkout_copy import DEFAULT_CHECKOUT_COPY
 from app.db import SessionLocal
 from app.integrations.stripe_commerce import StripeGateway, credentials, make_gateway
 from app.models import CheckoutAttempt, CommerceQuote, Product, Site, SiteCart, SubscriptionCycle
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
+from app.site_theme import theme_style
 from app.storefront_ui import commerce_page, public_message
+from app.ui import static_asset
 
 
 def register_store_checkout_routes(rt, csrf, check_csrf, error):
@@ -225,35 +253,110 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 if not cart.lines_json:
                     return RedirectResponse(root + "/cart", status_code=303)
                 customer = customer_services.signed_in_customer(db, site, session)
-                recurring_lines = [line for line in commerce.price_lines(db, site, config, cart.lines_json) if line.subscription]
-                from app.models import ShippingRate
-                rates = list(db.scalars(select(ShippingRate).where(ShippingRate.site_id == site.id,
-                    ShippingRate.tenant_id == site.tenant_id).order_by(ShippingRate.name)))
+                lines = commerce.price_lines(db, site, config, cart.lines_json)
+                recurring_lines = [line for line in lines if line.subscription]
+                count = sum(line.quantity for line in lines)
+                total = sum(line.amount_minor for line in lines)
+                copy = {**DEFAULT_CHECKOUT_COPY, **(site.published_settings_json or {}).get("checkout_copy", {})}
+                policies = (site.published_settings_json or {}).get("policies") or {}
+                policy_paths = (("privacy", copy["privacy_policy_link"], "/pages/privacy-policy"),
+                    ("terms", copy["terms_policy_link"], "/pages/terms-and-conditions"),
+                    ("refunds", copy["returns_policy_link"], "/pages/returns-and-refunds"),
+                    ("shipping", copy["shipping_policy_link"], "/pages/shipping-policy"))
+                config_states = [state for state in config.allowed_states_json if state in commerce.US_STATES]
+                settings = site.published_settings_json or {}
+                logo = settings.get("logo")
+                def has_newsletter(node):
+                    if isinstance(node, dict):
+                        return node.get("kind") == "newsletter" or any(has_newsletter(value) for value in node.values())
+                    if isinstance(node, list):
+                        return any(has_newsletter(value) for value in node)
+                    return False
+                from app.models import SitePage
+                newsletter_enabled = any(has_newsletter(page.published_json) for page in db.scalars(
+                    select(SitePage).where(SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+                        SitePage.published_json.is_not(None))))
                 def field(label, name, **kwargs):
-                    return Label(label, Input(name=name, **kwargs))
-                return screen(site, request, "US delivery & checkout", P("Review shipping and sales tax before going to Stripe. No payment is taken on this form."),
-                    Form(csrf(session), Input(type="hidden", name="version", value=cart.version),
-                        field("Recipient's full name", "full_name", required=True, maxlength=160, autocomplete="shipping name"),
-                        field("Email", "email", type="email", required=True, maxlength=320, value=customer.email if customer else "", autocomplete="email"),
-                        field("Street address", "line1", required=True, maxlength=200, autocomplete="shipping address-line1"),
-                        field("Apartment / suite", "line2", maxlength=200, autocomplete="shipping address-line2"),
-                        field("City", "city", required=True, maxlength=200, autocomplete="shipping address-level2"),
-                        Label("State", Select(Option("Choose your state", value="", selected=True, disabled=True),
-                            *[Option(commerce.US_STATES[state], value=state) for state in config.allowed_states_json if state in commerce.US_STATES], name="state", required=True, autocomplete="shipping address-level1")),
-                        field("ZIP code", "postal_code", required=True, pattern=r"\d{5}(-\d{4})?", autocomplete="shipping postal-code"),
-                        Input(type="hidden", name="country", value="US"),
-                        Label("Delivery method", Select(Option("Best available delivery rate", value=""),
-                            *[Option(rate.name + (" (local pickup)" if rate.local_pickup else ""), value=rate.id)
-                              for rate in rates], name="shipping_rate_id")) if rates else None,
-                        field("Discount code (optional)", "code", maxlength=40, value=cart.discount_code),
-                        field("Gift card code (optional, sandbox)", "gift_card_code", maxlength=64),
+                    return Label(label, Input(name=name, **kwargs), cls="checkout-field")
+                def row(*children, cls=""):
+                    return Div(*children, cls=("checkout-row " + cls).strip())
+                def summary_line(line):
+                    product = db.get(Product, line.product_id)
+                    image_url = product.image_url if product and product.image_url else ""
+                    return Div(Div(Img(src=image_url, alt="", cls="checkout-thumb") if image_url else Div(cls="checkout-thumb checkout-thumb-empty"),
+                        Span(str(line.quantity), cls="checkout-quantity"), cls="checkout-thumb-wrap"),
+                        Div(H3(line.name), P(line.variant_name or (copy["subscription_line"] if line.subscription else "")),
+                            P(copy["subscription_line"] if line.subscription and line.variant_name else "", cls="checkout-line-type"), cls="checkout-line-copy"),
+                        Strong(money(line.amount_minor, "USD")), cls="checkout-line", data_checkout_line="")
+                page = (
+                    Title("Checkout · " + site.name),
+                    Meta(name="viewport", content="width=device-width, initial-scale=1"),
+                    Link(rel="stylesheet", href=static_asset("fonts.css")),
+                    Link(rel="stylesheet", href=static_asset("checkout.css")),
+                    Script(src=static_asset("checkout.js"), defer=True),
+                    Div(
+                    Header(A(Img(src=logo, alt=site.name, cls="checkout-logo") if logo else Span(site.name, cls="checkout-store-name"),
+                             href=root + "/", aria_label=site.name + " home"),
+                        A(Span(cls="checkout-bag-icon", aria_hidden="true"), aria_label="Bag", href=root + "/cart", cls="checkout-bag"), cls="checkout-header"),
+                    Details(Summary(Span(copy["summary_toggle"]), Strong("USD " + money(total, "USD")), cls="checkout-summary-toggle"),
+                        Div(*[summary_line(line) for line in lines], id="checkout-mobile-lines"), cls="checkout-mobile-summary"),
+                    Main(Div(Form(csrf(session), Input(type="hidden", name="version", value=cart.version),
+                        Input(type="hidden", name="country", value="US"), Input(type="hidden", name="full_name", value="", data_full_name=""),
+                        Div(H2(copy["contact_heading"]), A(copy["sign_in"], href=root + "/account", cls="checkout-link")
+                            if not customer and config.customer_accounts_enabled else None, cls="checkout-section-heading"),
+                        field(copy["email_label"], "email", type="email", required=True, maxlength=320,
+                            value=customer.email if customer else "", autocomplete="email", data_checkout_email=""),
+                        Label(Input(type="checkbox", name="marketing_consent"), " " + copy["newsletter_label"], cls="checkout-checkout")
+                            if newsletter_enabled else None,
+                        H2(copy["delivery_heading"], cls="checkout-section-title"),
+                        Label(copy["country_label"], Select(Option(copy["country_value"], value="US", selected=True), disabled=True), cls="checkout-select-field"),
+                        row(field(copy["first_name_label"], "first_name", required=True, maxlength=80, autocomplete="shipping given-name", data_first_name=""),
+                            field(copy["last_name_label"], "last_name", required=True, maxlength=80, autocomplete="shipping family-name", data_last_name="")),
+                        field(copy["company_label"], "company", maxlength=120, autocomplete="shipping organization"),
+                        field(copy["address_label"], "line1", required=True, maxlength=200, autocomplete="shipping address-line1"),
+                        field(copy["apartment_label"], "line2", maxlength=200, autocomplete="shipping address-line2"),
+                        row(field(copy["city_label"], "city", required=True, maxlength=200, autocomplete="shipping address-level2"),
+                            Label(copy["state_label"], Select(Option(copy["state_label"], value="", selected=True),
+                                *[Option(commerce.US_STATES[state], value=state) for state in config_states], name="state", required=True,
+                                autocomplete="shipping address-level1"), cls="checkout-field checkout-select-field"),
+                            field(copy["zip_label"], "postal_code", required=True, pattern=r"\d{5}(-\d{4})?", autocomplete="shipping postal-code")),
+                        H3(copy["shipping_heading"], cls="checkout-subheading"),
+                        Div(copy["shipping_prompt"], id="checkout-shipping-rates", cls="checkout-shipping-prompt", aria_live="polite",
+                            data_no_rates=copy["no_shipping_rates"]),
+                        H2(copy["payment_heading"], cls="checkout-section-title"),
+                        P(copy["payment_security"], cls="checkout-help"),
+                        Div(id="payment-element", cls="checkout-payment-element"),
+                        Label(Input(type="checkbox", name="billing_same", checked=True), " " + copy["billing_address"], cls="checkout-checkout"),
+                        Label(Input(type="checkbox", name="subscription_consent", required=True), " " + subscriptions.CONSENT_TEXT, cls="checkout-checkout checkout-subscription-consent") if recurring_lines else None,
+                        Div(id="checkout-errors", role="alert", aria_live="assertive", hidden=True),
+                        Button(copy["pay_button"], type="submit", cls="checkout-pay-button", data_checkout_pay=""),
                         Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
-                        P("US delivery only. This does not subscribe you to marketing."),
-                        Div(H2("Monthly delivery subscription"),
-                            P("Recurring merchandise: " + money(sum(line.amount_minor for line in recurring_lines), "USD") + " per month, plus shipping and destination tax calculated per delivery. One-time items do not renew."),
-                            Label(Input(type="checkbox", name="subscription_consent", required=True), " " + subscriptions.CONSENT_TEXT),
-                            P("No payment is taken until you review the first delivery total and complete Stripe checkout.")) if recurring_lines else None,
-                        Button("Review shipping & tax", cls="e-button"), method="post", action=root + "/checkout", cls="e-form e-card"))
+                        cls="checkout-form", action=root + "/checkout", method="post", data_checkout_form=""),
+                        Footer(*[A(label, href=root + path) for key, label, path in policy_paths if policies.get(key)],
+                            cls="checkout-footer"), cls="checkout-main-inner"),
+                        Aside(Div(H2(copy["summary_heading"]), Div(*[summary_line(line) for line in lines], id="checkout-lines"),
+                            Form(Input(type="hidden", name="csrf_token", value=session.get("csrf_token", "")),
+                                Input(name="code", placeholder=copy["discount_label"], maxlength=40, value=cart.discount_code),
+                                Input(name="gift_card_code", placeholder=copy["discount_label"], maxlength=64),
+                                Button(copy["apply_button"], type="button", data_checkout_apply=""), cls="checkout-discount-form"),
+                            Div(Span(copy["subtotal_label"] + " · " + str(count) + " " + (copy["item_plural"] if count != 1 else copy["item_singular"])),
+                                Strong(money(total, "USD")), cls="checkout-total-row", data_summary_subtotal=""),
+                            Div(Span(copy["shipping_label"]), Span(copy["shipping_unknown"], data_summary_shipping=""), cls="checkout-total-row"),
+                            Div(Span(copy["tax_label"]), Span("—", data_summary_tax=""), cls="checkout-total-row", data_summary_tax_row="", hidden=True),
+                            Div(Span(copy["total_label"]), Strong("USD " + money(total, "USD"), data_summary_total=""), cls="checkout-total-row checkout-grand-total"),
+                            Div(Span(copy["recurring_label"]), Strong(money(sum(line.unit_minor * line.quantity for line in recurring_lines), "USD") + " every month"),
+                                cls="checkout-total-row checkout-recurring", data_summary_recurring="") if recurring_lines else None,
+                            cls="checkout-summary-inner"), cls="checkout-summary"),
+                        cls="checkout-main"),
+                    cls="checkout-page", style=theme_style(settings) or None, data_checkout_root=root,
+                        data_quote_url=root + "/checkout/quote", data_csrf=session.get("csrf_token", ""),
+                    data_session_url_template=root + "/checkout/{attempt_id}/session",
+                    data_detail_error=copy["checkout_details_error"], data_subscription_error=copy["subscription_consent_error"],
+                    data_payment_load_error=copy["payment_load_error"], data_payment_prepare_error=copy["payment_prepare_error"],
+                    data_quote_error=copy["quote_update_error"], data_payment_confirm_error=copy["payment_confirm_error"]),
+                )
+                return FtResponse(page, headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
+                    "Content-Security-Policy": "frame-ancestors 'self'"})
         except CommerceError as exc:
             return public_message(request, slug, exc)
 
@@ -262,7 +365,8 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
         form = await request.form()
         try:
             check_csrf(session, form)
-            name = str(form.get("full_name", "")).strip()
+            name = str(form.get("full_name", "")).strip() or " ".join(
+                part.strip() for part in (str(form.get("first_name", "")), str(form.get("last_name", ""))) if part.strip())
             if not name or len(name) > 160 or form.get("website"):
                 raise CommerceError("Enter the recipient's full name.")
             with SessionLocal() as db:
