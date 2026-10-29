@@ -495,8 +495,10 @@ def register_site_routes(rt):
                 from app.site_widgets import sanitise_html
                 config["policies"] = {key: sanitise_html(str(form.get("policy_" + key, ""))[:100000])
                                       for key in ("privacy", "terms", "refunds", "shipping")}
-                config["liquid_consent"] = {key: str(form.get("consent_" + key, ""))[:1000].strip()
-                                            for key in ("heading", "body", "accept", "decline", "save", "privacy_label")}
+                # Merge so banner fields edited in the visual editor are kept.
+                config["liquid_consent"] = {**(config.get("liquid_consent") or {}),
+                                            **{key: str(form.get("consent_" + key, ""))[:1000].strip()
+                                               for key in ("heading", "body", "accept", "decline", "save", "privacy_label")}}
                 for key in ("logo", "logo_light"):
                     if config.get(key):
                         config[key] = content.safe_url(config[key], media=True)

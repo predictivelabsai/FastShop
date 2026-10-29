@@ -1,30 +1,57 @@
 # Liquid storefront editability audit
 
-Audit scope: Liquid theme pack and its shared storefront and checkout surfaces. Content and settings are saved on `SitePage` documents or the per-site `Site.settings_json` / `published_settings_json` JSON columns. No schema change is required.
+Rule: no merchant-visible storefront text, image or link may need code to change. Merchants have
+the admin, the visual editor and the chat assistant only.
 
-| Storefront area | Merchant-visible content and assets | Editing path and persistence |
-| --- | --- | --- |
-| Header, offer bar and navigation | Logo, offer copy, labels, destinations, grouped navigation | Site settings and native header/footer menus; settings are published to the site's published JSON. |
-| Footer | Newsletter heading/body, company/address/contact, footer note, help/social links and payment marks | Liquid shell settings, shared site settings and native footer menu. Some payment marks remain code-selected assets based on the supported payment display. |
-| Home and shop | Hero, research figures, product/collection cards, benefits, reviewed FDA disclaimer, sample reviews, reading cards, choices and assurances | Page section/block documents in the visual editor. Hiding, ordering and field edits persist in `SitePage.draft_json` and publish to `published_json`. Product prices and variant names come from the catalogue. |
-| Product pages | Product headings, descriptions, gallery, labels, directions, flavour/choice cards, FAQ and disclosures | Product page blocks and item fields in the visual editor. Catalogue prices remain authoritative. FDA qualification and other compliance copy are existing seeded content and can be edited through the relevant block fields. |
-| Editorial and science pages | Chapter headings/body, figures, citations, links and imagery | Page blocks and widget fields in the visual editor. |
-| Support pages | About, FAQ and contact copy, topic labels and imagery | Support page blocks and widget fields in the visual editor. |
-| Cart | Cart labels, line item content, quantities, discount code and totals | Product names/variants/prices come from catalogue and cart state. Shared cart interface labels are currently application copy. |
-| Checkout | Address, shipping choice, discount/gift card, subscription consent, totals and payment handoff | Cart/checkout state and commerce settings. Checkout copy and the full Shopify-style checkout design are not yet configurable or implemented by this change. Payment continues through the existing provider handoff. |
-| Account | Account, order and subscription controls and explanatory copy | Customer and subscription data are database-backed. Most interface labels are application copy and are not exposed as merchant settings. |
-| 404 and error states | Not-found explanation and recovery links | Generic application copy and standard shop routes; not currently merchant-editable. |
-| Cookie consent | Heading, message, accept/decline/save labels and policy link label | New `liquid_consent` settings in site settings, persisted per site and published with shared settings. The banner remains rendered without a policy. When privacy copy is blank and no privacy page exists, only the link is omitted. |
-| Policies | Privacy, terms, returns/refunds and shipping long-form HTML | New policy editors in Settings > General. The existing allow-list sanitizer strips scripts, event attributes and unsafe URL schemes. Policy pages render in the Liquid shell, with a blank-state message. |
+## How content is stored
 
-## Known gaps
+- Page sections and blocks live in `SitePage.draft_json` / `published_json` and are edited in the
+  visual editor (schema in `app/site_block_schema.py`). This already covered home, shop, product,
+  editorial, science and support pages, including the FDA disclaimer text inside the benefits and
+  editorial disclaimer blocks.
+- The shared shell (offer bar, header navigation, footer, cookie banner) lives in
+  `Site.settings_json` under `liquid_shell`, `liquid_consent`, `footer` and `email`. Before this
+  change the visual editor showed the header and footer as fixed "Theme" rows with no fields, and
+  `liquid_shell` had no editing screen anywhere. That is where the reported FDA footer disclaimer
+  came from.
+- `app/site_liquid_*_content.json` are seed snapshots only. Renderers read the per-site values;
+  JSON defaults fill paths that are absent and never overwrite a merchant edit.
 
-- Checkout remains the existing multi-step FastShop flow. It does not yet match the requested Shopify-style one-page layout, and its copy is not merchant-configurable.
-- No direct card fields were added. The existing integration redirects to the configured Stripe checkout, so collecting card details locally would misrepresent the available provider integration.
-- Application copy on cart, account, 404, checkout and consent-category descriptions remains partly fixed. The policy/consent settings change does not make every visible string configurable.
-- Existing JSON files remain source snapshots and seed defaults. The Liquid page renderer already reads editable page documents and shell settings from the database. This change did not introduce an exhaustive generic JSON-to-DB migration for every remaining Liquid JSON key.
-- No migration was added. Existing settings use JSON columns; new policy and consent keys are additive and only written when a merchant saves settings. This avoids destructive schema operations, but has not been exercised against the live PostgreSQL database.
+## What changed
 
-## Compliance
+Generic mechanism (`app/site_editable_settings.py`): a theme pack registers a list of fields
+whose ids are dotted paths into the site settings. The editor document API returns
+`shell_schema` and `shell_settings`; `PUT /editor/api/shell-settings` validates and saves only the
+declared paths as a draft (site version guarded, change recorded in history); publishing a page
+in the editor copies the declared paths to the published settings, as design settings already were.
 
-No product claims, figures, reviews, citations or FDA disclaimer wording were changed. Policy and consent defaults are interface copy only. The existing FDA disclaimer remains in its seeded editable block.
+Visual editor: the "Store header", "Store footer" and new "Cookie banner" rows are now selectable
+and open their fields in the settings panel (text, long text, links with the link picker, and
+repeatable link lists). Save, autosave and Publish include them.
+
+Liquid fields (`app/site_liquid_shell.py`), previously fixed in code or reachable only by
+database edits:
+
+| Area | Now editable |
+| --- | --- |
+| Offer bar | Text, button label, form text, email placeholder, consent text, privacy link label and URL, signup button, thank-you message |
+| Header navigation | Shop menu label and links, second menu label and links, About label and link, mobile help links |
+| Accessibility labels | Skip link, dismiss offer, account, bag, open and close menu |
+| Footer | Newsletter heading and text, footer links, help heading and links (with anchors), company, address, contact email, social links, payment marks, FDA footer disclaimer, cookie preferences button, copyright line |
+| Cookie banner | Heading, message, accept/decline/save buttons, policy link label and URL, category labels |
+
+The FDA disclaimer default is byte-identical to the approved wording. The banner always renders
+for visitors without a stored choice; when the privacy policy is empty only the link is omitted.
+The Settings > General form now merges its consent fields instead of replacing the whole object.
+
+## Remaining gaps
+
+- Checkout: handled in a separate change (Shopify-style one-page checkout, pending a decision on
+  the payment step).
+- Cart, account, order and 404 screens: interface labels are still application copy.
+- Generic (non-Liquid) storefront theme in `app/site_ui.py`: its footer copyright, "Cookie
+  preferences" button and banner text are still fixed strings. It can adopt the same mechanism by
+  registering a shell module.
+- The chat assistant cannot yet edit shell fields; its operations cover pages and theme design.
+- Live verification: tested with unit and route tests on SQLite, not yet against the live
+  PostgreSQL data. No schema migration is needed (JSON columns, additive keys).
