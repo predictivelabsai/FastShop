@@ -36,6 +36,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import RedirectResponse, Response
 
 from app import content, signup_services, site_ui
+from app.checkout_copy import DEFAULT_CHECKOUT_COPY
 from app import site_builder_services as builder
 from app.admin_ui import empty_state, index_table
 from app.config import settings
@@ -447,6 +448,12 @@ def register_site_routes(rt):
                                 Div(NotStr((config.get("policies") or {}).get(key, "")), contenteditable="true", data_rich_editor=key, role="textbox", aria_multiline="true", cls="e-rich-editor"),
                                 Input(type="hidden", name="policy_" + key, value=(config.get("policies") or {}).get(key, "")), cls="e-rich-field")
                               for key, label in (("privacy", "Privacy policy"), ("terms", "Terms and conditions"), ("refunds", "Returns and refunds"), ("shipping", "Shipping policy"))],
+                            H3("Checkout"),
+                            P("Edit the labels shown to customers during checkout. Leave a field blank to use its default."),
+                            *[Label(label, Input(name="checkout_copy_" + key,
+                                value=(config.get("checkout_copy") or {}).get(key, default), maxlength=500))
+                              for key, default in DEFAULT_CHECKOUT_COPY.items()
+                              for label in [key.replace("_", " ").capitalize()]],
                             Script(src="/static/site-rich-editor.js", defer=True),
                             Link(rel="stylesheet", href="/static/site-rich-editor.css"),
                             H3("Cookie consent banner"),
@@ -495,6 +502,9 @@ def register_site_routes(rt):
                 from app.site_widgets import sanitise_html
                 config["policies"] = {key: sanitise_html(str(form.get("policy_" + key, ""))[:100000])
                                       for key in ("privacy", "terms", "refunds", "shipping")}
+                config["checkout_copy"] = {**(config.get("checkout_copy") or {}), **{
+                    key: str(form.get("checkout_copy_" + key, "")).strip()[:500] or default
+                    for key, default in DEFAULT_CHECKOUT_COPY.items()}}
                 # Merge so banner fields edited in the visual editor are kept.
                 config["liquid_consent"] = {**(config.get("liquid_consent") or {}),
                                             **{key: str(form.get("consent_" + key, ""))[:1000].strip()
