@@ -24,6 +24,8 @@ DEFAULT_CHECKOUT_COPY = {
     "summary_heading": "Order summary",
     "summary_toggle": "Show order summary",
     "discount_label": "Discount code or gift card number",
+    "discount_code_option": "Discount code",
+    "gift_card_option": "Gift card",
     "apply_button": "Apply",
     "subtotal_label": "Subtotal",
     "shipping_label": "Shipping",

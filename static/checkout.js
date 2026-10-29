@@ -42,7 +42,8 @@
       csrf_token: csrf, email: value('email'), full_name: fullName,
       line1: value('line1'), line2: value('line2'), city: value('city'),
       state: value('state'), postal_code: value('postal_code'), country: 'US',
-      code: value('code'), gift_card_code: value('gift_card_code'),
+      code: value('promo_type') === 'discount' ? value('checkout_code') : '',
+      gift_card_code: value('promo_type') === 'gift_card' ? value('checkout_code') : '',
       shipping_rate_id: value('shipping_rate_id'),
       subscription_consent: checked('subscription_consent')
     };
@@ -67,7 +68,7 @@
       const copy = document.createElement('div');
       copy.className = 'checkout-line-copy';
       const name = document.createElement('h3');
-      name.textContent = line.name;
+      name.textContent = line.variant ? line.name.replace(new RegExp(`(?: · | — )${line.variant.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`), '') : line.name;
       const detail = document.createElement('p');
       detail.textContent = line.variant || (line.subscription ? 'Monthly subscription' : '');
       copy.append(name, detail);
@@ -145,6 +146,8 @@
       rateBox.replaceChildren();
       if (!rates.length) {
         rateBox.textContent = rateBox.dataset.noRates;
+        payButton.disabled = false;
+        await createPayment(result.attempt_id);
       } else {
         rates.forEach((rate, index) => {
           const label = document.createElement('label');
@@ -183,10 +186,10 @@
   }
 
   form.addEventListener('input', (event) => {
-    if (['email', 'first_name', 'last_name', 'line1', 'line2', 'city', 'state', 'postal_code', 'code', 'gift_card_code'].includes(event.target.name)) scheduleQuote();
+    if (['email', 'first_name', 'last_name', 'line1', 'line2', 'city', 'state', 'postal_code', 'code', 'gift_card_code', 'checkout_code'].includes(event.target.name)) scheduleQuote();
   });
   form.addEventListener('change', (event) => {
-    if (event.target.name === 'shipping_rate_id') scheduleQuote();
+    if (event.target.name === 'shipping_rate_id' || event.target.name === 'promo_type') scheduleQuote();
     if (event.target.name === 'subscription_consent') scheduleQuote();
   });
   document.querySelector('[data-checkout-apply]').addEventListener('click', scheduleQuote);
@@ -224,6 +227,7 @@
     }
   });
 })();
+
 
 
 

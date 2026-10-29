@@ -110,6 +110,24 @@ def test_guest_checkout_quote_handoff_and_verified_payment(storefront):
     assert "Your bag is empty" in new_bag.text
 
 
+def test_no_javascript_checkout_combines_first_and_last_name(storefront):
+    r, client, base, _ = storefront
+    page = client.get(base + "/cart")
+    page = client.post(base + "/cart/add", data={"csrf_token": csrf(page),
+        "variant_id": r.variant.id, "quantity": "1"})
+    page = client.get(base + "/checkout")
+    version = re.search(r'name="version" value="(\d+)"', page.text).group(1)
+    response = client.post(base + "/checkout", data={
+        "csrf_token": csrf(page), "version": version, "email": "fallback@example.test",
+        "first_name": "Taylor", "last_name": "Morgan", "line1": DESTINATION["line1"],
+        "city": DESTINATION["city"], "state": DESTINATION["state"],
+        "postal_code": DESTINATION["postal_code"], "country": "US",
+    })
+    assert response.status_code == 200 and "Review your order" in response.text
+    quote = r.db.scalar(select(CommerceQuote))
+    assert quote.snapshot_json["recipient_name"] == "Taylor Morgan"
+
+
 def test_cart_mutation_validation_and_unstarted_cancellation(storefront):
     r, client, base, gateway = storefront
     review, data = add_and_quote(r, client, base)

@@ -277,16 +277,21 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     select(SitePage).where(SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
                         SitePage.published_json.is_not(None))))
                 def field(label, name, **kwargs):
-                    return Label(label, Input(name=name, **kwargs), cls="checkout-field")
+                    kwargs.setdefault("placeholder", label)
+                    kwargs.setdefault("aria_label", label)
+                    return Label(Span(label, cls="checkout-sr-only"), Input(name=name, **kwargs), cls="checkout-field")
                 def row(*children, cls=""):
                     return Div(*children, cls=("checkout-row " + cls).strip())
                 def summary_line(line):
                     product = db.get(Product, line.product_id)
                     image_url = product.image_url if product and product.image_url else ""
+                    display_name = line.name
+                    for separator in (" · ", " — "):
+                        if line.variant_name:
+                            display_name = display_name.removesuffix(separator + line.variant_name)
                     return Div(Div(Img(src=image_url, alt="", cls="checkout-thumb") if image_url else Div(cls="checkout-thumb checkout-thumb-empty"),
                         Span(str(line.quantity), cls="checkout-quantity"), cls="checkout-thumb-wrap"),
-                        Div(H3(line.name), P(line.variant_name or (copy["subscription_line"] if line.subscription else "")),
-                            P(copy["subscription_line"] if line.subscription and line.variant_name else "", cls="checkout-line-type"), cls="checkout-line-copy"),
+                        Div(H3(display_name), P(line.variant_name or (copy["subscription_line"] if line.subscription else "")), cls="checkout-line-copy"),
                         Strong(money(line.amount_minor, "USD")), cls="checkout-line", data_checkout_line="")
                 page = (
                     Title("Checkout · " + site.name),
@@ -323,7 +328,9 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                         H3(copy["shipping_heading"], cls="checkout-subheading"),
                         Div(copy["shipping_prompt"], id="checkout-shipping-rates", cls="checkout-shipping-prompt", aria_live="polite",
                             data_no_rates=copy["no_shipping_rates"]),
-                        H2(copy["payment_heading"], cls="checkout-section-title"),
+                        Div(H2(copy["payment_heading"], cls="checkout-section-title"),
+                            Div(Span("VISA"), Span("Mastercard"), Span("AMEX"), cls="checkout-card-marks"),
+                            cls="checkout-payment-heading"),
                         P(copy["payment_security"], cls="checkout-help"),
                         Div(id="payment-element", cls="checkout-payment-element"),
                         Label(Input(type="checkbox", name="billing_same", checked=True), " " + copy["billing_address"], cls="checkout-checkout"),
@@ -336,8 +343,11 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                             cls="checkout-footer"), cls="checkout-main-inner"),
                         Aside(Div(H2(copy["summary_heading"]), Div(*[summary_line(line) for line in lines], id="checkout-lines"),
                             Form(Input(type="hidden", name="csrf_token", value=session.get("csrf_token", "")),
-                                Input(name="code", placeholder=copy["discount_label"], maxlength=40, value=cart.discount_code),
-                                Input(name="gift_card_code", placeholder=copy["discount_label"], maxlength=64),
+                                Select(Option(copy["discount_code_option"], value="discount", selected=True),
+                                    Option(copy["gift_card_option"], value="gift_card"), name="promo_type", aria_label=copy["discount_code_option"] + " or " + copy["gift_card_option"]),
+                                Input(name="checkout_code", placeholder=copy["discount_label"], maxlength=64, value=cart.discount_code),
+                                Input(type="hidden", name="code", value=cart.discount_code),
+                                Input(type="hidden", name="gift_card_code", value=""),
                                 Button(copy["apply_button"], type="button", data_checkout_apply=""), cls="checkout-discount-form"),
                             Div(Span(copy["subtotal_label"] + " · " + str(count) + " " + (copy["item_plural"] if count != 1 else copy["item_singular"])),
                                 Strong(money(total, "USD")), cls="checkout-total-row", data_summary_subtotal=""),
@@ -365,6 +375,10 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
         form = await request.form()
         try:
             check_csrf(session, form)
+            promo_type = str(form.get("promo_type", "discount"))
+            entered_code = str(form.get("checkout_code", "")).strip()
+            code = (entered_code if promo_type == "discount" and entered_code else form.get("code", ""))
+            gift_card_code = (entered_code if promo_type == "gift_card" and entered_code else form.get("gift_card_code", ""))
             name = str(form.get("full_name", "")).strip() or " ".join(
                 part.strip() for part in (str(form.get("first_name", "")), str(form.get("last_name", ""))) if part.strip())
             if not name or len(name) > 160 or form.get("website"):
@@ -384,8 +398,8 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 customer = customer or customer_services.customer_for(db, site, email, create=True)
                 attempt = checkout.prepare(db, site, customer.id, cart.lines_json, dict(form),
                     make_gateway(StripeGateway, site, db),
-                    request_key=cart.request_key, code=form.get("code", ""), recipient_name=name,
-                    gift_card_code=form.get("gift_card_code", ""),
+                    request_key=cart.request_key, code=code, recipient_name=name,
+                    gift_card_code=gift_card_code,
                     subscription_consent=form.get("subscription_consent") == "on",
                     shipping_rate_id=form.get("shipping_rate_id") or None)
                 cart.checkout_id = attempt.id
