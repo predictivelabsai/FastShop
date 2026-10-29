@@ -23,12 +23,14 @@ def credentials(site):
     prefix = f"FASTSHOP_STRIPE_{site.id.upper()}_"
     key = os.getenv(prefix + "SECRET_KEY", "")
     secret = os.getenv(prefix + "WEBHOOK_SECRET", "")
+    publishable = os.getenv(prefix + "PUBLISHABLE_KEY", "")
     # Existing global credentials are exclusively for the explicitly designated store.
     # Other tenants never inherit the H2 4 You merchant account.
     if site.slug == os.getenv("FASTSHOP_STRIPE_PRIMARY_SITE", "h24you"):
         key = key or os.getenv("STRIPE_SECRET_KEY", "")
         secret = secret or os.getenv("STRIPE_WEBHOOK_SECRET", "")
-    return key, secret
+        publishable = publishable or os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+    return key, secret, publishable
 
 
 @dataclass(frozen=True)
@@ -65,9 +67,9 @@ class StripeGateway:
                 self.key, self.webhook_secret = live_credentials.live_secrets(db, site, config)
                 self.live_mode = True
             else:
-                self.key, self.webhook_secret = credentials(site)
+                self.key, self.webhook_secret, _ = credentials(site)
         else:
-            self.key, self.webhook_secret = credentials(site)
+            self.key, self.webhook_secret, _ = credentials(site)
         self.transport = transport
         allowed = ("sk_live_",) if self.live_mode else ("sk_test_", "rk_test_")
         if not self.key.startswith(allowed):
