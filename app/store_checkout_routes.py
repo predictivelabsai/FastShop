@@ -425,6 +425,9 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 destination = {key: data.get(key, "") for key in
                     ("line1", "line2", "city", "state", "postal_code")}
                 destination["country"] = "US"
+                company = str(data.get("company", "")).strip()
+                if len(company) > 200:
+                    raise CommerceError("Company name must be 200 characters or fewer.")
                 attempt = checkout.prepare(db, site, customer.id, cart.lines_json, destination,
                     make_gateway(StripeGateway, site, db), request_key=cart.request_key,
                     code=data.get("code", ""), recipient_name=name,
@@ -434,6 +437,9 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 cart.checkout_id = attempt.id
                 quote = db.scalar(select(CommerceQuote).where(CommerceQuote.id == attempt.quote_id,
                     CommerceQuote.site_id == site.id, CommerceQuote.tenant_id == site.tenant_id))
+                if company:
+                    quote.snapshot_json = quote.snapshot_json | {
+                        "destination": quote.snapshot_json["destination"] | {"company": company}}
                 snapshot = quote.snapshot_json
                 from app.growth_settings import shipping_options
                 subtotal = sum(line["amount_minor"] for line in snapshot["lines"])

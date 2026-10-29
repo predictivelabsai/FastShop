@@ -84,7 +84,8 @@ def payment_command(site, attempt, quote, customer, *, custom=False):
                        cancel_url=root + "/checkout/" + attempt.id)
     return {
         "customer": {"email": customer.email, "name": recipient,
-            "shipping": {"name": recipient, "address": quote.snapshot_json["destination"]},
+            "shipping": {"name": recipient, "address": {key: value for key, value in
+                quote.snapshot_json["destination"].items() if key != "company"}},
             "metadata": metadata},
         "session": session,
     }
