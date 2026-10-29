@@ -197,4 +197,3 @@ def test_session_endpoint_falls_back_to_hosted_without_publishable_key(storefron
         headers={"X-CSRF-Token": csrf(page)})
     assert response.status_code == 200, response.text
     assert response.json() == {"fallback_url": base + "/checkout/" + quote["attempt_id"] + "/pay"}
-
