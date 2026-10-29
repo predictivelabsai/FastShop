@@ -126,7 +126,9 @@ def test_cart_checkout_native_forms_and_error_shell(browser):
     summary = client.get(base + '/cart/summary')
     assert summary.json() == {'count': 2}
     response = client.get(base + '/checkout')
-    shell(response)
+    assert response.status_code == 200
+    assert 'class="checkout-page"' in response.text and 'data-checkout-root' in response.text
+    assert 'data-pack="liquid"' not in response.text and 'site-liquid.js' not in response.text
     version = re.search(r'name="version" value="(\d+)"', response.text)[1]
     response = client.post(base + '/checkout', data=DESTINATION | {
         'csrf_token': token(response), 'version': version, 'full_name': 'Test Shopper',
@@ -254,8 +256,9 @@ def test_custom_data_leaves_synthetic_cart_and_checkout_pages_intact(browser):
         "variant_id": variant.id, "quantity": "1", "subscription": "off"})
     shell(cart)
     checkout = client.get(base + "/checkout")
-    shell(checkout)
-    assert "US delivery &amp; checkout" in checkout.text
+    assert checkout.status_code == 200
+    assert 'class="checkout-page"' in checkout.text and 'data-checkout-root' in checkout.text
+    assert 'data-pack="liquid"' not in checkout.text and 'site-liquid.js' not in checkout.text
     assert "Product-only dynamic value" not in checkout.text
     assert "store-preferences.js" not in checkout.text
     assert "store-preferences.js" in client.get(base + "/products/h2-4-you-one").text
