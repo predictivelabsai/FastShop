@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fasthtml.common import (
     H1,
     H2,
@@ -661,12 +663,13 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     from app.store_preferences import metadata as preference_metadata
     document = resolve_dynamic_document(db, site, page, document)
     preferences = preference_metadata(db, site, page, document)
-    shell = config.get("liquid_shell", {})
-    # The pack is reusable; incomplete settings do not break another site's preview.
-    if not shell:
-        from app.site_seed_liquid import CONTENT
+    from app.site_editable_settings import shell_fields, shell_values
+    from app.site_liquid_shell import PAYMENT_MARKS
 
-        shell = {k: CONTENT[k] for k in ("offer", "footer", "nav")}
+    # Merchant values from the visual editor; seed defaults fill absent paths only.
+    resolved = shell_values({**config, "theme_pack": "liquid"}, shell_fields({"theme_pack": "liquid"}))
+    shell, consent_copy = resolved["liquid_shell"], resolved["liquid_consent"]
+    labels = shell["labels"]
     enabled = payments_enabled(db, site, settings_for(db, site)) and not preview
     nav, footer, offer = shell["nav"], shell["footer"], shell["offer"]
     shop_links = rendered_navigation(db, site, "header", preview=preview)
@@ -736,19 +739,20 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         and getattr(page, "product_id", None)
         and has_published_recently_viewed(db, site)
     )
-    has_privacy_policy = db.scalar(
-        select(SitePage.id).where(
-            SitePage.site_id == site.id,
-            SitePage.tenant_id == site.tenant_id,
-            SitePage.path == "/pages/privacy-policy",
-        )
-    ) is not None or bool((config.get("policies") or {}).get("privacy", "").strip())
-    consent_copy = {
-        "heading": "Your privacy, your choice.",
-        "body": "Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them.",
-        "accept": "Accept all", "decline": "Decline", "save": "Save preferences",
-        "privacy_label": "Privacy policy",
-    } | (config.get("liquid_consent") or {})
+    privacy_href = consent_copy.get("privacy_href", "")
+    # The banner always renders; only a policy link that would lead nowhere is left out.
+    if privacy_href == "/pages/privacy-policy":
+        has_privacy_policy = db.scalar(
+            select(SitePage.id).where(
+                SitePage.site_id == site.id,
+                SitePage.tenant_id == site.tenant_id,
+                SitePage.path == "/pages/privacy-policy",
+            )
+        ) is not None or bool((config.get("policies") or {}).get("privacy", "").strip())
+    else:
+        has_privacy_policy = privacy_href not in {"", "#"}
+    copyright_line = labels.get("copyright") or (
+        f"© {datetime.now(UTC).year} {footer['company']}. All rights reserved.")
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(document["title"] if document["title"].endswith(" | " + site.name)
@@ -794,13 +798,13 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
         Script(src=static_asset("site-preview.js"), defer=True) if preview else None,
         Div(
-            A("Skip to content", href="#content", cls="liquid-skip"),
+            A(labels["skip"], href="#content", cls="liquid-skip"),
             Div(
                 Div(
                     Div(
                         Span(offer["title"], cls="text-metal-sheen"),
                         Button(
-                            "Request your code",
+                            labels["request"],
                             type="button",
                             data_liquid_offer_toggle="",
                             aria_expanded="false",
@@ -810,7 +814,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         Button(
                             "×",
                             type="button",
-                            aria_label="Dismiss first order offer",
+                            aria_label=labels["dismiss"],
                             data_liquid_dismiss="",
                             cls="metal-offer-dismiss",
                         ),
@@ -837,7 +841,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                             aria_label="Main",
                         ),
                         Div(
-                            A(icon("account"), href=base + "/account", aria_label="My account"),
+                            A(icon("account"), href=base + "/account", aria_label=labels["account"]),
                             A(
                                 icon("cart"),
                                 Span(
@@ -845,13 +849,13 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                                 ),
                                 href=base + "/cart",
                                 data_cart_open="" if enabled else None,
-                                aria_label="Open bag",
+                                aria_label=labels["bag"],
                                 cls="liquid-cart",
                             ),
                             Button(
                                 icon("menu"),
                                 type="button",
-                                aria_label="Open menu",
+                                aria_label=labels["menu"],
                                 aria_expanded="false",
                                 aria_controls="liquid-mobile-menu",
                                 data_liquid_menu="",
@@ -868,7 +872,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             Div(
                 Div(
                     logo(),
-                    Button("×", type="button", aria_label="Close menu", data_liquid_menu_close=""),
+                    Button("×", type="button", aria_label=labels["close"], data_liquid_menu_close=""),
                     cls="liquid-mobile-top",
                 ),
                 Nav(
@@ -937,9 +941,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         P(footer["company"]),
                         P(footer["address"]),
                         A(
-                            config.get("email", "hello@h24you.com"),
-                            href="mailto:" + config.get("email", "hello@h24you.com"),
-                        ),
+                            resolved["email"],
+                            href="mailto:" + resolved["email"],
+                        ) if resolved["email"] else None,
                         Div(
                             *[
                                 A(
@@ -954,16 +958,10 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         Div(
                             *[
                                 Span(photo(
-                                    "/static/h24you/liquid/" + filename,
+                                    "/static/h24you/liquid/" + PAYMENT_MARKS[name],
                                     name, width=64, height=32,
                                 ))
-                                for name, filename in (
-                                    ("Visa", "payment-visa.svg"),
-                                    ("Mastercard", "payment-mastercard.svg"),
-                                    ("PayPal", "payment-paypal.svg"),
-                                    ("Apple Pay", "payment-applepay.svg"),
-                                    ("Google Pay", "payment-google-pay-on-white.svg"),
-                                )
+                                for name in footer.get("payments", []) if name in PAYMENT_MARKS
                             ],
                             cls="metal-payment-logos",
                             aria_label="Payment methods",
@@ -972,9 +970,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     cls="liquid-footer-grid",
                 ),
                 Div(
-                    P(config.get("footer", "")),
-                        Button("Cookie preferences", type="button", data_cookie_open=""),
-                    P("© 2026 " + footer["company"] + ". All rights reserved."),
+                    P(resolved["footer"]),
+                        Button(labels["cookies"], type="button", data_cookie_open=""),
+                    P(copyright_line),
                     Small("Sandbox · Test purchases only") if enabled else None,
                     cls="liquid-footer-bottom",
                 ),
@@ -985,11 +983,11 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 H2(consent_copy["heading"]),
                 P(consent_copy["body"]),
                 Details(
-                    Summary("Preferences"),
-                    Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"),
-                    Label(Input(type="checkbox", id="consent-preferences"), " Preferences: remembers products you viewed on this device"),
-                    Label(Input(type="checkbox", id="consent-analytics"), " Analytics"),
-                    Label(Input(type="checkbox", id="consent-marketing"), " Marketing"),
+                    Summary(consent_copy["categories"]),
+                    Label(Input(type="checkbox", checked=True, disabled=True), " " + consent_copy["essential"]),
+                    Label(Input(type="checkbox", id="consent-preferences"), " " + consent_copy["preferences"]),
+                    Label(Input(type="checkbox", id="consent-analytics"), " " + consent_copy["analytics"]),
+                    Label(Input(type="checkbox", id="consent-marketing"), " " + consent_copy["marketing"]),
                 ),
                 Div(
                     Button(consent_copy["accept"], type="button", data_consent="all"),
@@ -997,7 +995,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     Button(consent_copy["save"], type="button", data_consent="custom"),
                     cls="liquid-cookie-actions",
                 ),
-                A(consent_copy["privacy_label"], href=url(base, "/pages/privacy-policy"))
+                A(consent_copy["privacy_label"], href=url(base, privacy_href))
                 if has_privacy_policy else None,
                 id="h-cookie",
                 cls="liquid-cookie",
