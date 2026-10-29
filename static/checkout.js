@@ -70,7 +70,7 @@
       const name = document.createElement('h3');
       name.textContent = line.variant ? line.name.replace(new RegExp(`(?: · | — )${line.variant.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`), '') : line.name;
       const detail = document.createElement('p');
-      detail.textContent = line.variant || (line.subscription ? 'Monthly subscription' : '');
+      detail.textContent = line.variant || (line.subscription ? page.dataset.subscriptionLine : '');
       copy.append(name, detail);
       const price = document.createElement('strong');
       price.textContent = dollars(line.amount, currency);
@@ -107,7 +107,8 @@
       return data;
     }
     const stripe = await loadStripe(data.publishable_key);
-    const initialized = await stripe.initCheckout({ clientSecret: data.client_secret });
+    // The basil Stripe.js release takes fetchClientSecret and resolves to the checkout object.
+    const initialized = await stripe.initCheckout({ fetchClientSecret: async () => data.client_secret });
     if (stripeCheckout?.destroy) stripeCheckout.destroy();
     stripeCheckout = initialized;
     const element = initialized.createPaymentElement();
@@ -144,6 +145,8 @@
       document.querySelector('.checkout-summary-toggle strong').textContent = `USD ${dollars(result.total, result.currency)}`;
       const rates = result.shipping_rates || [];
       rateBox.replaceChildren();
+      rateBox.classList.toggle('checkout-shipping-prompt', !rates.length);
+      rateBox.classList.toggle('checkout-rates', rates.length > 0);
       if (!rates.length) {
         rateBox.textContent = rateBox.dataset.noRates;
         payButton.disabled = false;
