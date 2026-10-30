@@ -22,6 +22,9 @@ let state,
   tab = "Content",
   dirty = false,
   themeDirty = false,
+  designDirty = false,
+  shellDirty = false,
+  shellGroup = null,
   saving = false,
   history = [],
   cursor = -1,
@@ -103,7 +106,7 @@ function walk(blocks = state.document.blocks, parent = null, result = []) {
 }
 const locate = (id) => walk().find((n) => n.block.id === id),
   siblings = (n) => (n.parent ? n.parent.children : state.document.blocks);
-const spec = (t) => state.schema[t] || {},
+const spec = (t) => (t === "__shell" ? state.shell_schema : state.schema[t]) || {},
   schemaLabel = (type) => (spec(type).label || type.replaceAll("_", " ")).replace(/^./, (c) => c.toUpperCase()),
   label = (b) => schemaLabel(b.type);
 const widgetIcons = {
@@ -244,6 +247,7 @@ function send(payload) {
 }
 function select(id) {
   selected = id;
+  if (id) shellGroup = null;
   if (id && window.matchMedia("(max-width: 760px)").matches)
     $("#editor").classList.remove("is-panel-open");
   $("#editor").classList.toggle("has-selection", Boolean(id));
@@ -477,7 +481,8 @@ function row(b, depth = 0) {
 function renderTree() {
   if (mode !== "sections") return;
   $("#left-content").innerHTML =
-    `<div class="tree-group-label">Header</div><div class="tree-static">▤ &nbsp; Store header <span class="subtle">· Theme</span></div><div class="tree-group-label">Template</div><div role="tree" aria-label="Page sections">${state.document.blocks.map((b) => row(b)).join("")}</div><button class="add-section" id="add-section">+ Add section</button><div class="tree-group-label">Footer</div><div class="tree-static">▤ &nbsp; Store footer <span class="subtle">· Theme</span></div>`;
+    `<div class="tree-group-label">Header</div>${shellRow("header", "Store header")}<div class="tree-group-label">Template</div><div role="tree" aria-label="Page sections">${state.document.blocks.map((b) => row(b)).join("")}</div><button class="add-section" id="add-section">+ Add section</button><div class="tree-group-label">Footer</div>${shellRow("footer", "Store footer")}${shellRow("consent", "Cookie banner")}`;
+  $$("[data-shell]").forEach((b) => (b.onclick = () => openShell(b.dataset.shell)));
   $("#add-section").onclick = () => openPicker();
   $$("[data-add-child]").forEach(
     (b) => (b.onclick = () => openPicker(b.dataset.addChild)),
@@ -720,8 +725,51 @@ function selectedFields() {
           : f.id.startsWith("style."),
   );
 }
+function shellRow(group, name) {
+  const editable = (state.shell_schema?.fields || []).some((f) => f.group === group);
+  if (!editable) return group === "consent" ? "" : `<div class="tree-static">▤ &nbsp; ${esc(name)} <span class="subtle">· Theme</span></div>`;
+  return `<button type="button" class="tree-static tree-shell ${shellGroup === group ? "selected" : ""}" data-shell="${group}" aria-pressed="${shellGroup === group}">▤ &nbsp; ${esc(name)} <span class="subtle">· Edit</span></button>`;
+}
+function openShell(group) {
+  selected = null;
+  shellGroup = group;
+  renderTree();
+  renderSettings();
+  send({ type: "select", block_id: null });
+}
+function renderShell() {
+  const names = { header: "Store header", footer: "Store footer", consent: "Cookie banner" };
+  const obj = state.shell_settings;
+  // Lets the shared field wiring find the shell schema; never serialised.
+  Object.defineProperty(obj, "type", { value: "__shell", enumerable: false, configurable: true });
+  $("#editor").classList.add("has-selection");
+  $("#selection-header").innerHTML =
+    `<h2>${esc(names[shellGroup])}</h2><span class="subtle">Shared by every page. Publish to make changes live.</span>`;
+  $("#settings-content").innerHTML =
+    `<div class="settings-fields">${state.shell_schema.fields
+      .filter((f) => f.group === shellGroup)
+      .map((f) => fieldHTML(f, obj))
+      .join("")}<button id="save-shell">Save header and footer</button></div>`;
+  wireFields(obj, (path, v) => {
+    set(obj, path, v);
+    shellDirty = themeDirty = true;
+    status("Unsaved changes");
+  });
+  $("#save-shell").onclick = async () => {
+    try {
+      await saveTheme();
+      status(dirty || themeDirty ? "Unsaved changes" : "Saved");
+      toast("Header and footer saved");
+      needsFullPreview = true;
+      preview();
+    } catch (e) {
+      showError(e);
+    }
+  };
+}
 function renderSettings() {
   const n = locate(selected);
+  if (!n && shellGroup && state.shell_schema) return renderShell();
   $("#editor").classList.toggle("has-selection", Boolean(n));
   if (!n) {
     $("#selection-header").innerHTML =
@@ -956,7 +1004,7 @@ function renderTheme() {
     state.theme_settings,
     (p, v) => {
       set(state.theme_settings, p, v);
-      themeDirty = true;
+      themeDirty = designDirty = true;
       status("Unsaved changes");
     },
     "#left-content",
@@ -971,8 +1019,33 @@ function renderTheme() {
     }
   };
 }
+async function saveShell() {
+  const submitted = JSON.stringify(state.shell_settings);
+  try {
+    const r = await api("/shell-settings", "PUT", {
+      shell_settings: state.shell_settings,
+      version: state.site_version,
+    });
+    state.site_version = r.version;
+    if (JSON.stringify(state.shell_settings) === submitted) {
+      state.shell_settings = r.shell_settings;
+      shellDirty = false;
+    }
+  } catch (e) {
+    if (e.conflict) {
+      e.conflict = false;
+      e.message = "Store settings changed. Reload the editor before saving the header and footer.";
+    }
+    throw e;
+  }
+}
 async function saveTheme() {
   if (!themeDirty) return;
+  if (shellDirty) await saveShell();
+  if (!designDirty) {
+    themeDirty = shellDirty;
+    return;
+  }
   const submitted = JSON.stringify(state.theme_settings);
   try {
     const r = await api("/theme-settings", "PUT", {
@@ -981,7 +1054,8 @@ async function saveTheme() {
     });
     state.site_version = r.version;
     if (boot.theme_id) state.version = r.version;
-    themeDirty = JSON.stringify(state.theme_settings) !== submitted;
+    designDirty = JSON.stringify(state.theme_settings) !== submitted;
+    themeDirty = designDirty || shellDirty;
   } catch (e) {
     // Theme and page versions are distinct. Reload before retrying a theme conflict.
     if (e.conflict) {
@@ -1117,8 +1191,9 @@ async function load() {
     if (Array.isArray(state.schema))
       state.schema = Object.fromEntries(state.schema.map((s) => [s.type, s]));
     selected = null;
+    shellGroup = null;
     dirty = false;
-    themeDirty = false;
+    themeDirty = designDirty = shellDirty = false;
     lastSaved = JSON.stringify(state.document);
     history = [];
     snapshot("Opened page");

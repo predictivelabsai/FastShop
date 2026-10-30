@@ -80,6 +80,15 @@ def validate_editor_document(document):
         raise
 
 
+def shell_payload(site, theme=""):
+    """Header, footer and consent fields the active theme pack declares (live theme only)."""
+    from app.site_editable_settings import shell_fields, shell_values
+
+    fields = [] if theme else shell_fields(site.settings_json)
+    return {"shell_schema": {"type": "__shell", "label": "Header and footer", "fields": fields},
+            "shell_settings": shell_values(site.settings_json, fields)}
+
+
 def _version(value):
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise EditorError("Supply the current version.")
@@ -275,6 +284,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                         "product_id": custom_data.product_id_for_page(db, site, selected),
                              "path": selected.path},
                     "theme_settings": DEFAULTS | (site.settings_json or {}).get("design", {}),
+                    **shell_payload(site, theme),
                     "theme_choices": CHOICES, "can_publish": role in {"admin", "merchant"}})
         except CommerceError as exc:
             return failure(exc)
@@ -328,6 +338,9 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                                           site_version=site.version, version=selected.version) from exc
                     if "design" in (site.settings_json or {}):
                         published_design = validate_theme(site.settings_json["design"])
+                    from app.site_editable_settings import publish_shell, shell_fields
+                    site.published_settings_json = publish_shell(site.settings_json,
+                        site.published_settings_json, shell_fields(site.settings_json))
                 version = guard_version(db, site, selected, values.get("version"))
                 if action == "restore":
                     selected = content.restore_page(db, site, selected.id,
@@ -422,6 +435,32 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 builder.apply_operations(db, site.id, user_id, builder.snapshot(db, site),
                     [{"op": "theme", "values": design}], "visual-editor")
                 result = {"theme_settings": design, "version": site.version}
+                db.commit()
+                return response(result)
+        except (CommerceError, ValueError, TypeError) as exc:
+            return failure(exc)
+
+    @json_route("/admin/sites/{site_id}/editor/api/shell-settings", methods=["PUT"])
+    async def shell_put(session, request, site_id: str, theme: str = ""):
+        try:
+            values = await payload(session, request)
+            with SessionLocal() as db:
+                site, user_id = access(db, session, site_id)
+                if theme:
+                    raise EditorError("Edit the header and footer on the live theme.")
+                from app import site_builder_services as builder
+                from app.site_editable_settings import apply_shell, shell_fields
+                try:
+                    site = builder.lock_site(db, site.id, user_id, _version(values.get("version")))
+                except CommerceError as exc:
+                    raise EditorError(str(exc), 409, conflict=True, version=site.version) from exc
+                before = builder.snapshot(db, site)
+                site.settings_json = apply_shell(site.settings_json, values.get("shell_settings"),
+                                                 shell_fields(site.settings_json))
+                site.version += 1
+                db.flush()
+                builder.record_change(db, site, user_id, before, "visual-editor", "Header and footer")
+                result = {**shell_payload(site), "version": site.version}
                 db.commit()
                 return response(result)
         except (CommerceError, ValueError, TypeError) as exc:
