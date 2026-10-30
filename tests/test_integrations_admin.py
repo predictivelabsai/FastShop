@@ -49,11 +49,11 @@ def test_global_credentials_require_an_explicit_primary_store(monkeypatch):
     monkeypatch.setenv("PAYPAL_CLIENT_ID", "global_fixture_id")
     monkeypatch.setenv("PAYPAL_SECRET", "global_fixture_secret")
     for slug in ("northstar", "another-store", ""):
-        assert stripe_credentials(_site(slug=slug)) == ("", "")
+        assert stripe_credentials(_site(slug=slug)) == ("", "", "")
         assert paypal.credentials(_site(slug=slug)) == ("", "", "sandbox")
     monkeypatch.setenv("FASTSHOP_STRIPE_PRIMARY_SITE", "northstar")
-    assert stripe_credentials(_site(slug="northstar")) == ("sk_test_global_fixture", "whsec_global_fixture")
-    assert stripe_credentials(_site(slug="another-store")) == ("", "")
+    assert stripe_credentials(_site(slug="northstar")) == ("sk_test_global_fixture", "whsec_global_fixture", "")
+    assert stripe_credentials(_site(slug="another-store")) == ("", "", "")
 
 
 def test_readiness_never_exposes_values(monkeypatch):
