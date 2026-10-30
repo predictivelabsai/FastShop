@@ -50,7 +50,7 @@ def main():
         db.add_all([category, product_type])
         db.flush()
         product = Product(tenant_id=site.tenant_id, category_id=category.id,
-            product_type_id=product_type.id, name="Molecular Hydrogen Tablets", slug="hydrogen-tablets",
+            product_type_id=product_type.id, name="Sample Tablets", slug="sample-tablets",
             is_published=True, image_url="")
         db.add(product)
         db.flush()
@@ -110,7 +110,7 @@ def main():
                 page.locator(f'input[name="{name}"]').fill(value)
             page.locator('select[name="state"]').select_option("CA")
             page.locator("#checkout-shipping-rates .checkout-rate").first.wait_for(timeout=15000)
-            assert "Molecular Hydrogen Tablets" in page.locator("body").inner_text()
+            assert "Sample Tablets" in page.locator("body").inner_text()
             page.evaluate("document.activeElement.blur()")
             for name, width, height in (("desktop", 1440, 1000), ("mobile", 390, 844)):
                 page.set_viewport_size({"width": width, "height": height})
