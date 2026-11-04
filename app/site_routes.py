@@ -37,6 +37,7 @@ from starlette.responses import RedirectResponse, Response
 
 from app import content, signup_services, site_ui
 from app import site_builder_services as builder
+from app.account_copy import DEFAULT_ACCOUNT_COPY
 from app.admin_ui import empty_state, index_table
 from app.checkout_copy import DEFAULT_CHECKOUT_COPY
 from app.config import settings
@@ -455,6 +456,11 @@ def register_site_routes(rt):
                                 value=(config.get("checkout_copy") or {}).get(key, default), maxlength=500))
                               for key, default in DEFAULT_CHECKOUT_COPY.items()
                               for label in [key.replace("_", " ").capitalize()]],
+                            H3("Customer login"),
+                            P("Edit the labels shown on customer sign-in pages. Leave a field blank to use its default."),
+                            *[Label(key.replace("_", " ").capitalize(), Input(name="account_copy_" + key,
+                                value=(config.get("account_copy") or {}).get(key, default), maxlength=500))
+                              for key, default in DEFAULT_ACCOUNT_COPY.items()],
                             Script(src="/static/site-rich-editor.js", defer=True),
                             Link(rel="stylesheet", href="/static/site-rich-editor.css"),
                             H3("Cookie consent banner"),
@@ -507,6 +513,9 @@ def register_site_routes(rt):
                 config["checkout_copy"] = {**(config.get("checkout_copy") or {}), **{
                     key: str(form.get("checkout_copy_" + key, "")).strip()[:500] or default
                     for key, default in DEFAULT_CHECKOUT_COPY.items()}}
+                config["account_copy"] = {**(config.get("account_copy") or {}), **{
+                    key: str(form.get("account_copy_" + key, "")).strip()[:500] or default
+                    for key, default in DEFAULT_ACCOUNT_COPY.items()}}
                 # Merge so banner fields edited in the visual editor are kept.
                 config["liquid_consent"] = {**(config.get("liquid_consent") or {}),
                                             **{key: str(form.get("consent_" + key, ""))[:1000].strip()
