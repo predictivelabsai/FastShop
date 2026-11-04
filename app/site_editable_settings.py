@@ -1,4 +1,4 @@
-"""Theme-pack shell settings (header, footer, consent) that merchants edit visually.
+"""Shell settings (header, footer, consent) that merchants edit visually.
 
 A theme pack registers a field list. Each field id is a dotted path into
 ``Site.settings_json``. Values are read with schema defaults filling absent
@@ -15,6 +15,18 @@ from app.services import CommerceError
 TEXT_TYPES = {"text", "textarea"}
 _PROVIDERS = {}
 _MISSING = object()
+_DEFAULT_FIELDS = [
+    {"id": "name", "group": "header", "label": "Store name", "type": "text",
+     "max_length": 160, "default": ""},
+    {"id": "announcement", "group": "header", "label": "Announcement", "type": "text",
+     "max_length": 500, "default": ""},
+    {"id": "tagline", "group": "footer", "label": "Tagline", "type": "text",
+     "max_length": 500, "default": ""},
+    {"id": "company", "group": "footer", "label": "Company name", "type": "text",
+     "max_length": 200, "default": ""},
+    {"id": "footer", "group": "footer", "label": "Footer note", "type": "textarea",
+     "max_length": 2000, "default": ""},
+]
 
 
 def register_shell(pack: str, provider) -> None:
@@ -24,6 +36,8 @@ def register_shell(pack: str, provider) -> None:
 
 def shell_fields(config: dict | None) -> list[dict]:
     pack = str((config or {}).get("theme_pack", ""))
+    if not pack:
+        return copy.deepcopy(_DEFAULT_FIELDS)
     if pack.isidentifier() and pack not in _PROVIDERS:
         # Convention: a pack's shell module is app/site_<pack>_shell.py and registers itself.
         try:

@@ -40,7 +40,9 @@ def test_defaults_fill_absent_paths_only_and_unknown_packs_have_no_fields():
     assert edited["shelltest"]["offer"]["title"] == "Edited"
     assert edited["shelltest"]["offer"]["cta"] == "Send my code"
     assert shell_fields({"theme_pack": "missing-pack"}) == []
-    assert shell_fields({}) == []
+    default_fields = shell_fields({})
+    assert {"name", "announcement", "footer"} <= {field["id"] for field in default_fields}
+    assert shell_values({})["footer"] == ""
 
 
 def test_apply_validates_declared_paths_and_keeps_unrelated_settings():
@@ -91,3 +93,28 @@ def test_editor_loads_saves_and_publishes_shell(workspace):  # noqa: F811
     assert published.status_code == 200, published.text
     with w.sessions() as db:
         assert db.get(Site, w.site.id).published_settings_json["footer"] == "Draft note"
+
+
+def test_default_theme_shell_settings_are_editable(workspace):
+    w = workspace
+    loaded = load(w)
+    ids = {field["id"] for field in loaded["shell_schema"]["fields"]}
+    assert {"name", "announcement", "footer"} <= ids
+    values = {"footer": "A note for visitors.", "announcement": "A store update."}
+    saved = w.client.put(w.base + "/shell-settings", json={
+        "shell_settings": values, "version": loaded["site_version"],
+    }, headers=w.headers)
+    assert saved.status_code == 200, saved.text
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        assert site.settings_json["footer"] == "A note for visitors."
+        assert site.settings_json["announcement"] == "A store update."
+        assert site.published_settings_json["footer"] != "A note for visitors."
+    published = w.client.post(w.base + "/publish", json={
+        "version": loaded["version"], "site_version": saved.json()["version"],
+    }, headers=w.headers)
+    assert published.status_code == 200, published.text
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        assert site.published_settings_json["footer"] == "A note for visitors."
+        assert site.published_settings_json["announcement"] == "A store update."
