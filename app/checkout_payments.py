@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import select
 
 from app import checkout_services as checkout
-from app import commerce
+from app import commerce, live_credentials
 from app.config import settings
 from app.db import SessionLocal
 from app.integrations.stripe_commerce import StripeGateway, credentials, make_gateway
@@ -19,6 +19,22 @@ from app.services import CommerceError
 # for them. PayPal is opt-in per store and only for one-time orders — recurring orders
 # stay card-only so the saved card can drive off-session renewals.
 ALLOWED_PAYMENT_METHODS = {"card", "paypal"}
+
+
+def publishable_for(db, site):
+    """Return the publishable key for the effective payment mode, if configured."""
+    mode = commerce.payment_mode(db, site)
+    if mode == "live":
+        live_credentials.live_secrets(db, site)
+        credential = live_credentials.credential_for(db, site)
+        key = credential.publishable_key if credential else ""
+        if key and not key.startswith("pk_live_"):
+            raise CommerceError("The live Stripe publishable key does not match live payments.")
+        return key or None
+    _, _, key = credentials(site)
+    if key and not key.startswith("pk_test_"):
+        raise CommerceError("The Stripe publishable key does not match sandbox payments.")
+    return key or None
 
 
 def payment_methods_for(site, recurring: bool) -> list[str]:
@@ -254,7 +270,7 @@ def embedded_session(site_id, customer_id, attempt_id, *, sessions=SessionLocal,
         if result.get("status") != "open" or attempt.state != "open":
             raise CommerceError("This checkout needs payment-status reconciliation.")
         secret = result.get("client_secret")
-        _, _, publishable = credentials(site)
+        publishable = publishable_for(db, site)
         if not isinstance(secret, str) or not secret or not publishable:
             raise CommerceError("Configure Stripe publishable credentials for this site.")
         return {"client_secret": secret, "publishable_key": publishable}
