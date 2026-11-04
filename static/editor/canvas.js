@@ -135,6 +135,15 @@
       }
       if (editing && editing.contains(e.target)) return;
       finishEdit();
+      // Theme header, footer and cookie banner open their settings panel in the editor.
+      const shell = e.target.closest("[data-builder-shell]");
+      if (shell && !e.target.closest("[data-block-id]")) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        select(null);
+        send({ type: "shell", group: shell.dataset.builderShell });
+        return;
+      }
       const node = e.target.closest("[data-block-id]");
       if (node) {
         e.preventDefault();

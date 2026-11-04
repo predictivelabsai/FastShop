@@ -45,6 +45,10 @@ def _matches(text: str, terms: list[str]) -> list[str]:
 
 def scan_text(text: str, *, allow_disease: bool = True) -> dict[str, list[str]]:
     """Return banned/disease/hype terms found in a single string."""
+    from app.site_seed import DISCLAIMER
+
+    # The required FDA disclaimer itself says "cure" and "disease"; only its exact wording is exempt.
+    text = str(text or "").replace(DISCLAIMER, "")
     return {
         "banned": _matches(text, BANNED_TERMS),
         "diseases": _matches(text, DISEASE_TERMS) if allow_disease else [],
@@ -139,10 +143,7 @@ def assert_document_compliant(document: dict) -> None:
 
 def assert_copy_compliant(text: str) -> None:
     """Apply the same prohibited wording checks to merchant supplied shell copy."""
-    from app.site_seed import DISCLAIMER
-
-    # The required FDA disclaimer itself says "cure" and "disease"; it must stay byte-identical.
-    message = _blocking_message(scan_text(str(text).replace(DISCLAIMER, "")), "This site copy")
+    message = _blocking_message(scan_text(text), "This site copy")
     if message:
         raise CommerceError(message)
 

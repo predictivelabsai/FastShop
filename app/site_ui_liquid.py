@@ -237,7 +237,9 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     href=url(base, b.get("link", "/#products")),
                     cls="metal-cta bg-metal-sheen",
                 ),
-                P(b.get("disclaimer", config.get("footer", "")), cls="liquid-hero-disclaimer")
+                P(b.get("disclaimer", config.get("footer", "")), cls="liquid-hero-disclaimer",
+                  data_field="disclaimer" if preview else None,
+                  data_field_type="text" if preview else None)
                 if "*" in b.get("body", "") and b.get("disclaimer", config.get("footer", "")) else None,
                 cls="metal-container hero-copy",
             ),

@@ -171,3 +171,13 @@ def test_shell_copy_scan_allows_the_exact_fda_disclaimer():
     assert_copy_compliant("*" + DISCLAIMER)
     with _pytest.raises(CommerceError):
         assert_copy_compliant("Our tablets cure everything. " + DISCLAIMER)
+
+
+def test_page_scan_allows_the_exact_fda_disclaimer_only():
+    from app.compliance import scan_document
+    from app.site_seed import DISCLAIMER
+
+    clean = {"blocks": [{"id": "a", "type": "text", "body": "*" + DISCLAIMER}]}
+    assert scan_document(clean)["banned"] == [] and scan_document(clean)["diseases"] == []
+    dirty = {"blocks": [{"id": "a", "type": "text", "body": "It can cure you. " + DISCLAIMER}]}
+    assert scan_document(dirty)["banned"] == ["cure"]
