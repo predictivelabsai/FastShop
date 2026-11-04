@@ -233,4 +233,3 @@ def test_admin_routes_enforce_csrf_membership_and_never_redisplay_secrets(
             SiteIntegrationCredential.site_id == site.id,
             SiteIntegrationCredential.provider == "paypal",
         )) is not None
-
