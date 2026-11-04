@@ -130,7 +130,8 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     from app.storefront_ui import liquid_cart
                     return screen(site, request, "Your bag",
                         P("Discount savings: " + money(sum(r["amount_minor"] for r in applied), "USD")) if applied else None,
-                        liquid_cart(root, cart, lines, csrf(session)))
+                        liquid_cart(root, cart, lines, csrf(session),
+                            (site.published_settings_json or {}).get("liquid_shell", {}).get("pages", {})))
                 return screen(site, request, "Your bag", csrf(session), *[Div(H2(line.name), P(money(line.amount_minor, "USD")),
                     P("Monthly subscription · 10% merchandise saving" if line.subscription else "One-time purchase"),
                     Form(csrf(session), Input(type="hidden", name="version", value=cart.version),

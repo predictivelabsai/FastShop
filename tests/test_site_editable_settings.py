@@ -1,8 +1,10 @@
 """Header, footer and consent copy is merchant-editable through the visual editor."""
 import pytest
+from sqlalchemy import select
 
-from app.models import Site
+from app.models import Site, SitePage
 from app.services import CommerceError
+from app.site_block_schema import block_schema_registry
 from app.site_editable_settings import apply_shell, publish_shell, shell_fields, shell_values
 from tests.test_liquid_storefront import browser  # noqa: F401
 from tests.test_site_editor_routes import load, workspace  # noqa: F401
@@ -25,6 +27,11 @@ def test_defaults_fill_absent_paths_only_and_unknown_packs_have_no_fields():
     assert edited["liquid_shell"]["offer"]["cta"] == "Send my code"
     assert shell_fields({"theme_pack": "missing-pack"}) == []
     assert shell_fields({}) == []
+    schemas = block_schema_registry()
+    hero = {field["id"]: field for field in schemas["liquid_hero"]["fields"]}
+    assert hero["disclaimer"]["type"] == "textarea"
+    assert hero["disclaimer"]["default"] == FDA
+    assert schemas["liquid_reviews"]["defaults"]["sample_note"] == "Sample reviews"
 
 
 def test_apply_validates_declared_paths_and_keeps_unrelated_settings():
@@ -65,6 +72,65 @@ def test_storefront_renders_edited_shell_and_keeps_banner_without_policy(browser
         assert text in home
     assert "Notes from the glass" not in home
     assert 'id="h-cookie"' in home and "Privacy policy</a>" not in home
+
+
+def test_store_pages_fields_render_and_cart_copy_is_editable(browser):  # noqa: F811
+    client, db, site = browser
+    fields = shell_fields(site.published_settings_json)
+    ids = {field["id"] for field in fields}
+    assert "liquid_shell.pages.cart_empty" in ids
+    assert "liquid_shell.pages.not_found_title" in ids
+    site.published_settings_json = apply_shell(site.published_settings_json, {
+        "liquid_shell": {"pages": {"cart_empty": "Your edited empty bag message.",
+                                    "shop_link": "Browse products",
+                                    "subtotal": "Basket total"}}
+    }, fields)
+    db.commit()
+    cart = client.get("/sites/" + site.slug + "/cart").text
+    assert "Your edited empty bag message." in cart
+    assert "Browse products" in cart
+    missing = client.get("/sites/" + site.slug + "/missing").text
+    assert "Page not found" in missing
+
+
+def test_hero_disclaimer_can_be_edited_and_hidden(browser):  # noqa: F811
+    client, db, site = browser
+    page = db.scalar(select(SitePage).where(SitePage.site_id == site.id, SitePage.path == "/"))
+    original = page.published_json
+    hero = next(block for block in original["blocks"] if block["type"] == "liquid_hero")
+    assert hero.get("disclaimer") is None
+    default_home = client.get("/sites/" + site.slug + "/").text
+    assert FDA in default_home
+    page.published_json = {**original, "blocks": [
+        ({**block, "disclaimer": "Merchant hero disclaimer."}
+         if block.get("type") == "liquid_hero" else block)
+        for block in original["blocks"]
+    ]}
+    db.commit()
+    assert "Merchant hero disclaimer." in client.get("/sites/" + site.slug + "/").text
+    page.published_json = {**page.published_json, "blocks": [
+        ({**block, "disclaimer": ""} if block.get("type") == "liquid_hero" else block)
+        for block in page.published_json["blocks"]
+    ]}
+    db.commit()
+    hidden_home = client.get("/sites/" + site.slug + "/").text
+    assert 'class="liquid-hero-disclaimer"' not in hidden_home
+
+
+def test_liquid_review_renderer_uses_edited_accessible_copy(browser):  # noqa: F811
+    client, db, site = browser
+    page = db.scalar(select(SitePage).where(SitePage.site_id == site.id, SitePage.path == "/"))
+    original = page.published_json
+    page.published_json = {**original, "blocks": [
+        ({**block, "sample_note": "Customer stories", "carousel_label": "Edited carousel label",
+         "previous_label": "Earlier stories", "reviews_label": "Customer feedback"}
+         if block.get("type") == "liquid_reviews" else block)
+        for block in original["blocks"]
+    ]}
+    db.commit()
+    html = client.get("/sites/" + site.slug + "/").text
+    for text in ("Customer stories", "Edited carousel label", "Earlier stories", "Customer feedback"):
+        assert text in html
 
 
 def test_editor_loads_saves_and_publishes_shell(workspace):  # noqa: F811

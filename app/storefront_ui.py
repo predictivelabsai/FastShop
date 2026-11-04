@@ -17,7 +17,19 @@ def is_liquid(site):
 
 
 def liquid_page(site, request, title, *children, message_page=False):
+    from app.site_editable_settings import shell_fields, shell_values
     from app.site_ui_liquid import storefront
+
+    config = site.published_settings_json or {}
+    pages = shell_values({**config, "theme_pack": "liquid"},
+                         shell_fields({"theme_pack": "liquid"}))
+    page_copy = pages["liquid_shell"]["pages"]
+    title_key = {"Your bag": "cart_title", "My account": "account_title",
+                 "Your orders": "orders_title", "Subscriptions": "subscriptions_title",
+                 "Page not found": "not_found_title",
+                 "Please check your details": "message_title"}.get(title)
+    if title_key:
+        title = page_copy[title_key]
 
     request.session.setdefault("csrf_token", secrets.token_urlsafe(32))
     root = request.scope.get("site_base", "/sites/" + site.slug)
@@ -81,13 +93,17 @@ def public_message(request, slug, message, *, status_code=400, plain=True):
         if site and is_liquid(site):
             root = request.scope.get("site_base", "/sites/" + slug)
             title = "Page not found" if status_code == 404 else "Please check your details"
+            from app.site_editable_settings import shell_fields, shell_values
+            pages = shell_values({**(site.published_settings_json or {}), "theme_pack": "liquid"},
+                                 shell_fields({"theme_pack": "liquid"}))
+            page_copy = pages["liquid_shell"]["pages"]
             body = str(message)
             if body.rstrip(".") == title:
                 body = "The page you were looking for has moved or no longer exists."
             return FtResponse(liquid_page(site, request,
                 title, P(body, cls="text-muted-foreground"),
-                Div(A("Shop all", href=root + "/shop", cls="e-button metal-cta"),
-                    A("Back to home", href=root + "/", cls="liquid-message-home"),
+                Div(A(page_copy["shop_link"], href=root + "/shop", cls="e-button metal-cta"),
+                    A(page_copy["home_link"], href=root + "/", cls="liquid-message-home"),
                     cls="liquid-message-actions"), message_page=True),
                 status_code=status_code, headers={"Cache-Control": "private, no-store"})
     return Response(str(message), status_code=status_code, media_type="text/plain" if plain else None)
@@ -113,11 +129,13 @@ def liquid_order_line(name, variant, quantity, amount, currency, purchase=""):
                cls="liquid-cart-line")
 
 
-def liquid_cart(root, cart, lines, csrf):
+def liquid_cart(root, cart, lines, csrf, page_copy=None):
     from fasthtml.common import H2, Button, Del, Form, Input, Label, Option, Select, Span
 
     from app.services import money
     from app.site_ui_liquid import product_name
+
+    page_copy = page_copy or {}
 
     total = sum(line.amount_minor for line in lines)
     progress = min(100, round(total / 7500 * 100))
@@ -163,17 +181,17 @@ def liquid_cart(root, cart, lines, csrf):
                        cls="liquid-cart-line") for line in lines], cls="liquid-cart-lines") if lines else
         Div(Div(*[Span(style=f"left:{20 + i * 22}%;animation-delay:{i * .6}s") for i in range(3)],
                 cls="liquid-empty-glass", aria_hidden="true"),
-            P("Your cart is still waiting for its first fizz. Have a look at the tablets or the bottle, and we will keep a spot warm here."),
-            A("Browse the shop", href=root + "/shop", cls="e-button"), cls="liquid-cart-empty"),
+            P(page_copy.get("cart_empty", "Your cart is still waiting for its first fizz. Have a look at the tablets or the bottle, and we will keep a spot warm here.")),
+            A(page_copy.get("shop_link", "Shop all"), href=root + "/shop", cls="e-button"), cls="liquid-cart-empty"),
         Div(P("Monthly subscription · Deliver every month", cls="tablet-pills") if any(line.subscription for line in lines) else None,
-            Div(Span("Subtotal"), Span(money(total, "USD")), cls="liquid-cart-subtotal", aria_live="polite"),
+            Div(Span(page_copy.get("subtotal", "Subtotal")), Span(money(total, "USD")), cls="liquid-cart-subtotal", aria_live="polite"),
             P("Shipping and destination sales tax are calculated next."),
             Form(csrf, Input(type="hidden", name="version", value=cart.version),
                  Label("Discount code", Input(name="code", value=cart.discount_code, maxlength=40)),
                  P("Save your code here. Eligibility and savings are checked at checkout using your email. An empty code removes it."),
                  Button("Save discount code", cls="e-button"), action=root + "/cart/discount",
                  method="post", cls="e-form"),
-            A("Continue to checkout", href=root + "/checkout", cls="e-button liquid-checkout-button"),
+            A(page_copy.get("checkout", "Continue to checkout"), href=root + "/checkout", cls="e-button liquid-checkout-button"),
             cls="liquid-cart-summary e-card") if lines else None,
         A("Resume existing checkout", href=root + "/checkout/" + cart.checkout_id) if cart.checkout_id else None,
         cls="liquid-cart-page")
