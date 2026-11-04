@@ -43,6 +43,8 @@ def register_admin_capability_routes(rt, actor, csrf, check_csrf, shell, error):
                 elif provider == "paypal":
                     children = ui.paypal_guide(db, site_id=site.id,
                                               tenant_ids={site.tenant_id}, base=base)
+                elif provider == "email":
+                    children = ui.email_guide(base=base)
                 elif provider == "fasterp":
                     children = (*ui.integration_page(db, message[:300],
                                                       tenant_ids={site.tenant_id}),
