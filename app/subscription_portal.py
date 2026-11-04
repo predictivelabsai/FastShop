@@ -164,10 +164,14 @@ def render(db, site, customer, request, session, csrf, tab="next"):
                         Product.id.in_(config.subscription_product_ids_json or []),
                         VariantChannelListing.channel_id == site.channel_id,
                         VariantChannelListing.currency == "USD")).all()
+                contract_variant_ids = {line["variant_id"] for line in active.lines_json}
                 for variant, product, listing in eligible:
+                    # Another flavour of a product already subscribed to can be added,
+                    # but only products not on the subscription are recommended.
+                    if variant.id not in contract_variant_ids:
+                        add_options.append(Option(product.name + " · " + variant.name, value=variant.id))
                     if product.id in contract_product_ids:
                         continue
-                    add_options.append(Option(product.name + " · " + variant.name, value=variant.id))
                     product_rows.append(Div(Img(src=product.image_url, alt="", loading="lazy")
                         if product.image_url else None, H3(product.name),
                         P(money(commerce.discounted(listing.price_minor, 10), "USD")),
