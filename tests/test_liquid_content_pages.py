@@ -166,7 +166,7 @@ def test_contact_stores_before_delivery_with_topic_and_honest_status(client, mon
     browser, sessions = client
     delivered = []
 
-    def deliver(entry, config):
+    def deliver(entry, config, **_kwargs):
         with sessions() as db:
             assert db.get(SiteContact, entry.id) is not None
         delivered.append((entry.message, config["email"]))

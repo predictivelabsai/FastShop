@@ -3,12 +3,12 @@
 from types import SimpleNamespace
 
 from fasthtml.common import to_xml
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app import ui
 from app.integrations import paypal
-from app.models import Base, User
+from app.models import Base, Site, User
 from app.site_seed import seed_h24you
 
 
@@ -55,7 +55,7 @@ def test_static_guides_render_with_env_var_names():
     assert "FASTSHOP_WOOCOMMERCE_{SITE_ID}_CONSUMER_KEY" in woo_html
 
 
-def test_paypal_guide_lists_key_env_vars_and_readiness(monkeypatch):
+def test_paypal_guide_points_merchants_to_settings(monkeypatch):
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     with Session(engine, expire_on_commit=False) as db:
@@ -63,11 +63,11 @@ def test_paypal_guide_lists_key_env_vars_and_readiness(monkeypatch):
         db.flush()
         seed_h24you(db, "admin@fastshop.example")
         db.commit()
-        html = "".join(to_xml(p) for p in ui.paypal_guide(db) if p is not None)
-    assert "FASTSHOP_PAYPAL_{SITE_ID}_CLIENT_ID" in html
-    assert "FASTSHOP_PAYPAL_{SITE_ID}_SECRET" in html
-    assert "PayPal readiness by store" in html
-    assert "h24you" in html  # the seeded store appears in the readiness table
+        site = db.scalar(select(Site).where(Site.slug == "h24you"))
+        html = "".join(to_xml(p) for p in ui.paypal_guide(db, site_id=site.id) if p is not None)
+    assert "Open PayPal settings" in html
+    assert "/admin/sites/" in html and "/settings/integrations/paypal" in html
+    assert "Operator fallback" in html
 
 
 def test_integrations_hub_renders_all_providers():
@@ -75,5 +75,5 @@ def test_integrations_hub_renders_all_providers():
     Base.metadata.create_all(engine)
     with Session(engine, expire_on_commit=False) as db:
         html = "".join(to_xml(p) for p in ui.integrations_hub(db) if p is not None)
-    for provider in ("Stripe", "PayPal", "WooCommerce", "FastERP"):
+    for provider in ("Stripe", "PayPal", "Email", "WooCommerce", "FastERP"):
         assert provider in html
