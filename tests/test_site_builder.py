@@ -132,6 +132,40 @@ def test_create_page_then_undo(workspace):
     assert len(content.site_pages(db, site)) == count
 
 
+def test_update_shell_validates_paths_urls_and_version(workspace, monkeypatch):
+    from tests.site_shell_fixtures import register_shelltest
+
+    register_shelltest(monkeypatch)
+    db, owner, _, site, _ = workspace
+    site.settings_json = site.settings_json | {"theme_pack": "shelltest"}
+    expected = builder.snapshot(db, site)
+    values = {"shelltest.footer.newsletter_title": "A note from us",
+              "shelltest.consent.heading": "Your privacy choices"}
+    change = builder.apply_operations(db, site.id, owner.id, expected,
+        [{"op": "update_shell", "values": values}])
+    assert site.settings_json["shelltest"]["footer"]["newsletter_title"] == "A note from us"
+    assert site.settings_json["shelltest"]["consent"]["heading"] == "Your privacy choices"
+    assert change.source == "chat" and "consent" in change.summary.lower()
+    db.commit()
+
+    for invalid in ({"unknown.path": "No"},
+                    {"shelltest.consent.privacy_href": "javascript:alert(1)"},
+                    {"shelltest.footer.help_links": [{"label": "Help", "href": "javascript:alert(1)"}]}):
+        current = builder.snapshot(db, site)
+        with pytest.raises(CommerceError):
+            builder.apply_operations(db, site.id, owner.id, current,
+                [{"op": "update_shell", "values": invalid}])
+        db.rollback()
+        site = db.get(type(site), site.id)
+
+    stale = builder.snapshot(db, site)
+    site.version += 1
+    db.flush()
+    with pytest.raises(CommerceError, match="changed"):
+        builder.apply_operations(db, site.id, owner.id, stale,
+            [{"op": "update_shell", "values": values}])
+
+
 def test_no_change_request_cannot_hide_version_conflict(workspace):
     db, owner, _, site, _ = workspace
     expected = builder.snapshot(db, site)

@@ -137,6 +137,13 @@ def assert_document_compliant(document: dict) -> None:
         raise CommerceError(message)
 
 
+def assert_copy_compliant(text: str) -> None:
+    """Apply the same prohibited wording checks to merchant supplied shell copy."""
+    message = _blocking_message(scan_text(text), "This site copy")
+    if message:
+        raise CommerceError(message)
+
+
 def assert_claim_compliant(text: str) -> None:
     """Raise if an approved benefit statement is non-compliant or missing its asterisk."""
     message = _blocking_message(scan_text(text), "This benefit statement")

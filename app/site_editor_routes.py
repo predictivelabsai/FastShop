@@ -449,17 +449,15 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 if theme:
                     raise EditorError("Edit the header and footer on the live theme.")
                 from app import site_builder_services as builder
-                from app.site_editable_settings import apply_shell, shell_fields
+                expected = builder.snapshot(db, site)
+                expected["version"] = _version(values.get("version"))
                 try:
-                    site = builder.lock_site(db, site.id, user_id, _version(values.get("version")))
+                    builder.save_shell_settings(db, site.id, user_id, expected,
+                        values.get("shell_settings"), "visual-editor")
                 except CommerceError as exc:
-                    raise EditorError(str(exc), 409, conflict=True, version=site.version) from exc
-                before = builder.snapshot(db, site)
-                site.settings_json = apply_shell(site.settings_json, values.get("shell_settings"),
-                                                 shell_fields(site.settings_json))
-                site.version += 1
-                db.flush()
-                builder.record_change(db, site, user_id, before, "visual-editor", "Header and footer")
+                    if "Draft changed" in str(exc):
+                        raise EditorError(str(exc), 409, conflict=True, version=site.version) from exc
+                    raise
                 result = {**shell_payload(site), "version": site.version}
                 db.commit()
                 return response(result)

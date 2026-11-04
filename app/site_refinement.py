@@ -26,7 +26,7 @@ BLOCK_FIELDS = TEXT_FIELDS | {
     "role",
     "layout",
 }
-IMMEDIATE_OPERATIONS = {"brief", "navigation", "theme", "brand", "create_page"}
+IMMEDIATE_OPERATIONS = {"brief", "navigation", "theme", "brand", "create_page", "update_shell"}
 REFINEMENT_OPERATIONS = {
     "patch",
     "add",
