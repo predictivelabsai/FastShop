@@ -123,6 +123,12 @@ def expire_refinements(db, site, user_id=None):
 
 def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
     validate_response({"operations": operations})
+    shell_operations = [operation for operation in operations if isinstance(operation, dict)
+                        and operation.get("op") == "update_shell"]
+    if shell_operations:
+        if len(operations) != 1 or set(shell_operations[0]) != {"op", "values"}:
+            raise CommerceError("Save header, footer and consent edits as one focused change.")
+        return save_shell_settings(db, site_id, user_id, expected, shell_operations[0]["values"], source)
     site = lock_site(db, site_id, user_id, expected["version"])
     if not snapshot_matches(snapshot(db, site), expected):
         raise CommerceError("Draft changed while the builder was working. Send your request again.")
@@ -208,6 +214,61 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
     site.version += 1
     db.flush()
     return record_change(db, site, user_id, before, source, "; ".join(dict.fromkeys(summaries)))
+
+
+def save_shell_settings(db, site_id, user_id, expected, submitted, source="visual-editor"):
+    """Save declared shell fields through the shared versioned, reversible draft path."""
+    from app.compliance import assert_copy_compliant
+    from app.site_editable_settings import apply_shell, shell_fields
+
+    if not isinstance(expected, dict) or "version" not in expected:
+        raise CommerceError("Reload the draft and try again.")
+    site = lock_site(db, site_id, user_id, expected["version"])
+    if not snapshot_matches(snapshot(db, site), expected):
+        raise CommerceError("Draft changed while the builder was working. Send your request again.")
+    fields = shell_fields(site.settings_json)
+    field_ids = {field["id"] for field in fields}
+    if not isinstance(submitted, dict):
+        raise CommerceError("Choose supported header, footer or consent fields.")
+    flat = {}
+
+    def collect(value, prefix=""):
+        for key, item in value.items():
+            path = f"{prefix}.{key}" if prefix else key
+            if path in field_ids:
+                flat[path] = item
+            elif isinstance(item, dict):
+                if not any(field_id.startswith(path + ".") for field_id in field_ids):
+                    raise CommerceError("Choose supported header, footer or consent fields.")
+                collect(item, path)
+            else:
+                raise CommerceError("Choose supported header, footer or consent fields.")
+
+    collect(submitted)
+    nested = {}
+    for path, value in flat.items():
+        node = nested
+        parts = path.split(".")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = value
+    before = snapshot(db, site)
+    site.settings_json = apply_shell(site.settings_json, nested, fields)
+    def check_copy(value):
+        if isinstance(value, str):
+            assert_copy_compliant(value)
+        elif isinstance(value, dict):
+            for item in value.values():
+                check_copy(item)
+        elif isinstance(value, list):
+            for item in value:
+                check_copy(item)
+
+    for value in flat.values():
+        check_copy(value)
+    site.version += 1
+    db.flush()
+    return record_change(db, site, user_id, before, source, "Header, footer and consent")
 
 
 def undo_change(db, site_id, user_id, change_id, version):
