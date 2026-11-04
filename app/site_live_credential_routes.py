@@ -90,6 +90,10 @@ def register_live_credential_routes(rt, actor, csrf, check_csrf, shell, error):
                         required=True, autocomplete="new-password", placeholder="sk_live_…")),
                     Label("Webhook signing secret", Input(type="password", name="webhook_secret",
                         required=True, autocomplete="new-password", placeholder="whsec_…")),
+                    Label("Stripe live publishable key (optional)", Input(type="password",
+                        name="publishable_key", autocomplete="new-password", placeholder="pk_live_…")),
+                    P(f"Publishable key: {state.masked_publishable_key}" if state.masked_publishable_key
+                      else "A publishable key enables inline card checkout in live mode."),
                     P("Saving replaces the encrypted values and clears verification. Values are never redisplayed."),
                     Button("Store encrypted credentials", cls="e-button"), method="post",
                     action=f"/admin/platform/sites/{site.id}/live-credentials/store", cls="e-form")
@@ -146,7 +150,8 @@ def register_live_credential_routes(rt, actor, csrf, check_csrf, shell, error):
             check_csrf(session, form)
             with SessionLocal() as db:
                 live_credentials.store(db, site_id, actor(session),
-                    str(form.get("secret_key", "")), str(form.get("webhook_secret", "")))
+                    str(form.get("secret_key", "")), str(form.get("webhook_secret", "")),
+                    str(form.get("publishable_key", "")))
                 db.commit()
             return redirect(site_id, "Live credentials stored encrypted. Verify them before acceptance.")
         except CommerceError as exc:

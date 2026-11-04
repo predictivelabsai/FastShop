@@ -775,6 +775,7 @@ class SiteStripeLiveCredential(TimestampMixin, Base):
     )
     secret_key_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
     webhook_secret_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    publishable_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     key_prefix: Mapped[str] = mapped_column(String(16))
     key_last_four: Mapped[str] = mapped_column(String(4))
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
