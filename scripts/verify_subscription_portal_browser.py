@@ -1,16 +1,12 @@
 """Capture the subscription portal and saved reference at desktop and mobile sizes."""
 
-import base64
 import os
-import re
 import secrets
 import sys
 import tempfile
 import threading
 import time
 from datetime import UTC, datetime
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -65,8 +61,9 @@ def main():
             site = db.scalar(select(Site).where(Site.status.in_(["preview", "published"])))
         if not site:
             raise RuntimeError("No preview or published store is available for the browser capture.")
-        product = db.scalar(select(Product).where(Product.tenant_id == site.tenant_id,
-            Product.is_published.is_(True), Product.status == "active"))
+        products = list(db.scalars(select(Product).where(Product.tenant_id == site.tenant_id,
+            Product.is_published.is_(True), Product.status == "active").order_by(Product.name)))
+        product = products[0] if products else None
         variants = list(db.scalars(select(ProductVariant).where(
             ProductVariant.tenant_id == site.tenant_id, ProductVariant.product_id == product.id,
             ProductVariant.is_active.is_(True))))
@@ -77,7 +74,7 @@ def main():
         config.shipping_minor, config.tax_registration_reviewed = 1000, True
         config.origin_json = {"country": "EE", "line1": "Fixture warehouse", "city": "Tallinn", "postal_code": "10111"}
         config.product_tax_codes_json = {product.id: "txcd_00000000"}
-        config.subscription_product_ids_json = [product.id]
+        config.subscription_product_ids_json = [item.id for item in products]
         warehouse = Warehouse(tenant_id=site.tenant_id, code="PORTAL-CAPTURE",
             name="Portal capture", country_code="EE")
         db.add(warehouse)
@@ -121,7 +118,6 @@ def main():
 
     output = Path("output/playwright/subscription-portal")
     output.mkdir(parents=True, exist_ok=True)
-    reference = Path(".ref-portal/Ancient+Brave - EU - Your next order.html").resolve()
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(channel="chrome", headless=True)
@@ -180,7 +176,9 @@ def main():
                     for tab, label in (("next", "Next order"), ("subscriptions", "Subscriptions"),
                                        ("orders", "Order history"), ("account", "Account")):
                         page.goto(base + "?tab=" + tab)
-                        page.get_by_role("tablist").get_by_role("link", name=label, exact=True).wait_for()
+                        page.get_by_role("tablist").get_by_role("tab", name=label, exact=True).wait_for()
+                        assert page.get_by_role("tab", name=label, exact=True).get_attribute(
+                            "aria-selected") == "true"
                         overflow = page.evaluate("""() => ({width: document.documentElement.scrollWidth,
                             inner: innerWidth, offenders: [...document.querySelectorAll('*')]
                             .map(node => ({tag: node.tagName, cls: node.className?.baseVal || node.className,
@@ -188,41 +186,24 @@ def main():
                                 width: node.getBoundingClientRect().width, text: node.textContent?.slice(0, 60)}))
                             .filter(node => node.right > innerWidth + 2).slice(0, 8)})""")
                         assert overflow["width"] <= overflow["inner"] + 1, f"{pack}-{device}-{tab}: {overflow}"
+                        if tab == "next":
+                            for label in ("Edit", "Swap", "Reschedule"):
+                                page.get_by_text(label, exact=True).first.click()
+                            assert page.locator("details[open]").count() >= 3
+                            assert page.locator('form[action$="/quantity"] input[name="quantity"]').is_visible()
+                            assert page.locator('form[action$="/swap"] select[name="variant_id"]').is_visible()
+                            assert page.locator('form[action$="/swap"] select[name="variant_id"]').evaluate(
+                                "node => node.getBoundingClientRect().width") >= 200
+                            assert page.locator('form[action$="/reschedule"] input[type="date"]').is_visible()
+                            overflow = page.evaluate("""() => ({width: document.documentElement.scrollWidth,
+                                inner: innerWidth})""")
+                            assert overflow["width"] <= overflow["inner"] + 1, \
+                                f"{pack}-{device}-{tab} opened panels: {overflow}"
+                            for label in ("Reschedule", "Swap", "Edit"):
+                                page.get_by_text(label, exact=True).first.click()
+                            page.evaluate("window.scrollTo(0, 0)")
                         page.screenshot(path=str(output / f"{pack}-{device}-{tab}.png"), full_page=True)
                 context.close()
-            if not reference.exists():
-                raise RuntimeError("The saved portal reference HTML was not found.")
-            class QuietHandler(SimpleHTTPRequestHandler):
-                def log_message(self, _format, *_args):
-                    pass
-
-            static_server = ThreadingHTTPServer(("127.0.0.1", 5051),
-                partial(QuietHandler, directory=str(reference.parent)))
-            static_thread = threading.Thread(target=static_server.serve_forever, daemon=True)
-            static_thread.start()
-            reference_html = reference.read_text(encoding="utf-8", errors="replace")
-            reference_html = re.sub(r"<script\b[^>]*>.*?</script\s*>", "", reference_html,
-                                    flags=re.IGNORECASE | re.DOTALL)
-            reference_html = re.sub(r"<base\b[^>]*>", "", reference_html, flags=re.IGNORECASE)
-            reference_html = re.sub(r"<head\b([^>]*)>",
-                r'<head\1><base href="http://127.0.0.1:5051/">', reference_html,
-                count=1, flags=re.IGNORECASE)
-            for device, width, height in (("desktop", 1440, 1000), ("mobile", 390, 844)):
-                reference_context = browser.new_context(viewport={"width": width, "height": height},
-                    java_script_enabled=False)
-                page = reference_context.new_page()
-                page.route("https://**", lambda route: route.abort())
-                page.set_content(reference_html, wait_until="domcontentloaded", timeout=30000)
-                time.sleep(1)
-                cdp_page = page.context.new_cdp_session(page)
-                captured = cdp_page.send("Page.captureScreenshot", {"format": "png",
-                    "captureBeyondViewport": False})
-                (Path(".ref-portal") / f"reference-{device}.png").write_bytes(
-                    base64.b64decode(captured["data"]))
-                page.close()
-                reference_context.close()
-            static_server.shutdown()
-            static_thread.join(timeout=3)
             browser.close()
     finally:
         server.should_exit = True
