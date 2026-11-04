@@ -246,7 +246,8 @@ def test_http_webhook_verifies_signature_and_reconciles_duplicate_deliveries(rea
     r = ready
     monkeypatch.setattr(commerce_webhooks, "SessionLocal", sessionmaker(bind=r.db.bind))
     monkeypatch.setattr(commerce_webhooks, "StripeGateway", lambda site: r.gateway)
-    monkeypatch.setattr(commerce_webhooks, "credentials", lambda site: ("sk_test_fixture", "whsec_fixture"))
+    monkeypatch.setattr(commerce_webhooks, "credentials",
+        lambda site, db=None, mode=None: ("sk_test_fixture", "whsec_fixture", "pk_test_fixture"))
     attempt = prepare(r)
     open_session(r, attempt)
     event = {"id": "evt_fixture", "livemode": False, "type": "checkout.session.completed",

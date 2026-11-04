@@ -518,7 +518,9 @@ def integrations_hub(session: Session, base: str = "/admin/integrations"):
             cls="page-head"),
         Div(
             card("Stripe", "Card payments, Apple Pay / Google Pay and US sales tax for sandbox checkout.",
-                 "Sandbox-gated", True, base + "/stripe"),
+                 "Admin connection", True,
+                 (base.removesuffix("/integrations") + "/commerce/payments") if in_store else base + "/stripe",
+                 "Manage payments" if in_store else "Setup guide"),
             card("PayPal", "Offer PayPal at checkout. Setup guide and where to add PayPal API keys, with readiness.",
                  "Guide & keys", True, base + "/paypal", "Open guide & keys"),
             card("WooCommerce", "Reviewed import of catalog, customers and orders, plus JSON catalog export.",
@@ -547,24 +549,20 @@ def _guide(eyebrow, title, lead, steps, env_title, env_items, *extra, docs=None,
 
 
 def stripe_guide(base="/admin/integrations"):
-    return _guide(
-        "Payments", "Stripe setup",
-        "Stripe powers sandbox card payments, Apple Pay / Google Pay and US sales tax. Live keys are "
-        "rejected by design; complete provider acceptance before any live release.",
-        ["Create (or open) your Stripe account for the US selling entity.",
-         "In the Stripe Dashboard, switch to Test mode and copy the test secret key (sk_test_…).",
-         "Add a webhook endpoint for your store and copy its signing secret (whsec_…).",
-         "Register your store domain in Stripe so Apple Pay / Google Pay appear automatically.",
-         "Set the environment variables below in Coolify, then redeploy.",
-         "In the store's Commerce settings, set mode to Sandbox and complete the tax-registration review.",
-         "Verify with scripts/check_commerce_providers.py --provider stripe."],
-        "Environment variables (per store)",
-        [_env_var("FASTSHOP_STRIPE_{SITE_ID}_SECRET_KEY", "= sk_test_…  (sandbox only)"),
-         _env_var("FASTSHOP_STRIPE_{SITE_ID}_WEBHOOK_SECRET", "= whsec_…"),
-         _env_var("STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET", "= globals used only by the primary store")],
-        panel("Notes", Div(P("Only test keys (sk_test_ / rk_test_) are accepted; live responses are rejected."),
+    return (
+        Div(Span("Payments", cls="eyebrow"), H2("Connect Stripe"),
+            P("Connect your Stripe account from Payments settings. FastShop verifies your keys, creates the webhook endpoint and stores credentials encrypted."),
+            A("← All integrations", href=base), cls="page-head"),
+        panel("Connect from your store", Ol(
+            Li("Open your store admin and choose Settings → Payments."),
+            Li("Select Test mode and enter the Stripe secret and publishable keys."),
+            Li("Save and verify. FastShop registers the webhook when your site has a public HTTPS URL."),
+            Li("Connect Live mode separately. Live payments still require platform operator acceptance."),
+            Li("Register your store domain in Stripe to enable Apple Pay and Google Pay."))),
+        panel("Operator fallback", P("Operators can still supply FASTSHOP_STRIPE_{SITE_ID}_* variables, or global STRIPE_* values for FASTSHOP_STRIPE_PRIMARY_SITE, when no admin connection exists.")),
+        panel("Notes", Div(P("Stripe automatic tax is enabled at checkout by default, subject to Stripe account tax settings."),
                            P("Enable PayPal at checkout from the ", A("PayPal guide", href=base + "/paypal"), "."))),
-        base=base, docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
+        panel("Documentation", P(A("Stripe & WooCommerce checklist", href="https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"))),
     )
 
 
