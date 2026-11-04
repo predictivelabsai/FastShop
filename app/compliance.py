@@ -139,7 +139,10 @@ def assert_document_compliant(document: dict) -> None:
 
 def assert_copy_compliant(text: str) -> None:
     """Apply the same prohibited wording checks to merchant supplied shell copy."""
-    message = _blocking_message(scan_text(text), "This site copy")
+    from app.site_seed import DISCLAIMER
+
+    # The required FDA disclaimer itself says "cure" and "disease"; it must stay byte-identical.
+    message = _blocking_message(scan_text(str(text).replace(DISCLAIMER, "")), "This site copy")
     if message:
         raise CommerceError(message)
 

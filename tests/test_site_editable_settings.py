@@ -159,3 +159,15 @@ def test_editor_loads_saves_and_publishes_shell(workspace):  # noqa: F811
     assert published.status_code == 200, published.text
     with w.sessions() as db:
         assert db.get(Site, w.site.id).published_settings_json["footer"] == "Draft disclaimer"
+
+
+def test_shell_copy_scan_allows_the_exact_fda_disclaimer():
+    import pytest as _pytest
+
+    from app.compliance import assert_copy_compliant
+    from app.services import CommerceError
+    from app.site_seed import DISCLAIMER
+
+    assert_copy_compliant("*" + DISCLAIMER)
+    with _pytest.raises(CommerceError):
+        assert_copy_compliant("Our tablets cure everything. " + DISCLAIMER)

@@ -417,7 +417,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                         *[
                             Button(
                                 Span(),
-                                aria_label=b.get("dot_label", "Show reviews starting at {number}").format(number=i + 1),
+                                aria_label=b.get("dot_label", "Show reviews starting at {number}").replace("{number}", str(i + 1)),
                                 aria_pressed="true" if i == 0 else "false",
                                 data_liquid_dot=str(i),
                                 cls="metal-review-dot",
@@ -432,7 +432,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     cls="metal-review-navigation",
                 ),
                 P(
-                    b.get("position_text", "Reviews {number} of {total}").format(number=1, total=len(items)),
+                    b.get("position_text", "Reviews {number} of {total}").replace("{number}", "1").replace("{total}", str(len(items))),
                     data_liquid_position="",
                     cls="sr-only",
                     aria_live="polite",
@@ -543,7 +543,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                         Span(s["theme"], cls="shop-badge"),
                         Div(
                             Span(
-                                b.get("flavour_count", "4 flavours"),
+                                b.get("flavour_count", "4 flavors"),
                                 Span(
                                     *[
                                         Span(cls="tablet-dot flavor-" + f)
@@ -560,7 +560,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                                 cls="shop-view text-primary",
                             ),
                             A(
-                                b.get("choose_flavour", "Choose flavour"),
+                                b.get("choose_flavour", "Choose flavor"),
                                 href=url(base, s["url"]),
                                 cls="metal-add-button bg-metal-sheen",
                             )

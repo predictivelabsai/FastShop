@@ -169,8 +169,8 @@ def _registry():
             "liquid_trust": {"assurances_label": "Shopping assurances"},
             "liquid_articles": {"read_more": "Read more →"},
             "liquid_catalog": {
-                "flavour_count": "4 flavours", "view_product": "View product",
-                "choose_flavour": "Choose flavour", "products_label": "All products",
+                "flavour_count": "4 flavors", "view_product": "View product",
+                "choose_flavour": "Choose flavor", "products_label": "All products",
             },
             "text": {"breadcrumb_label": "Breadcrumb"},
         }.get(kind, {})
