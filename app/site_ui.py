@@ -307,7 +307,7 @@ def has_published_recently_viewed(db, site):
                              {"recently_viewed"}) for doc in documents)
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag=""):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag="", policy_html=None, policy_empty_message=None):
     from app.site_theme import theme_pack
     config = site.settings_json if preview else site.published_settings_json
     if theme_pack(config or {}) == "liquid":
@@ -335,6 +335,20 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         page.kind == "product" and page.product_id and has_published_recently_viewed(db, site))
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
+    consent_copy = {
+        "heading": "Your privacy, your choice.",
+        "body": "Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them.",
+        "accept": "Accept all", "decline": "Decline", "save": "Save preferences",
+        "privacy_label": "Privacy policy", "privacy_href": "/pages/privacy-policy",
+        "essential": "Essential (always on)",
+        "preferences": "Preferences: remembers things like products you viewed on this device",
+        "analytics": "Analytics", "marketing": "Marketing",
+    } | (config.get("liquid_consent") or {})
+    privacy_content = bool((config.get("policies") or {}).get("privacy", "").strip())
+    privacy_page = db.scalar(select(SitePage.id).where(
+        SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+        SitePage.path == "/pages/privacy-policy", SitePage.published_json.is_not(None)))
+    has_privacy = privacy_content or privacy_page
     document = resolve_document(page.draft_json if preview else page.published_json, default_locale(site, preview=preview))
     from app.custom_data import resolve_dynamic_document
     from app.store_preferences import head_nodes
@@ -428,6 +442,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 P("By " + blog["author_name"] if blog["author_name"] else f"By {site.name} team · Draft for editorial review"),
                 P(blog["author_bio"]) if blog["author_bio"] else None,
                 image(document.get("image")), cls="h-article-heading h-container") if page.kind == "article" else None,
+                H1(document["title"], cls="h-container h-policy-title") if policy_html is not None else None,
+                Div(NotStr(policy_html), cls="h-container h-policy-content") if policy_html else None,
+                P(policy_empty_message, cls="h-container h-policy-empty") if policy_empty_message else None,
                 *[section_view(s, i) for i, s in enumerate(document.get("blocks", [])) if not s.get("hidden")], id="content"),
             Section(Div(Small("A LITTLE SOMETHING TO LOOK FORWARD TO", cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P("Our first-order offer is coming when the shop opens.")),
                     Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer"),
@@ -439,10 +456,16 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
                 P(config.get("footer", ""), cls="h-disclaimer"), Div(Span("© 2026 " + config.get("company", site.name)), payment_methods(), Button("Cookie preferences", type="button", data_cookie_open=""), cls="h-footer-bottom"), cls="h-footer"),
             *foot_snippets,
-            Div(H2("Your privacy, your choice."), P("Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."),
-                Details(Summary("Preferences"), Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"), Label(Input(type="checkbox", id="consent-preferences"), " Preferences: remembers things like products you viewed on this device"), Label(Input(type="checkbox", id="consent-analytics"), " Analytics"), Label(Input(type="checkbox", id="consent-marketing"), " Marketing")),
-                Div(Button("Accept all", data_consent="all"), Button("Decline", data_consent="none"), Button("Save preferences", data_consent="custom")),
-                A("Privacy policy", href=url(base, "/pages/privacy-policy")), id="h-cookie", cls="h-cookie", role="region", aria_label="Cookie preferences", hidden=True),
+            Div(H2(consent_copy["heading"]), P(consent_copy["body"]),
+                Details(Summary(consent_copy.get("categories_label", "Preferences")),
+                    Label(Input(type="checkbox", checked=True, disabled=True), " " + consent_copy["essential"]),
+                    Label(Input(type="checkbox", id="consent-preferences"), " " + consent_copy["preferences"]),
+                    Label(Input(type="checkbox", id="consent-analytics"), " " + consent_copy["analytics"]),
+                    Label(Input(type="checkbox", id="consent-marketing"), " " + consent_copy["marketing"])),
+                Div(Button(consent_copy["accept"], data_consent="all"), Button(consent_copy["decline"], data_consent="none"), Button(consent_copy["save"], data_consent="custom")),
+                A(consent_copy["privacy_label"],
+                  href=url(base, consent_copy["privacy_href"] or "/pages/privacy-policy")) if has_privacy else None,
+                id="h-cookie", cls="h-cookie", role="region", aria_label=consent_copy["heading"], hidden=True),
             Div(Button("Close ×", type="button", data_offer_close=""), H2(config.get("offer", "Stay curious.")),
                 Form(Input(type="hidden", name="csrf_token", value=csrf),
                     P("Confirm your email to receive a personal first-order code. Checkout is still in sandbox setup."),

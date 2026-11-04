@@ -448,6 +448,7 @@ def register_site_routes(rt):
                                 Div(NotStr((config.get("policies") or {}).get(key, "")), contenteditable="true", data_rich_editor=key, role="textbox", aria_multiline="true", cls="e-rich-editor"),
                                 Input(type="hidden", name="policy_" + key, value=(config.get("policies") or {}).get(key, "")), cls="e-rich-field")
                               for key, label in (("privacy", "Privacy policy"), ("terms", "Terms and conditions"), ("refunds", "Returns and refunds"), ("shipping", "Shipping policy"))],
+                            Label("Empty policy message", Input(name="policy_empty_message", value=(config.get("policies") or {}).get("empty_message", "This policy has not been added yet."), maxlength=500)),
                             H3("Checkout"),
                             P("Edit the labels shown to customers during checkout. Leave a field blank to use its default."),
                             *[Label(label, Input(name="checkout_copy_" + key,
@@ -458,7 +459,7 @@ def register_site_routes(rt):
                             Link(rel="stylesheet", href="/static/site-rich-editor.css"),
                             H3("Cookie consent banner"),
                             *[Label(label, Input(name="consent_" + key, value=(config.get("liquid_consent") or {}).get(key, default), maxlength=1000))
-                              for key, label, default in (("heading", "Heading", "Your privacy, your choice."), ("body", "Message", "Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."), ("accept", "Accept button", "Accept all"), ("decline", "Decline button", "Decline"), ("save", "Save button", "Save preferences"), ("privacy_label", "Policy link label", "Privacy policy"))],
+                              for key, label, default in (("heading", "Heading", "Your privacy, your choice."), ("body", "Message", "Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."), ("accept", "Accept button", "Accept all"), ("decline", "Decline button", "Decline"), ("save", "Save button", "Save preferences"), ("categories_label", "Categories label", "Preferences"), ("essential", "Essential category", "Essential (always on)"), ("preferences", "Preferences category", "Preferences: remembers things like products you viewed on this device"), ("analytics", "Analytics category", "Analytics"), ("marketing", "Marketing category", "Marketing"), ("privacy_label", "Policy link label", "Privacy policy"), ("privacy_href", "Policy link URL", "/pages/privacy-policy"))],
                             H3("Analytics"), Label("GA4 measurement ID (optional)", Input(name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""), placeholder="G-ABC1234567", maxlength=22)),
                             P("Disabled when empty. Published public pages load Google Analytics only after analytics consent. Account and checkout pages are excluded; no Meta pixel is installed. Publish shared settings to apply changes."),
                             H3("Checkout payment methods"),
@@ -502,13 +503,15 @@ def register_site_routes(rt):
                 from app.site_widgets import sanitise_html
                 config["policies"] = {key: sanitise_html(str(form.get("policy_" + key, ""))[:100000])
                                       for key in ("privacy", "terms", "refunds", "shipping")}
+                config["policies"]["empty_message"] = str(form.get("policy_empty_message", "This policy has not been added yet."))[:500].strip() or "This policy has not been added yet."
                 config["checkout_copy"] = {**(config.get("checkout_copy") or {}), **{
                     key: str(form.get("checkout_copy_" + key, "")).strip()[:500] or default
                     for key, default in DEFAULT_CHECKOUT_COPY.items()}}
                 # Merge so banner fields edited in the visual editor are kept.
                 config["liquid_consent"] = {**(config.get("liquid_consent") or {}),
                                             **{key: str(form.get("consent_" + key, ""))[:1000].strip()
-                                               for key in ("heading", "body", "accept", "decline", "save", "privacy_label")}}
+                                               for key in ("heading", "body", "accept", "decline", "save", "categories_label", "essential", "preferences", "analytics", "marketing", "privacy_label", "privacy_href")}}
+                config["liquid_consent"]["privacy_href"] = content.safe_url(config["liquid_consent"]["privacy_href"])
                 for key in ("logo", "logo_light"):
                     if config.get(key):
                         config[key] = content.safe_url(config[key], media=True)
@@ -942,7 +945,7 @@ def register_site_routes(rt):
                     "/pages/privacy-policy": "privacy", "/pages/terms-and-conditions": "terms",
                     "/pages/returns-and-refunds": "refunds", "/pages/shipping-policy": "shipping",
                 }.get(normalized_path)
-                if policy_key and theme_pack(site.published_settings_json or {}) == "liquid":
+                if policy_key:
                     from fasthtml.common import H1
 
                     from app.site_widgets import sanitise_html
@@ -951,8 +954,23 @@ def register_site_routes(rt):
                     policy_html = sanitise_html(str(((site.published_settings_json or {}).get("policies") or {}).get(policy_key, "")))
                     title = {"privacy": "Privacy policy", "terms": "Terms and conditions",
                              "refunds": "Returns and refunds", "shipping": "Shipping policy"}[policy_key]
-                    body = Div(NotStr(policy_html), cls="liquid-policy-content") if policy_html else P("This policy has not been added yet.", cls="liquid-policy-empty")
-                    return liquid_page(site, request, title, H1(title), body)
+                    body = policy_html or str(((site.published_settings_json or {}).get("policies") or {}).get(
+                        "empty_message", "This policy has not been added yet."))
+                    if theme_pack(site.published_settings_json or {}) == "liquid":
+                        from fasthtml.common import Div, P
+
+                        policy_body = Div(NotStr(policy_html), cls="liquid-policy-content") if policy_html else P(body, cls="liquid-policy-empty")
+                        return liquid_page(site, request, title, H1(title), policy_body)
+                    from types import SimpleNamespace
+
+                    document = {"title": title, "sections": []}
+                    policy_page = SimpleNamespace(path=normalized_path, kind="page" if policy_html else "policy-empty", product_id=None,
+                                                  published_json=document, draft_json=document, id="")
+                    base = request.scope.get("site_base", f"/sites/{site.slug}") if request else f"/sites/{site.slug}"
+                    canonical = request.scope.get("site_canonical", settings.public_url + base) if request else settings.public_url + base
+                    return site_ui.storefront(db, site, policy_page, base, session["csrf_token"],
+                                              canonical + normalized_path, policy_html=policy_html,
+                                              policy_empty_message="" if policy_html else body)
                 from app.url_redirects import destination
                 target = destination(db, site, normalized_path)
                 if target:
