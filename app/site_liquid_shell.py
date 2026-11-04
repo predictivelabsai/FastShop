@@ -59,7 +59,11 @@ def fields():
     offer, footer, nav = CONTENT["offer"], CONTENT["footer"], CONTENT["nav"]
     o, f, n, c, lab = "liquid_shell.offer.", "liquid_shell.footer.", "liquid_shell.nav.", \
         "liquid_consent.", "liquid_shell.labels."
+    from app.subscription_portal_copy import DEFAULT_PORTAL_COPY
+
     return [
+        *[_text("liquid_shell.portal." + key, key.replace("_", " ").capitalize(), default,
+                group="portal") for key, default in DEFAULT_PORTAL_COPY.items()],
         *[_text("liquid_shell.pages." + key, label, default, group="pages") for key, label, default in (
             ("cart_title", "Cart heading", "Your bag"),
             ("account_title", "Account heading", "My account"),

@@ -24,13 +24,13 @@ from app.db import SessionLocal
 from app.models import (
     ProductVariant,
     Site,
-    SubscriptionContract,
     SubscriptionCycle,
     SubscriptionPaymentSetup,
 )
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
 from app.storefront_ui import is_liquid, liquid_page, public_message
+from app.subscription_portal import render as render_portal
 
 
 def register_subscription_routes(rt, csrf, check_csrf):
@@ -57,17 +57,15 @@ def register_subscription_routes(rt, csrf, check_csrf):
             headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer"})
 
     @rt("/sites/{slug}/account/subscriptions", methods=["GET"])
-    def get(session, request, slug: str):
+    def get(session, request, slug: str, tab: str = "next"):
         try:
             with SessionLocal() as db:
                 site, customer = identity(db, session, slug)
-                rows = db.scalars(select(SubscriptionContract).where(SubscriptionContract.site_id == site.id,
-                    SubscriptionContract.tenant_id == site.tenant_id, SubscriptionContract.customer_id == customer.id)
-                    .order_by(SubscriptionContract.created_at.desc())).all()
-                return screen(site, request, "Your subscriptions", *[Div(H2(A("Tablet delivery", href=base(site, request) + "/account/subscriptions/" + row.id)),
-                    P("Status: " + row.state), P("Next scheduled date: " + row.next_due_at.strftime("%Y-%m-%d") + " UTC") if row.state == "active" else None,
-                    P("Merchandise per delivery: " + money(sum(line["unit_minor"] * line["quantity"] for line in row.lines_json), "USD") + " + applicable shipping and tax"), cls="e-card") for row in rows],
-                    P("No subscriptions yet.") if not rows else None)
+                if tab not in {"next", "subscriptions", "orders", "account"}:
+                    tab = "next"
+                content = render_portal(db, site, customer, request, session, csrf, tab)
+                from fasthtml.common import Link
+                return screen(site, request, "Subscriptions", Link(rel="stylesheet", href="/static/subscription-portal.css"), content)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError:
@@ -147,6 +145,22 @@ def register_subscription_routes(rt, csrf, check_csrf):
                     values = {}
                     if action == "frequency":
                         values = {"months": int(data.get("months", "0"))}
+                    elif action == "reschedule":
+                        values = {"date": str(data.get("date", ""))}
+                    elif action == "quantity":
+                        values = {"variant_id": str(data.get("variant_id", "")),
+                                  "quantity": int(data.get("quantity", "0"))}
+                    elif action == "swap":
+                        values = {"from_variant_id": str(data.get("from_variant_id", "")),
+                                  "variant_id": str(data.get("variant_id", ""))}
+                    elif action == "flavour":
+                        values = {"from_variant_id": str(data.get("from_variant_id", "")),
+                                  "variant_id": str(data.get("variant_id", ""))}
+                    elif action == "add_product":
+                        values = {"variant_id": str(data.get("variant_id", "")),
+                                  "quantity": int(data.get("quantity", "0"))}
+                    elif action == "remove_product":
+                        values = {"variant_id": str(data.get("variant_id", ""))}
                     elif action == "address":
                         values = {key: str(data.get(key, "")) for key in ("line1", "line2", "city", "state", "postal_code", "country", "recipient_name")}
                     elif action == "flavour":

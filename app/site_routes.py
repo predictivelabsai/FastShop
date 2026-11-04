@@ -68,6 +68,7 @@ from app.site_blocks import (
 )
 from app.site_catalog import register_catalog_routes
 from app.storefront_ui import public_message
+from app.subscription_portal_copy import DEFAULT_PORTAL_COPY
 
 
 def register_site_routes(rt):
@@ -463,6 +464,11 @@ def register_site_routes(rt):
                             *[Label(key.replace("_", " ").capitalize(), Input(name="account_copy_" + key,
                                 value=(config.get("account_copy") or {}).get(key, default), maxlength=500))
                               for key, default in DEFAULT_ACCOUNT_COPY.items()],
+                            H3("Customer portal"),
+                            P("Edit the labels shown in the subscription portal. Leave a field blank to use its default."),
+                            *[Label(key.replace("_", " ").capitalize(), Input(name="portal_copy_" + key,
+                                value=(config.get("portal_copy") or {}).get(key, default), maxlength=500))
+                              for key, default in DEFAULT_PORTAL_COPY.items()],
                             Script(src="/static/site-rich-editor.js", defer=True),
                             Link(rel="stylesheet", href="/static/site-rich-editor.css"),
                             H3("Cookie consent banner"),
@@ -518,6 +524,9 @@ def register_site_routes(rt):
                 config["account_copy"] = {**(config.get("account_copy") or {}), **{
                     key: str(form.get("account_copy_" + key, "")).strip()[:500] or default
                     for key, default in DEFAULT_ACCOUNT_COPY.items()}}
+                config["portal_copy"] = {**(config.get("portal_copy") or {}), **{
+                    key: str(form.get("portal_copy_" + key, "")).strip()[:500] or default
+                    for key, default in DEFAULT_PORTAL_COPY.items()}}
                 # Merge so banner fields edited in the visual editor are kept.
                 config["liquid_consent"] = {**(config.get("liquid_consent") or {}),
                                             **{key: str(form.get("consent_" + key, ""))[:1000].strip()

@@ -20,11 +20,16 @@ def test_defaults_fill_absent_paths_only_and_unknown_packs_have_no_fields():
     values = shell_values(LIQUID, fields)
     assert values["footer"] == FDA
     assert values["liquid_shell"]["footer"]["newsletterTitle"] == "Notes from the glass"
+    portal_fields = [field for field in fields if field.get("group") == "portal"]
+    assert portal_fields and {field["id"] for field in portal_fields} >= {
+        "liquid_shell.portal.next_order", "liquid_shell.portal.welcome"}
     edited = shell_values({**LIQUID, "footer": "", "liquid_shell": {"offer": {"title": "Edited"}}},
                           fields)
     assert edited["footer"] == ""  # a cleared value is a merchant choice, not a gap
     assert edited["liquid_shell"]["offer"]["title"] == "Edited"
     assert edited["liquid_shell"]["offer"]["cta"] == "Send my code"
+    portal_copy = shell_values({**LIQUID, "liquid_shell": {"portal": {"next_order": "Coming soon"}}}, fields)
+    assert portal_copy["liquid_shell"]["portal"]["next_order"] == "Coming soon"
     assert shell_fields({"theme_pack": "missing-pack"}) == []
     assert shell_fields({}) == []
     schemas = block_schema_registry()
@@ -53,6 +58,16 @@ def test_apply_validates_declared_paths_and_keeps_unrelated_settings():
     published = publish_shell(saved, {"design": {"accent": "#000000"}}, fields)
     assert published["footer"] == "New disclaimer"
     assert published["design"] == {"accent": "#000000"}
+
+
+def test_portal_labels_load_from_liquid_shell_fields():
+    from types import SimpleNamespace
+
+    from app.subscription_portal import labels
+
+    site = SimpleNamespace(published_settings_json={"theme_pack": "liquid",
+        "liquid_shell": {"portal": {"next_order": "Delivery ahead"}}})
+    assert labels(site)["next_order"] == "Delivery ahead"
 
 
 def test_storefront_renders_edited_shell_and_keeps_banner_without_policy(browser):  # noqa: F811
