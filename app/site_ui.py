@@ -307,7 +307,7 @@ def has_published_recently_viewed(db, site):
                              {"recently_viewed"}) for doc in documents)
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag=""):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag="", policy_html=None, policy_empty_message=None):
     from app.site_theme import pack_renderer
     config = site.settings_json if preview else site.published_settings_json
     if renderer := pack_renderer(config or {}, "storefront"):
@@ -427,6 +427,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 P("By " + blog["author_name"] if blog["author_name"] else f"By {site.name} team · Draft for editorial review"),
                 P(blog["author_bio"]) if blog["author_bio"] else None,
                 image(document.get("image")), cls="h-article-heading h-container") if page.kind == "article" else None,
+                H1(document["title"], cls="h-container h-policy-title") if policy_html is not None else None,
+                Div(NotStr(policy_html), cls="h-container h-policy-content") if policy_html else None,
+                P(policy_empty_message, cls="h-container h-policy-empty") if policy_empty_message else None,
                 *[section_view(s, i) for i, s in enumerate(document.get("blocks", [])) if not s.get("hidden")], id="content"),
             Section(Div(Small("A LITTLE SOMETHING TO LOOK FORWARD TO", cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P("Our first-order offer is coming when the shop opens.")),
                     Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer"),
