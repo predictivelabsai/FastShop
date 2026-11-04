@@ -23,6 +23,13 @@
   });
   document.addEventListener('click', event => {
     if (!selecting) return;
+    const shell = event.target.closest('[data-builder-shell]');
+    if (shell) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      window.parent.postMessage({source:'fastshop-editor', site_id:root.dataset.site,
+        page_id:root.dataset.builderPage, type:'shell', group:shell.dataset.builderShell}, location.origin);
+      return;
+    }
     const section = event.target.closest('[data-builder-section]');
     if (!section) return;
     event.preventDefault(); event.stopImmediatePropagation(); selected(section);

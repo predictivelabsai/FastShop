@@ -60,6 +60,19 @@ def fields():
     o, f, n, c, lab = "liquid_shell.offer.", "liquid_shell.footer.", "liquid_shell.nav.", \
         "liquid_consent.", "liquid_shell.labels."
     return [
+        *[_text("liquid_shell.pages." + key, label, default, group="pages") for key, label, default in (
+            ("cart_title", "Cart heading", "Your bag"),
+            ("account_title", "Account heading", "My account"),
+            ("orders_title", "Orders heading", "Your orders"),
+            ("subscriptions_title", "Subscriptions heading", "Subscriptions"),
+            ("not_found_title", "Not found heading", "Page not found"),
+            ("message_title", "Message heading", "Please check your details"),
+            ("shop_link", "Shop link", "Shop all"),
+            ("home_link", "Home link", "Back to home"),
+            ("cart_empty", "Empty cart message", "Your cart is still waiting for its first fizz. Have a look at the tablets or the bottle, and we will keep a spot warm here."),
+            ("subtotal", "Subtotal label", "Subtotal"),
+            ("checkout", "Checkout button", "Continue to checkout"),
+        )],
         _text(o + "title", "Offer bar text", offer["title"], group="header"),
         _text(lab + "request", "Offer bar button", LABEL_DEFAULTS["request"], group="header"),
         _text(o + "body", "Offer form text", offer["body"], area=True, group="header"),

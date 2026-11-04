@@ -510,7 +510,7 @@ function row(b, depth = 0) {
 function renderTree() {
   if (mode !== "sections") return;
   $("#left-content").innerHTML =
-    `<div class="tree-group-label">Header</div>${shellRow("header", "Store header")}<div class="tree-group-label">Template</div><div role="tree" aria-label="Page sections">${state.document.blocks.map((b) => row(b)).join("")}</div><button class="add-section" id="add-section">+ Add section</button><div class="tree-group-label">Footer</div>${shellRow("footer", "Store footer")}${shellRow("consent", "Cookie banner")}`;
+    `<div class="tree-group-label">Header</div>${shellRow("header", "Store header")}<div class="tree-group-label">Template</div><div role="tree" aria-label="Page sections">${state.document.blocks.map((b) => row(b)).join("")}</div><button class="add-section" id="add-section">+ Add section</button><div class="tree-group-label">Store pages</div>${shellRow("pages", "Store pages")}<div class="tree-group-label">Footer</div>${shellRow("footer", "Store footer")}${shellRow("consent", "Cookie banner")}`;
   $$("[data-shell]").forEach((b) => (b.onclick = () => openShell(b.dataset.shell)));
   $("#add-section").onclick = () => openPicker();
   $$("[data-add-child]").forEach(
@@ -767,7 +767,7 @@ function openShell(group) {
   send({ type: "select", block_id: null });
 }
 function renderShell() {
-  const names = { header: "Store header", footer: "Store footer", consent: "Cookie banner" };
+  const names = { header: "Store header", footer: "Store footer", consent: "Cookie banner", pages: "Store pages" };
   const obj = state.shell_settings;
   // Lets the shared field wiring find the shell schema; never serialised.
   Object.defineProperty(obj, "type", { value: "__shell", enumerable: false, configurable: true });
@@ -1285,6 +1285,7 @@ window.addEventListener("message", (e) => {
   }
   if (d.type === "ready") send({ type: "context", block_id: selected });
   if (d.type === "select") select(d.block_id);
+  if (d.type === "shell") openShell(d.group);
   if (d.type === "inline") {
     const n = locate(d.block_id),
       f = n && findField(d.field, spec(n.block.type).fields || []);
