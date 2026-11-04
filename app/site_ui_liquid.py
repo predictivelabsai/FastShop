@@ -237,8 +237,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     href=url(base, b.get("link", "/#products")),
                     cls="metal-cta bg-metal-sheen",
                 ),
-                P(config.get("footer", ""), cls="liquid-hero-disclaimer")
-                if "*" in b.get("body", "") else None,
+                P(b.get("disclaimer", config.get("footer", "")), cls="liquid-hero-disclaimer")
+                if "*" in b.get("body", "") and b.get("disclaimer", config.get("footer", "")) else None,
                 cls="metal-container hero-copy",
             ),
             Button(
@@ -370,14 +370,14 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
         return Section(
             Div(
                 H2(heading, cls="font-display text-5xl"),
-                P("Sample reviews", cls="liquid-sample-note"),
+                P(b.get("sample_note", "Sample reviews"), cls="liquid-sample-note"),
                 Div(
                     Div(
                         *[
                             Figure(
                                 photo(
                                     s["image"],
-                                    "Fictional customer portrait placeholder",
+                                    b.get("portrait_alt", "Fictional customer portrait placeholder"),
                                     width=144,
                                     height=144,
                                     cls="metal-review-avatar",
@@ -408,16 +408,16 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     ),
                     cls="metal-review-viewport",
                     tabindex="0",
-                    aria_label="Sample reviews. Use left and right arrow keys.",
+                    aria_label=b.get("carousel_label", "Sample reviews. Use left and right arrow keys."),
                     data_liquid_carousel="",
                 ),
                 Div(
-                    Button("←", aria_label="Previous reviews", data_liquid_previous=""),
+                    Button("←", aria_label=b.get("previous_label", "Previous reviews"), data_liquid_previous=""),
                     Div(
                         *[
                             Button(
                                 Span(),
-                                aria_label=f"Show reviews starting at {i + 1}",
+                                aria_label=b.get("dot_label", "Show reviews starting at {number}").format(number=i + 1),
                                 aria_pressed="true" if i == 0 else "false",
                                 data_liquid_dot=str(i),
                                 cls="metal-review-dot",
@@ -426,13 +426,13 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                         ],
                         cls="liquid-dots",
                         role="group",
-                        aria_label="Review position",
+                        aria_label=b.get("position_label", "Review position"),
                     ),
-                    Button("→", aria_label="Next reviews", data_liquid_next=""),
+                    Button("→", aria_label=b.get("next_label", "Next reviews"), data_liquid_next=""),
                     cls="metal-review-navigation",
                 ),
                 P(
-                    "Reviews 1 of " + str(len(items)),
+                    b.get("position_text", "Reviews {number} of {total}").format(number=1, total=len(items)),
                     data_liquid_position="",
                     cls="sr-only",
                     aria_live="polite",
@@ -442,7 +442,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
             id=b["id"],
             cls="metal-feature liquid-ruled",
             aria_roledescription="carousel",
-            aria_label="Sample customer reviews",
+            aria_label=b.get("reviews_label", "Sample customer reviews"),
         )
     if kind == "liquid_articles":
         return Section(
@@ -465,7 +465,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                             Div(
                                 P(s["label"], cls="metal-tag"),
                                 H3(s["heading"], cls="font-display"),
-                                Span("Read more →", cls="metal-learn-more"),
+                                Span(b.get("read_more", "Read more →"), cls="metal-learn-more"),
                                 cls="metal-article-body",
                             ),
                             href=url(base, s["url"]),
@@ -487,7 +487,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     A(b.get("eyebrow", "Home"), href=base + "/"),
                     Span("/"),
                     Span(heading, aria_current="page"),
-                    aria_label="Breadcrumb",
+                    aria_label=b.get("breadcrumb_label", "Breadcrumb"),
                     cls="shop-breadcrumb",
                 ),
                 H1(heading, cls="font-display text-6xl"),
@@ -543,7 +543,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                         Span(s["theme"], cls="shop-badge"),
                         Div(
                             Span(
-                                "4 flavors",
+                                b.get("flavour_count", "4 flavours"),
                                 Span(
                                     *[
                                         Span(cls="tablet-dot flavor-" + f)
@@ -555,12 +555,12 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                             )
                             if is_fizz
                             else A(
-                                "View product",
+                                b.get("view_product", "View product"),
                                 href=url(base, s["url"]),
                                 cls="shop-view text-primary",
                             ),
                             A(
-                                "Choose flavor",
+                                b.get("choose_flavour", "Choose flavour"),
                                 href=url(base, s["url"]),
                                 cls="metal-add-button bg-metal-sheen",
                             )
@@ -576,7 +576,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
         return Section(
             Div(Div(*cards, cls="shop-grid"), cls="metal-container shop-catalog"),
             cls="metal-light liquid-ruled",
-            aria_label="All products",
+            aria_label=b.get("products_label", "All products"),
         )
     if kind == "liquid_choices":
         return Section(
@@ -613,7 +613,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                 cls="metal-container shop-trust",
             ),
             cls="metal-light liquid-ruled",
-            aria_label="Shopping assurances",
+            aria_label=b.get("assurances_label", "Shopping assurances"),
         )
     from app.site_ui import render_section
 
@@ -866,6 +866,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         cls="liquid-header-row",
                     ),
                     cls="metal-header",
+                    data_builder_shell="header",
                 ),
                 cls="metal-top-bars",
             ),
@@ -978,6 +979,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 ),
                 id="footer",
                 cls="metal-footer",
+                data_builder_shell="footer",
             ),
             Div(
                 H2(consent_copy["heading"]),
@@ -1002,6 +1004,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 role="region",
                 aria_label="Cookie preferences",
                 hidden=True,
+                data_builder_shell="consent",
             ),
             cls="h-site theme-metal",
             style=theme_style(config) or None, data_themed="true" if theme_style(config) else None,

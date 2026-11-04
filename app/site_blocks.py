@@ -129,6 +129,14 @@ LIQUID_PRODUCT_LAYOUTS = {
 }
 TEXT_FIELDS = {'heading', 'eyebrow', 'body', 'button', 'image', 'video', 'mobile_video',
                'poster', 'link', 'url', 'category', 'alt'}
+EXTRA_BLOCK_TEXT_FIELDS = {
+    'liquid_hero': {'disclaimer'},
+    'liquid_reviews': {'sample_note', 'portrait_alt', 'carousel_label', 'previous_label',
+                       'next_label', 'dot_label', 'position_label', 'position_text', 'reviews_label'},
+    'liquid_trust': {'assurances_label'}, 'liquid_articles': {'read_more'},
+    'liquid_catalog': {'flavour_count', 'view_product', 'choose_flavour', 'products_label'},
+    'text': {'breadcrumb_label'},
+}
 ITEM_FIELDS = {'heading', 'body', 'url', 'theme', 'image', 'alt', 'label', 'value'}
 URL_FIELDS = {'image', 'video', 'mobile_video', 'poster', 'link', 'url'}
 LOCALE = re.compile(r'[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*')
@@ -179,7 +187,7 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
     if result['id'] in _state['ids']:
         raise CommerceError('Each block needs a unique identifier across the tree.')
     _state['ids'].add(result['id'])
-    allowed = TEXT_FIELDS | {'children', 'style'} | (set(WIDGETS[result['type']][2]) if result['type'] in WIDGETS else set()) | {'id', 'type', 'role', 'layout', 'version', 'hidden', 'subscription_preview', 'items', 'gallery'}
+    allowed = TEXT_FIELDS | EXTRA_BLOCK_TEXT_FIELDS.get(result['type'], set()) | {'children', 'style'} | (set(WIDGETS[result['type']][2]) if result['type'] in WIDGETS else set()) | {'id', 'type', 'role', 'layout', 'version', 'hidden', 'subscription_preview', 'items', 'gallery'}
     if set(result) - allowed:
         raise CommerceError('Choose supported block fields.')
     for key in {'role', 'layout'} & result.keys():
@@ -190,7 +198,7 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
     for key in {'hidden', 'subscription_preview'} & result.keys():
         if not isinstance(result[key], bool):
             raise CommerceError('Visibility and subscription preview must be true or false.')
-    for key in TEXT_FIELDS & result.keys():
+    for key in (TEXT_FIELDS | EXTRA_BLOCK_TEXT_FIELDS.get(result['type'], set())) & result.keys():
         result[key] = _text(result[key], key)
     if 'style' in result:
         result['style'] = validate_style(result['style'])
@@ -320,7 +328,7 @@ def resolve_document(document, locale='en') -> dict:
         result[key] = resolve_text(result[key], locale)
     for block in walk_blocks(result['blocks']):
         definition = WIDGETS.get(block['type'])
-        fields = TEXT_FIELDS | (set(definition.fields) if definition else set())
+        fields = TEXT_FIELDS | EXTRA_BLOCK_TEXT_FIELDS.get(block['type'], set()) | (set(definition.fields) if definition else set())
         for key in fields & block.keys():
             block[key] = resolve_text(block[key], locale)
         for item in block.get('items', []):

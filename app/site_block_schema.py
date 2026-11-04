@@ -137,6 +137,7 @@ LEGACY_PICKER = {
 def _registry():
     from app.site_liquid_editorial_content import EDITORIAL_FIELDS, editorial_documents
     from app.site_liquid_support_validation import REQUIRED, SCHEMAS
+    from app.site_seed_liquid import CONTENT
 
     schemas = {}
 
@@ -152,6 +153,28 @@ def _registry():
 
     for kind, spec in BLOCK_TYPES.items():
         default = {"id": "new-block", "type": kind, "version": 1}
+        liquid_copy = {
+            "liquid_hero": {"disclaimer": CONTENT["fdaDisclaimer"]},
+            "liquid_reviews": {
+                "sample_note": "Sample reviews",
+                "portrait_alt": "Fictional customer portrait placeholder",
+                "carousel_label": "Sample reviews. Use left and right arrow keys.",
+                "previous_label": "Previous reviews",
+                "next_label": "Next reviews",
+                "dot_label": "Show reviews starting at {number}",
+                "position_label": "Review position",
+                "position_text": "Reviews {number} of {total}",
+                "reviews_label": "Sample customer reviews",
+            },
+            "liquid_trust": {"assurances_label": "Shopping assurances"},
+            "liquid_articles": {"read_more": "Read more →"},
+            "liquid_catalog": {
+                "flavour_count": "4 flavours", "view_product": "View product",
+                "choose_flavour": "Choose flavour", "products_label": "All products",
+            },
+            "text": {"breadcrumb_label": "Breadcrumb"},
+        }.get(kind, {})
+        default.update(liquid_copy)
         themes = set()
         layouts = set()
         insertable = True
@@ -159,6 +182,7 @@ def _registry():
             default.update(copy.deepcopy(WIDGETS[kind][2]))
             label, category = WIDGETS[kind][:2]
             keys = list(WIDGETS[kind][2])
+            keys += list(liquid_copy)
         else:
             label = spec.label.removeprefix("Liquid ")
             category = (
@@ -186,6 +210,7 @@ def _registry():
                 items=[],
             )
             keys = sorted(TEXT_FIELDS) + ["items", "hidden", "subscription_preview"]
+            keys += list(liquid_copy)
             if kind in LIQUID_PRODUCT_THEMES:
                 themes = LIQUID_PRODUCT_THEMES[kind]
                 layouts = LIQUID_PRODUCT_LAYOUTS.get(kind, {"light", "dark"})
@@ -317,6 +342,9 @@ def _registry():
                 field["help"] = (
                     "Safe formatting only. Scripts and inline event handlers are removed."
                 )
+            if key == "disclaimer":
+                field["type"] = "textarea"
+                field["label"] = "Hero disclaimer"
             if key == "collection":
                 field["label"] = "Collection"
                 field["help"] = "Choose a published catalogue collection."
