@@ -103,7 +103,7 @@ def test_customer_login_does_not_grant_merchant_access_and_logout_revokes_sessio
     admin = client.get("/admin", follow_redirects=False)
     assert admin.status_code == 303 and "/login" in admin.headers["location"]
     response = client.post(base + "/account/logout", data={"csrf_token": csrf(response)})
-    assert "Sign in with an email link" in response.text
+    assert "Send login code" in response.text
 
 
 def test_newsletter_requires_consent_and_confirmation_without_logging_customer_in(customer_site):
@@ -123,7 +123,7 @@ def test_newsletter_requires_consent_and_confirmation_without_logging_customer_i
     with SessionLocal() as db:
         commerce.settings_for(db, site).customer_accounts_enabled = True
         db.commit()
-    assert "Sign in with an email link" in client.get(base + "/account").text
+    assert "Send login code" in client.get(base + "/account").text
     with SessionLocal() as db:
         consent = db.scalar(select(MarketingConsent).where(MarketingConsent.site_id == site.id))
         customer = db.get(ShopCustomer, consent.customer_id)
@@ -217,8 +217,8 @@ def test_header_and_anonymous_login_form_return_only_when_opted_in(customer_site
     assert f'href="{base}/account"' in client.get(base + "/").text
     page = client.get(base + "/account")
     assert page.status_code == 200
-    assert "Sign in with an email link" in page.text
-    assert f'action="{base}/account/login"' in page.text
+    assert "Send login code" in page.text
+    assert f'action="{base}/account/login/code"' in page.text
 
 
 def test_disabling_accounts_also_gates_existing_customer_session(customer_site):
