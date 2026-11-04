@@ -22,6 +22,7 @@ from app.services import CommerceError
 
 LIVE_KEY = "sk_live_fixture_secret_1234"
 LIVE_WEBHOOK = "whsec_fixture_live_5678"
+LIVE_PUBLISHABLE = "pk_live_fixture_publishable_1234"
 
 
 @contextmanager
@@ -81,10 +82,12 @@ def test_operator_storage_is_encrypted_masked_tenant_scoped_and_secret_free(monk
         with pytest.raises(CommerceError, match="operator"):
             live_credentials.store(db, site.id, merchant.id, LIVE_KEY, LIVE_WEBHOOK)
         credential = live_credentials.store(
-            db, site.id, operator.id, LIVE_KEY, LIVE_WEBHOOK
+            db, site.id, operator.id, LIVE_KEY, LIVE_WEBHOOK, LIVE_PUBLISHABLE
         )
         state = live_credentials.state_for(db, site, config)
         assert state.masked_key == "sk_live_****1234"
+        assert state.masked_publishable_key == "pk_live_...1234"
+        assert credential.publishable_key == LIVE_PUBLISHABLE
         assert state.created_by == operator.id and state.credential_id == credential.id
         assert LIVE_KEY.encode() not in credential.secret_key_ciphertext
         assert LIVE_WEBHOOK.encode() not in credential.webhook_secret_ciphertext
@@ -96,6 +99,24 @@ def test_operator_storage_is_encrypted_masked_tenant_scoped_and_secret_free(monk
         audit = str(change.before_json) + str(change.after_json)
         assert credential.id in audit
         assert LIVE_KEY not in audit and LIVE_WEBHOOK not in audit
+
+
+def test_live_publishable_key_format_is_validated(monkeypatch):
+    with workspace(monkeypatch) as (db, operator, _, site, _):
+        for value in ("pk_test_fixture_publishable_1234", "pk_live_short", "pk_live_bad-key-1234"):
+            with pytest.raises(CommerceError, match="publishable"):
+                live_credentials.store(db, site.id, operator.id, LIVE_KEY, LIVE_WEBHOOK, value)
+
+
+def test_publishable_resolver_rejects_a_live_key_in_sandbox(monkeypatch):
+    from app import checkout_payments
+
+    with workspace(monkeypatch) as (db, _, _, site, config):
+        config.mode = "sandbox"
+        monkeypatch.setenv("FASTSHOP_STRIPE_" + site.id.upper() + "_PUBLISHABLE_KEY",
+                           LIVE_PUBLISHABLE)
+        with pytest.raises(CommerceError, match="does not match sandbox"):
+            checkout_payments.publishable_for(db, site)
 
 
 def test_acceptance_is_hard_gated_versioned_audited_and_disable_requires_reverification(
