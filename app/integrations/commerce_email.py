@@ -77,7 +77,8 @@ def render_message(db, row, site, customer=None, user=None):
     if not default:
         return None
     event = {"order_confirmation": "order_confirmation", "shipment_update": "shipping_confirmation",
-             "refund": "refund", "draft_invoice": "draft_invoice", "login": "customer_account", "account_verification": "customer_account"}.get(row.kind)
+             "refund": "refund", "draft_invoice": "draft_invoice", "login": "customer_account",
+             "login_code": "customer_account", "account_verification": "customer_account"}.get(row.kind)
     if not event:
         return default
     values = {"customer_name": customer.name if customer else user.name if user else "",
@@ -166,6 +167,17 @@ def _render_message(db, row, site, customer=None, user=None):
             "FastShop stores no card details. This is a transactional account notice.\n\n"
             "FastShop"
         )
+    if row.kind == "login_code":
+        challenge = db.scalar(select(customers.CustomerLoginCodeChallenge).where(
+            customers.CustomerLoginCodeChallenge.id == (row.reference_json or {}).get("login_code_id"),
+            customers.CustomerLoginCodeChallenge.site_id == site.id,
+            customers.CustomerLoginCodeChallenge.tenant_id == site.tenant_id))
+        if not challenge or challenge.consumed_at or customers.utc(challenge.expires_at) <= datetime.now(UTC):
+            return None
+        code = customers.decrypt_login_code(site, challenge)
+        return "Your sign-in code - " + site.name, (
+            f"Your sign-in code for {site.name} is {code}.\n\n"
+            "It expires in 10 minutes and can be used once. If you did not request it, ignore this email.\n\nPowered by FastShop.")
     if not customer:
         return None
     if row.kind == "order_edit_invoice":
@@ -245,7 +257,7 @@ def _render_message(db, row, site, customer=None, user=None):
         return render_subscription_message(db, row, site, customer)
     if row.kind in {"order_confirmation", "shipment_update"}:
         return render_order_message(db, row, site, customer)
-    if row.kind in {"login", "newsletter"}:
+    if row.kind in {"login", "login_code", "newsletter"}:
         challenge = db.scalar(select(CustomerChallenge).where(CustomerChallenge.id == row.challenge_id,
             CustomerChallenge.site_id == site.id, CustomerChallenge.tenant_id == site.tenant_id,
             CustomerChallenge.customer_id == customer.id))
@@ -391,7 +403,11 @@ def dispatch_mail(message_id, *, sessions=SessionLocal, sender=send_email):
             db.commit()
             return False
         subject, body = message
-        recipient = user.email if user else customer.email
+        recipient = user.email if user else customer.email if customer else (row.reference_json or {}).get("recipient_email")
+        if not recipient:
+            row.status = "cancelled"
+            db.commit()
+            return False
         if row.kind == "staff_invite":
             invite = db.scalar(select(StaffInvite).where(
                 StaffInvite.id == (row.reference_json or {}).get("invite_id"),

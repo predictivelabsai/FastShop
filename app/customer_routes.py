@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import secrets
 
-from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Li, P, Small, Ul
+from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Li, NotStr, P, Small, Ul
 from sqlalchemy import select
 from starlette.responses import RedirectResponse
 
 from app import commerce
 from app import customer_services as customers
+from app.admin_entry import safe_next_path
 from app.customer_accounts import (
     CustomerAccountsUnavailable,
     require_customer_accounts,
@@ -76,6 +77,33 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         return platform_page(title, P(site.name + " · Powered by FastShop"), *children,
             navigation=[A("Back to store", href=root + "/"), *([A("My account", href=root + "/account")] if accounts_enabled else [])], customer=True)
 
+    def account_copy(site):
+        from app.account_copy import DEFAULT_ACCOUNT_COPY
+        return {**DEFAULT_ACCOUNT_COPY, **(site.published_settings_json or {}).get("account_copy", {})}
+
+    def safe_local_next(value, fallback):
+        return safe_next_path(str(value or ""), fallback)
+
+    def login_card(site, request, session, *, verify=False, next_path="", email=""):
+        root = base(site, request)
+        copy = account_copy(site)
+        fields = [csrf(session), Input(type="hidden", name="next", value=next_path)]
+        if verify:
+            fields.extend([Label(copy["email_label"], Input(name="email", type="email", required=True,
+                autocomplete="email", maxlength=320, value=email)),
+                Label(copy["code_label"], Input(name="code", inputmode="numeric", pattern="[0-9]{6}",
+                    required=True, autocomplete="one-time-code", maxlength=6))])
+            action, button = root + "/account/login/verify", copy["verify_code"]
+        else:
+            fields.append(Label(copy["email_label"], Input(name="email", type="email", required=True,
+                autocomplete="email", maxlength=320)))
+            fields.append(Input(name="website", tabindex="-1", autocomplete="off", style="display:none"))
+            action, button = root + "/account/login/code", copy["send_code"]
+        card = Div(H2(copy["heading"]), Form(*fields, Button(button, cls="e-button account-login-primary"), method="post",
+            action=action, cls="e-form account-login-form"), cls="e-card account-login-card")
+        style = "<style>.account-login-card{width:min(100%,440px);margin:clamp(2rem,10vh,6rem) auto;background:#fff;padding:clamp(1.5rem,5vw,2.5rem);border-radius:var(--store-radius,12px);box-shadow:0 8px 32px rgba(13,23,19,.08)}.account-login-form{display:grid;gap:1.1rem}.account-login-form label{display:grid;gap:.45rem}.account-login-form input:not([type=hidden]){width:100%;box-sizing:border-box}.account-login-primary{width:100%;background:var(--store-accent,#0e7d55);border-color:var(--store-accent,#0e7d55);border-radius:var(--store-radius,12px)}.account-login-card h2{margin-top:0}</style>"
+        return [card, NotStr(style)]
+
     def private_response(response):
         from fasthtml.core import FtResponse
         return FtResponse(response, headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer"})
@@ -88,11 +116,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 root = base(site, request)
                 customer = customers.signed_in_customer(db, site, session)
                 if not customer:
-                    return private_response(screen(db, site, request, "My account", Div(H2("Sign in with an email link"),
-                        P("No password needed. We will email a single-use sign-in link. Signing in does not subscribe you to marketing."),
-                        Form(csrf(session), Label("Email address", Input(name="email", type="email", required=True, autocomplete="email", maxlength=320)),
-                            Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
-                            Button("Email me a sign-in link", cls="e-button"), method="post", action=root + "/account/login", cls="e-form"), cls="e-card")))
+                    return private_response(screen(db, site, request, "Login", *login_card(site, request, session)))
                 orders = customers.orders_for(db, site, customer)
                 consent = db.scalar(select(MarketingConsent).where(MarketingConsent.site_id == site.id,
                     MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.customer_id == customer.id))
@@ -137,6 +161,69 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
     @rt("/sites/{slug}/account/login", methods=["POST"])
     async def post(session, request, slug: str):
         return await request_link(session, request, slug, "login")
+
+    @rt("/sites/{slug}/account/login/code", methods=["POST"])
+    async def post(session, request, slug: str):
+        form = await request.form()
+        try:
+            with SessionLocal() as db:
+                site = account_site(db, slug)
+                check_csrf(session, form)
+                mail = None if form.get("website") else customers.request_login_code(db, site,
+                    form.get("email", ""), request.client.host if request.client else "unknown")
+                message_id = mail.id if mail else None
+                email = str(form.get("email", ""))[:320]
+                next_path = safe_local_next(form.get("next", ""), base(site, request) + "/account/subscriptions")
+                db.commit()
+                response = screen(db, site, request, "Login", *login_card(site, request, session,
+                    verify=True, next_path=next_path, email=email), P(account_copy(site)["sent_message"]))
+            if message_id:
+                dispatch_mail(message_id)
+            return private_response(response)
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
+        except CommerceError as exc:
+            return public_message(request, slug, exc)
+
+    @rt("/sites/{slug}/account/login/verify", methods=["GET"])
+    def get(session, request, slug: str, next: str = "", email: str = ""):
+        try:
+            with SessionLocal() as db:
+                site = account_site(db, slug)
+                target = safe_local_next(next, base(site, request) + "/account/subscriptions")
+                return private_response(screen(db, site, request, "Login", *login_card(site, request,
+                    session, verify=True, next_path=target, email=email)))
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
+        except CommerceError as exc:
+            return public_message(request, slug, exc)
+
+    @rt("/sites/{slug}/account/login/verify", methods=["POST"])
+    async def post(session, request, slug: str):
+        form = await request.form()
+        try:
+            with SessionLocal() as db:
+                site = account_site(db, slug)
+                check_csrf(session, form)
+                customer = customers.consume_login_code(db, site, form.get("email", ""), form.get("code", ""))
+                if not customer:
+                    db.commit()
+                    return private_response(screen(db, site, request, "Login",
+                        *login_card(site, request, session, verify=True,
+                            next_path=safe_local_next(form.get("next", ""), base(site, request) + "/account/subscriptions"),
+                            email=str(form.get("email", ""))[:320]),
+                        P(account_copy(site)["invalid_code"])))
+                db.commit()
+                session["customer:" + site.id] = customer.id
+                session["csrf_token"] = secrets.token_urlsafe(32)
+                target = safe_local_next(form.get("next", ""), base(site, request) + "/account/subscriptions")
+                if not target.startswith(base(site, request) + "/"):
+                    target = base(site, request) + target
+                return RedirectResponse(target, status_code=303)
+        except CustomerAccountsUnavailable as exc:
+            return unavailable_response(exc, request)
+        except CommerceError as exc:
+            return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/newsletter", methods=["POST"])
     async def post(session, request, slug: str):
