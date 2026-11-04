@@ -513,16 +513,21 @@ def integrations_hub(session: Session, base: str = "/admin/integrations"):
     return (
         Div(None if in_store else Span("Connect FastShop", cls="eyebrow"),
             None if in_store else H2("Integrations"),
-            P("Payments, storefront sync and back-office. Provider secrets are set as deployment "
-              "environment variables through Coolify/FastDevOps, never stored in this application."),
+            P("Connect payments, transactional email, storefront sync and back-office services from your store settings."),
             cls="page-head"),
         Div(
             card("Stripe", "Card payments, Apple Pay / Google Pay and US sales tax for sandbox checkout.",
                  "Admin connection", True,
-                 (base.removesuffix("/integrations") + "/commerce/payments") if in_store else base + "/stripe",
+                 (base.rsplit("/settings/integrations", 1)[0] + "/commerce/payments") if in_store else base + "/stripe",
                  "Manage payments" if in_store else "Setup guide"),
-            card("PayPal", "Offer PayPal at checkout. Setup guide and where to add PayPal API keys, with readiness.",
-                 "Guide & keys", True, base + "/paypal", "Open guide & keys"),
+            card("PayPal", "Connect and verify PayPal credentials for this store.",
+                 "Store connection", True,
+                 base.rsplit("/settings/integrations", 1)[0] + "/settings/integrations/paypal"
+                 if in_store else base + "/paypal", "Connect PayPal" if in_store else "Open guide"),
+            card("Email", "Connect Postmark for order updates, customer login codes and contact messages.",
+                 "Store connection", True,
+                 base.rsplit("/settings/integrations", 1)[0] + "/settings/integrations/email"
+                 if in_store else base + "/email", "Connect email" if in_store else "Open guide"),
             card("WooCommerce", "Reviewed import of catalog, customers and orders, plus JSON catalog export.",
                  "Optional", True, base + "/woocommerce"),
             card("FastERP", state.message, "Reachable" if state.reachable else "Unavailable",
@@ -599,35 +604,43 @@ def paypal_guide(session: Session, *, site_id=None, tenant_ids=None,
     sites = list(session.scalars(statement))
     rows = []
     for site in sites:
-        state = paypal.readiness(site)
+        state = paypal.readiness(site, session)
         rows.append(Tr(Td(site.slug), Td(site.id), Td(state.mode),
             Td(Span("Set" if state.client_id_set else "Missing", cls="pill green" if state.client_id_set else "pill amber")),
             Td(Span("Set" if state.secret_set else "Missing", cls="pill green" if state.secret_set else "pill amber")),
             Td(Span("Ready" if state.configured else "Not configured", cls="pill green" if state.configured else "pill amber"))))
     table = Div(Table(Thead(Tr(Th("Store"), Th("Site id"), Th("Mode"), Th("Client ID"), Th("Secret"), Th("Status"))),
                       Tbody(*rows)), cls="table-scroll") if rows else P("No stores yet.")
+    if site_id is not None:
+        href = f"/admin/sites/{site_id}/settings/integrations/paypal"
+        return (
+            Div(Span("Payments", cls="eyebrow"), H2("PayPal connection"),
+                P("Connect PayPal from this store's settings. Credentials are encrypted and never shown again."),
+                A("Open PayPal settings", href=href, cls="button primary"), cls="page-head"),
+            panel("Connection status", table),
+            panel("Operator fallback", P("If no store connection exists, the operator can configure PayPal environment variables for the service.")),
+            panel("Notes", P("Choosing live credentials does not enable live payments. Commerce settings and operator approval still control live checkout.")),
+        )
     return _guide(
-        "Payments", "PayPal setup & keys",
-        "Two ways to offer PayPal. Path 1 (recommended today) runs through Stripe Checkout with no "
-        "separate keys. Path 2 stores direct PayPal REST credentials as environment variables for a "
-        "direct integration (a provider-gated seam).",
-        ["Path 1, via Stripe: enable PayPal on your Stripe account, then turn on "
-         "\"Offer PayPal at one-time checkout\" in the store's Commerce/shared settings. No PayPal keys are stored here.",
-         "Path 2, direct PayPal: in the PayPal Developer Dashboard, create a REST app (start in Sandbox).",
-         "Copy the app's Client ID and Secret.",
-         "Set the environment variables below in Coolify (use MODE=sandbox until acceptance), then redeploy.",
-         "Return here to confirm the readiness table shows the store as Ready."],
-        "Environment variables: where to add PayPal keys (per store)",
-        [_env_var("FASTSHOP_PAYPAL_{SITE_ID}_CLIENT_ID", "= your PayPal REST client id"),
-         _env_var("FASTSHOP_PAYPAL_{SITE_ID}_SECRET", "= your PayPal REST secret"),
-         _env_var("FASTSHOP_PAYPAL_{SITE_ID}_MODE", "= sandbox | live"),
-         _env_var("PAYPAL_CLIENT_ID / PAYPAL_SECRET / PAYPAL_MODE", "= globals used only by the primary store")],
-        panel("PayPal readiness by store", table),
-        panel("Notes", Div(
-            P("Keys are read from the environment and never stored in this application's database; "
-              "this page only reports whether each value is present, never the value itself."),
-            P("Subscriptions stay card-only so saved-card renewals work; PayPal applies to one-time orders."))),
-        base=base, docs=("PayPal integration", "https://github.com/predictivelabsai/FastShop/blob/main/docs/PAYPAL_INTEGRATION.md"),
+        "Payments", "PayPal setup",
+        "Merchants connect PayPal from Settings → Integrations → PayPal. This page is an operator reference.",
+        ["Open the store's Settings → Integrations → PayPal page.",
+         "Enter the REST app Client ID and Secret, choose Sandbox or Live, then verify and save."],
+        "Operator fallback",
+        [Li("Environment variables are used only when the store has no admin connection.")],
+        panel("PayPal readiness by store", table), base=base,
+        docs=("PayPal integration", "https://github.com/predictivelabsai/FastShop/blob/main/docs/PAYPAL_INTEGRATION.md"),
+    )
+
+
+def email_guide(base="/admin/integrations"):
+    site_base = base.rsplit("/settings/integrations", 1)[0]
+    return (
+        Div(Span("Transactional email", cls="eyebrow"), H2("Email connection"),
+            P("Connect Postmark for order updates, customer login codes and contact messages."),
+            A("Open email settings", href=site_base + "/settings/integrations/email",
+              cls="button primary"), cls="page-head"),
+        panel("Operator fallback", P("Postmark environment variables are used only when a store has no admin connection.")),
     )
 
 

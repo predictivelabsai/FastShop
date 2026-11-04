@@ -33,9 +33,15 @@ from app.models import (
 from app.services import CommerceError, money
 
 
-def send_email(recipient, subject, body, *, message_id):
-    token = os.getenv("POSTMARK_SERVER_TOKEN") or os.getenv("POSTMARK_API_TOKEN", "")
-    sender = os.getenv("FASTSHOP_CONTACT_FROM") or os.getenv("FROM_EMAIL", "")
+def send_email(recipient, subject, body, *, message_id, site=None, db=None):
+    if site is not None:
+        from app.site_integrations import _from_address, mail_settings
+
+        config = mail_settings(site, db)
+        token, sender = config["token"], _from_address(config)
+    else:
+        token = os.getenv("POSTMARK_SERVER_TOKEN") or os.getenv("POSTMARK_API_TOKEN", "")
+        sender = os.getenv("FASTSHOP_CONTACT_FROM") or os.getenv("FROM_EMAIL", "")
     if not token or not sender:
         return "awaiting_configuration", ""
     try:
@@ -413,7 +419,11 @@ def dispatch_mail(message_id, *, sessions=SessionLocal, sender=send_email):
                 StaffInvite.id == (row.reference_json or {}).get("invite_id"),
                 StaffInvite.site_id == row.site_id, StaffInvite.tenant_id == row.tenant_id))
             recipient = invite.email
-        status, provider_id = sender(recipient, subject, body, message_id=row.id)
+        if sender is send_email:
+            status, provider_id = sender(recipient, subject, body, message_id=row.id,
+                                         site=site, db=db)
+        else:
+            status, provider_id = sender(recipient, subject, body, message_id=row.id)
         row.status, row.provider_id = status, provider_id
         row.available_at = datetime.now(UTC) + timedelta(minutes=min(60, 2 ** row.attempts))
         db.commit()
