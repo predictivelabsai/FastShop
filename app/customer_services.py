@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
 
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
@@ -15,6 +17,7 @@ from app.config import settings
 from app.models import (
     CommerceMail,
     CustomerChallenge,
+    CustomerLoginCodeChallenge,
     CustomerOffer,
     MarketingConsent,
     Order,
@@ -87,7 +90,8 @@ def queue_mail(db, site, customer, kind, dedupe_key, *, challenge=None, referenc
     row = db.scalar(select(CommerceMail).where(CommerceMail.dedupe_key == dedupe_key,
         CommerceMail.site_id == site.id, CommerceMail.tenant_id == site.tenant_id))
     if not row:
-        row = CommerceMail(tenant_id=site.tenant_id, site_id=site.id, customer_id=customer.id,
+        row = CommerceMail(tenant_id=site.tenant_id, site_id=site.id,
+            customer_id=customer.id if customer else None,
             kind=kind, challenge_id=challenge.id if challenge else None, dedupe_key=dedupe_key,
             available_at=datetime.now(UTC), reference_json=reference or {})
         db.add(row)
@@ -114,7 +118,7 @@ def queue_order_mail(db, site, link, *, shipment=None):
 
 
 def request_email_challenge(db, site, email, purpose, client_address, *, consent=False):
-    if purpose not in {"login", "newsletter"}:
+    if purpose not in {"login", "login_code", "newsletter"}:
         raise CommerceError("Unknown email verification request.")
     if purpose == "newsletter" and not consent:
         raise CommerceError("Tick the marketing consent box to request the offer.")
@@ -143,13 +147,115 @@ def request_email_challenge(db, site, email, purpose, client_address, *, consent
         return None  # Same public response; do not disclose account or subscription existence.
     challenge = CustomerChallenge(id=new_id(), tenant_id=site.tenant_id, site_id=site.id,
         customer_id=customer.id, purpose=purpose, client_hash=client_hash,
-        expires_at=now + timedelta(minutes=20 if purpose == "login" else 60),
+        expires_at=now + timedelta(minutes=10 if purpose == "login_code" else (20 if purpose == "login" else 60)),
         consent_json={"version": CONSENT_VERSION, "text": consent_text(site), "source": "first-order-offer",
                       "requested_at": now.isoformat()} if purpose == "newsletter" else {})
     challenge.token_hash = hashlib.sha256(challenge_token(challenge).encode()).hexdigest()
     db.add(challenge)
     db.flush()
     return queue_mail(db, site, customer, purpose, "challenge:" + challenge.id, challenge=challenge)
+
+
+def _challenge_key():
+    return hmac.new(settings.session_secret.encode(), b"fastshop-login-code-encryption-v1", hashlib.sha256).digest()
+
+
+def _login_code_hash(site, challenge, code):
+    payload = f"fastshop-login-code-v1:{site.id}:{challenge.id}:{code}"
+    return hmac.new(settings.session_secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+
+
+def _encrypt_login_code(site, challenge, code):
+    nonce = secrets.token_bytes(12)
+    encrypted = AESGCM(_challenge_key()).encrypt(nonce, code.encode(), f"{site.id}:{challenge.id}".encode())
+    return base64.urlsafe_b64encode(nonce + encrypted).decode()
+
+
+def decrypt_login_code(site, challenge):
+    value = base64.urlsafe_b64decode(challenge.code_cipher)
+    aad = f"{site.id}:{challenge.id}".encode()
+    return AESGCM(_challenge_key()).decrypt(value[:12], value[12:], aad).decode()
+
+
+def request_login_code(db, site, email, client_address):
+    email = normalized_email(email)
+    now = datetime.now(UTC)
+    email_hash = hmac.new(settings.session_secret.encode(),
+        f"login-code-email-v1:{site.id}:{email}".encode(), hashlib.sha256).hexdigest()
+    client_hash = hmac.new(settings.session_secret.encode(),
+        f"{site.id}:{client_address}".encode(), hashlib.sha256).hexdigest()
+    db.scalar(select(Site.id).where(Site.id == site.id, Site.tenant_id == site.tenant_id).with_for_update())
+    customer = customer_for(db, site, email, create=False)
+    if customer and not customer.is_active:
+        return None
+    hour = now - timedelta(hours=1)
+    legacy_count = db.scalar(select(func.count()).select_from(CustomerChallenge).where(
+        CustomerChallenge.site_id == site.id, CustomerChallenge.tenant_id == site.tenant_id,
+        CustomerChallenge.created_at >= hour,
+        or_(CustomerChallenge.client_hash == client_hash,
+            CustomerChallenge.customer_id == customer.id if customer else False)))
+    code_count = db.scalar(select(func.count()).select_from(CustomerLoginCodeChallenge).where(
+        CustomerLoginCodeChallenge.site_id == site.id, CustomerLoginCodeChallenge.tenant_id == site.tenant_id,
+        CustomerLoginCodeChallenge.created_at >= hour,
+        or_(CustomerLoginCodeChallenge.client_hash == client_hash,
+            CustomerLoginCodeChallenge.email_hash == email_hash)))
+    recent = db.scalar(select(CustomerLoginCodeChallenge.id).where(
+        CustomerLoginCodeChallenge.site_id == site.id, CustomerLoginCodeChallenge.tenant_id == site.tenant_id,
+        CustomerLoginCodeChallenge.email_hash == email_hash,
+        CustomerLoginCodeChallenge.created_at >= now - timedelta(seconds=60)))
+    ip_count = db.scalar(select(func.count()).select_from(CustomerChallenge).where(
+        CustomerChallenge.site_id == site.id, CustomerChallenge.tenant_id == site.tenant_id,
+        CustomerChallenge.created_at >= hour, CustomerChallenge.client_hash == client_hash))
+    code_ip_count = db.scalar(select(func.count()).select_from(CustomerLoginCodeChallenge).where(
+        CustomerLoginCodeChallenge.site_id == site.id, CustomerLoginCodeChallenge.tenant_id == site.tenant_id,
+        CustomerLoginCodeChallenge.created_at >= hour, CustomerLoginCodeChallenge.client_hash == client_hash))
+    if recent or legacy_count + code_count >= 10 or ip_count + code_ip_count >= 10:
+        return None
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    challenge = CustomerLoginCodeChallenge(tenant_id=site.tenant_id, site_id=site.id, email=email,
+        email_hash=email_hash, client_hash=client_hash, token_hash="", code_cipher="",
+        expires_at=now + timedelta(minutes=10))
+    db.add(challenge)
+    db.flush()
+    challenge.token_hash = _login_code_hash(site, challenge, code)
+    challenge.code_cipher = _encrypt_login_code(site, challenge, code)
+    return queue_mail(db, site, None, "login_code", "challenge:" + challenge.id,
+        reference={"login_code_id": challenge.id, "recipient_email": email})
+
+
+def consume_login_code(db, site, email, code):
+    email = normalized_email(email)
+    email_hash = hmac.new(settings.session_secret.encode(),
+        f"login-code-email-v1:{site.id}:{email}".encode(), hashlib.sha256).hexdigest()
+    challenge = db.scalar(select(CustomerLoginCodeChallenge).where(
+        CustomerLoginCodeChallenge.email_hash == email_hash,
+        CustomerLoginCodeChallenge.site_id == site.id,
+        CustomerLoginCodeChallenge.tenant_id == site.tenant_id,
+        CustomerLoginCodeChallenge.consumed_at.is_(None)).order_by(CustomerLoginCodeChallenge.created_at.desc())
+        .limit(1).with_for_update().execution_options(populate_existing=True))
+    now = datetime.now(UTC)
+    if not challenge or challenge.consumed_at or utc(challenge.expires_at) <= now:
+        raise CommerceError("This code is invalid, expired or already used. Request a new code.")
+    if challenge.attempts >= 5:
+        challenge.consumed_at = now
+        challenge.code_cipher = ""
+        raise CommerceError("This code is invalid, expired or already used. Request a new code.")
+    supplied = _login_code_hash(site, challenge, str(code))
+    if not re.fullmatch(r"\d{6}", str(code)) or not hmac.compare_digest(challenge.token_hash, supplied):
+        challenge.attempts += 1
+        if challenge.attempts >= 5:
+            challenge.consumed_at = now
+            challenge.code_cipher = ""
+        db.flush()
+        return None
+    customer = customer_for(db, site, email, create=True)
+    if not customer or not customer.is_active:
+        raise CommerceError("This account is unavailable.")
+    challenge.consumed_at = now
+    challenge.code_cipher = ""
+    customer.verified_at = customer.verified_at or now
+    db.flush()
+    return customer
 
 
 def consume_challenge(db, site, challenge_id, token):

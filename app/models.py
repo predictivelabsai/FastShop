@@ -838,6 +838,21 @@ class CustomerChallenge(TimestampMixin, Base):
     consent_json: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class CustomerLoginCodeChallenge(TimestampMixin, Base):
+    __tablename__ = "customer_login_code_challenges"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    email_hash: Mapped[str] = mapped_column(String(64), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64))
+    code_cipher: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    client_hash: Mapped[str] = mapped_column(String(64), index=True)
+
+
 class MarketingConsent(TimestampMixin, Base):
     __tablename__ = "marketing_consents"
     __table_args__ = (UniqueConstraint("site_id", "customer_id"),)
