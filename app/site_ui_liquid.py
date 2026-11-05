@@ -231,6 +231,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     b.get("body", "").removesuffix("*"),
                     Sup("*") if b.get("body", "").endswith("*") else None,
                     cls="hero-subheadline",
+                    data_field="body" if preview else None,
+                    data_field_type="text" if preview else None,
                 ),
                 A(
                     b.get("button", "Shop"),

@@ -203,6 +203,17 @@ def test_seeded_liquid_documents_load_and_render_unchanged(context):
             assert render_section(db, site, page, site.settings_json, block, "", "") is not None
 
 
+def test_liquid_repeater_text_fields_are_inline_editable_in_preview(context):
+    db, site, page = context
+    block = validate_block(default_block("liquid_stats") | {
+        "id": "editable-stats",
+        "items": [{"label": "Study label", "value": "42+", "body": "Study note"}],
+    })
+    markup = to_xml(render_block(db, site, page, {}, block, "", "", False, True))
+    for field in ("items.0.label", "items.0.value", "items.0.body"):
+        assert f'data-field="{field}"' in markup
+
+
 def test_newsletter_reuses_consent_flow_and_disables_preview(context):
     db, site, page = context
     block = default_block("newsletter")
