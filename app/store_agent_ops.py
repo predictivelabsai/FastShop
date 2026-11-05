@@ -11,6 +11,7 @@ from app.models import (
     AgentMessage,
     Channel,
     Discount,
+    DiscountCode,
     Membership,
     Order,
     Product,
@@ -27,6 +28,24 @@ from app.models import (
     Warehouse,
 )
 from app.services import CommerceError, money
+
+
+class _AgentForm(dict):
+    def getlist(self, key):
+        value = self.get(key, [])
+        return value if isinstance(value, list) else [value]
+
+
+def _discount_form_fields(fields, codes):
+    result = dict(fields)
+    for key in ("once_per_customer", "combines_products", "combines_orders",
+                "combines_shipping", "is_active"):
+        result[key] = "on" if result.get(key) else ""
+    result["product_ids"] = result.pop("product_ids_json", [])
+    result["collection_ids"] = result.pop("collection_ids_json", [])
+    result["emails"] = ", ".join(result.pop("emails_json", []))
+    result["codes"] = codes
+    return result
 
 
 def _bounded(value, default=20, maximum=50):
@@ -246,6 +265,141 @@ def register_tools(db, site, user_id, conversation_id):
         return {"product_id": p.id, "variant_id": variant.id, "price_minor": amount,
                 "currency": currency}, summary, p.version
 
+    def validate_create_product(a):
+        name = a.get("name")
+        description = a.get("description", "")
+        variants = a.get("variants")
+        if not isinstance(name, str) or not name.strip() or len(name.strip()) > 220:
+            raise CommerceError("Enter a product name under 221 characters.")
+        if not isinstance(description, str) or len(description) > 100_000:
+            raise CommerceError("Enter a valid product description.")
+        if not isinstance(variants, list) or not variants or len(variants) > 100:
+            raise CommerceError("Provide between 1 and 100 variants.")
+        clean_variants = []
+        names = []
+        for value in variants:
+            if not isinstance(value, dict):
+                raise CommerceError("Each variant must include a name and price.")
+            variant_name = str(value.get("name", "")).strip()
+            amount = value.get("price_minor")
+            if not variant_name or len(variant_name) > 150:
+                raise CommerceError("Enter a valid variant name.")
+            if type(amount) is not int or not 0 <= amount <= 1_000_000_000:
+                raise CommerceError("Variant prices must be non-negative minor units.")
+            if variant_name in names:
+                raise CommerceError("Variant names must be unique.")
+            names.append(variant_name)
+            clean_variants.append({"name": variant_name, "price_minor": amount})
+        requested_status = a.get("status", "draft")
+        if requested_status not in {"draft", "active"}:
+            raise CommerceError("Choose draft or active status.")
+        if requested_status == "active" and a.get("merchant_asked_to_publish") is not True:
+            requested_status = "draft"
+        return {"name": name.strip(), "description": description, "variants": clean_variants,
+                "status": requested_status}, f"Create product {name.strip()}", None
+
+    def validate_inventory(a):
+        variant = db.scalar(select(ProductVariant).where(ProductVariant.id == a["variant_id"],
+            ProductVariant.tenant_id == site.tenant_id))
+        if not variant:
+            raise CommerceError("Variant not found.")
+        p = product(variant.product_id)
+        warehouse_id = a.get("warehouse_id")
+        warehouse = db.scalar(select(Warehouse).where(Warehouse.id == warehouse_id,
+            Warehouse.tenant_id == site.tenant_id, Warehouse.is_active.is_(True)))
+        if not warehouse:
+            raise CommerceError("Active inventory location not found.")
+        has_delta, has_set = "delta" in a, "quantity" in a
+        if has_delta == has_set:
+            raise CommerceError("Provide either a stock delta or a quantity to set.")
+        mode, amount = ("adjust", a["delta"]) if has_delta else ("set", a["quantity"])
+        if type(amount) is not int or (mode == "set" and amount < 0):
+            raise CommerceError("Inventory must be a whole number and cannot be negative.")
+        reason = a.get("reason")
+        if reason not in {"correction", "received", "damaged", "returned", "sale"}:
+            raise CommerceError("Choose a valid inventory adjustment reason.")
+        return {"variant_id": variant.id, "product_id": p.id, "warehouse_id": warehouse.id,
+                "mode": mode, "amount": amount, "reason": reason,
+                "expected_version": p.version}, f"Adjust inventory for {p.name}", p.version
+
+    def discount_payload(a, *, update_existing=False):
+        from app import discount_routes
+
+        rule = None
+        if update_existing:
+            rule_id = a.get("discount_id")
+            rule = db.scalar(select(Discount).where(Discount.id == rule_id,
+                Discount.site_id == site.id, Discount.tenant_id == site.tenant_id,
+                Discount.deleted_at.is_(None)))
+            if not rule:
+                raise CommerceError("Discount not found.")
+        old_updated = _iso(rule.updated_at) if rule else None
+        form_data = dict(a)
+        if rule:
+            for key in ("once_per_customer", "combines_products", "combines_orders",
+                        "combines_shipping", "is_active"):
+                form_data.setdefault(key, "on" if getattr(rule, key) else "")
+            form_data.setdefault("emails", ", ".join(rule.emails_json))
+            form_data.setdefault("product_ids", list(rule.product_ids_json))
+            form_data.setdefault("collection_ids", list(rule.collection_ids_json))
+            form_data.setdefault("starts_at", _iso(rule.starts_at) or "")
+            form_data.setdefault("ends_at", _iso(rule.ends_at) or "")
+            form_data.setdefault("codes", ", ".join(db.scalars(select(DiscountCode.code).where(
+                DiscountCode.discount_id == rule.id, DiscountCode.site_id == site.id,
+                DiscountCode.tenant_id == site.tenant_id))))
+        else:
+            form_data.setdefault("is_active", "on")
+        nested = db.begin_nested()
+        try:
+            saved = discount_routes.save(db, site, _AgentForm(form_data), rule)
+            fields = {column.name: getattr(saved, column.name) for column in Discount.__table__.columns
+                      if column.name not in {"id", "created_at", "updated_at", "deleted_at"}}
+            for key in ("starts_at", "ends_at"):
+                fields[key] = _iso(fields[key]) or ""
+            codes = list(db.scalars(select(DiscountCode.code).where(
+                DiscountCode.discount_id == saved.id, DiscountCode.site_id == site.id,
+                DiscountCode.tenant_id == site.tenant_id)))
+            nested.rollback()
+            if rule:
+                db.refresh(rule)
+        except Exception:
+            nested.rollback()
+            if rule:
+                db.refresh(rule)
+            raise
+        return {"discount_id": rule.id if rule else None, "fields": fields, "codes": codes,
+                "expected_updated_at": old_updated}
+
+    def validate_create_discount(a):
+        payload = discount_payload(a)
+        return payload, f"Create discount {payload['fields']['title']}", None
+
+    def validate_update_discount(a):
+        payload = discount_payload(a, update_existing=True)
+        return payload, f"Update discount {payload['fields']['title']}", payload["expected_updated_at"]
+
+    def validate_deactivate_discount(a):
+        rule = db.scalar(select(Discount).where(Discount.id == a["discount_id"],
+            Discount.site_id == site.id, Discount.tenant_id == site.tenant_id,
+            Discount.deleted_at.is_(None)))
+        if not rule:
+            raise CommerceError("Discount not found.")
+        return {"discount_id": rule.id, "expected_updated_at": _iso(rule.updated_at)}, \
+            f"Deactivate discount {rule.title}", _iso(rule.updated_at)
+
+    def validate_shipping(a):
+        shipping = a.get("flat_rate_minor")
+        threshold = a.get("free_shipping_threshold_minor")
+        if shipping is not None and (type(shipping) is not int or not 0 <= shipping <= 1_000_000):
+            raise CommerceError("Flat shipping must be between 0 and 1,000,000 minor units.")
+        if type(threshold) is not int or not 0 <= threshold <= 1_000_000:
+            raise CommerceError("Free shipping threshold must be between 0 and 1,000,000 minor units.")
+        config = db.scalar(select(SiteCommerceSettings).where(
+            SiteCommerceSettings.site_id == site.id, SiteCommerceSettings.tenant_id == site.tenant_id))
+        return {"flat_rate_minor": shipping, "free_shipping_threshold_minor": threshold,
+                "settings_version": config.version if config else 1, "site_version": site.version}, \
+            "Update shipping settings", (config.version if config else 1, site.version)
+
     tools.append(write("update_product", "Update product name, description or status",
         {"product_id": {"type": "string"}, "name": {"type": "string"},
          "description": {"type": "string"}, "status": {"type": "string", "enum": ["active", "draft", "archived"]}},
@@ -253,6 +407,36 @@ def register_tools(db, site, user_id, conversation_id):
     tools.append(write("set_variant_price", "Set a variant price in integer minor currency units",
         {"variant_id": {"type": "string"}, "price_minor": {"type": "integer", "minimum": 0}},
         ["variant_id", "price_minor"], "set_variant_price", validate_price))
+    tools.append(write("create_product", "Create a draft product with named variants and minor-unit prices",
+        {"name": {"type": "string"}, "description": {"type": "string"},
+         "variants": {"type": "array", "items": {"type": "object", "properties": {
+             "name": {"type": "string"}, "price_minor": {"type": "integer", "minimum": 0}},
+             "required": ["name", "price_minor"]}}, "status": {"type": "string", "enum": ["draft", "active"]},
+         "merchant_asked_to_publish": {"type": "boolean"}}, ["name", "variants"],
+        "create_product", validate_create_product))
+    tools.append(write("adjust_inventory", "Adjust or set variant stock at an active location",
+        {"variant_id": {"type": "string"}, "warehouse_id": {"type": "string"},
+         "delta": {"type": "integer"}, "quantity": {"type": "integer", "minimum": 0},
+         "reason": {"type": "string", "enum": ["correction", "received", "damaged", "returned", "sale"]}},
+        ["variant_id", "warehouse_id", "reason"], "adjust_inventory", validate_inventory))
+    from app import discounts as discount_service
+    discount_props = {"title": {"type": "string"}, "type": {"type": "string", "enum": list(
+        discount_service.TYPES)}, "method": {"type": "string", "enum": ["code", "automatic"]},
+        "value_type": {"type": "string", "enum": ["percentage", "fixed"]},
+        "value": {"type": "integer", "minimum": 0}, "codes": {"type": "string"},
+        "discount_id": {"type": "string"}}
+    tools.append(write("create_discount", "Create a validated store discount",
+        discount_props, ["title", "value"], "create_discount", validate_create_discount))
+    tools.append(write("update_discount", "Update an existing store discount",
+        discount_props, ["discount_id", "title", "value"], "update_discount", validate_update_discount))
+    tools.append(write("deactivate_discount", "Deactivate an existing store discount",
+        {"discount_id": {"type": "string"}}, ["discount_id"],
+        "deactivate_discount", validate_deactivate_discount))
+    tools.append(write("update_shipping_settings", "Update the flat shipping rate and free shipping threshold in minor units",
+        {"flat_rate_minor": {"type": ["integer", "null"], "minimum": 0},
+         "free_shipping_threshold_minor": {"type": "integer", "minimum": 0}},
+        ["flat_rate_minor", "free_shipping_threshold_minor"],
+        "update_shipping_settings", validate_shipping))
     return {t.name: t for t in tools}
 
 
@@ -280,6 +464,7 @@ def confirm_action(db, site, user, action_id):
     if claimed.rowcount != 1:
         db.refresh(action)
         return action
+    execution = db.begin_nested()
     try:
         if action.kind == "update_product":
             from app import catalog_admin
@@ -307,11 +492,78 @@ def confirm_action(db, site, user, action_id):
             catalog_admin.update_product(db, site, p.id, {}, expected_version=p.version, user_id=user_id)
             action.result_json = {"variant_id": variant.id, "price_minor": listing.price_minor,
                                   "currency": listing.currency}
+        elif action.kind == "create_product":
+            from app import catalog_admin
+            payload = action.payload_json
+            variant_names = [variant["name"] for variant in payload["variants"]]
+            options = ([{"name": "Variant", "values": variant_names}]
+                       if len(variant_names) > 1 else [])
+            product = catalog_admin.create_product(db, site, {
+                "name": payload["name"], "description": payload["description"],
+                "status": payload["status"], "options": options,
+                "variants": [{"price_minor": variant["price_minor"]}
+                             for variant in payload["variants"]]}, user_id=user_id)
+            action.result_json = {"product_id": product.id, "variant_ids": [v.id for v in product.variants],
+                                  "status": product.status}
+        elif action.kind == "adjust_inventory":
+            from app import catalog_admin
+            payload = action.payload_json
+            p = catalog_admin.get_product(db, site, payload["product_id"])
+            if p.version != payload["expected_version"]:
+                raise CommerceError("This product changed after the inventory action was proposed.")
+            adjustment = catalog_admin.adjust_inventory(db, site, payload["variant_id"],
+                payload["warehouse_id"], payload["amount"], mode=payload["mode"],
+                reason=payload["reason"], user_id=user_id)
+            action.result_json = {"adjustment_id": adjustment.id, "delta": adjustment.delta,
+                                  "quantity": adjustment.resulting_quantity}
+        elif action.kind in {"create_discount", "update_discount", "deactivate_discount"}:
+            from app import discount_routes
+            from app.checkout_services import lock_site
+            lock_site(db, site)
+            payload = action.payload_json
+            if action.kind == "create_discount":
+                fields = _discount_form_fields(payload["fields"], payload["codes"])
+                rule = discount_routes.save(db, site, _AgentForm(fields))
+            else:
+                rule = db.scalar(select(Discount).where(Discount.id == payload["discount_id"],
+                    Discount.site_id == site.id, Discount.tenant_id == site.tenant_id,
+                    Discount.deleted_at.is_(None)).with_for_update())
+                if not rule:
+                    raise CommerceError("Discount not found.")
+                if _iso(rule.updated_at) != payload["expected_updated_at"]:
+                    raise CommerceError("This discount changed after the action was proposed.")
+                if action.kind == "deactivate_discount":
+                    rule.is_active = False
+                else:
+                    fields = _discount_form_fields(payload["fields"], payload["codes"])
+                    rule = discount_routes.save(db, site, _AgentForm(fields), rule)
+            action.result_json = {"discount_id": rule.id, "active": rule.is_active}
+        elif action.kind == "update_shipping_settings":
+            from app import commerce, site_builder_services
+            payload = action.payload_json
+            site = site_builder_services.lock_site(db, site.id, user_id, payload["site_version"])
+            config = commerce.settings_for(db, site, create=True)
+            config = db.scalar(select(SiteCommerceSettings).where(
+                SiteCommerceSettings.id == config.id, SiteCommerceSettings.site_id == site.id,
+                SiteCommerceSettings.tenant_id == site.tenant_id).with_for_update()
+                .execution_options(populate_existing=True))
+            if config.version != payload["settings_version"]:
+                raise CommerceError("Shipping settings changed after the action was proposed.")
+            config.shipping_minor = payload["flat_rate_minor"]
+            config.free_shipping_threshold_minor = payload["free_shipping_threshold_minor"]
+            config.version += 1
+            site.version += 1
+            action.result_json = {"flat_rate_minor": config.shipping_minor,
+                "free_shipping_threshold_minor": config.free_shipping_threshold_minor,
+                "version": config.version}
         else:
             raise CommerceError("This action type cannot be executed yet.")
+        execution.commit()
         action.status = "confirmed"
         note = "Done: " + action.summary
     except Exception as exc:
+        if execution.is_active:
+            execution.rollback()
         action.status = "failed"
         action.result_json = {"error": str(exc)[:300]}
         note = "Could not complete: " + action.summary
