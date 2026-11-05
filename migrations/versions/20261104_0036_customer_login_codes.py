@@ -4,7 +4,7 @@ from alembic import op
 
 from app.models import CustomerLoginCodeChallenge
 
-revision = "20261104_0036_customer_login_codes"
+revision = "20261104_0036"
 down_revision = "20261104_0035"
 branch_labels = None
 depends_on = None

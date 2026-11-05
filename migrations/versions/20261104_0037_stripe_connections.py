@@ -4,8 +4,8 @@ from alembic import op
 
 from app.models import SiteStripeConnection
 
-revision = "20261104_0037_stripe_connections"
-down_revision = "20261104_0036_customer_login_codes"
+revision = "20261104_0037"
+down_revision = "20261104_0036"
 branch_labels = None
 depends_on = None
 
