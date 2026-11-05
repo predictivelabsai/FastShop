@@ -283,8 +283,18 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
                      *children, cls="a-content"), id="admin-main", cls="a-canvas"),
             Div(Span("Unsaved changes"), Button("Discard", type="button", data_discard=""),
                 Button("Save", type="button", data_save=""), id="admin-save-bar",
-                role="region", aria_label="Unsaved changes", hidden=True), cls="a-shell"),
+                role="region", aria_label="Unsaved changes", hidden=True),
+            _assistant_drawer(site, path, csrf_token), cls="a-shell"),
     )
+
+
+def _assistant_drawer(site, path, csrf_token):
+    if not site or "/editor" in path:
+        return None
+    from app import store_agent_admin
+    return (store_agent_admin.drawer(site.id, csrf_token),
+            Link(rel="stylesheet", href=static_asset("admin/agent.css")),
+            Script(src=static_asset("admin/agent.js"), defer=True))
 
 
 def contextual_page(title, *children, subnavigation=None):

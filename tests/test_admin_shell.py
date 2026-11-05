@@ -92,6 +92,29 @@ def test_stores_chooser_and_notice_escape():
     assert "<script>bad</script>" not in response.text
 
 
+def test_store_assistant_page_and_admin_drawer(monkeypatch):
+    from dataclasses import replace
+
+    from app import config
+    from app.content import site_pages
+    from app.db import SessionLocal
+
+    client, site, _ = merchant()
+    monkeypatch.setattr(config, "settings", replace(config.settings, xai_api_key=""))
+    assistant = client.get(f"/admin/sites/{site.id}/assistant")
+    assert assistant.status_code == 200
+    assert "AI provider not configured" in assistant.text
+    assert 'data-agent-root=""' in assistant.text
+    assert "Which products sold best this month?" in assistant.text
+
+    products = client.get(f"/admin/sites/{site.id}/products")
+    assert products.status_code == 200 and "data-agent-launcher" in products.text
+    with SessionLocal() as db:
+        page = site_pages(db, db.get(Site, site.id))[0]
+    editor = client.get(f"/admin/sites/{site.id}/editor?page={page.id}")
+    assert editor.status_code == 200 and "data-agent-launcher" not in editor.text
+
+
 def test_design_controls_highlight_the_design_sub_item():
     client, site, _ = merchant()
     response = client.get(f"/admin/sites/{site.id}/build?view=design")
