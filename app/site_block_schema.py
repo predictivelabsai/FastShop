@@ -323,13 +323,11 @@ def _registry():
                         "item_fields": item_fields,
                         "item_default": item_default,
                         "theme_defaults": theme_defaults,
-                        "min": len(default["items"]) if kind == "liquid_editorial" else 0,
+                        "min": 0,
                         "max": len(default["items"]) if kind == "liquid_editorial" else 200,
-                        "help": "Keep the complete chapter structure."
-                        if kind == "liquid_editorial"
-                        else "",
+                        "help": "",
                         "required": list(required),
-                        "fixed": kind == "liquid_editorial",
+                        "fixed": False,
                     }
                 )
                 continue

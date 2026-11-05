@@ -435,6 +435,7 @@ def register_site_routes(rt):
                 config = site.settings_json
                 return shell("General",
                     verification_banner(db, user_id, session),
+                    P(notice[:500], role="status", cls="e-note") if notice else None,
                     A("← Settings", href=f"/admin/sites/{site.id}/settings"),
                     Div(
                         Div(H2("Brand and shared content"), Form(csrf(session), Input(type="hidden", name="version", value=site.version),
@@ -487,7 +488,7 @@ def register_site_routes(rt):
                                 Label(Input(type="checkbox", name=f"claim_approved_{i}", checked=item.get("approved", False)), " Approved for publication")) for i, item in enumerate(config.get("claims", []))],
                             Div(Label("Add a benefit statement", Textarea("", name="new_claim_text", rows=2, placeholder="Supports … .*")),
                                 Label(Input(type="checkbox", name="new_claim_approved"), " Approve now"), cls="e-pair"),
-                            P("An approved statement must include an asterisk (*) and compliant wording; it renders beside the FDA footer disclaimer.", cls="e-note"),
+                            P("Copy checks may show advisory wording. Add an asterisk or disclaimer if you choose; neither is required to save or publish your copy.", cls="e-note"),
                             Button("Save draft settings", name="action", value="draft", cls="e-button"),
                             Button("Publish shared settings", name="action", value="publish", cls="e-button"),
                             method="post", action=f"/admin/sites/{site.id}/settings", cls="e-form", data_dirty_guard=""), cls="e-card"), cls="a-general-settings"),
@@ -541,15 +542,12 @@ def register_site_routes(rt):
                     item["label"] = str(form.get(f"fact_label_{i}", item["label"]))[:200]
                 for i, item in enumerate(config.get("socials", [])):
                     item["url"] = content.safe_url(str(form.get(f"social_url_{i}", item.get("url", ""))))
-                from app.compliance import assert_claim_compliant
                 claims = []
                 for i, item in enumerate(config.get("claims", [])):
                     text = str(form.get(f"claim_text_{i}", item["text"]))[:1000].strip()
                     if not text:
                         continue  # a cleared statement is removed everywhere
                     approved = form.get(f"claim_approved_{i}") == "on"
-                    if approved:
-                        assert_claim_compliant(text)
                     item.update(text=text, approved=approved, reviewed_by=user_id,
                                 reviewed_at=datetime.now(UTC).isoformat())
                     item.setdefault("key", new_id())
@@ -557,23 +555,22 @@ def register_site_routes(rt):
                 new_text = str(form.get("new_claim_text", "")).strip()[:1000]
                 if new_text:
                     approved = form.get("new_claim_approved") == "on"
-                    if approved:
-                        assert_claim_compliant(new_text)
                     claims.append({"key": new_id(), "text": new_text, "approved": approved,
                                    "reviewed_by": user_id, "reviewed_at": datetime.now(UTC).isoformat()})
                 config["claims"] = claims
-                if any(c.get("approved") for c in claims) and not config.get("footer", "").strip():
-                    raise CommerceError("Add the FDA disclaimer to the footer before approving a benefit statement (brief §8).")
                 from app.site_samples import invalidate_reviews
                 config = invalidate_reviews(config, site.settings_json, config)
                 site.settings_json = config
                 site.version += 1
                 if form.get("action") == "publish":
                     site.published_settings_json = copy.deepcopy(config)
+                from app.compliance import warning_for_values
+                copy_warning = warning_for_values(config)
                 db.flush()
                 builder.record_change(db, site, user_id, before, "classical", "Brand and shared content")
                 db.commit()
-            return RedirectResponse(f"/admin/sites/{site_id}/settings/general?notice=Settings+saved", status_code=303)
+            notice = "Settings saved" + (f". {copy_warning}" if copy_warning else "")
+            return RedirectResponse(f"/admin/sites/{site_id}/settings/general?" + urlencode({"notice": notice}), status_code=303)
         except CommerceError as exc:
             return error(exc)
 
@@ -697,7 +694,7 @@ def register_site_routes(rt):
                        cls="e-section", data_section=section["id"])
 
     @rt("/admin/sites/{site_id}/pages/{page_id}", methods=["GET"])
-    def get(session, site_id: str, page_id: str):
+    def get(session, site_id: str, page_id: str, notice: str = ""):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
@@ -711,7 +708,8 @@ def register_site_routes(rt):
 
                 revisions = list(db.scalars(select(SiteRevision).where(SiteRevision.page_id == page.id,
                     SiteRevision.site_id == site.id, SiteRevision.tenant_id == site.tenant_id).order_by(SiteRevision.created_at.desc()).limit(20)))
-                return shell(document["title"], Div(A("← Pages", href=f"/admin/sites/{site.id}/pages"),
+                return shell(document["title"], P(notice[:500], role="status", cls="e-note") if notice else None,
+                    Div(A("← Pages", href=f"/admin/sites/{site.id}/pages"),
                     A("Open visual editor", href=f"/admin/sites/{site.id}/editor?page={page.id}"),
                     A("Browse media library", href=f"/admin/sites/{site.id}/media", target="_blank"), cls="e-actions"),
                     Div(Form(csrf(session), Input(type="hidden", name="version", value=page.version),
@@ -812,13 +810,16 @@ def register_site_routes(rt):
                 if action not in {"draft", "publish", "unpublish"}:
                     raise CommerceError("Unknown publication action.")
                 content.save_page(db, site, page.id, user_id, document, int(form.get("version", 0)), action)
+                from app.compliance import warning_for_values
+                copy_warning = warning_for_values(document)
                 site.version += 1
                 db.flush()
                 builder.record_change(db, site, user_id, before, "classical", "Page: " + page.title)
                 if action == "publish" and site.status == "draft":
                     site.status = "preview"
                 db.commit()
-            return RedirectResponse(f"/admin/sites/{site_id}/pages/{page_id}", status_code=303)
+            query = "?" + urlencode({"notice": copy_warning}) if copy_warning else ""
+            return RedirectResponse(f"/admin/sites/{site_id}/pages/{page_id}{query}", status_code=303)
         except (CommerceError, ValueError) as exc:
             return error(exc)
 

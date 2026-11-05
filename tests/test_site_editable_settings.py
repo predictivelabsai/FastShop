@@ -160,32 +160,29 @@ def test_editor_loads_saves_and_publishes_shell(workspace):  # noqa: F811
     # Existing site values win over pack defaults; absent paths are filled.
     assert loaded["shell_settings"]["footer"] == site.settings_json.get("footer", FDA)
     assert loaded["shell_settings"]["liquid_shell"]["footer"]["helpTitle"] == "Help"
-    body = {"shell_settings": {"footer": "Draft disclaimer"}, "version": loaded["site_version"]}
+    body = {"shell_settings": {"footer": "Draft miracle cure"}, "version": loaded["site_version"]}
     saved = w.client.put(w.base + "/shell-settings", json=body, headers=w.headers)
     assert saved.status_code == 200, saved.text
-    assert saved.json()["shell_settings"]["footer"] == "Draft disclaimer"
+    assert saved.json()["shell_settings"]["footer"] == "Draft miracle cure"
+    assert "miracle" in saved.json()["warnings"][0] and "cure" in saved.json()["warnings"][0]
     assert w.client.put(w.base + "/shell-settings", json=body, headers=w.headers).status_code == 409
     with w.sessions() as db:
         site = db.get(Site, w.site.id)
-        assert site.settings_json["footer"] == "Draft disclaimer"
-        assert site.published_settings_json.get("footer") != "Draft disclaimer"
+        assert site.settings_json["footer"] == "Draft miracle cure"
+        assert site.published_settings_json.get("footer") != "Draft miracle cure"
     published = w.client.post(w.base + "/publish", json={"version": loaded["version"],
         "site_version": saved.json()["version"]}, headers=w.headers)
     assert published.status_code == 200, published.text
     with w.sessions() as db:
-        assert db.get(Site, w.site.id).published_settings_json["footer"] == "Draft disclaimer"
+        assert db.get(Site, w.site.id).published_settings_json["footer"] == "Draft miracle cure"
 
 
-def test_shell_copy_scan_allows_the_exact_fda_disclaimer():
-    import pytest as _pytest
-
+def test_shell_copy_scan_warns_without_blocking_and_allows_exact_fda_disclaimer():
     from app.compliance import assert_copy_compliant
-    from app.services import CommerceError
     from app.site_seed import DISCLAIMER
 
     assert_copy_compliant("*" + DISCLAIMER)
-    with _pytest.raises(CommerceError):
-        assert_copy_compliant("Our tablets cure everything. " + DISCLAIMER)
+    assert "cure" in assert_copy_compliant("Our tablets cure everything. " + DISCLAIMER)
 
 
 def test_page_scan_allows_the_exact_fda_disclaimer_only():

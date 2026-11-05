@@ -218,7 +218,6 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
 
 def save_shell_settings(db, site_id, user_id, expected, submitted, source="visual-editor"):
     """Save declared shell fields through the shared versioned, reversible draft path."""
-    from app.compliance import assert_copy_compliant
     from app.site_editable_settings import apply_shell, shell_fields
 
     if not isinstance(expected, dict) or "version" not in expected:
@@ -254,18 +253,6 @@ def save_shell_settings(db, site_id, user_id, expected, submitted, source="visua
         node[parts[-1]] = value
     before = snapshot(db, site)
     site.settings_json = apply_shell(site.settings_json, nested, fields)
-    def check_copy(value):
-        if isinstance(value, str):
-            assert_copy_compliant(value)
-        elif isinstance(value, dict):
-            for item in value.values():
-                check_copy(item)
-        elif isinstance(value, list):
-            for item in value:
-                check_copy(item)
-
-    for value in flat.values():
-        check_copy(value)
     site.version += 1
     db.flush()
     return record_change(db, site, user_id, before, source, "Header, footer and consent")
@@ -351,6 +338,9 @@ def finish_turn(db, site_id, user_id, turn_id, response, provider):
     immediate, refinements = derive_operations(turn.context_json["snapshot"], response.get("operations", []))
     change = apply_operations(db, site.id, user_id, turn.context_json["snapshot"], immediate)
     stored = copy.deepcopy(response)
+    from app.compliance import warning_for_values
+    operation_warning = warning_for_values(response.get("operations", []))
+    stored["warnings"] = [operation_warning] if operation_warning else []
     stored["operations"] = immediate
     stored.update(change_id=change.id if change else "", summary=change.summary if change else "No draft changes")
     if refinements:
@@ -398,6 +388,7 @@ def decide_refinement(db, site_id, user_id, turn_id, decision, op_id, version):
         (op_id == "all" or operation.get("op_id") == op_id)]
     if not selected:
         raise CommerceError("Choose a pending edit from this preview.")
+    warnings = []
     if decision == "reject":
         for operation in selected:
             operation["status"] = "rejected"
@@ -406,7 +397,6 @@ def decide_refinement(db, site_id, user_id, turn_id, decision, op_id, version):
         before = snapshot(db, site)
         documents: dict[str, dict] = {}
         pages = {}
-        from app.compliance import assert_document_compliant
         for operation in selected:
             validate_section_text(operation.get("after"))
             page_id = operation["page_id"]
@@ -415,8 +405,11 @@ def decide_refinement(db, site_id, user_id, turn_id, decision, op_id, version):
                 pages[page_id] = page
                 documents[page_id] = normalize_document(page.draft_json)
             documents[page_id] = apply_refinement_operation(documents[page_id], operation)
+        from app.compliance import scan_document, warning_message
         for page_id, document in documents.items():
-            assert_document_compliant(document)
+            warning = warning_message(scan_document(document))
+            if warning and warning not in warnings:
+                warnings.append(warning)
             page = pages[page_id]
             content.save_page(db, site, page.id, user_id, document, page.version)
         site.version += 1
@@ -424,6 +417,7 @@ def decide_refinement(db, site_id, user_id, turn_id, decision, op_id, version):
         descriptions = [operation["description"] for operation in selected]
         change = record_change(db, site, user_id, before, "chat-refinement", "; ".join(descriptions))
         response["change_id"] = change.id
+        response["warnings"] = warnings
         for operation in selected:
             operation["status"] = "accepted"
     else:
@@ -445,7 +439,7 @@ def decide_refinement(db, site_id, user_id, turn_id, decision, op_id, version):
     }[preview["status"]]
     turn.response_json = response
     db.flush()
-    return len(selected), preview["status"]
+    return len(selected), preview["status"], warnings
 
 
 def end_pending_turn(db, site_id, user_id, command_id, *, failed=False):
