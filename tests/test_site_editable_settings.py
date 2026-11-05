@@ -100,9 +100,11 @@ def test_default_theme_shell_settings_are_editable(workspace):
     loaded = load(w)
     ids = {field["id"] for field in loaded["shell_schema"]["fields"]}
     assert {"name", "announcement", "footer", "generic_labels.cta",
-            "generic_labels.contact_heading"} <= ids
+            "generic_labels.contact_heading", "account_copy.heading",
+            "account_copy.order_summary"} <= ids
     values = {"footer": "A note for visitors.", "announcement": "A store update.",
-              "generic_labels": {"contact_heading": "Contact our team"}}
+              "generic_labels": {"contact_heading": "Contact our team"},
+              "account_copy": {"heading": "Member sign-in", "order_summary": "Purchase details"}}
     saved = w.client.put(w.base + "/shell-settings", json={
         "shell_settings": values, "version": loaded["site_version"],
     }, headers=w.headers)
@@ -112,6 +114,8 @@ def test_default_theme_shell_settings_are_editable(workspace):
         assert site.settings_json["footer"] == "A note for visitors."
         assert site.settings_json["announcement"] == "A store update."
         assert site.settings_json["generic_labels"]["contact_heading"] == "Contact our team"
+        assert site.settings_json["account_copy"]["heading"] == "Member sign-in"
+        assert site.settings_json["account_copy"]["order_summary"] == "Purchase details"
         assert site.published_settings_json["footer"] != "A note for visitors."
     published = w.client.post(w.base + "/publish", json={
         "version": loaded["version"], "site_version": saved.json()["version"],
@@ -122,6 +126,8 @@ def test_default_theme_shell_settings_are_editable(workspace):
         assert site.published_settings_json["footer"] == "A note for visitors."
         assert site.published_settings_json["announcement"] == "A store update."
         assert site.published_settings_json["generic_labels"]["contact_heading"] == "Contact our team"
+        assert site.published_settings_json["account_copy"]["heading"] == "Member sign-in"
+        assert site.published_settings_json["account_copy"]["order_summary"] == "Purchase details"
 
 
 def test_generic_shell_labels_use_defaults_and_merchant_values():

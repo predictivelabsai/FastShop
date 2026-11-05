@@ -169,6 +169,14 @@ def test_order_tracking_is_owned_by_customer_not_guessed_order_number(customer_s
     site, client, base = customer_site
     verified_login(site, client, base)
     with SessionLocal() as db:
+        saved_site = db.get(Site, site.id)
+        saved_site.published_settings_json = saved_site.published_settings_json | {
+            "account_copy": {
+                "order_summary": "Purchase details", "payment_label": "Payment state",
+                "sales_tax_label": "Tax", "total_label": "Order total",
+                "delivery_tracking": "Shipment updates", "track_carrier": "Open carrier site",
+            },
+        }
         customer = customer_services.customer_for(db, site, "shopper@example.test")
         other = customer_services.customer_for(db, site, "other@example.test", create=True)
         other.verified_at = datetime.now(UTC)
@@ -188,7 +196,9 @@ def test_order_tracking_is_owned_by_customer_not_guessed_order_number(customer_s
         db.commit()
     response = client.get(base + "/account/orders/" + links[0])
     assert response.status_code == 200 and "TEST123" in response.text
-    assert "Sales tax: $2.05" in response.text
+    assert "Purchase details" in response.text and "Payment state: paid" in response.text
+    assert "Tax: $2.05" in response.text and "Order total: $32.00" in response.text
+    assert "Shipment updates" in response.text and "Open carrier site" in response.text
     assert client.get(base + "/account/orders/" + links[1]).status_code == 404
     account = client.get(base + "/account")
     assert base + "/account/orders/" + links[0] in account.text

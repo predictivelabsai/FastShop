@@ -33,6 +33,7 @@ DEFAULT_PORTAL_COPY = {
     "discounts": "Discounts",
     "shipping": "Shipping",
     "tax_note": "Estimated tax is calculated when your delivery is prepared.",
+    "calculated_when_prepared": "Calculated when prepared",
     "total": "Estimated total",
     "shipping_address": "Shipping address",
     "recipient": "Recipient",

@@ -90,7 +90,7 @@ GROUPS = {
 
 
 def fields():
-    return [
+    result = [
         {
             "id": f"generic_labels.{key}",
             "label": key.replace("_", " ").capitalize(),
@@ -102,6 +102,20 @@ def fields():
         for group, keys in GROUPS.items()
         for key in keys
     ]
+    from app.account_copy import DEFAULT_ACCOUNT_COPY
+
+    result.extend(
+        {
+            "id": f"account_copy.{key}",
+            "label": key.replace("_", " ").capitalize(),
+            "type": "textarea" if key.endswith(("message", "notice", "instruction")) else "text",
+            "default": value,
+            "group": "store labels",
+            "max_length": 2000,
+        }
+        for key, value in DEFAULT_ACCOUNT_COPY.items()
+    )
+    return result
 
 
 register_shell("generic", fields)

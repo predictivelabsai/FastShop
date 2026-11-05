@@ -110,7 +110,7 @@ def _clean(field, value):
         return rows
     if not isinstance(value, str) or len(value) > limit:
         raise CommerceError(f"{field['label']}: use text up to {limit} characters.")
-    if kind == "url":
+    if kind in {"url", "image"}:
         return _url(value)
     if kind not in TEXT_TYPES:
         raise CommerceError("Unsupported editable setting type.")
