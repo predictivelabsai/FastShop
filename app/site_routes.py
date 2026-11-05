@@ -182,6 +182,8 @@ def register_site_routes(rt):
     register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.order_management_routes import register_order_management_routes
     register_order_management_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.store_agent_ops import register_routes as register_store_agent_ops_routes
+    register_store_agent_ops_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.order_admin_routes import register_order_admin_routes
     register_order_admin_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.draft_order_routes import register_draft_order_routes
