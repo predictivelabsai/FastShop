@@ -16,6 +16,7 @@ const base = `/admin/sites/${encodeURIComponent(boot.site_id)}/editor/api`,
   frame = $("#editor-canvas");
 let previewBlock = null,
   needsFullPreview = true;
+let agentMessages = [], agentConversation = null, agentAbort = null;
 let state,
   selected = null,
   mode = "sections",
@@ -588,6 +589,7 @@ function renderLeft() {
     widgets: "Widgets",
     theme: "Theme settings",
     history: "History",
+    assistant: "Assistant",
   };
   $("#left-title").textContent = names[mode];
   $$("[data-mode]").forEach((b) =>
@@ -604,6 +606,7 @@ function renderLeft() {
     wireWidgets();
   }
   if (mode === "theme") renderTheme();
+  if (mode === "assistant") renderAgentPanel();
   if (mode === "history") {
     $("#left-content").innerHTML =
       `<p class="field-help" style="padding:12px 16px">Changes in this session. Saved revisions include earlier drafts.</p>${history
@@ -621,6 +624,40 @@ function renderLeft() {
         }),
     );
   }
+}
+function renderAgentPanel() {
+  const context = locate(selected)?.block;
+  const messages = agentMessages.map((m) => `<article class="agent-message ${esc(m.role)}"><div>${m.role === "tool" ? "Applied a change to your draft." : esc(m.content || "").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>")}</div>${m.events?.length ? `<details class="agent-changes" ${m.running ? "open" : ""}><summary>${m.running ? "Working…" : `${m.events.length} changes`}</summary>${m.events.map((ev) => `<span class="agent-step ${m.running ? "is-running" : ""}">${esc(ev.label || "Working on your page")}</span>`).join("")}</details>` : ""}${m.has_checkpoint ? `<button data-restore-message="${esc(m.id)}">Restore</button>` : ""}</article>`).join("");
+  $("#left-content").innerHTML = `<section class="agent-panel"><header><span>Draft assistant</span><button id="agent-new">New chat</button></header><div class="agent-messages" aria-live="polite">${messages || `<div class="agent-empty"><strong>What would you like to change?</strong><p>Describe an edit and preview it on your page.</p><div class="agent-suggestions"><button>Make the hero headline bolder</button><button>Add a FAQ section</button><button>Change the accent colour</button></div></div>`}</div><div class="agent-context">${context ? `Selected: ${esc(label(context))}` : "No block selected"}</div><form id="agent-form"><textarea id="agent-input" rows="3" maxlength="4000" aria-label="Message the assistant" placeholder="Describe a change…"></textarea><div><span>Enter to send · Shift+Enter for a new line</span><button id="agent-send" aria-label="${agentAbort ? "Stop assistant response" : "Send message"}">${agentAbort ? "Stop" : "Send"}</button></div></form></section>`;
+  $("#agent-new").onclick = () => { agentConversation = null; agentMessages = []; renderAgentPanel(); $("#agent-input").focus(); };
+  $$(".agent-suggestions button").forEach((b) => b.onclick = () => { $("#agent-input").value = b.textContent; sendAgentMessage(); });
+  $("#agent-form").onsubmit = (e) => { e.preventDefault(); agentAbort ? agentAbort.abort() : sendAgentMessage(); };
+  $("#agent-input").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#agent-form").requestSubmit(); } };
+  $$('[data-restore-message]').forEach((b) => b.onclick = () => restoreAgentMessage(b));
+  const box = $(".agent-messages"); box.scrollTop = box.scrollHeight;
+}
+async function loadAgentHistory() {
+  const r = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/history`);
+  if (r.ok) { const data = await r.json(); agentConversation = data.conversation_id; agentMessages = data.messages || []; }
+  if (mode === "assistant") renderAgentPanel();
+}
+async function sendAgentMessage() {
+  const input = $("#agent-input"), message = input.value.trim(); if (!message) return;
+  agentMessages.push({role:"user", content:message}); input.value = "";
+  const answer = {role:"assistant", content:"", events:[]}; agentMessages.push(answer); renderAgentPanel();
+  agentAbort = new AbortController(); $("#agent-send").textContent = "Stop";
+  try {
+    const r = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent`, {method:"POST", headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token}, credentials:"same-origin", signal:agentAbort.signal, body:JSON.stringify({message,page_id:boot.page_id,selection:selected ? {block_id:selected} : null,conversation_id:agentConversation})});
+    if (!r.ok || !r.body) throw Error("The assistant could not start.");
+    answer.running=true; const reader=r.body.getReader(), decoder=new TextDecoder(); let buffer="";
+    while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const parts=buffer.split("\n\n");buffer=parts.pop();for(const part of parts){const line=part.split("\n").find(x=>x.startsWith("data: "));if(!line)continue;const ev=JSON.parse(line.slice(6));if(ev.type==="conversation")agentConversation=ev.conversation_id;if(ev.type==="assistant_text")answer.content+=ev.text||"";if(ev.type==="tool_called")answer.events.push(ev);if(ev.type==="tool_result"){clearTimeout(window.agentRefreshTimer);window.agentRefreshTimer=setTimeout(()=>load(),300);}if(ev.type==="done")answer.running=false;if(ev.type==="error"){answer.running=false;answer.content+=ev.message||"The assistant could not complete the change.";}renderAgentPanel();}}
+  } catch(e) { answer.running=false; if(e.name!=="AbortError") answer.content=e.message; }
+  finally { agentAbort=null; try { const r=await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/history`); if(r.ok){const data=await r.json();agentConversation=data.conversation_id;if(data.messages?.length)agentMessages=data.messages;} } catch {} if(mode==="assistant") renderAgentPanel(); }
+}
+function restoreAgentMessage(button) {
+  const message=button.closest(".agent-message"), prompt=document.createElement("div"); prompt.className="agent-restore-confirm"; prompt.textContent="Restore the draft to this point? ";
+  const yes=document.createElement("button"); yes.textContent="Restore draft"; yes.onclick=async()=>{const response=await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/restore`,{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token},body:JSON.stringify({message_id:button.dataset.restoreMessage})});if(!response.ok){toast("Could not restore this change.",true);return;}await load();mode="assistant";renderLeft();};
+  const no=document.createElement("button");no.textContent="Keep current draft";no.onclick=()=>prompt.remove();prompt.append(yes,no);message.append(prompt);
 }
 function openPicker(parent = null) {
   $("#picker-search").value = "";
@@ -1293,7 +1330,7 @@ $$("[data-mode]").forEach(
       );
       if (window.matchMedia("(max-width: 760px)").matches) select(null);
       mode = b.dataset.mode;
-      if (state) renderLeft();
+      if (state) { renderLeft(); if (mode === "assistant") loadAgentHistory(); }
     }),
 );
 $("#mobile-preview").onclick = () => {
@@ -1509,6 +1546,7 @@ window.addEventListener("keydown", (e) => {
     save();
     return;
   }
+  if (mod && e.key.toLowerCase() === "i") { e.preventDefault(); $("[data-mode=assistant]").click(); return; }
   if (editing || $("dialog[open]")) return;
   if (mod && e.key.toLowerCase() === "z") {
     e.preventDefault();

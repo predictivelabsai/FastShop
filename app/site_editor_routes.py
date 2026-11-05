@@ -4,18 +4,32 @@ from __future__ import annotations
 import copy
 import inspect
 import json
+import os
+import queue
 import re
+import threading
+import uuid
 from html import escape
 from types import SimpleNamespace
 
+import anyio
 from fasthtml.common import NotStr, to_xml
 from sqlalchemy import select, update
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 from app import content, site_ui, theme_library
+from app.config import settings
 from app.db import SessionLocal
-from app.models import Membership, SiteMedia, SitePage, SiteRevision, new_id
+from app.models import (
+    AgentConversation,
+    AgentMessage,
+    Membership,
+    SiteMedia,
+    SitePage,
+    SiteRevision,
+    new_id,
+)
 from app.services import CommerceError
 from app.site_blocks import (
     default_locale,
@@ -474,6 +488,113 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 return response(result)
         except (CommerceError, ValueError, TypeError) as exc:
             return failure(exc)
+
+    @rt("/admin/sites/{site_id}/editor/agent/history", methods=["GET"])
+    def agent_history(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site, user_id = access(db, session, site_id)
+                conversation = db.scalar(select(AgentConversation).where(
+                    AgentConversation.tenant_id == site.tenant_id,
+                    AgentConversation.site_id == site.id,
+                    AgentConversation.user_id == user_id,
+                ).order_by(AgentConversation.created_at.desc()).limit(1))
+                if not conversation:
+                    return response({"conversation_id": None, "messages": []})
+                messages = db.scalars(select(AgentMessage).where(
+                    AgentMessage.tenant_id == site.tenant_id,
+                    AgentMessage.site_id == site.id,
+                    AgentMessage.conversation_id == conversation.id,
+                ).order_by(AgentMessage.created_at, AgentMessage.id).limit(100))
+                return response({"conversation_id": conversation.id, "messages": [
+                    {"id": m.id, "role": m.role, "content": m.content,
+                     "events": m.events_json or [],
+                     "has_checkpoint": bool(m.checkpoint_revision_id)} for m in messages
+                ]})
+        except CommerceError as exc:
+            return failure(exc)
+
+    @rt("/admin/sites/{site_id}/editor/agent/restore", methods=["POST"])
+    async def agent_restore(request):
+        session = request.session
+        try:
+            values = await payload(session, request)
+            with SessionLocal() as db:
+                site, user_id = access(db, session, request.path_params["site_id"])
+                from app.store_agent import restore_checkpoint
+                restore_checkpoint(db, site, user_id, str(values.get("message_id", "")))
+                db.commit()
+                return response({"restored": True})
+        except (CommerceError, ValueError, TypeError) as exc:
+            return failure(exc)
+
+    async def agent_stream(request):
+        session = request.session
+        try:
+            values = await payload(session, request)
+            message = str(values.get("message", "")).strip()
+            if not message or len(message) > 4000:
+                raise EditorError("Write a message up to 4,000 characters.")
+            with SessionLocal() as db:
+                site, user_id = access(db, session, request.path_params["site_id"])
+                page = page_for(db, site, str(values.get("page_id", "")))
+                fallback_block_id = (page.draft_json or {}).get("blocks", [{}])[0].get("id")
+            if not settings.xai_api_key and not (
+                settings.environment.lower() != "production"
+                and os.getenv("FASTSHOP_AGENT_FAKE") == "1"
+            ):
+                async def unconfigured():
+                    for event in ({"type": "assistant_text", "text": "The AI provider is not configured. Add an xAI API key to enable the editor assistant."}, {"type": "done"}):
+                        yield "data: " + json.dumps(event) + "\n\n"
+                return StreamingResponse(unconfigured(), media_type="text/event-stream")
+            from app import store_agent
+            params = inspect.signature(store_agent.run_turn).parameters
+            conversation_id = str(values.get("conversation_id") or uuid.uuid4().hex)
+            kwargs = {"page_id": page.id, "selection": values.get("selection")}
+            if "conversation_id" in params:
+                kwargs["conversation_id"] = conversation_id
+            transport = None
+            if settings.environment.lower() != "production" and os.getenv("FASTSHOP_AGENT_FAKE") == "1":
+                class ScriptedTransport:
+                    def __init__(self):
+                        self.sent = False
+                    def complete(self, messages, tools):
+                        if self.sent:
+                            return {"content": "I updated the selected block for your preview."}
+                        self.sent = True
+                        block_id = (values.get("selection") or {}).get("block_id") or fallback_block_id
+                        return {"tool_calls": [{"id": "fake-editor-update", "type": "function",
+                            "function": {"name": "update_block", "arguments": json.dumps({
+                                "page_id": page.id, "block_id": block_id,
+                                "fields": {"heading": "Assistant preview update"}})}}]}
+                transport = ScriptedTransport()
+            if "transport" in params:
+                kwargs["transport"] = transport
+            events: queue.Queue = queue.Queue()
+            def produce():
+                try:
+                    with SessionLocal() as db:
+                        site_row = content.owned_site(db, request.path_params["site_id"], user_id)
+                        for event in store_agent.run_turn(db, site_row, user_id, message, **kwargs):
+                            events.put(event)
+                except Exception as exc:
+                    events.put({"type": "error", "message": str(exc)})
+                finally:
+                    events.put(None)
+            threading.Thread(target=produce, daemon=True).start()
+            async def stream():
+                while True:
+                    item = await anyio.to_thread.run_sync(events.get)
+                    if item is None:
+                        break
+                    yield "data: " + json.dumps(item, ensure_ascii=True) + "\n\n"
+            return StreamingResponse(stream(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+        except (CommerceError, ValueError, TypeError) as exc:
+            return failure(exc)
+
+    rt.__self__.router.routes.append(Route(
+        "/admin/sites/{site_id}/editor/agent", endpoint=agent_stream, methods=["POST"]))
 
     @rt("/admin/sites/{site_id}/editor/api/resources", methods=["GET"])
     def resources(session, site_id: str, q: str = ""):
