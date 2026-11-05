@@ -197,21 +197,10 @@ def test_failing_tool_rolls_back_partial_mutation(workspace):
     assert page.draft_json == original
 
 
-def test_design_tools_cover_shell_brand_navigation_pages_meta_and_media(workspace, monkeypatch):
-    from app import site_editable_settings
-
-    fields = [
-        {"id": "name", "group": "header", "label": "Store name", "type": "text",
-         "default": ""},
-        {"id": "tagline", "group": "footer", "label": "Tagline", "type": "text",
-         "default": ""},
-        {"id": "footer", "group": "footer", "label": "Footer note", "type": "textarea",
-         "default": ""},
-    ]
-    monkeypatch.setitem(site_editable_settings._PROVIDERS, "shelltest", lambda: fields)
+def test_design_tools_cover_shell_brand_navigation_pages_meta_and_media(workspace):
     db, user, site = workspace
     page = content.site_pages(db, site)[0]
-    site.settings_json = site.settings_json | {"theme_pack": "shelltest", "footer": "Old footer"}
+    site.settings_json = site.settings_json | {"footer": "Old footer"}
     media = SiteMedia(tenant_id=site.tenant_id, site_id=site.id, title="Uploaded", alt="Image",
                       content_type="image/png", storage_key="agent-test", size=10)
     db.add(media)

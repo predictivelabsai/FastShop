@@ -99,8 +99,10 @@ def test_default_theme_shell_settings_are_editable(workspace):
     w = workspace
     loaded = load(w)
     ids = {field["id"] for field in loaded["shell_schema"]["fields"]}
-    assert {"name", "announcement", "footer"} <= ids
-    values = {"footer": "A note for visitors.", "announcement": "A store update."}
+    assert {"name", "announcement", "footer", "generic_labels.cta",
+            "generic_labels.contact_heading"} <= ids
+    values = {"footer": "A note for visitors.", "announcement": "A store update.",
+              "generic_labels": {"contact_heading": "Contact our team"}}
     saved = w.client.put(w.base + "/shell-settings", json={
         "shell_settings": values, "version": loaded["site_version"],
     }, headers=w.headers)
@@ -109,6 +111,7 @@ def test_default_theme_shell_settings_are_editable(workspace):
         site = db.get(Site, w.site.id)
         assert site.settings_json["footer"] == "A note for visitors."
         assert site.settings_json["announcement"] == "A store update."
+        assert site.settings_json["generic_labels"]["contact_heading"] == "Contact our team"
         assert site.published_settings_json["footer"] != "A note for visitors."
     published = w.client.post(w.base + "/publish", json={
         "version": loaded["version"], "site_version": saved.json()["version"],
@@ -118,3 +121,11 @@ def test_default_theme_shell_settings_are_editable(workspace):
         site = db.get(Site, w.site.id)
         assert site.published_settings_json["footer"] == "A note for visitors."
         assert site.published_settings_json["announcement"] == "A store update."
+        assert site.published_settings_json["generic_labels"]["contact_heading"] == "Contact our team"
+
+
+def test_generic_shell_labels_use_defaults_and_merchant_values():
+    from app.site_ui import label
+
+    assert label({}, "cta") == "Explore"
+    assert label({"generic_labels": {"cta": "Browse items"}}, "cta") == "Browse items"

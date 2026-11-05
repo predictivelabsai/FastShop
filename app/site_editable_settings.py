@@ -37,7 +37,10 @@ def register_shell(pack: str, provider) -> None:
 def shell_fields(config: dict | None) -> list[dict]:
     pack = str((config or {}).get("theme_pack", ""))
     if not pack:
-        return copy.deepcopy(_DEFAULT_FIELDS)
+        if "generic" not in _PROVIDERS:
+            importlib.import_module("app.site_generic_shell")
+        generic = _PROVIDERS.get("generic")
+        return copy.deepcopy(_DEFAULT_FIELDS + (generic() if generic else []))
     if pack.isidentifier() and pack not in _PROVIDERS:
         # Convention: a pack's shell module is app/site_<pack>_shell.py and registers itself.
         try:

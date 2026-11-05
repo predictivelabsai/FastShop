@@ -70,6 +70,12 @@ from app.site_widgets import (
 from app.ui import static_asset
 
 
+def label(config, key):
+    from app.site_generic_shell import DEFAULTS
+
+    return (config or {}).get("generic_labels", {}).get(key, DEFAULTS[key])
+
+
 def paragraphs(value):
     return [P(part.strip()) for part in str(value or "").split("\n\n") if part.strip()]
 
@@ -91,8 +97,8 @@ def url(base, path):
     return base + ("/" if path == "/" else path) if path.startswith("/") else path
 
 
-def cta(section, base):
-    return A(section.get("button", "Explore"), Span("↗", aria_hidden="true"),
+def cta(section, base, config):
+    return A(section.get("button", label(config, "cta")), Span("↗", aria_hidden="true"),
              href=url(base, section["link"]), cls="h-button") if section.get("link") else None
 
 
@@ -149,7 +155,7 @@ def _snippet_node(item, placement, *, head=False):
     return node
 
 
-def product_cards(db, site, base, category=""):
+def product_cards(db, site, base, config, category=""):
     image = partial(owned_image, db, site)
     query = select(Product).where(Product.tenant_id == site.tenant_id, Product.is_published.is_(True))
     if category:
@@ -164,11 +170,11 @@ def product_cards(db, site, base, category=""):
             VariantChannelListing.channel_id == site.channel_id,
         ).order_by(ProductVariant.sort_order))
         result.append(Article(A(
-            Div(image(product.image_url, f"{product.name} — placeholder product mock-up"), Span("PLACEHOLDER IMAGE", cls="h-image-label"), cls="h-product-image"),
+            Div(image(product.image_url, f"{product.name} — placeholder product image"), Span(label(config, "placeholder_image"), cls="h-image-label"), cls="h-product-image"),
             Div(H3(product.name), Span(money(listing.price_minor, listing.currency) + " · draft price" if listing else "Price to be confirmed"), cls="h-card-caption"),
             P(product.subtitle),
             href=url(base, f"/products/{product.slug}")), cls="h-product-card"))
-    return Div(*result, cls="h-products") if result else P("Your collection is coming soon.")
+    return Div(*result, cls="h-products") if result else P(label(config, "collection_empty"))
 
 
 def render_section(db, site, page, config, section, base, csrf, preview=False, first=False, *, blog_articles=None):
@@ -191,16 +197,16 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
                       Source(src=section["video"], type="video/mp4"), autoplay=True, muted=True, loop=True,
                       playsinline=True, poster=section.get("image", ""), aria_label="Hero background video") if section.get("video") else image(section.get("image"), eager=True)
         return Section(Div(media, cls="h-hero-media"), Div(Small(section.get("eyebrow", ""), cls="h-eyebrow"),
-            H1(heading), *paragraphs(section.get("body")), cta(section, base), cls="h-hero-copy"),
-            Button("Pause motion", type="button", data_video_toggle="", cls="h-video-toggle") if section.get("video") else None,
-            Span("PLACEHOLDER MEDIA", cls="h-image-label"), cls="h-hero")
+            H1(heading), *paragraphs(section.get("body")), cta(section, base, config), cls="h-hero-copy"),
+            Button(label(config, "video_toggle"), type="button", data_video_toggle="", cls="h-video-toggle") if section.get("video") else None,
+            Span(label(config, "placeholder_media"), cls="h-image-label"), cls="h-hero")
     if kind == "products":
-        return Section(intro, product_cards(db, site, base, section.get("category", "")), cls="h-section h-container")
+        return Section(intro, product_cards(db, site, base, config, section.get("category", "")), cls="h-section h-container")
     if kind == "split":
         media = Video(Source(src=section["video"], type="video/mp4"), controls=True, muted=True, playsinline=True,
                       preload="none", poster=section.get("image", ""), aria_label="Placeholder motion study") if section.get("video") else image(section.get("image"))
-        return Section(Div(media, Span("PLACEHOLDER MEDIA", cls="h-image-label"), cls="h-split-media"),
-            Div(intro, cta(section, base), cls="h-split-copy"), cls="h-split h-section")
+        return Section(Div(media, Span(label(config, "placeholder_media"), cls="h-image-label"), cls="h-split-media"),
+            Div(intro, cta(section, base, config), cls="h-split-copy"), cls="h-split h-section")
     if kind == "facts":
         return Section(intro, Div(*[Div(Strong(item["value"]), P(item["label"])) for item in config.get("facts", [])], cls="h-facts"),
             Small("Source: ", A(config.get("science_source_label", "Research source"), href=config.get("science_source", ""), target="_blank", rel="noopener noreferrer"),
@@ -208,7 +214,7 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
     if kind == "claims":
         approved = [item for item in config.get("claims", []) if item.get("approved")]
         return Section(intro, *[P(item["text"]) for item in approved],
-                       P(config.get("footer", ""), cls="h-disclaimer") if approved else P("Our benefit statements are awaiting review. Explore the original research on our Science page."), cls="h-section h-container")
+                       P(config.get("footer", ""), cls="h-disclaimer") if approved else P(label(config, "claims_pending")), cls="h-section h-container")
     if kind == "reviews":
         from app.site_reviews import approved_reviews, review_summary
         product_id = page.product_id if page.kind == "product" else None
@@ -242,15 +248,15 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
         return Section(intro, Div(*[Article(image(item["image"], item["heading"]) if item.get("image") else Div(Span("PHOTO PLACEHOLDER"), cls="h-person-placeholder"), H3(item["heading"]),
             P(item.get("body", "")), A("Learn more ↗", href=item["url"], target="_blank", rel="noopener noreferrer") if item.get("url") else None) for item in section.get("items", [])], cls="h-team"), cls="h-section h-container")
     if kind == "contact":
-        return Section(Div(H2("Say hello."), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
+        return Section(Div(H2(label(config, "contact_heading")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
             P(config.get("company", site.name)), P(config.get("address", "")), cls="h-contact-info"),
             Form(Input(type="hidden", name="csrf_token", value=csrf),
-                 Label("Your name", Input(name="name", required=True, maxlength=160, autocomplete="name")),
-                 Label("Email address", Input(name="email", type="email", required=True, maxlength=320, autocomplete="email")),
-                 Label("What's on your mind?", Textarea(name="message", required=True, minlength=10, maxlength=5000, rows=6)),
-                 Div(Label("Leave this empty", Input(name="website", tabindex="-1", autocomplete="off")), cls="h-honeypot", aria_hidden="true"),
-                 P("We'll use your details to answer this message. This does not sign you up for marketing emails. ", A("Privacy policy", href=url(base, "/pages/privacy-policy"))),
-                 Button("Send message ↗", type="submit", cls="h-button"), method="post", action=base + "/contact", cls="h-contact-form"), cls="h-section h-container h-contact")
+                 Label(label(config, "contact_name"), Input(name="name", required=True, maxlength=160, autocomplete="name")),
+                 Label(label(config, "contact_email"), Input(name="email", type="email", required=True, maxlength=320, autocomplete="email")),
+                 Label(label(config, "contact_message"), Textarea(name="message", required=True, minlength=10, maxlength=5000, rows=6)),
+                 Div(Label(label(config, "contact_honeypot"), Input(name="website", tabindex="-1", autocomplete="off")), cls="h-honeypot", aria_hidden="true"),
+                 P(label(config, "contact_consent") + " ", A(label(config, "privacy"), href=url(base, "/pages/privacy-policy"))),
+                 Button(label(config, "contact_send"), type="submit", cls="h-button"), method="post", action=base + "/contact", cls="h-contact-form"), cls="h-section h-container h-contact")
     if kind == "embed":
         frame = Iframe(
             src=section["url"],
@@ -294,7 +300,7 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
                     Label(Input(type="radio", name="purchase"), " Subscribe and save 10% · monthly"), cls="h-purchase") if tablets and not checkout_enabled else None,
                 Button("Add to cart — coming in Phase 2", disabled=True, cls="h-button") if not checkout_enabled else None,
                 P(("Live payments accepted." if provider_mode == "live" else "Sandbox only. No live payments.") if checkout_enabled else "Design preview. Orders and subscriptions are not open yet.", cls="h-muted"), cls="h-product-copy"), cls="h-product-detail h-container")
-    return Section(intro, cta(section, base), cls="h-section h-container h-editorial")
+    return Section(intro, cta(section, base, config), cls="h-section h-container h-editorial")
 
 
 def has_published_recently_viewed(db, site):
@@ -334,6 +340,10 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         page.kind == "product" and page.product_id and has_published_recently_viewed(db, site))
     image = partial(owned_image, db, site)
     config = site.settings_json if preview else site.published_settings_json
+    from app.site_editable_settings import shell_fields, shell_values
+    generic_fields = shell_fields({"theme_pack": "generic"})
+    generic_values = shell_values({**(config or {}), "theme_pack": "generic"}, generic_fields)
+    config = {**(config or {}), "generic_labels": generic_values.get("generic_labels", {})}
     document = resolve_document(page.draft_json if preview else page.published_json, default_locale(site, preview=preview))
     from app.custom_data import resolve_dynamic_document
     from app.store_preferences import head_nodes
@@ -450,12 +460,12 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             Div(Button("Close ×", type="button", data_offer_close=""), H2(config.get("offer", "Stay curious.")),
                 Form(Input(type="hidden", name="csrf_token", value=csrf),
                     P("Confirm your email to receive a personal first-order code. Checkout is still in sandbox setup."),
-                    Label("Email address", Input(name="email", type="email", required=True, maxlength=320, autocomplete="email")),
+                    Label(label(config, "contact_email"), Input(name="email", type="email", required=True, maxlength=320, autocomplete="email")),
                     Label(Input(name="marketing_consent", type="checkbox", required=True), " " + consent_text(site)),
                     Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
                     Button("Email my confirmation link", type="submit", cls="h-button"), method="post", action=base + "/newsletter") if customer_services_enabled else Div(
                     P("Design preview: email signup and discount delivery open in Phase 2. No email is collected here."),
-                    Label("Email address", Input(type="email", placeholder="you@example.com", disabled=True)),
+                    Label(label(config, "contact_email"), Input(type="email", placeholder=label(config, "email_placeholder"), disabled=True)),
                     Label(Input(type="checkbox", disabled=True), " " + consent_text(site))),
                 A("Privacy policy", href=url(base, "/pages/privacy-policy")), id="h-offer-panel", cls="h-offer-panel", hidden=True),
             Div(id="h-toast", role="status", cls="h-toast", hidden=True),
