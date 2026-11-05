@@ -400,6 +400,88 @@ def register_tools(db, site, user_id, conversation_id):
                 "settings_version": config.version if config else 1, "site_version": site.version}, \
             "Update shipping settings", (config.version if config else 1, site.version)
 
+    def validate_fulfil(a):
+        link, row = order(a["order_id"])
+        if not isinstance(a["carrier"], str) or not isinstance(a["tracking_number"], str):
+            raise CommerceError("Carrier and tracking number must be text.")
+        carrier, tracking = a["carrier"].strip(), a["tracking_number"].strip()
+        if not carrier or len(carrier) > 100 or not tracking or len(tracking) > 100:
+            raise CommerceError("Carrier and tracking number are required and must be at most 100 characters.")
+        if row.status not in {"unfulfilled", "partially_fulfilled"}:
+            raise CommerceError("Choose an open order to fulfil.")
+        quantities = {line.id: line.quantity - line.fulfilled_quantity - line.unfulfilled_refunded_quantity
+                      for line in row.lines if line.quantity > line.fulfilled_quantity + line.unfulfilled_refunded_quantity}
+        if not quantities:
+            raise CommerceError("This order has no remaining items to fulfil.")
+        notify = a.get("notify_customer", True)
+        if type(notify) is not bool:
+            raise CommerceError("notify_customer must be true or false.")
+        return {"order_id": link.id, "order_version": _iso(row.updated_at), "quantities": quantities,
+                "carrier": carrier, "tracking_number": tracking, "notify_customer": notify}, \
+            f"Fulfil order {row.number} with {carrier} tracking {tracking}", _iso(row.updated_at)
+
+    def validate_refund(a):
+        link, row = order(a["order_id"])
+        amount, reason = a["amount_minor"], a["reason"]
+        if not isinstance(reason, str):
+            raise CommerceError("Provide a valid refund reason.")
+        reason = reason.strip()
+        if type(amount) is not int or amount <= 0 or amount > 1_000_000_000:
+            raise CommerceError("Refund must be a positive amount in minor currency units.")
+        if not 10 <= len(reason) <= 500:
+            raise CommerceError("Provide a refund reason between 10 and 500 characters.")
+        from app.order_management import refund_totals
+        captured, _refunded, available = refund_totals(db, site, link, row)
+        if captured <= 0 or row.payment_status not in {"paid", "partially_refunded"}:
+            raise CommerceError("This order has no refundable captured payment.")
+        if amount > available:
+            raise CommerceError(f"Refund exceeds the refundable remainder of {money(available, row.currency)}.")
+        return {"order_id": link.id, "order_version": _iso(row.updated_at), "amount_minor": amount,
+                "currency": row.currency, "reason": reason}, \
+            f"Refund {money(amount, row.currency)} {row.currency} for order {row.number}", _iso(row.updated_at)
+
+    def validate_subscription(a, operation):
+        contract = db.scalar(select(SubscriptionContract).where(
+            SubscriptionContract.id == a["contract_id"], SubscriptionContract.site_id == site.id,
+            SubscriptionContract.tenant_id == site.tenant_id))
+        if not contract:
+            raise CommerceError("Subscription not found.")
+        if (operation == "cancel" and contract.state == "cancelled"
+                or operation == "pause" and contract.state != "active"
+                or operation == "resume" and contract.state != "paused"):
+            raise CommerceError("This subscription cannot be changed with that action in its current state.")
+        return {"contract_id": contract.id, "version": contract.version}, \
+            f"{operation.title()} subscription for {contract.recipient_name or 'customer'}", contract.version
+
+    def validate_customer_update(a):
+        row = customer(a["customer_id"])
+        tags, note = a["tags"], a["note"]
+        if not isinstance(tags, list) or len(tags) > 50 or any(not isinstance(t, str) or not t.strip() or len(t) > 60 for t in tags):
+            raise CommerceError("Provide up to 50 valid customer tags.")
+        if len(set(t.strip() for t in tags)) != len(tags) or not isinstance(note, str) or len(note) > 5000:
+            raise CommerceError("Customer tags must be unique and the note at most 5000 characters.")
+        return {"customer_id": row.id, "email": row.email, "tags": [t.strip() for t in tags],
+                "note": note, "expected_updated_at": _iso(row.updated_at)}, \
+            f"Update customer {row.name or row.email}", _iso(row.updated_at)
+
+    def validate_customer_email(a):
+        row = customer(a["customer_id"])
+        if not isinstance(a["subject"], str) or not isinstance(a["body"], str):
+            raise CommerceError("Email subject and body must be text.")
+        subject, body = a["subject"].strip(), a["body"]
+        if not subject or len(subject) > 200 or not body.strip() or len(body) > 20_000:
+            raise CommerceError("Provide a subject up to 200 characters and a message up to 20000 characters.")
+        from app.models import MarketingConsent
+        consent = db.scalar(select(MarketingConsent).where(MarketingConsent.site_id == site.id,
+            MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.customer_id == row.id))
+        marketing = a.get("marketing", False)
+        if type(marketing) is not bool:
+            raise CommerceError("marketing must be true or false.")
+        if marketing and (not row.email_marketing_consent or not consent or consent.status != "subscribed"):
+            raise CommerceError("Marketing email requires current customer consent.")
+        return {"customer_id": row.id, "subject": subject, "body": body, "marketing": marketing,
+                "expected_updated_at": _iso(row.updated_at)}, f"Email {row.email}: {subject}", _iso(row.updated_at)
+
     tools.append(write("update_product", "Update product name, description or status",
         {"product_id": {"type": "string"}, "name": {"type": "string"},
          "description": {"type": "string"}, "status": {"type": "string", "enum": ["active", "draft", "archived"]}},
@@ -437,6 +519,24 @@ def register_tools(db, site, user_id, conversation_id):
          "free_shipping_threshold_minor": {"type": "integer", "minimum": 0}},
         ["flat_rate_minor", "free_shipping_threshold_minor"],
         "update_shipping_settings", validate_shipping))
+    tools.append(write("fulfil_order", "Fulfil remaining order items and optionally queue shipment email",
+        {"order_id": {"type": "string"}, "carrier": {"type": "string"},
+         "tracking_number": {"type": "string"}, "notify_customer": {"type": "boolean"}},
+        ["order_id", "carrier", "tracking_number"], "fulfil_order", validate_fulfil))
+    tools.append(write("refund_order", "Refund a captured order using integer minor currency units",
+        {"order_id": {"type": "string"}, "amount_minor": {"type": "integer", "minimum": 1},
+         "reason": {"type": "string"}}, ["order_id", "amount_minor", "reason"], "refund_order", validate_refund))
+    for operation in ("cancel", "pause", "resume"):
+        tools.append(write(operation + "_subscription", operation.title() + " a subscription",
+            {"contract_id": {"type": "string"}}, ["contract_id"], operation + "_subscription",
+            lambda a, op=operation: validate_subscription(a, op)))
+    tools.append(write("update_customer", "Update customer tags and note without changing consent",
+        {"customer_id": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}},
+         "note": {"type": "string"}}, ["customer_id", "tags", "note"], "update_customer", validate_customer_update))
+    tools.append(write("send_customer_email", "Queue a merchant message for a customer",
+        {"customer_id": {"type": "string"}, "subject": {"type": "string"}, "body": {"type": "string"},
+         "marketing": {"type": "boolean"}}, ["customer_id", "subject", "body"],
+        "send_customer_email", validate_customer_email))
     return {t.name: t for t in tools}
 
 
@@ -448,7 +548,7 @@ def _owned_action(db, site, action_id):
     return action
 
 
-def confirm_action(db, site, user, action_id):
+def confirm_action(db, site, user, action_id, *, gateway_factory=None):
     user_id = user.id if hasattr(user, "id") else str(user)
     _member(db, site, user_id)
     action = _owned_action(db, site, action_id)
@@ -463,6 +563,39 @@ def confirm_action(db, site, user, action_id):
         AgentAction.status == "pending").values(status="confirmed", decided_at=now))
     if claimed.rowcount != 1:
         db.refresh(action)
+        return action
+    if action.kind == "refund_order":
+        payload = action.payload_json
+        pair = db.execute(select(SiteOrder, Order).join(Order, Order.id == SiteOrder.order_id).where(
+            SiteOrder.id == payload["order_id"], SiteOrder.site_id == site.id,
+            SiteOrder.tenant_id == site.tenant_id, Order.tenant_id == site.tenant_id)).first()
+        try:
+            if not pair:
+                raise CommerceError("Order not found.")
+            link, row = pair
+            if _iso(row.updated_at) != payload["expected_version"]:
+                raise CommerceError("This order changed after the action was proposed.")
+            db.commit()
+            from sqlalchemy.orm import sessionmaker
+
+            from app import order_management
+            refund_options = {"sessions": sessionmaker(bind=db.get_bind(), expire_on_commit=False)}
+            if gateway_factory is not None:
+                refund_options["gateway_factory"] = gateway_factory
+            command = order_management.refund(site.id, user_id, link.id, payload["amount_minor"],
+                payload["reason"], action.idempotency_key, **refund_options)
+            action.result_json = {"refund_command_id": command.id, "amount_minor": command.amount_minor,
+                                  "currency": command.currency, "state": command.state}
+            action.status = "confirmed" if command.state == "succeeded" else "failed"
+            note = ("Done: " if action.status == "confirmed" else "Could not complete: ") + action.summary
+        except Exception as exc:
+            action.status = "failed"
+            action.result_json = {"error": str(exc)[:300]}
+            note = "Could not complete: " + action.summary
+        action.decided_at = datetime.now(UTC)
+        db.add(AgentMessage(tenant_id=site.tenant_id, site_id=site.id,
+            conversation_id=action.conversation_id, role="assistant", content=note))
+        db.commit()
         return action
     execution = db.begin_nested()
     try:
@@ -556,6 +689,62 @@ def confirm_action(db, site, user, action_id):
             action.result_json = {"flat_rate_minor": config.shipping_minor,
                 "free_shipping_threshold_minor": config.free_shipping_threshold_minor,
                 "version": config.version}
+        elif action.kind == "fulfil_order":
+            from app import order_admin
+            payload = action.payload_json
+            pair = db.execute(select(SiteOrder, Order).join(Order, Order.id == SiteOrder.order_id).where(
+                SiteOrder.id == payload["order_id"], SiteOrder.site_id == site.id,
+                SiteOrder.tenant_id == site.tenant_id, Order.tenant_id == site.tenant_id)).first()
+            if not pair:
+                raise CommerceError("Order not found.")
+            link, row = pair
+            if _iso(row.updated_at) != payload["expected_version"]:
+                raise CommerceError("This order changed after the action was proposed.")
+            event = order_admin.fulfil_items(db, site, user_id, link.id, payload["quantities"],
+                carrier=payload["carrier"], tracking_number=payload["tracking_number"],
+                notify=payload["notify_customer"], request_key=action.idempotency_key)
+            action.result_json = {"shipment_id": event.id, "status": event.status}
+        elif action.kind in {"cancel_subscription", "pause_subscription", "resume_subscription"}:
+            from app import subscriptions
+            payload = action.payload_json
+            subscription = db.scalar(select(SubscriptionContract).where(
+                SubscriptionContract.id == payload["contract_id"], SubscriptionContract.site_id == site.id,
+                SubscriptionContract.tenant_id == site.tenant_id))
+            if not subscription or subscription.version != payload["expected_version"]:
+                raise CommerceError("This subscription changed after the action was proposed.")
+            op = action.kind.removesuffix("_subscription")
+            subscription = subscriptions.merchant_change(db, site, user_id, subscription.id, op,
+                version=subscription.version, request_key=action.idempotency_key)
+            action.result_json = {"contract_id": subscription.id, "state": subscription.state,
+                                  "version": subscription.version}
+        elif action.kind == "update_customer":
+            from app import customer_admin
+            payload = action.payload_json
+            row = db.scalar(select(ShopCustomer).where(ShopCustomer.id == payload["customer_id"],
+                ShopCustomer.tenant_id == site.tenant_id, ShopCustomer.site_id == site.id))
+            if not row:
+                raise CommerceError("Customer not found.")
+            if _iso(row.updated_at) != payload["expected_updated_at"]:
+                raise CommerceError("This customer changed after the action was proposed.")
+            row = customer_admin.save_customer(db, site, {"email": payload["email"],
+                "tags": payload["tags"], "note": payload["note"]}, row.id)
+            action.result_json = {"customer_id": row.id, "tags": row.tags_json}
+        elif action.kind == "send_customer_email":
+            from app.models import CommerceMail
+            payload = action.payload_json
+            row = db.scalar(select(ShopCustomer).where(ShopCustomer.id == payload["customer_id"],
+                ShopCustomer.tenant_id == site.tenant_id, ShopCustomer.site_id == site.id))
+            if not row:
+                raise CommerceError("Customer not found.")
+            if _iso(row.updated_at) != payload["expected_updated_at"]:
+                raise CommerceError("This customer changed after the action was proposed.")
+            message = CommerceMail(tenant_id=site.tenant_id, site_id=site.id, customer_id=row.id,
+                kind="merchant_message", dedupe_key="agent-message:" + action.idempotency_key,
+                available_at=datetime.now(UTC), reference_json={"subject": payload["subject"],
+                    "body": payload["body"], "marketing": payload["marketing"]})
+            db.add(message)
+            db.flush()
+            action.result_json = {"mail_id": message.id, "status": message.status}
         else:
             raise CommerceError("This action type cannot be executed yet.")
         execution.commit()

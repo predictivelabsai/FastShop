@@ -11,6 +11,7 @@ from app import catalog_admin, content
 from app.models import (
     AgentAction,
     Base,
+    CommerceMail,
     Discount,
     InventoryAdjustment,
     Product,
@@ -314,3 +315,193 @@ def test_shipping_proposal_is_read_only_and_confirmation_applies_once():
         confirm_action(db, site, user, action.id)
         assert settings.version == version
     engine.dispose()
+
+
+def test_customer_update_and_message_are_pending_scoped_and_single_execution():
+    from tests.test_order_management import workspace
+
+    with workspace() as w:
+        original_consent = w.customer.email_marketing_consent
+        action = _propose_tool(w.db, w.site, w.owner, "update_customer", {
+            "customer_id": w.customer.id, "tags": ["vip"], "note": "Call before delivery"})
+        assert w.customer.tags_json == [] and w.customer.note == ""
+        confirm_action(w.db, w.site, w.owner, action.id)
+        assert action.status == "confirmed" and w.customer.tags_json == ["vip"]
+        assert w.customer.note == "Call before delivery"
+        assert w.customer.email_marketing_consent is original_consent
+        confirm_action(w.db, w.site, w.owner, action.id)
+        assert w.customer.tags_json == ["vip"]
+
+        message = _propose_tool(w.db, w.site, w.owner, "send_customer_email", {
+            "customer_id": w.customer.id, "subject": "Delivery detail", "body": "Your parcel is ready."})
+        assert w.db.scalar(select(CommerceMail).where(CommerceMail.kind == "merchant_message")) is None
+        confirm_action(w.db, w.site, w.owner, message.id)
+        queued = w.db.scalar(select(CommerceMail).where(CommerceMail.kind == "merchant_message"))
+        assert queued.customer_id == w.customer.id and queued.status == "pending"
+        confirm_action(w.db, w.site, w.owner, message.id)
+        assert len(list(w.db.scalars(select(CommerceMail).where(
+            CommerceMail.kind == "merchant_message")))) == 1
+        from app.integrations.commerce_email import dispatch_mail
+        sent = []
+        assert dispatch_mail(queued.id, sessions=w.sessions,
+            sender=lambda recipient, subject, body, **_kwargs: (
+                sent.append((recipient, subject, body)) or ("sent", "provider-fixture")))
+        assert sent[0][0] == w.customer.email and sent[0][1] == "Delivery detail"
+        assert "transactional message" in sent[0][2]
+
+
+def test_marketing_email_without_consent_is_refused_at_proposal():
+    from tests.test_order_management import workspace
+
+    with workspace() as w:
+        before = w.db.scalar(select(AgentAction.id))
+        _propose_tool(w.db, w.site, w.owner, "send_customer_email", {
+            "customer_id": w.customer.id, "subject": "Offers", "body": "Buy this", "marketing": True})
+        assert w.db.scalar(select(AgentAction.id)) == before
+        assert w.db.scalar(select(CommerceMail).where(CommerceMail.kind == "merchant_message")) is None
+
+
+def test_fulfil_order_proposal_and_confirmation_use_shipment_path():
+    from sqlalchemy import func
+
+    from app.models import OrderLine, ShipmentEvent
+    from tests.test_order_management import workspace
+
+    with workspace() as w:
+        line = w.db.scalar(select(OrderLine).where(OrderLine.order_id == w.order.id))
+        action = _propose_tool(w.db, w.site, w.owner, "fulfil_order", {
+            "order_id": w.link.id, "carrier": "UPS", "tracking_number": "TRACK-123"})
+        assert line.fulfilled_quantity == 0
+        assert w.db.scalar(select(func.count(ShipmentEvent.id))) == 0
+        confirm_action(w.db, w.site, w.owner, action.id)
+        assert action.status == "confirmed" and line.fulfilled_quantity == line.quantity
+        assert w.db.scalar(select(func.count(ShipmentEvent.id))) == 1
+        confirm_action(w.db, w.site, w.owner, action.id)
+        assert w.db.scalar(select(func.count(ShipmentEvent.id))) == 1
+
+
+def test_refund_order_validates_remainder_and_confirms_with_fake_gateway():
+    from tests.test_order_management import workspace
+
+    class Gateway:
+        calls = []
+
+        def __init__(self, _site):
+            pass
+
+        def create_refund(self, command_id, payload):
+            self.calls.append((command_id, payload))
+            return {"id": "re_" + command_id, "payment_intent": payload["payment_intent"],
+                    "amount": payload["amount"], "currency": "usd", "status": "succeeded",
+                    "livemode": False}
+
+    with workspace() as w:
+        before = w.db.scalar(select(AgentAction.id))
+        _propose_tool(w.db, w.site, w.owner, "refund_order", {
+            "order_id": w.link.id, "amount_minor": 10001,
+            "reason": "Customer requested a refund."})
+        assert w.db.scalar(select(AgentAction.id)) == before
+        action = _propose_tool(w.db, w.site, w.owner, "refund_order", {
+            "order_id": w.link.id, "amount_minor": 2500,
+            "reason": "Customer requested a refund."})
+        assert "25.00" in action.summary and "USD" in action.summary
+        assert not Gateway.calls
+        result = confirm_action(w.db, w.site, w.owner, action.id, gateway_factory=Gateway)
+        assert result.status == "confirmed", result.result_json
+        assert result.result_json["amount_minor"] == 2500
+        assert len(Gateway.calls) == 1
+        confirm_action(w.db, w.site, w.owner, action.id, gateway_factory=Gateway)
+        assert len(Gateway.calls) == 1
+
+
+def test_subscription_tools_use_versioned_merchant_change():
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import CheckoutAttempt, CommerceQuote, SubscriptionContract
+    from tests.test_order_management import workspace
+
+    with workspace() as r:
+        quote = CommerceQuote(tenant_id=r.site.tenant_id, site_id=r.site.id, fingerprint="agent-sub",
+            provider_id="agent-sub", currency="USD", subtotal_minor=10000, discount_minor=0,
+            shipping_minor=0, tax_minor=0, total_minor=10000,
+            expires_at=datetime.now(UTC) + timedelta(days=1), snapshot_json={})
+        r.db.add(quote)
+        r.db.flush()
+        attempt = CheckoutAttempt(tenant_id=r.site.tenant_id, site_id=r.site.id,
+            customer_id=r.customer.id, quote_id=quote.id, request_key="agent-sub-attempt",
+            request_hash="agent-sub", state="paid", order_id=r.order.id, expires_at=quote.expires_at)
+        r.db.add(attempt)
+        r.db.flush()
+        subscription = SubscriptionContract(tenant_id=r.site.tenant_id, site_id=r.site.id,
+            customer_id=r.customer.id, initial_attempt_id=attempt.id, stripe_customer_id="cus_fixture",
+            payment_method_id="pm_fixture", state="active", interval_months=1, anchor_day=1,
+            next_due_at=datetime.now(UTC) + timedelta(days=30), lines_json=[], destination_json={},
+            recipient_name="Buyer", consent_json={}, version=1)
+        r.db.add(subscription)
+        r.db.flush()
+        action = _propose_tool(r.db, r.site, r.owner, "pause_subscription", {
+            "contract_id": subscription.id})
+        assert subscription.state == "active"
+        confirm_action(r.db, r.site, r.owner, action.id)
+        assert action.status == "confirmed" and subscription.state == "paused"
+        confirm_action(r.db, r.site, r.owner, action.id)
+        assert subscription.version == 2
+
+        stale = _propose_tool(r.db, r.site, r.owner, "resume_subscription", {
+            "contract_id": subscription.id})
+        subscription.version += 1
+        r.db.flush()
+        confirm_action(r.db, r.site, r.owner, stale.id)
+        assert stale.status == "failed" and subscription.state == "paused"
+
+
+def test_new_order_customer_tools_refuse_stale_proposals():
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import OrderLine
+    from tests.test_order_management import workspace
+
+    with workspace() as w:
+        order_action = _propose_tool(w.db, w.site, w.owner, "fulfil_order", {
+            "order_id": w.link.id, "carrier": "UPS", "tracking_number": "TRACK-STALE"})
+        w.order.updated_at = datetime.now(UTC) + timedelta(minutes=1)
+        w.db.flush()
+        assert confirm_action(w.db, w.site, w.owner, order_action.id).status == "failed"
+        line = w.db.scalar(select(OrderLine).where(OrderLine.order_id == w.order.id))
+        assert line.fulfilled_quantity == 0
+
+        customer_action = _propose_tool(w.db, w.site, w.owner, "update_customer", {
+            "customer_id": w.customer.id, "tags": ["vip"], "note": "Stale"})
+        w.customer.updated_at = datetime.now(UTC) + timedelta(minutes=1)
+        w.db.flush()
+        assert confirm_action(w.db, w.site, w.owner, customer_action.id).status == "failed"
+        assert w.customer.tags_json == []
+
+
+def test_new_tools_reject_foreign_tenant_entities():
+    from app.models import ShopCustomer
+    from tests.test_order_management import workspace
+
+    with workspace() as w:
+        other_user = User(email="foreign-agent@example.test", name="Foreign")
+        w.db.add(other_user)
+        w.db.flush()
+        foreign_site = content.create_site(w.db, other_user.id, "Foreign", "foreign-agent")
+        foreign_customer = ShopCustomer(tenant_id=foreign_site.tenant_id, site_id=foreign_site.id,
+            email="foreign@example.test")
+        w.db.add(foreign_customer)
+        w.db.flush()
+        from tests.test_order_management import add_order
+        _foreign_order, foreign_link = add_order(w.db, foreign_site, foreign_customer,
+            "FOREIGN-ORDER", 1000)
+        for name, args in (
+            ("fulfil_order", {"order_id": foreign_link.id, "carrier": "UPS", "tracking_number": "123"}),
+            ("refund_order", {"order_id": foreign_link.id, "amount_minor": 100,
+                               "reason": "Customer requested a refund."}),
+            ("update_customer", {"customer_id": foreign_customer.id, "tags": [], "note": ""}),
+            ("send_customer_email", {"customer_id": foreign_customer.id,
+                "subject": "Hello", "body": "Transactional update."}),
+        ):
+            before = set(w.db.scalars(select(AgentAction.id)))
+            _propose_tool(w.db, w.site, w.owner, name, args)
+            assert set(w.db.scalars(select(AgentAction.id))) == before

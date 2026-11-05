@@ -82,6 +82,22 @@ def render_message(db, row, site, customer=None, user=None):
         if not user:
             return None
         return str(reference.get("subject", "Notification test")), str(reference.get("body", ""))
+    if row.kind == "merchant_message":
+        if not customer:
+            return None
+        if reference.get("marketing"):
+            consent = db.scalar(select(MarketingConsent).where(
+                MarketingConsent.site_id == site.id, MarketingConsent.tenant_id == site.tenant_id,
+                MarketingConsent.customer_id == customer.id))
+            if not customer.email_marketing_consent or not consent or consent.status != "subscribed":
+                return None
+        subject = str(reference.get("subject", ""))[:200]
+        body = str(reference.get("body", ""))[:20_000]
+        if not subject or not body.strip():
+            return None
+        if not reference.get("marketing"):
+            body += "\n\nThis is a transactional message from the merchant."
+        return subject, body
     default = _render_message(db, row, site, customer, user)
     if not default:
         return None
