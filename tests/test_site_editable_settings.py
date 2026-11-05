@@ -196,3 +196,13 @@ def test_page_scan_allows_the_exact_fda_disclaimer_only():
     assert scan_document(clean)["banned"] == [] and scan_document(clean)["diseases"] == []
     dirty = {"blocks": [{"id": "a", "type": "text", "body": "It can cure you. " + DISCLAIMER}]}
     assert scan_document(dirty)["banned"] == ["cure"]
+
+
+def test_generic_shell_labels_default_and_override():
+    config = {"theme_pack": "generic"}
+    fields = shell_fields(config)
+    values = shell_values(config, fields)
+    assert values["generic_labels"]["placeholder_image"] == "PLACEHOLDER IMAGE"
+    assert values["generic_labels"]["collection_empty"] == "Your collection is coming soon."
+    edited = apply_shell(config, {"generic_labels": {"placeholder_image": "Image pending"}}, fields)
+    assert shell_values(edited, fields)["generic_labels"]["placeholder_image"] == "Image pending"
