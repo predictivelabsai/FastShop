@@ -1137,6 +1137,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 aria_label="Cookie preferences",
                 hidden=True,
                 data_builder_shell="consent",
+                data_preview_consent="true" if preview else None,
             ),
             cls="h-site theme-metal",
             style=theme_style(config) or None, data_themed="true" if theme_style(config) else None,

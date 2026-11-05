@@ -659,6 +659,28 @@ class SiteBuilderTurn(TimestampMixin, Base):
     response_json: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class AgentConversation(TimestampMixin, Base):
+    __tablename__ = "agent_conversations"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(240), default="New conversation")
+
+
+class AgentMessage(TimestampMixin, Base):
+    __tablename__ = "agent_messages"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("agent_conversations.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(24))
+    content: Mapped[str] = mapped_column(Text, default="")
+    tool_calls_json: Mapped[list] = mapped_column(JSON, default=list)
+    events_json: Mapped[list] = mapped_column(JSON, default=list)
+    checkpoint_revision_id: Mapped[str | None] = mapped_column(ForeignKey("site_revisions.id"), nullable=True)
+
+
 class SiteChangeSet(TimestampMixin, Base):
     __tablename__ = "site_change_sets"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
