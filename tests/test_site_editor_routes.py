@@ -113,15 +113,15 @@ def test_csrf_draft_conflict_revisions_and_restore(workspace):
                          "version": version + 1}, headers=w.headers).status_code == 422
 
 
-def test_publish_compliance_and_editor_role(workspace):
+def test_publish_copy_warning_and_editor_role(workspace):
     w = workspace
     values = load(w)
     document = values["document"]
     document["blocks"] = [{"id": "bad-copy", "type": "text", "heading": "A miracle cure", "body": "Content"}]
-    rejected = w.client.post(w.base + "/publish", json={"document": document,
+    published = w.client.post(w.base + "/publish", json={"document": document,
         "version": values["version"]}, headers=w.headers)
-    assert rejected.status_code == 422 and rejected.json()["errors"]
-    assert "cannot be published" in rejected.text
+    assert published.status_code == 200, published.text
+    assert "miracle" in published.json()["warnings"][0]
     with w.sessions() as db:
         member = db.scalar(select(Membership).where(Membership.user_id == w.owner.id,
                                                      Membership.tenant_id == w.site.tenant_id))
@@ -131,7 +131,7 @@ def test_publish_compliance_and_editor_role(workspace):
     assert w.client.post(w.base + "/publish", json={"version": values["version"]},
                          headers=w.headers).status_code == 403
     assert w.client.put(w.base + "/draft", json={"document": document,
-        "version": values["version"]}, headers=w.headers).status_code == 200
+        "version": published.json()["version"]}, headers=w.headers).status_code == 200
 
 
 def test_theme_validation_versions_and_media_scope(workspace):

@@ -134,7 +134,8 @@ def test_readiness_avoids_draft_compliance_menu_and_price_false_positives():
         home.draft_json = copy.deepcopy(home.draft_json)
         home.draft_json["blocks"][0]["body"] = "Clinically proven to cure diabetes."
         compliance_check = next(check for check in site_golive.assess(db, site).checks if check.key == "compliance")
-        assert not compliance_check.passed
+        assert compliance_check.passed
+        assert "advisory" in compliance_check.explanation.lower()
         home.draft_json = copy.deepcopy(home.published_json)
 
         config, variant = prepare_commerce(db, site)

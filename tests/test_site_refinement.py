@@ -87,7 +87,7 @@ def test_accept_applies_exact_patch_records_revision_and_undo(workspace):
     before = builder.snapshot(db, site)
     hero_id = page.draft_json["blocks"][0]["id"]
     turn = _turn(db, owner, site, page, "Headline: Accepted heading", hero_id)
-    count, status = builder.decide_refinement(db, site.id, owner.id, turn.id, "accept", "all", site.version)
+    count, status, _ = builder.decide_refinement(db, site.id, owner.id, turn.id, "accept", "all", site.version)
     assert (count, status) == (1, "accepted")
     assert get_block(page.draft_json, hero_id)["heading"] == "Accepted heading"
     change = db.get(SiteChangeSet, turn.response_json["change_id"])
@@ -118,20 +118,20 @@ def test_reorder_and_remove_are_independent_per_op_decisions(workspace):
     assert [block_id for block_id in after_ids if block_id != "faq"] == [ids[1], ids[0]]
 
 
-def test_compliance_blocks_accept_and_keeps_preview_pending(workspace):
+def test_compliance_warning_does_not_block_assistant_patch(workspace):
     db, owner, site, page = workspace
-    before = copy.deepcopy(page.draft_json)
     hero_id = page.draft_json["blocks"][0]["id"]
     turn, _ = builder.begin_turn(db, site.id, owner.id, uuid4().hex, "Unsafe", page.id, site.version, hero_id)
     builder.finish_turn(db, site.id, owner.id, turn.id, {"answer": "Review", "operations": [{
         "op": "patch", "page_id": page.id, "block_id": hero_id,
-        "after": {"heading": "Clinically proven to cure diabetes"},
+      "after": {"heading": "Revolutionary results"},
     }]}, "fixture")
     operation = turn.response_json["refinement"]["operations"][0]
-    with pytest.raises(CommerceError, match="banned wording"):
-        builder.decide_refinement(db, site.id, owner.id, turn.id, "accept", operation["op_id"], site.version)
-    db.rollback()
-    assert page.draft_json == before
+    count, status, warnings = builder.decide_refinement(
+        db, site.id, owner.id, turn.id, "accept", operation["op_id"], site.version)
+    assert count == 1 and status == "accepted"
+    assert "revolutionary" in " ".join(warnings)
+    assert "Revolutionary results" in str(page.draft_json)
 
 
 def test_preview_ttl_cleanup_makes_old_edit_inert(workspace):

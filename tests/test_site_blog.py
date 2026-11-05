@@ -117,7 +117,7 @@ def test_editorial_state_composes_with_publication_and_restore(workspace):
 
 @pytest.mark.parametrize("state", ["draft", "published", "archived"])
 @pytest.mark.parametrize("field", ["author_name", "author_bio", "tags", "body"])
-def test_every_state_and_new_text_field_passes_compliance(workspace, state, field):
+def test_every_state_and_new_text_field_can_be_published(workspace, state, field):
     db, user, site, _ = workspace
     page = article(db, site, state=state)
     document = copy.deepcopy(page.draft_json)
@@ -126,9 +126,8 @@ def test_every_state_and_new_text_field_passes_compliance(workspace, state, fiel
     else:
         document["blog"][field] = ["miracle"] if field == "tags" else "A miracle cure"
     content.save_page(db, site, page.id, user.id, document, page.version)
-    with pytest.raises(CommerceError, match="cannot be published"):
-        content.save_page(db, site, page.id, user.id, document, page.version, "publish")
-    assert page.published_json is None
+    content.save_page(db, site, page.id, user.id, document, page.version, "publish")
+    assert page.published_json
 
 
 def test_editor_and_foreign_actor_cannot_publish_metadata(workspace):

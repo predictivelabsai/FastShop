@@ -322,8 +322,13 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                         validate_editor_document(document), _version(values.get("version")))
                     if action == "publish":
                         theme_library.publish(db, site, user_id, theme_id, saved.version)
+                    from app.compliance import warning_for_values
+                    theme_documents = [page.get("document") for page in
+                                       saved.snapshot_json.get("pages", [])]
+                    warning = warning_for_values(theme_documents)
                     result = {"version": saved.version, "site_version": saved.version,
-                        "document": document, "published": action == "publish"}
+                        "document": document, "published": action == "publish",
+                        "warnings": [warning] if warning else []}
                     db.commit()
                     return response(result)
                 selected = page_for(db, site, page_id)
@@ -356,8 +361,11 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     site.version += 1
                     if site.status == "draft":
                         site.status = "preview"
+                from app.compliance import warning_for_values
+                warning = warning_for_values(selected.draft_json)
                 result = {"version": selected.version, "site_version": site.version,
-                          "document": selected.draft_json, "published": action == "publish"}
+                          "document": selected.draft_json, "published": action == "publish",
+                          "warnings": [warning] if warning else []}
                 db.commit()
                 return response(result)
         except (CommerceError, ValueError, TypeError) as exc:
@@ -458,7 +466,10 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     if "Draft changed" in str(exc):
                         raise EditorError(str(exc), 409, conflict=True, version=site.version) from exc
                     raise
-                result = {**shell_payload(site), "version": site.version}
+                from app.compliance import warning_for_values
+                warning = warning_for_values(values.get("shell_settings"))
+                result = {**shell_payload(site), "version": site.version,
+                          "warnings": [warning] if warning else []}
                 db.commit()
                 return response(result)
         except (CommerceError, ValueError, TypeError) as exc:

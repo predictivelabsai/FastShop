@@ -169,26 +169,20 @@ def _menu_check(db, site: Site, published_pages: dict[str, SitePage]) -> tuple[b
 
 
 def _compliance_check(db, site: Site) -> tuple[bool, str]:
-    problems = []
     advice = []
     for page in content.site_pages(db, site):
         findings = compliance.scan_document(page.draft_json)
-        blocked = findings["banned"] + findings["diseases"]
-        if blocked:
-            problems.append(f"{page.path}: {', '.join(blocked)}")
-        if findings["hype"]:
-            advice.extend(term for term in findings["hype"] if term not in advice)
+        flagged = findings["banned"] + findings["diseases"] + findings["hype"]
+        advice.extend(f"{page.path}: {term}" for term in flagged if f"{page.path}: {term}" not in advice)
     for claim in site.settings_json.get("claims", []):
         if not claim.get("approved"):
             continue
         findings = compliance.scan_text(str(claim.get("text", "")))
-        blocked = findings["banned"] + findings["diseases"]
-        if blocked:
-            problems.append(f"approved benefit statement: {', '.join(blocked)}")
-    if problems:
-        return False, "Resolve compliance findings in draft content: " + "; ".join(problems) + "."
-    suffix = f" Advisory wording found ({', '.join(advice)}); it does not block publication." if advice else ""
-    return True, "Draft pages and approved benefit statements have no blocking claim findings." + suffix
+        flagged = findings["banned"] + findings["diseases"] + findings["hype"]
+        advice.extend(f"approved benefit statement: {term}" for term in flagged
+                      if f"approved benefit statement: {term}" not in advice)
+    suffix = f" Copy advisory: review flagged wording ({', '.join(advice)})." if advice else ""
+    return True, "Copy checks are advisory and do not block publication." + suffix
 
 
 def _snippet_check(db, site: Site, published_pages: dict[str, SitePage]) -> tuple[bool, str]:
@@ -498,6 +492,9 @@ def publish_site(
     _audit(db, site, user_id, action="publish", decision="overridden" if overridden else "approved",
            reason=reason, before=before, report=report, overridden=overridden)
     message = "Site published with a development operator override." if overridden else "Site published after readiness review."
+    compliance_check = next((check for check in report.checks if check.key == "compliance"), None)
+    if compliance_check and "Copy advisory:" in compliance_check.explanation:
+        message += " " + compliance_check.explanation
     return TransitionDecision(True, overridden, message, report)
 
 

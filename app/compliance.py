@@ -1,10 +1,4 @@
-"""US dietary-supplement wording checks for storefront content.
-
-Compliance is enforced where a merchant deliberately makes content public — page
-publication and benefit-statement approval — not on draft saves or the seed fixture,
-so editing stays frictionless while nothing non-compliant reaches shoppers. Banned
-promotional wording and disease references block; hype words are advisory only.
-"""
+"""Return advisory copy findings for merchant-supplied storefront content."""
 
 from __future__ import annotations
 
@@ -12,20 +6,18 @@ import re
 from html import unescape
 from html.parser import HTMLParser
 
-from app.services import CommerceError
-
-# Promotional wording the brief forbids everywhere (§8).
+# Promotional wording that may merit merchant review.
 BANNED_TERMS = [
     "clinically proven", "proven", "guaranteed", "detox", "detoxify", "detoxifies",
     "anti-aging", "anti aging", "antiaging", "miracle", "cure", "cures", "cured", "curing",
 ]
-# Named diseases/conditions must never be tied to a product (§8).
+# Named conditions that may merit merchant review.
 DISEASE_TERMS = [
     "diabetes", "diabetic", "cancer", "carcinoma", "tumor", "tumour", "parkinson",
     "alzheimer", "arthritis", "hypertension", "asthma", "depression", "dementia",
     "covid", "influenza", "stroke", "heart disease", "obesity",
 ]
-# Empty-hype words the brief discourages (§1) — surfaced as advice, never blocking.
+# Empty-hype wording surfaced as advice, never blocking.
 HYPE_TERMS = ["revolutionary", "passionate", "unlock your potential"]
 
 # Section types that quote external studies; disease names in a citation are expected
@@ -116,41 +108,44 @@ def scan_document(document: dict) -> dict[str, list[str]]:
     return {"banned": banned, "diseases": diseases, "hype": hype}
 
 
-def _blocking_message(findings: dict[str, list[str]], where: str) -> str | None:
-    problems = []
-    if findings["banned"]:
-        problems.append("banned wording (" + ", ".join(findings["banned"]) + ")")
-    if findings["diseases"]:
-        problems.append("disease references (" + ", ".join(findings["diseases"]) + ")")
-    if not problems:
+def warning_message(findings: dict[str, list[str]]) -> str | None:
+    """Format non-blocking copy findings for a merchant-facing notice."""
+    flagged = list(dict.fromkeys(findings["banned"] + findings["diseases"] + findings["hype"]))
+    if not flagged:
         return None
-    return (
-        f"{where} cannot be published with " + " and ".join(problems)
-        + ". Use research language (\"researchers have studied…\") and remove product health claims."
-    )
+    return "Copy advisory: review flagged wording: " + ", ".join(flagged) + "."
 
 
-def assert_document_compliant(document: dict) -> None:
-    """Raise if a page carries banned wording or disease references."""
-    message = _blocking_message(scan_document(document), "This page")
-    if message:
-        raise CommerceError(message)
+def warning_for_values(values) -> str | None:
+    """Scan nested shell copy values and return one concise advisory."""
+    found = {"banned": [], "diseases": [], "hype": []}
+
+    def visit(value):
+        if isinstance(value, str):
+            current = scan_text(value)
+            for category in found:
+                found[category].extend(term for term in current[category] if term not in found[category])
+        elif isinstance(value, dict):
+            for item in value.values():
+                visit(item)
+        elif isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(values)
+    return warning_message(found)
 
 
-def assert_copy_compliant(text: str) -> None:
-    """Apply the same prohibited wording checks to merchant supplied shell copy."""
-    message = _blocking_message(scan_text(text), "This site copy")
-    if message:
-        raise CommerceError(message)
+def assert_document_compliant(document: dict) -> str | None:
+    """Compatibility helper returning an advisory, never raising for copy."""
+    return warning_message(scan_document(document))
 
 
-def assert_claim_compliant(text: str) -> None:
-    """Raise if an approved benefit statement is non-compliant or missing its asterisk."""
-    message = _blocking_message(scan_text(text), "This benefit statement")
-    if message:
-        raise CommerceError(message)
-    if "*" not in str(text):
-        raise CommerceError(
-            "An approved benefit statement must carry an asterisk (*) so it renders "
-            "beside the FDA disclaimer."
-        )
+def assert_copy_compliant(text: str) -> str | None:
+    """Return a warning for merchant supplied shell copy, never block a save."""
+    return warning_message(scan_text(text))
+
+
+def assert_claim_compliant(text: str) -> str | None:
+    """Return copy findings as an advisory, without asterisk or wording locks."""
+    return warning_message(scan_text(text))

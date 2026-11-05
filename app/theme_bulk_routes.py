@@ -46,7 +46,7 @@ def register_theme_bulk_routes(rt, actor, csrf, check_csrf, shell, error):
             return JSONResponse({"error": str(exc)}, status_code=403 if "session" in str(exc) else 422)
 
     @rt("/admin/sites/{site_id}/themes", methods=["GET"])
-    def themes(session, site_id: str):
+    def themes(session, site_id: str, notice: str = ""):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
@@ -67,7 +67,8 @@ def register_theme_bulk_routes(rt, actor, csrf, check_csrf, shell, error):
                         form(theme, "publish", "Roll back" if theme.kind == "revision" else "Publish"),
                         form(theme, "rename", "Rename", Label("Theme name", Input(name="name", value=theme.name,
                             maxlength=160, required=True))), form(theme, "delete", "Delete")))
-                return shell("Themes", page_header("Themes", primary_action=A("Customise current theme", href=f"/admin/sites/{site.id}/editor", cls="a-button")), card(H2("Current theme"), P("Published design and page drafts"),
+                return shell("Themes", P(notice[:500], role="status", cls="e-note") if notice else None,
+                    page_header("Themes", primary_action=A("Customise current theme", href=f"/admin/sites/{site.id}/editor", cls="a-button")), card(H2("Current theme"), P("Published design and page drafts"),
                     A("Customise", href=f"/admin/sites/{site.id}/editor", cls="a-button"),
                     Form(csrf(session), Label("Copy name", Input(name="name", value="Theme copy",
                         maxlength=160, required=True)), Button("Duplicate current theme", cls="a-button"),
@@ -98,8 +99,14 @@ def register_theme_bulk_routes(rt, actor, csrf, check_csrf, shell, error):
                 user_id = actor(session)
                 site = content.owned_site(db, site_id, user_id, publish=action in {"publish", "delete"})
                 version = int(form.get("version", "0"))
+                copy_warning = None
                 if action == "publish":
+                    published_theme = theme_library.theme_for(db, site, theme_id)
                     theme_library.publish(db, site, user_id, theme_id, version)
+                    from app.compliance import warning_for_values
+                    copy_warning = warning_for_values([
+                        page.get("document") for page in published_theme.snapshot_json.get("pages", [])
+                    ])
                 elif action == "rename":
                     theme_library.rename(db, site, user_id, theme_id, form.get("name", ""), version)
                 elif action == "delete":
@@ -107,7 +114,9 @@ def register_theme_bulk_routes(rt, actor, csrf, check_csrf, shell, error):
                 else:
                     raise CommerceError("Unknown theme action.")
                 db.commit()
-            return RedirectResponse(f"/admin/sites/{site_id}/themes", status_code=303)
+            from urllib.parse import urlencode
+            query = "?" + urlencode({"notice": copy_warning}) if copy_warning else ""
+            return RedirectResponse(f"/admin/sites/{site_id}/themes{query}", status_code=303)
         except (CommerceError, ValueError) as exc:
             return error(exc)
 
