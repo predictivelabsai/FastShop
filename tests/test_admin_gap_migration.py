@@ -19,14 +19,15 @@ def test_admin_gap_upgrade_downgrade_upgrade(tmp_path):
                                 env=env, capture_output=True, text=True, timeout=90)
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
-    head = "20261104_0038"
+    head = "20261105_0039"
     assert migrate("heads").strip() == head + " (head)"
     migrate("upgrade", "head")
     engine = create_engine(url)
     tables = {"saved_admin_views", "admin_table_preferences", "admin_activities", "custom_data_definitions",
               "custom_data_values", "site_preferences", "url_redirects", "order_edits", "gift_cards",
               "gift_card_entries", "theme_snapshots", "customer_login_code_challenges",
-              "site_integration_credentials", "site_stripe_connections"}
+              "site_integration_credentials", "site_stripe_connections", "agent_conversations",
+              "agent_messages"}
     assert tables <= set(inspect(engine).get_table_names())
     migrate("check")
     migrate("downgrade", "20261025_0033_merge_admin_v2")
