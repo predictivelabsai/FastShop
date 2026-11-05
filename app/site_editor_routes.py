@@ -8,7 +8,7 @@ import os
 import queue
 import re
 import threading
-import uuid
+import time
 from html import escape
 from types import SimpleNamespace
 
@@ -95,11 +95,11 @@ def validate_editor_document(document):
 
 
 def shell_payload(site, theme=""):
-    """Header, footer and consent fields the active theme pack declares (live theme only)."""
+    """Editable shell fields declared by the active storefront settings."""
     from app.site_editable_settings import shell_fields, shell_values
 
     fields = [] if theme else shell_fields(site.settings_json)
-    return {"shell_schema": {"type": "__shell", "label": "Header and footer", "fields": fields},
+    return {"shell_schema": {"type": "__shell", "label": "Store settings", "fields": fields},
             "shell_settings": shell_values(site.settings_json, fields)}
 
 
@@ -506,10 +506,38 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     AgentMessage.site_id == site.id,
                     AgentMessage.conversation_id == conversation.id,
                 ).order_by(AgentMessage.created_at, AgentMessage.id).limit(100))
+                rows = list(messages)
+                results = {}
+                for row in rows:
+                    if row.role != "tool":
+                        continue
+                    for call in row.tool_calls_json or []:
+                        name = call.get("function", {}).get("name")
+                        if name:
+                            try:
+                                result = json.loads(row.content or "{}")
+                            except (TypeError, ValueError):
+                                result = {}
+                            results.setdefault(name, []).append(bool(result.get("error")))
+                def message_events(message):
+                    if message.role != "assistant":
+                        return []
+                    events = list(message.events_json or [])
+                    if events:
+                        return events
+                    for call in message.tool_calls_json or []:
+                        name = call.get("name")
+                        if not name:
+                            continue
+                        statuses = results.get(name, [])
+                        failed = statuses.pop(0) if statuses else False
+                        events.append({"name": name, "label": call.get("label", name),
+                                       "status": "error" if failed else "done"})
+                    return events
                 return response({"conversation_id": conversation.id, "messages": [
                     {"id": m.id, "role": m.role, "content": m.content,
-                     "events": m.events_json or [],
-                     "has_checkpoint": bool(m.checkpoint_revision_id)} for m in messages
+                     "events": message_events(m),
+                     "has_checkpoint": bool(m.checkpoint_revision_id)} for m in rows
                 ]})
         except CommerceError as exc:
             return failure(exc)
@@ -538,7 +566,11 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site, user_id = access(db, session, request.path_params["site_id"])
                 page = page_for(db, site, str(values.get("page_id", "")))
-                fallback_block_id = (page.draft_json or {}).get("blocks", [{}])[0].get("id")
+                blocks = (page.draft_json or {}).get("blocks", [{}])
+                fallback_block_id = next(
+                    (block.get("id") for block in blocks if block.get("type") == "hero"),
+                    blocks[0].get("id"),
+                )
             if not settings.xai_api_key and not (
                 settings.environment.lower() != "production"
                 and os.getenv("FASTSHOP_AGENT_FAKE") == "1"
@@ -549,7 +581,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 return StreamingResponse(unconfigured(), media_type="text/event-stream")
             from app import store_agent
             params = inspect.signature(store_agent.run_turn).parameters
-            conversation_id = str(values.get("conversation_id") or uuid.uuid4().hex)
+            conversation_id = str(values.get("conversation_id") or "") or None
             kwargs = {"page_id": page.id, "selection": values.get("selection")}
             if "conversation_id" in params:
                 kwargs["conversation_id"] = conversation_id
@@ -560,6 +592,9 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                         self.sent = False
                     def complete(self, messages, tools):
                         if self.sent:
+                            delay = float(os.getenv("FASTSHOP_AGENT_FAKE_DELAY", "0"))
+                            if delay:
+                                time.sleep(delay)
                             return {"content": "I updated the selected block for your preview."}
                         self.sent = True
                         block_id = (values.get("selection") or {}).get("block_id") or fallback_block_id
