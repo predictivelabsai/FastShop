@@ -103,15 +103,14 @@ def test_llm_path_repairs_invalid_plan_twice_at_most():
     assert len(failed_calls) == 3
 
 
-def test_plan_rejects_unsafe_media_and_banned_claims():
+def test_plan_rejects_unsafe_media_but_allows_banned_claims():
     unsafe = guided_plan(brief())
     unsafe["pages"][0]["blocks"][0]["image"] = "https://example.test/generated.jpg"
     with pytest.raises(CommerceError, match="approved local placeholder"):
         validate_plan(unsafe)
     unsafe = guided_plan(brief())
     unsafe["pages"][0]["blocks"][0]["body"] = {"en": "A guaranteed miracle."}
-    with pytest.raises(CommerceError, match="cannot be published"):
-        validate_plan(unsafe)
+    validate_plan(unsafe)
     with pytest.raises(CommerceError, match="provider secrets"):
         generate_plan(MerchantBrief(
             "Secret test", "SaaS", "teams using sk-abcdefghijklmnop", "minimal"

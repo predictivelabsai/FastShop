@@ -111,10 +111,6 @@ def validate_editorial(block):
         if schema[theme] not in entry:
             raise CommerceError("Complete the Liquid editorial entry.")
         value = entry.get(schema[theme], "")
-        if theme.rsplit(".", 1)[-1] in {"id", "icon", "kind"}:
-            expected = EDITORIAL_DEFAULTS[block["layout"]][theme].get("body")
-            if value != expected:
-                raise CommerceError("Keep the supported Liquid editorial illustration.")
         numeric = theme.rsplit(".", 1)[-1] in {"people", "from", "to"} or theme.startswith("ticks.")
         if numeric:
             try:

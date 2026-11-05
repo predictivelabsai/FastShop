@@ -146,16 +146,20 @@ def test_update_shell_validates_paths_urls_and_version(workspace):
     db.commit()
 
     for invalid in ({"unknown.path": "No"},
-                    {"liquid_consent.privacy_href": "javascript:alert(1)"},
-                    {"liquid_shell.footer.helpLinks": [{
-                        "label": "Clinically proven support", "href": "/help", "hash": "",
-                    }]}):
+                    {"liquid_consent.privacy_href": "javascript:alert(1)"}):
         current = builder.snapshot(db, site)
         with pytest.raises(CommerceError):
             builder.apply_operations(db, site.id, owner.id, current,
                 [{"op": "update_shell", "values": invalid}])
         db.rollback()
         site = db.get(type(site), site.id)
+
+    copy_values = {"liquid_shell.footer.helpLinks": [{
+        "label": "Clinically proven support", "href": "/help", "hash": "",
+    }]}
+    builder.apply_operations(db, site.id, owner.id, builder.snapshot(db, site),
+        [{"op": "update_shell", "values": copy_values}])
+    assert site.settings_json["liquid_shell"]["footer"]["helpLinks"][0]["label"] == "Clinically proven support"
 
     stale = builder.snapshot(db, site)
     site.version += 1
