@@ -174,6 +174,17 @@ def test_legacy_documents_keep_original_data_and_rendering(context):
 
 
 
+def test_nested_repeater_text_fields_are_inline_editable_in_preview(context):
+    db, site, page = context
+    block = validate_block(default_block("accordion") | {
+        "id": "editable-stats",
+        "items": [{"heading": "Section heading", "body": "Section copy"}],
+    })
+    markup = to_xml(render_block(db, site, page, {}, block, "", "", False, True))
+    for field in ("items.0.heading", "items.0.body"):
+        assert f'data-field="{field}"' in markup
+
+
 def test_newsletter_reuses_consent_flow_and_disables_preview(context):
     db, site, page = context
     block = default_block("newsletter")

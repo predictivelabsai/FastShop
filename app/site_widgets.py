@@ -456,6 +456,23 @@ def _node_text(node):
 
 
 def _mark_fields(node, block):
+    def block_text_fields(value, prefix=""):
+        if isinstance(value, str) and prefix:
+            yield value.strip(), prefix
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                yield from block_text_fields(item, f"{prefix}.{index}" if prefix else str(index))
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                if key in {"id", "type", "theme", "role", "layout", "version", "hidden"}:
+                    continue
+                yield from block_text_fields(item, f"{prefix}.{key}" if prefix else key)
+
+    fields_by_text = {}
+    for text, field_id in block_text_fields(block):
+        if text:
+            fields_by_text.setdefault(text, field_id)
+
     for child in getattr(node, "children", []):
         if hasattr(child, "attrs") and child.attrs.get("data-block-id"):
             continue
@@ -475,6 +492,13 @@ def _mark_fields(node, block):
                 child.attrs["data-field"] = field
                 child.attrs["data-field-type"] = "text"
                 break
+        if hasattr(child, "attrs") and not child.attrs.get("data-field"):
+            field_id = fields_by_text.get(_node_text(child).strip())
+            if field_id:
+                child.attrs["data-field"] = field_id
+                child.attrs["data-field-type"] = (
+                    "image" if field_id.rsplit(".", 1)[-1] == "image" else "text"
+                )
         if tag == "img" and child.attrs.get("src") == block.get("image"):
             child.attrs["data-field"] = "image"
         _mark_fields(child, block)
