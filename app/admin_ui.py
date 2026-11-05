@@ -294,7 +294,8 @@ def _assistant_drawer(site, path, csrf_token):
     from app import store_agent_admin
     return (store_agent_admin.drawer(site.id, csrf_token),
             Link(rel="stylesheet", href=static_asset("admin/agent.css")),
-            Script(src=static_asset("admin/agent.js"), defer=True))
+            Link(rel="stylesheet", href=static_asset("agent-chat.css")),
+            Script(src=static_asset("admin/agent.js"), type="module"))
 
 
 def contextual_page(title, *children, subnavigation=None):

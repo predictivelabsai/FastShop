@@ -22,6 +22,7 @@ from app import content, site_ui, theme_library
 from app.config import settings
 from app.db import SessionLocal
 from app.models import (
+    AgentAction,
     AgentConversation,
     AgentMessage,
     Membership,
@@ -534,7 +535,14 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                         events.append({"name": name, "label": call.get("label", name),
                                        "status": "error" if failed else "done"})
                     return events
-                return response({"conversation_id": conversation.id, "messages": [
+                actions = db.scalars(select(AgentAction).where(
+                    AgentAction.tenant_id == site.tenant_id, AgentAction.site_id == site.id,
+                    AgentAction.conversation_id == conversation.id, AgentAction.status == "pending"
+                ).order_by(AgentAction.created_at))
+                return response({"conversation_id": conversation.id, "actions": [
+                    {"id": action.id, "kind": action.kind, "summary": action.summary}
+                    for action in actions
+                ], "messages": [
                     {"id": m.id, "role": m.role, "content": m.content,
                      "events": message_events(m),
                      "has_checkpoint": bool(m.checkpoint_revision_id)} for m in rows

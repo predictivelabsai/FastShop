@@ -40,6 +40,7 @@ def editor_page(site, page, csrf_token):
     return (Link(rel="icon", href=static_asset("favicon.svg")), Title(f"Theme editor · {title}"), Meta(name="viewport", content="width=device-width, initial-scale=1"),
             Link(rel="stylesheet", href="/static/admin/admin.css"),
             Link(rel="stylesheet", href="/static/editor/editor.css"),
+            Link(rel="stylesheet", href="/static/agent-chat.css"),
             Link(rel="stylesheet", href="/static/editor/dynamic-sources.css"), NotStr(markup),
             Script(NotStr(f"window.FASTSHOP_EDITOR={config};")),
             Script(src="/static/editor/editor.js", type="module"))

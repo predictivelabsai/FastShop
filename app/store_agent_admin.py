@@ -1,7 +1,18 @@
 """Admin chat presentation and tenant scoped history for the store agent."""
 import json
 
-from fasthtml.common import H2, Aside, Button, Div, Form, Label, NotStr, P, Span, Textarea, to_xml
+from fasthtml.common import (
+    H2,
+    Aside,
+    Button,
+    Div,
+    Form,
+    Header,
+    NotStr,
+    P,
+    Textarea,
+    to_xml,
+)
 from sqlalchemy import select
 from starlette.responses import JSONResponse
 
@@ -25,25 +36,28 @@ def home_page(db, site):
 
 def _chat_markup(compact=False):
     return Div(
-        Div(id="agent-messages", cls="agent-messages", role="log", aria_live="polite"),
+        Div(id="agent-messages", cls="agent-messages agent-chat-shared", role="log", aria_live="polite"),
         Div(*(Button(text, type="button", data_suggestion=text) for text in SUGGESTIONS),
             id="agent-suggestions", cls="agent-suggestions"),
-        Form(Label("Message the assistant", Textarea(name="message", rows="2", maxlength="4000",
-            placeholder="Ask about your store or request a design change", required=True)),
-            Button("Send", type="submit", cls="a-button-primary"), cls="agent-compose", data_agent_form=""),
+        Form(Div(Textarea(name="message", rows="1", maxlength="4000",
+            placeholder="Ask about your store or request a design change", required=True,
+            aria_label="Message the assistant"), Button("↑", type="submit", aria_label="Send message",
+            title="Send"), cls="agent-composer"),
+            Div("Enter to send · Shift+Enter for a new line", cls="agent-compose-hint"),
+            cls="agent-compose", data_agent_form=""),
         cls="agent-chat" + (" is-compact" if compact else ""))
 
 
 def page(site, selected_page, csrf_token):
     configured = __import__("app.config", fromlist=["settings"]).settings.xai_api_key
-    return (Div(Span("STORE ASSISTANT", cls="agent-eyebrow"), H2("A useful hand for your store"),
-                P("Ask a question, plan a change, or make a draft edit.", cls="agent-intro"),
-                Div(P("AI provider not configured", cls="agent-state-title"),
-                    P("Add an xAI API key in the application environment to use the assistant."),
-                    cls="agent-unconfigured") if not configured else None,
-                Div(Aside(H2("Recent conversations"), Div(id="agent-conversations"),
-                          Button("＋ New chat", type="button", data_new_chat=""), cls="agent-history"),
-                    Div(_chat_markup(), cls="agent-main"), cls="agent-layout"),
+    return (Div(Header(P("Ask questions about your store or make a draft change.",
+                    cls="agent-intro"), cls="agent-heading"),
+                Div(Div(Aside(H2("Conversations"), Div(id="agent-conversations"),
+                              Button("＋ New chat", type="button", data_new_chat=""), cls="agent-history"),
+                        Div(_chat_markup(), cls="agent-main"), cls="agent-layout") if configured else
+                    Div(P("AI provider not configured", cls="agent-state-title"),
+                        P("Add an xAI API key in the application environment to use the assistant."),
+                        cls="agent-unconfigured"), cls="agent-content"),
                 data_agent_root="", data_site_id=site.id, data_page_id=selected_page.id if selected_page else "",
                 data_csrf=csrf_token, data_stream=f"/admin/sites/{site.id}/editor/agent",
                 data_history=f"/admin/sites/{site.id}/assistant/history",
@@ -53,11 +67,15 @@ def page(site, selected_page, csrf_token):
 
 
 def drawer(site_id, csrf_token):
-    return NotStr(f'''<div class="agent-launcher" data-agent-launcher data-site-id="{site_id}" data-csrf="{csrf_token}" data-stream="/admin/sites/{site_id}/editor/agent" data-history="/admin/sites/{site_id}/assistant/history" data-conversations="/admin/sites/{site_id}/assistant/conversations" data-restore="/admin/sites/{site_id}/editor/agent/restore">
-<button type="button" class="agent-launch" aria-expanded="false" aria-controls="agent-drawer">✦ Ask assistant <kbd>Ctrl J</kbd></button>
-<aside class="agent-drawer" id="agent-drawer" aria-label="Store assistant" aria-hidden="true"><header><div><span class="agent-eyebrow">STORE ASSISTANT</span><h2>How can I help?</h2></div><button type="button" data-agent-close aria-label="Close assistant">×</button></header>
+    configured = bool(__import__("app.config", fromlist=["settings"]).settings.xai_api_key)
+    chat = to_xml(_chat_markup(compact=True)) if configured else (
+        '<div class="agent-unconfigured"><p class="agent-state-title">AI provider not configured</p>'
+        '<p>Add an xAI API key in the application environment to use the assistant.</p></div>')
+    return NotStr(f'''<div class="agent-launcher" data-agent-launcher data-agent-configured="{str(configured).lower()}" data-site-id="{site_id}" data-csrf="{csrf_token}" data-stream="/admin/sites/{site_id}/editor/agent" data-history="/admin/sites/{site_id}/assistant/history" data-conversations="/admin/sites/{site_id}/assistant/conversations" data-restore="/admin/sites/{site_id}/editor/agent/restore">
+<button type="button" class="agent-launch" aria-expanded="false" aria-controls="agent-drawer">✦ Ask assistant</button>
+<div class="agent-overlay" data-agent-overlay hidden><button type="button" class="agent-scrim" data-agent-close aria-label="Close assistant"></button><aside class="agent-drawer" id="agent-drawer" aria-label="Store assistant" aria-hidden="true" inert><header><div><h2>Assistant</h2><p>Ask about your store or request a draft change.</p></div><button type="button" data-agent-close aria-label="Close assistant">×</button></header>
 <div class="agent-conversation-strip"><select aria-label="Recent conversations" data-agent-select><option value="">New chat</option></select><button type="button" data-new-chat>＋</button></div>
-{to_xml(_chat_markup(compact=True))}</aside></div>''')
+{chat}</aside></div></div>''')
 
 
 def conversations(db, site, user_id):

@@ -16,7 +16,9 @@ const base = `/admin/sites/${encodeURIComponent(boot.site_id)}/editor/api`,
   frame = $("#editor-canvas");
 let previewBlock = null,
   needsFullPreview = true;
-let agentMessages = [], agentConversation = null, agentAbort = null;
+import { readAgentStream, renderAction, renderMessages, wireRestore } from "../agent-chat.js";
+
+let agentMessages = [], agentConversation = null, agentAbort = null, agentPendingActions = [];
 let state,
   selected = null,
   mode = "sections",
@@ -629,33 +631,36 @@ function renderLeft() {
 function renderAgentPanel() {
   const context = locate(selected)?.block;
   const bottom = !document.querySelector(".agent-messages") || (() => { const el = $(".agent-messages"); return el.scrollHeight - el.scrollTop - el.clientHeight < 48; })();
-  const messages = agentMessages.map((m) => {
-    if (m.role === "tool") return "";
-    const steps = m.events || [];
-    const runningRow = m.running ? `<div class="agent-working"><span class="agent-spinner" aria-hidden="true"></span><strong>Working</strong></div>` : "";
-    const stepRows = steps.map((ev) => {
-      const failed = ev.status === "error" || ev.error;
-      const complete = ev.status === "done" || ev.complete;
-      return `<span class="agent-step ${failed ? "is-error" : complete ? "is-done" : "is-running"}"><span aria-hidden="true">${failed ? "!" : complete ? "✓" : ""}</span>${esc(ev.label || "Working on your page")}</span>`;
-    }).join("");
-    const stepList = steps.length ? (m.running ? `<div class="agent-live-steps">${stepRows}</div>` : `<details class="agent-changes"><summary>${steps.length} ${steps.length === 1 ? "edit" : "edits"}</summary><div>${stepRows}</div></details>`) : "";
-    const error = m.error ? `<div class="agent-error" role="alert">${esc(m.error)} <button type="button" data-retry-message="${esc(m.retry || "")}">Try again</button></div>` : "";
-    return `<article class="agent-message ${esc(m.role)}" ${m.role === "assistant" ? `data-message-id="${esc(m.id || "")}"` : ""}>${m.role === "assistant" ? `<span class="agent-avatar" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 1.5 11.8 8l6.7 2-6.7 2-1.8 6.5L8.2 12 1.5 10l6.7-2L10 1.5Z"/></svg></span>` : ""}<div class="agent-message-body">${esc(m.content || "").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>")}${runningRow}${stepList}${error}${m.has_checkpoint ? `<button class="agent-restore" data-restore-message="${esc(m.id)}">Restore to here</button>` : ""}</div></article>`;
-  }).join("");
-  $("#left-content").innerHTML = `<section class="agent-panel"><header><span>Draft assistant</span><button id="agent-new">New chat</button></header><div class="agent-messages" aria-live="polite" aria-relevant="additions text">${messages || `<div class="agent-empty"><strong>What would you like to change?</strong><div class="agent-suggestions"><button>Make the hero headline bolder</button><button>Add a FAQ section</button><button>Change the accent colour</button><button>Make the page easier to scan</button></div></div>`}</div>${context ? `<div class="agent-context"><span>Editing: ${esc(label(context))}</span><button type="button" id="agent-clear-context" aria-label="Clear selected block">×</button></div>` : ""}<form id="agent-form"><div class="agent-composer"><textarea id="agent-input" rows="1" maxlength="4000" aria-label="Message the assistant" placeholder="Describe a change…"></textarea><button id="agent-send" type="submit" aria-label="${agentAbort ? "Stop assistant response" : "Send message"}" title="${agentAbort ? "Stop" : "Send"}">${agentAbort ? "■" : "↑"}</button></div><div class="agent-compose-hint">Enter to send · Shift+Enter for a new line</div></form></section>`;
-  $("#agent-new").onclick = () => { agentConversation = null; agentMessages = []; renderAgentPanel(); $("#agent-input").focus(); };
+  $("#left-content").innerHTML = `<section class="agent-panel"><header><span>Draft assistant</span><button id="agent-new">New chat</button></header><div class="agent-messages agent-chat-shared" aria-live="polite" aria-relevant="additions text"></div>${context ? `<div class="agent-context"><span>Editing: ${esc(label(context))}</span><button type="button" id="agent-clear-context" aria-label="Clear selected block">×</button></div>` : ""}<form id="agent-form"><div class="agent-composer"><textarea id="agent-input" rows="1" maxlength="4000" aria-label="Message the assistant" placeholder="Describe a change…"></textarea><button id="agent-send" type="submit" aria-label="${agentAbort ? "Stop assistant response" : "Send message"}" title="${agentAbort ? "Stop" : "Send"}">${agentAbort ? "■" : "↑"}</button></div><div class="agent-compose-hint">Enter to send · Shift+Enter for a new line</div></form></section>`;
+  const messageBox = $(".agent-messages");
+  renderMessages(messageBox, agentMessages);
+  if (!agentMessages.length) {
+    messageBox.innerHTML = `<div class="agent-empty"><strong>What would you like to change?</strong><div class="agent-suggestions"><button>Make the hero headline bolder</button><button>Add a FAQ section</button><button>Change the accent colour</button><button>Make the page easier to scan</button></div></div>`;
+  }
+  for (const action of agentPendingActions) renderAction(messageBox, action, async (id, decision) => {
+    const response = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/agent/actions/${id}/${decision}`, {method:"POST", headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token}, body:JSON.stringify({csrf_token:boot.csrf_token})});
+    const result = response.ok ? await response.json() : {};
+    if(response.ok){agentPendingActions=agentPendingActions.filter(action=>action.id!==id);if(decision==="confirm")await load();}
+    return {ok:response.ok,message:result.summary || result.error || "Action could not be completed."};
+  });
+  wireRestore(messageBox, async messageId => {
+    const response = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/restore`, {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token},body:JSON.stringify({message_id:messageId})});
+    if (response.ok) { await load(); mode="assistant"; renderLeft(); }
+    else toast("Could not restore this change.",true);
+    return response.ok;
+  });
+  $("#agent-new").onclick = () => { agentConversation = null; agentMessages = []; agentPendingActions = []; renderAgentPanel(); $("#agent-input").focus(); };
   $$(".agent-suggestions button").forEach((b) => b.onclick = () => { $("#agent-input").value = b.textContent; sendAgentMessage(); });
   $("#agent-form").onsubmit = (e) => { e.preventDefault(); agentAbort ? agentAbort.abort() : sendAgentMessage(); };
   $("#agent-clear-context")?.addEventListener("click", () => { selected = null; renderAgentPanel(); });
   $("#agent-input").oninput = (e) => { e.target.style.height = "auto"; e.target.style.height = `${Math.min(e.target.scrollHeight, 192)}px`; };
   $("#agent-input").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#agent-form").requestSubmit(); } };
-  $$('[data-restore-message]').forEach((b) => b.onclick = () => restoreAgentMessage(b));
   $$('[data-retry-message]').forEach((b) => b.onclick = () => { $("#agent-input").value = b.dataset.retryMessage; sendAgentMessage(); });
   const box = $(".agent-messages"); if (bottom) box.scrollTop = box.scrollHeight;
 }
 async function loadAgentHistory() {
   const r = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/history`);
-  if (r.ok) { const data = await r.json(); agentConversation = data.conversation_id; agentMessages = data.messages || []; }
+  if (r.ok) { const data = await r.json(); agentConversation = data.conversation_id; agentMessages = data.messages || []; agentPendingActions = data.actions || []; }
   if (mode === "assistant") renderAgentPanel();
 }
 async function sendAgentMessage() {
@@ -665,16 +670,23 @@ async function sendAgentMessage() {
   agentAbort = new AbortController(); $("#agent-send").textContent = "Stop";
   try {
     const r = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent`, {method:"POST", headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token}, credentials:"same-origin", signal:agentAbort.signal, body:JSON.stringify({message,page_id:boot.page_id,selection:selected ? {block_id:selected} : null,conversation_id:agentConversation})});
-    if (!r.ok || !r.body) throw Error("The assistant could not start.");
-    answer.running=true; const reader=r.body.getReader(), decoder=new TextDecoder(); let buffer="";
-    while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const parts=buffer.split("\n\n");buffer=parts.pop();for(const part of parts){const line=part.split("\n").find(x=>x.startsWith("data: "));if(!line)continue;const ev=JSON.parse(line.slice(6));if(ev.type==="conversation")agentConversation=ev.conversation_id||ev.id;if(ev.type==="assistant_text")answer.content+=ev.text||"";if(ev.type==="tool_called")answer.events.push({...ev,status:"running"});if(ev.type==="tool_result"){const step=[...answer.events].reverse().find((item)=>item.name===ev.name&&item.status==="running");if(step){let result={};try{result=JSON.parse(ev.summary||"{}");}catch{}step.status=result.error?"error":"done";}clearTimeout(window.agentRefreshTimer);window.agentRefreshTimer=setTimeout(()=>load(),300);}if(ev.type==="done")answer.running=false;if(ev.type==="error"){answer.running=false;answer.error="I couldn’t complete that change. Please try again.";answer.retry=message;}renderAgentPanel();}}
+    answer.running=true;
+    await readAgentStream(r, ev => {
+      if(ev.type==="conversation")agentConversation=ev.conversation_id||ev.id;
+      if(ev.type==="assistant_text")answer.content+=ev.text||"";
+      if(ev.type==="tool_called")answer.events.push({...ev,status:"running"});
+      if(ev.type==="tool_result"){
+        const step=[...answer.events].reverse().find((item)=>item.name===ev.name&&item.status==="running");
+        if(step){let result={};try{result=JSON.parse(ev.summary||"{}");}catch{}step.status=result.error?"error":"done";}
+        clearTimeout(window.agentRefreshTimer);window.agentRefreshTimer=setTimeout(()=>load(),300);
+      }
+      if(ev.type==="action_pending")agentPendingActions.push({id:ev.id,kind:ev.kind,summary:ev.summary});
+      if(ev.type==="done")answer.running=false;
+      if(ev.type==="error"){answer.running=false;answer.error="I couldn’t complete that change. Please try again.";answer.retry=message;}
+      renderAgentPanel();
+    });
   } catch(e) { answer.running=false; if(e.name!=="AbortError"){answer.error=e.message === "The assistant could not start." ? "I couldn’t start that change." : "I couldn’t connect just now.";answer.retry=message;} }
-  finally { agentAbort=null; try { const r=await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/history`); if(r.ok){const data=await r.json();agentConversation=data.conversation_id;if(data.messages?.length)agentMessages=data.messages;} } catch {} if(mode==="assistant") renderAgentPanel(); }
-}
-function restoreAgentMessage(button) {
-  const message=button.closest(".agent-message"), prompt=document.createElement("div"); prompt.className="agent-restore-confirm"; prompt.textContent="Restore the draft to this point? ";
-  const yes=document.createElement("button"); yes.textContent="Restore draft"; yes.onclick=async()=>{const response=await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/restore`,{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token},body:JSON.stringify({message_id:button.dataset.restoreMessage})});if(!response.ok){toast("Could not restore this change.",true);return;}await load();mode="assistant";renderLeft();};
-  const no=document.createElement("button");no.textContent="Keep current draft";no.onclick=()=>prompt.remove();prompt.append(yes,no);message.append(prompt);
+  finally { agentAbort=null; try { const r=await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/history`); if(r.ok){const data=await r.json();agentConversation=data.conversation_id;if(data.messages?.length)agentMessages=data.messages;agentPendingActions=data.actions||[];} } catch {} if(mode==="assistant") renderAgentPanel(); }
 }
 function openPicker(parent = null) {
   $("#picker-search").value = "";
