@@ -128,7 +128,95 @@ def icon(kind, *, benefit=False):
     )
 
 
-def add_form(db, site, item, base, csrf, enabled, *, flavors=None, specs=None, compact=False):
+def _field_attrs(preview, name, kind="text"):
+    return {"data-field": name, "data-field-type": kind} if preview else {}
+
+
+def _mark_nested_images(node, block, preview):
+    """Expose repeater images through the same image picker path as block images."""
+    if isinstance(node, (list, tuple)):
+        for child in node:
+            _mark_nested_images(child, block, preview)
+        return
+    if not preview or not hasattr(node, "children"):
+        return
+    for child in node.children:
+        if getattr(child, "tag", "") == "img":
+            src = child.attrs.get("src")
+            alt = child.attrs.get("alt")
+            for index, item in enumerate(block.get("items", [])):
+                if src and src == item.get("image"):
+                    child.attrs.update(_field_attrs(preview, f"items.{index}.image", "image"))
+                    break
+                if alt and alt == item.get("alt") and not child.attrs.get("data-field"):
+                    child.attrs.update(_field_attrs(preview, f"items.{index}.alt"))
+                    break
+        _mark_nested_images(child, block, preview)
+
+
+def _mark_liquid_fields(node, block, preview):
+    """Bind bespoke renderer nodes to their source paths in canvas previews."""
+    if isinstance(node, (list, tuple)):
+        for child in node:
+            _mark_liquid_fields(child, block, preview)
+        return
+    if not preview or not hasattr(node, "children"):
+        return
+
+    def text_of(element):
+        if isinstance(element, str):
+            return element
+        return "".join(text_of(child) for child in getattr(element, "children", []))
+
+    values = {}
+
+    def collect(value, path=""):
+        if isinstance(value, str) and path and value:
+            values.setdefault(path, value)
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                collect(item, f"{path}.{index}" if path else str(index))
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                if key not in {"id", "type", "role", "layout", "version", "hidden"}:
+                    collect(item, f"{path}.{key}" if path else key)
+
+    collect(block)
+
+    def visit(element):
+        if not hasattr(element, "attrs"):
+            return
+        tag = getattr(element, "tag", "")
+        rendered = text_of(element).strip()
+        for path, value in values.items():
+            if path.endswith(".image") and tag == "img" and element.attrs.get("src") == value:
+                element.attrs.update(_field_attrs(True, path, "image"))
+            elif (path.endswith(".alt") or path == "portrait_alt") and tag == "img" and element.attrs.get("alt") == value:
+                element.attrs["data-alt-field"] = path
+            elif rendered == value:
+                element.attrs.update(_field_attrs(True, path))
+            elif path.endswith((".url", ".link", "link")) and tag == "a":
+                href = element.attrs.get("href", "")
+                if value and href.endswith(value):
+                    element.attrs["data-link-field"] = path
+        classes = element.attrs.get("class", "").split()
+        if "shop-view" in classes:
+            element.attrs.update(_field_attrs(True, "view_product"))
+        if "faq-more" in classes:
+            element.attrs.update(_field_attrs(True, "link"))
+        if "metal-hero-motion" in classes:
+            element.attrs.update(_field_attrs(True, "pause_label"))
+        for child in getattr(element, "children", []):
+            visit(child)
+
+    visit(node)
+    if block.get("type") == "liquid_trust" and hasattr(node, "attrs"):
+        node.attrs.update(_field_attrs(True, "assurances_label"))
+
+
+def add_form(db, site, item, base, csrf, enabled, *, flavors=None, specs=None, compact=False,
+             labels=None, preview=False):
+    labels = labels or {}
     product = db.scalar(
         select(Product).where(
             Product.tenant_id == site.tenant_id,
@@ -152,7 +240,9 @@ def add_form(db, site, item, base, csrf, enabled, *, flavors=None, specs=None, c
         else []
     )
     if not variants or not enabled:
-        return A("View product", href=url(base, item["url"]), cls="metal-add-button bg-metal-sheen")
+        return A(labels.get("view_product", "View product"), href=url(base, item["url"]),
+                 cls="metal-add-button bg-metal-sheen",
+                 **_field_attrs(preview, "view_product"))
     return Form(
         Input(type="hidden", name="csrf_token", value=csrf),
         Input(type="hidden", name="quantity", value="1"),
@@ -163,14 +253,16 @@ def add_form(db, site, item, base, csrf, enabled, *, flavors=None, specs=None, c
                     Input(
                         type="radio", name="variant_id", value=v.id, checked=i == 0, cls="sr-only"
                     ),
-                    Span("Flavor" if i == 0 else "\u00a0", cls="metal-flavor-label"),
+                    Span(labels.get("flavor_label", "Flavor") if i == 0 else "\u00a0",
+                         cls="metal-flavor-label",
+                         **(_field_attrs(preview, "flavor_label") if i == 0 else {})),
                     Span(v.name, cls="metal-flavor-value"),
                     cls="metal-flavor-column",
                 )
                 for i, v in enumerate(variants)
             ],
             role="group",
-            aria_label="Flavor",
+            aria_label=labels.get("flavor_label", "Flavor"),
             cls="liquid-flavor-options",
         )
         if flavors
@@ -178,7 +270,9 @@ def add_form(db, site, item, base, csrf, enabled, *, flavors=None, specs=None, c
         Dl(*[Div(Dt(s["label"]), Dd(s["value"])) for s in specs], cls="metal-specs")
         if specs
         else None,
-        Button("Add to cart", type="submit", cls="metal-add-button bg-metal-sheen"),
+        Button(labels.get("add_to_cart", "Add to cart"), type="submit",
+               cls="metal-add-button bg-metal-sheen",
+               **_field_attrs(preview, "add_to_cart")),
         action=base + "/cart/add",
         method="post",
         cls="metal-product-controls" + (" liquid-quick-add" if compact else ""),
@@ -190,8 +284,14 @@ def render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
     node = render_widget(db, site, page, config, b, base, csrf, preview,
                          lambda child: render_block(db, site, page, config, child, base, csrf, enabled, preview))
     if node is not None:
+        _mark_nested_images(node, b, preview)
+        _mark_liquid_fields(node, b, preview)
         return node
-    return decorate_block(_render_block(db, site, page, config, b, base, csrf, enabled, preview), b, preview)
+    node = _render_block(db, site, page, config, b, base, csrf, enabled, preview)
+    node = decorate_block(node, b, preview)
+    _mark_nested_images(node, b, preview)
+    _mark_liquid_fields(node, b, preview)
+    return node
 
 
 def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
@@ -246,12 +346,16 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                 cls="metal-container hero-copy",
             ),
             Button(
-                "Ⅱ Pause",
+                b.get("pause_label", "Ⅱ Pause"),
+                Span(b.get("pause_aria_label", "Pause background motion"),
+                     cls="sr-only", aria_hidden="true",
+                     **_field_attrs(preview, "pause_aria_label")),
                 type="button",
-                aria_label="Pause background motion",
+                aria_label=b.get("pause_aria_label", "Pause background motion"),
                 aria_pressed="false",
                 data_liquid_motion="",
                 cls="metal-hero-motion",
+                **_field_attrs(preview, "pause_label"),
             ),
             cls="metal-hero",
         )
@@ -317,6 +421,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                             enabled,
                             flavors=flavors if is_fizz else None,
                             specs=None if is_fizz else specs,
+                            labels=b,
+                            preview=preview,
                         ),
                         cls="metal-product-body",
                     ),
@@ -363,7 +469,9 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     cls="liquid-benefits-grid",
                 ),
                 P(b.get("body", ""), cls="metal-benefits-disclaimer text-muted-foreground"),
-                P(A(b["button"], href=url(base, b["link"])), cls="faq-more")
+                P(A(b["button"], href=url(base, b["link"]),
+                    **_field_attrs(preview, "button")), cls="faq-more",
+                  **_field_attrs(preview, "link"))
                 if b.get("button") and b.get("link") else None,
                 cls="metal-container metal-section metal-benefits-section",
             ),
@@ -394,9 +502,11 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                                     cls="review-stars",
                                     role="img",
                                     aria_label=s["value"] + " out of 5 stars",
+                                    **_field_attrs(preview, f"items.{i}.value"),
                                 ),
                                 H3(s["heading"], cls="review-headline"),
-                                Blockquote("“" + s["body"] + "”"),
+                                Blockquote("“" + s["body"] + "”",
+                                           **_field_attrs(preview, f"items.{i}.body")),
                                 Figcaption(
                                     P(s["label"]),
                                     P(s.get("theme", ""), cls="review-location"),
@@ -414,9 +524,11 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     tabindex="0",
                     aria_label=b.get("carousel_label", "Sample reviews. Use left and right arrow keys."),
                     data_liquid_carousel="",
+                    **_field_attrs(preview, "carousel_label"),
                 ),
                 Div(
-                    Button("←", aria_label=b.get("previous_label", "Previous reviews"), data_liquid_previous=""),
+                    Button("←", aria_label=b.get("previous_label", "Previous reviews"),
+                           data_liquid_previous="", **_field_attrs(preview, "previous_label")),
                     Div(
                         *[
                             Button(
@@ -425,14 +537,17 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                                 aria_pressed="true" if i == 0 else "false",
                                 data_liquid_dot=str(i),
                                 cls="metal-review-dot",
+                                **_field_attrs(preview, "dot_label"),
                             )
                             for i in range(len(items))
                         ],
                         cls="liquid-dots",
                         role="group",
                         aria_label=b.get("position_label", "Review position"),
+                        **_field_attrs(preview, "position_label"),
                     ),
-                    Button("→", aria_label=b.get("next_label", "Next reviews"), data_liquid_next=""),
+                    Button("→", aria_label=b.get("next_label", "Next reviews"),
+                           data_liquid_next="", **_field_attrs(preview, "next_label")),
                     cls="metal-review-navigation",
                 ),
                 P(
@@ -440,6 +555,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     data_liquid_position="",
                     cls="sr-only",
                     aria_live="polite",
+                    **_field_attrs(preview, "position_text"),
                 ),
                 cls="metal-container metal-section",
             ),
@@ -447,6 +563,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
             cls="metal-feature liquid-ruled",
             aria_roledescription="carousel",
             aria_label=b.get("reviews_label", "Sample customer reviews"),
+            **_field_attrs(preview, "reviews_label"),
         )
     if kind == "liquid_articles":
         return Section(
@@ -469,6 +586,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                             Div(
                                 P(s["label"], cls="metal-tag"),
                                 H3(s["heading"], cls="font-display"),
+                                P(s.get("body", ""), cls="metal-article-summary"),
                                 Span(b.get("read_more", "Read more →"), cls="metal-learn-more"),
                                 cls="metal-article-body",
                             ),
@@ -562,6 +680,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                                 b.get("view_product", "View product"),
                                 href=url(base, s["url"]),
                                 cls="shop-view text-primary",
+                                **_field_attrs(preview, "view_product"),
                             ),
                             A(
                                 b.get("choose_flavour", "Choose flavor"),
@@ -569,7 +688,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                                 cls="metal-add-button bg-metal-sheen",
                             )
                             if is_fizz
-                            else add_form(db, site, s, base, csrf, enabled, compact=True),
+                            else add_form(db, site, s, base, csrf, enabled, compact=True,
+                                          labels=b, preview=preview),
                             cls="shop-actions",
                         ),
                         cls="shop-product-content",
@@ -595,11 +715,12 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                                 product_name(s["label"]),
                                 Span("→", aria_hidden="true"),
                                 cls="shop-choice-link text-primary",
+                                **_field_attrs(preview, f"items.{i}.label"),
                             ),
                             href=url(base, s["url"]),
                             cls="metal-card shop-choice",
                         )
-                        for s in items
+                        for i, s in enumerate(items)
                     ],
                     cls="shop-choices",
                 ),
@@ -618,6 +739,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
             ),
             cls="metal-light liquid-ruled",
             aria_label=b.get("assurances_label", "Shopping assurances"),
+            **_field_attrs(preview, "assurances_label"),
         )
     from app.site_ui import render_section
 

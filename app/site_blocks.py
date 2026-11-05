@@ -130,11 +130,13 @@ LIQUID_PRODUCT_LAYOUTS = {
 TEXT_FIELDS = {'heading', 'eyebrow', 'body', 'button', 'image', 'video', 'mobile_video',
                'poster', 'link', 'url', 'category', 'alt'}
 EXTRA_BLOCK_TEXT_FIELDS = {
-    'liquid_hero': {'disclaimer'},
+    'liquid_hero': {'disclaimer', 'pause_label', 'pause_aria_label'},
     'liquid_reviews': {'sample_note', 'portrait_alt', 'carousel_label', 'previous_label',
                        'next_label', 'dot_label', 'position_label', 'position_text', 'reviews_label'},
     'liquid_trust': {'assurances_label'}, 'liquid_articles': {'read_more'},
-    'liquid_catalog': {'flavour_count', 'view_product', 'choose_flavour', 'products_label'},
+    'liquid_catalog': {'flavour_count', 'view_product', 'choose_flavour', 'products_label',
+                       'flavor_label', 'add_to_cart'},
+    'liquid_collection': {'view_product', 'flavor_label', 'add_to_cart'},
     'text': {'breadcrumb_label'},
 }
 ITEM_FIELDS = {'heading', 'body', 'url', 'theme', 'image', 'alt', 'label', 'value'}

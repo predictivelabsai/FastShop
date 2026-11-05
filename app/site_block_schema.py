@@ -154,7 +154,11 @@ def _registry():
     for kind, spec in BLOCK_TYPES.items():
         default = {"id": "new-block", "type": kind, "version": 1}
         liquid_copy = {
-            "liquid_hero": {"disclaimer": CONTENT["fdaDisclaimer"]},
+            "liquid_hero": {
+                "disclaimer": CONTENT["fdaDisclaimer"],
+                "pause_label": "Ⅱ Pause",
+                "pause_aria_label": "Pause background motion",
+            },
             "liquid_reviews": {
                 "sample_note": "Sample reviews",
                 "portrait_alt": "Fictional customer portrait placeholder",
@@ -171,6 +175,11 @@ def _registry():
             "liquid_catalog": {
                 "flavour_count": "4 flavors", "view_product": "View product",
                 "choose_flavour": "Choose flavor", "products_label": "All products",
+                "flavor_label": "Flavor", "add_to_cart": "Add to cart",
+            },
+            "liquid_collection": {
+                "view_product": "View product", "flavor_label": "Flavor",
+                "add_to_cart": "Add to cart",
             },
             "text": {"breadcrumb_label": "Breadcrumb"},
         }.get(kind, {})

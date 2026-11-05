@@ -10,14 +10,14 @@ included because they are customer-visible.
 | --- | --- | --- | --- |
 | `app/site_ui_liquid.py:231` | Hero body, including the trailing `*` marker | Block `body` was split into plain text plus a separate superscript, so the preview's automatic exact-value matcher could not identify the field. | Mark the rendered hero body wrapper as `data-field="body"` in preview. |
 | `app/site_ui_liquid.py:240` | Hero disclaimer | Already block-backed (`disclaimer`, schema default from canonical FDA copy) and marked in preview. | No change needed. |
-| `app/site_ui_liquid.py:248` | `Ⅱ Pause` and `Pause background motion` | Static control text and accessible label, with no merchant field. | Open: requires a block or shell copy field while preserving the current default. |
-| `app/site_ui_liquid.py:155-183` | `View product`, `Flavor`, `Flavor` group label, `Add to cart` | Static product action/form labels; no associated block or shell field. | Open: requires a store-label or block copy group and preview markers. |
-| `app/site_ui_liquid.py:262-276` | Statistic item `label`, `value`, `body` and block source text | Values come from item data, but the bespoke stats renderer does not attach item `data-field` markers in preview. | Open: add `items.N.*` markers for rendered item text and `body`. |
-| `app/site_ui_liquid.py:287-337` | Collection card heading, label, body, image and alt | Values come from block item data; bespoke collection renderer omits inline markers. Product price is intentionally sourced from the catalogue where available. | Open: add `items.N.*` markers, including the existing image-field mechanism. |
-| `app/site_ui_liquid.py:345-365` | Benefit heading, body, disclaimer and CTA | Values come from block/item data; bespoke renderer omits field markers. | Open: add `heading`, `items.N.heading/body`, `body`, `button` and `link` markers. |
-| `app/site_ui_liquid.py:371-446` | Reviews, carousel labels, item text and portrait assets | Some labels have block schema defaults, but the bespoke renderer omits inline markers; portrait `alt` is a separate block value. | Open: mark block/item fields and image/alt fields in preview. |
-| `app/site_ui_liquid.py:449-470` | Article card label, heading, body, image, alt and `Read more →` | Item fields/default-backed `read_more` are rendered without inline markers. | Open: add `items.N.*` and `read_more` markers. |
-| `app/site_ui_liquid.py:492-614` | Product, choice and trust block content | Bespoke blocks render schema/item data without consistent inline markers. | Open: enumerate each renderer and mark every visible `items.N.*` and block field. |
+| `app/site_ui_liquid.py:248` | `Ⅱ Pause` and `Pause background motion` | Fixed. Both strings are block fields with byte-identical defaults and preview markers. | Fixed with `pause_label` and `pause_aria_label`. |
+| `app/site_ui_liquid.py:155-183` | `View product`, `Flavor`, `Flavor` group label, `Add to cart` | Fixed. Product action labels are block fields with byte-identical defaults and preview markers. | Fixed with `view_product`, `flavor_label` and `add_to_cart` on collection/catalog blocks. |
+| `app/site_ui_liquid.py:262-276` | Statistic item `label`, `value`, `body` and block source text | Fixed. Preview markers resolve to `items.N.*` and `body`; public output has no field attributes. | Fixed. |
+| `app/site_ui_liquid.py:287-337` | Collection card heading, label, body, image and alt | Fixed. Repeater text, image and alt source paths are marked in preview; public output has no field attributes. Product price remains catalogue sourced where available. | Fixed. |
+| `app/site_ui_liquid.py:345-365` | Benefit heading, body, disclaimer and CTA | Fixed. Heading, item text, body, button and link have preview markers; public output has no field attributes. | Fixed. |
+| `app/site_ui_liquid.py:371-446` | Reviews, carousel labels, item text and portrait assets | Fixed. Block and item copy, carousel labels, image and alt source paths are marked in preview; public output has no field attributes. | Fixed. |
+| `app/site_ui_liquid.py:449-470` | Article card label, heading, body, image, alt and `Read more →` | Fixed. Item fields and `read_more` have preview markers; article body is rendered from its item field. Public output has no field attributes. | Fixed. |
+| `app/site_ui_liquid.py:492-614` | Product, choice and trust block content | Fixed. Rendered block and repeater fields resolve to `items.N.*` paths in preview, including image and link paths; public output has no field attributes. | Fixed. |
 | `app/site_ui_liquid.py:687, 775` | Logo and favicon image paths | Logo can be configured through settings; fallback theme logo and favicon are application assets. The image itself does not expose an image field in the editor shell. | Open: expose logo/favicons through merchant media settings or document as fixed brand chrome only if owner approves that exception. |
 | `app/site_ui.py:95-96, 167-171` | Generic CTA fallback, `PLACEHOLDER IMAGE`, `Price to be confirmed`, `Your collection is coming soon.` | Static generic theme text, not settings or block data. | Open: move text into store labels or block defaults, retaining exact current strings. |
 | `app/site_ui.py:189-253` | Video labels, placeholder media, research filters/source text, contact-form labels and consent explanation | Static generic theme UI strings; no complete store-label group or preview markers. | Open: add defaults to the store labels group and mark applicable block fields. |
@@ -34,9 +34,10 @@ included because they are customer-visible.
 The shared widget packs attach `data-field` to their rendered schema fields.
 The generic `decorate_block` matcher handles exact top-level `heading`,
 `body`, `eyebrow`, `button` and `image` matches. Bespoke Liquid renderers do not
-consistently mark item fields, and the hero body required an explicit marker
-because rendering removes its trailing disclaimer asterisk. This report records
-the confirmed gaps above. It is not a claim that all Liquid editorial layouts
+consistently marked item fields, and the hero body required an explicit marker
+because rendering removes its trailing disclaimer asterisk. The bespoke Liquid
+renderers now retain nested text, image, alt and link paths in preview. This report
+records the confirmed gaps above. It is not a claim that all Liquid editorial layouts
 or application-generated transactional states have been exhaustively converted;
 the open rows require follow-up implementation before the owner's rule is met.
 
