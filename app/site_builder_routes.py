@@ -289,10 +289,27 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     {"role": "assistant", "content": row.response_json.get("answer", "") + " " + row.response_json.get("question", "")})]
                 db.commit()
             if fresh:
-                response, provider = await run_in_threadpool(respond, prompt, context, history)
-                with SessionLocal() as db:
-                    builder.finish_turn(db, site_id, user_id, turn_id, response, provider)
-                    db.commit()
+                if settings.xai_api_key:
+                    from app.store_agent import run_turn
+                    def run_agent():
+                        with SessionLocal() as agent_db:
+                            agent_site = content.owned_site(agent_db, site_id, user_id)
+                            events = list(run_turn(agent_db, agent_site, user_id, prompt,
+                                page_id=context["page_id"], selection=context.get("section_id")))
+                            return events
+                    events = await run_in_threadpool(run_agent)
+                    failure = next((event for event in events if event["type"] == "error"), None)
+                    if failure:
+                        raise CommerceError(failure["message"])
+                    response = {"answer": next((event["text"] for event in events if event["type"] == "assistant_text"), "Done."), "question": "", "operations": []}
+                    with SessionLocal() as db:
+                        builder.finish_turn(db, site_id, user_id, turn_id, response, "agent")
+                        db.commit()
+                else:
+                    response, provider = await run_in_threadpool(respond, prompt, context, history)
+                    with SessionLocal() as db:
+                        builder.finish_turn(db, site_id, user_id, turn_id, response, provider)
+                        db.commit()
             return redirect(site_id, context["page_id"])
         except (CommerceError, ValueError, TypeError) as exc:
             if turn_id:
