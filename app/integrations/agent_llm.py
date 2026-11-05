@@ -20,7 +20,7 @@ class XAITransport:
                 "tools": tools,
                 "tool_choice": "auto",
             },
-            timeout=35,
+            timeout=90,
         )
         response.raise_for_status()
         return response.json()["choices"][0]["message"]
