@@ -4,8 +4,8 @@ from alembic import op
 
 from app.models import SiteIntegrationCredential
 
-revision = "20261104_0037_site_integration_credentials"
-down_revision = "20261104_0036_customer_login_codes"
+revision = "20261104_0038"
+down_revision = "20261104_0037"
 branch_labels = None
 depends_on = None
 
