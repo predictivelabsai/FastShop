@@ -8,7 +8,18 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app import catalog_admin, content
-from app.models import AgentAction, Base, Product, User
+from app.models import (
+    AgentAction,
+    Base,
+    Discount,
+    InventoryAdjustment,
+    Product,
+    SiteCommerceSettings,
+    Stock,
+    User,
+    VariantChannelListing,
+    Warehouse,
+)
 from app.services import CommerceError
 from app.store_agent import run_turn
 from app.store_agent_ops import confirm_action, decline_action, register_routes
@@ -77,6 +88,14 @@ def _propose_update(db, site, user, product, name="Raspberry crate"):
     list(run_turn(db, site, user, "Update it", page_id=page.id, transport=FakeTransport(
         call("update_product", {"product_id": product.id, "name": name}),
         {"content": "I proposed a product update for confirmation."})))
+    return db.scalar(select(AgentAction).where(AgentAction.id.not_in(existing_ids)))
+
+
+def _propose_tool(db, site, user, name, args):
+    existing_ids = set(db.scalars(select(AgentAction.id)).all())
+    page = content.site_pages(db, site)[0]
+    list(run_turn(db, site, user, "Please do this", page_id=page.id, transport=FakeTransport(
+        call(name, args), {"content": "I proposed this change for confirmation."})))
     return db.scalar(select(AgentAction).where(AgentAction.id.not_in(existing_ids)))
 
 
@@ -182,3 +201,116 @@ def test_decision_routes_require_csrf(decision):
     import asyncio
     result = asyncio.run(endpoint("site", "action", Request()))
     assert result == {"error": "CSRF rejected"}
+
+
+def test_create_product_proposal_is_read_only_and_confirmation_creates_draft_once():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        user = User(email="create-product@example.test", name="Merchant")
+        db.add(user)
+        db.flush()
+        site = content.create_site(db, user.id, "Create product", "create-product-test")
+        before = db.scalar(select(Product.id).where(Product.tenant_id == site.tenant_id))
+        action = _propose_tool(db, site, user, "create_product", {
+            "name": "Berry box", "description": "Fresh berries", "variants": [
+                {"name": "Small", "price_minor": 1200}, {"name": "Large", "price_minor": 2400}]})
+        assert db.scalar(select(Product.id).where(Product.tenant_id == site.tenant_id)) == before
+        assert action.status == "pending"
+        confirm_action(db, site, user, action.id)
+        created = db.scalar(select(Product).where(Product.tenant_id == site.tenant_id,
+                                                   Product.name == "Berry box"))
+        assert created.status == "draft"
+        assert sorted(v.price_minor for v in db.scalars(select(VariantChannelListing).where(
+            VariantChannelListing.variant_id.in_([v.id for v in created.variants])))) == [1200, 2400]
+        confirm_action(db, site, user, action.id)
+        assert len(list(db.scalars(select(Product).where(Product.tenant_id == site.tenant_id,
+                                                         Product.name == "Berry box")))) == 1
+    engine.dispose()
+
+
+def test_inventory_proposal_is_read_only_and_confirmation_adjusts_once():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        user = User(email="inventory@example.test", name="Merchant")
+        db.add(user)
+        db.flush()
+        site = content.create_site(db, user.id, "Inventory", "inventory-test")
+        product = catalog_admin.create_product(db, site, {"name": "Berry box"})
+        variant = product.variants[0]
+        warehouse = Warehouse(tenant_id=site.tenant_id, code="main", name="Main")
+        db.add(warehouse)
+        db.flush()
+        action = _propose_tool(db, site, user, "adjust_inventory", {
+            "variant_id": variant.id, "warehouse_id": warehouse.id, "delta": 5, "reason": "received"})
+        assert db.scalar(select(Stock).where(Stock.variant_id == variant.id)) is None
+        assert db.scalar(select(InventoryAdjustment.id)) is None
+        confirm_action(db, site, user, action.id)
+        stock = db.scalar(select(Stock).where(Stock.variant_id == variant.id))
+        assert stock.quantity == 5
+        assert len(list(db.scalars(select(InventoryAdjustment).where(
+            InventoryAdjustment.variant_id == variant.id)))) == 1
+        confirm_action(db, site, user, action.id)
+        assert stock.quantity == 5
+    engine.dispose()
+
+
+def test_discount_create_update_and_deactivate_proposals_are_read_only_and_execute_once():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        user = User(email="discount@example.test", name="Merchant")
+        db.add(user)
+        db.flush()
+        site = content.create_site(db, user.id, "Discount", "discount-test")
+        create_args = {"title": "Ten off", "type": "amount_off_order", "method": "code",
+                       "value_type": "percentage", "value": 10, "codes": "TENOFF"}
+        action = _propose_tool(db, site, user, "create_discount", create_args)
+        assert db.scalar(select(Discount.id).where(Discount.site_id == site.id)) is None
+        confirm_action(db, site, user, action.id)
+        assert action.status == "confirmed", action.result_json
+        rule = db.scalar(select(Discount).where(Discount.site_id == site.id))
+        assert rule.title == "Ten off" and rule.value == 10
+        confirm_action(db, site, user, action.id)
+        assert len(list(db.scalars(select(Discount).where(Discount.site_id == site.id)))) == 1
+
+        update = _propose_tool(db, site, user, "update_discount", {
+            "discount_id": rule.id, "title": "Twenty off", "type": "amount_off_order",
+            "method": "code", "value_type": "percentage", "value": 20, "codes": "TWENTY"})
+        assert rule.title == "Ten off" and rule.value == 10
+        confirm_action(db, site, user, update.id)
+        assert rule.title == "Twenty off" and rule.value == 20
+        confirm_action(db, site, user, update.id)
+        assert rule.value == 20
+
+        deactivate = _propose_tool(db, site, user, "deactivate_discount", {"discount_id": rule.id})
+        assert rule.is_active is True
+        confirm_action(db, site, user, deactivate.id)
+        assert rule.is_active is False
+        confirm_action(db, site, user, deactivate.id)
+        assert rule.is_active is False
+    engine.dispose()
+
+
+def test_shipping_proposal_is_read_only_and_confirmation_applies_once():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        user = User(email="shipping@example.test", name="Merchant")
+        db.add(user)
+        db.flush()
+        site = content.create_site(db, user.id, "Shipping", "shipping-test")
+        action = _propose_tool(db, site, user, "update_shipping_settings", {
+            "flat_rate_minor": 650, "free_shipping_threshold_minor": 8000})
+        assert db.scalar(select(SiteCommerceSettings.id).where(
+            SiteCommerceSettings.site_id == site.id)) is None
+        confirm_action(db, site, user, action.id)
+        assert action.status == "confirmed", action.result_json
+        settings = db.scalar(select(SiteCommerceSettings).where(
+            SiteCommerceSettings.site_id == site.id, SiteCommerceSettings.tenant_id == site.tenant_id))
+        assert (settings.shipping_minor, settings.free_shipping_threshold_minor) == (650, 8000)
+        version = settings.version
+        confirm_action(db, site, user, action.id)
+        assert settings.version == version
+    engine.dispose()
