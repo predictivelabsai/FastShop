@@ -1,11 +1,13 @@
 """Header, footer and consent copy is merchant-editable through the visual editor."""
 import pytest
-from sqlalchemy import select
+from fastcore.xml import to_xml
+from sqlalchemy import delete, select
 
-from app.models import Site, SitePage
+from app.models import Site, SiteMenu, SitePage, VariantChannelListing
 from app.services import CommerceError
 from app.site_block_schema import block_schema_registry
 from app.site_editable_settings import apply_shell, publish_shell, shell_fields, shell_values
+from app.site_ui import render_section
 from tests.test_liquid_storefront import browser  # noqa: F401
 from tests.test_site_editor_routes import load, workspace  # noqa: F401
 from tests.test_site_seed_liquid import liquid  # noqa: F401
@@ -231,6 +233,23 @@ def test_editor_loads_saves_and_publishes_shell(workspace):  # noqa: F811
         assert db.get(Site, w.site.id).published_settings_json["footer"] == "Draft miracle cure"
 
 
+def test_generic_label_fields_are_exposed_in_store_editor_panels(workspace):  # noqa: F811
+    w = workspace
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        site.settings_json = site.settings_json | {"theme_pack": "generic"}
+        db.commit()
+    loaded = load(w)
+    fields = loaded["shell_schema"]["fields"]
+    groups = {field["group"] for field in fields if field["id"].startswith("generic_labels.")}
+    assert groups == {"header", "footer", "store labels"}
+    assert {"generic_labels.price_confirm", "generic_labels.research_all",
+            "generic_labels.offer_submit", "generic_labels.footer_help"} <= {
+                field["id"] for field in fields}
+    assert {"price_confirm", "research_all", "offer_submit", "footer_help"} <= {
+        key for key in loaded["shell_settings"]["generic_labels"]}
+
+
 def test_shell_copy_scan_warns_without_blocking_and_allows_exact_fda_disclaimer():
     from app.compliance import assert_copy_compliant
     from app.site_seed import DISCLAIMER
@@ -247,3 +266,219 @@ def test_page_scan_allows_the_exact_fda_disclaimer_only():
     assert scan_document(clean)["banned"] == [] and scan_document(clean)["diseases"] == []
     dirty = {"blocks": [{"id": "a", "type": "text", "body": "It can cure you. " + DISCLAIMER}]}
     assert scan_document(dirty)["banned"] == ["cure"]
+
+
+def test_generic_shell_labels_default_and_override():
+    config = {"theme_pack": "generic"}
+    fields = shell_fields(config)
+    values = shell_values(config, fields)
+    assert values["generic_labels"]["placeholder_image"] == "PLACEHOLDER IMAGE"
+    assert values["generic_labels"]["collection_empty"] == "Your collection is coming soon."
+    assert values["generic_labels"]["split_video_alt"] == "Placeholder motion study"
+    edited = apply_shell(config, {"generic_labels": {"placeholder_image": "Image pending"}}, fields)
+    assert shell_values(edited, fields)["generic_labels"]["placeholder_image"] == "Image pending"
+    assert {field["group"] for field in fields if field["id"].startswith("generic_labels.")} == {
+        "header", "footer", "store labels"}
+
+
+def test_generic_labels_render_from_shell_settings_across_store_pages(browser, monkeypatch):
+    from types import SimpleNamespace
+
+    client, db, site = browser
+    config = {key: value for key, value in site.published_settings_json.items()
+              if key != "theme_pack"}
+    fields = shell_fields({"theme_pack": "generic"})
+    labels = {field["id"].split(".", 1)[1]: f"GENERIC_SENTINEL_{field['id'].split('.', 1)[1]}"
+              for field in fields}
+    site.published_settings_json = {**config, "generic_labels": labels,
+        "navigation": [{"label": "Shop", "path": "/shop"}],
+        "collections": [{"label": "All", "path": "/shop"}]}
+    site.published_settings_json.pop("science_date", None)
+    home = db.scalar(select(SitePage).where(SitePage.site_id == site.id, SitePage.path == "/"))
+    document = dict(home.published_json)
+    document["blocks"] = list(document.get("blocks", [])) + [
+        {"id": "sentinel-facts", "type": "facts", "heading": "Facts", "body": "",
+         "items": []},
+        {"id": "sentinel-claims", "type": "claims", "heading": "Claims", "body": ""},
+        {"id": "sentinel-reviews", "type": "reviews", "heading": "Reviews", "body": ""},
+        {"id": "sentinel-empty-products", "type": "products", "heading": "Products",
+         "body": "", "category": "no-such-category"},
+        {"id": "sentinel-product-cards", "type": "products", "heading": "Products", "body": ""},
+        {"id": "sentinel-research", "type": "research", "heading": "Research", "body": "",
+         "items": [{"body": "Study text", "url": "https://example.test"}]},
+        {"id": "sentinel-team", "type": "team", "heading": "Team", "body": "",
+         "items": [{"heading": "A person", "body": "Bio", "image": "", "url": "https://example.test"}]},
+        {"id": "sentinel-cta", "type": "text", "heading": "CTA", "body": "",
+         "link": "/pages/contact"},
+        {"id": "sentinel-hero-video", "type": "hero", "heading": "Video", "body": "",
+         "video": "/video.mp4"},
+        {"id": "sentinel-split-video", "type": "split", "heading": "Split", "body": "",
+         "video": "/video.mp4"},
+        {"id": "sentinel-editorial-image", "type": "hero", "heading": "Image", "body": "",
+         "image": "/image.jpg"},
+        {"id": "sentinel-articles", "type": "articles", "heading": "Articles", "body": ""},
+    ]
+    home.published_json = document
+    product_page = db.scalar(select(SitePage).where(
+        SitePage.site_id == site.id, SitePage.path == "/products/hydrogen-tablets"))
+    product_page.published_json = {"version": 1, "title": "Product", "blocks": [{
+        "id": "generic-product", "type": "product", "heading": "Product", "body": "",
+        "image": "/product.jpg", "gallery": ["/gallery.jpg"], "subscription_preview": True,
+    }]}
+    contact_page = SitePage(
+        tenant_id=site.tenant_id, site_id=site.id, path="/pages/contact", title="Contact",
+        kind="page", draft_json={"version": 1, "title": "Contact", "blocks": [{"id": "contact", "type": "contact"}]},
+        published_json={"version": 1, "title": "Contact", "blocks": [{"id": "contact", "type": "contact"}]},
+    )
+    db.add(contact_page)
+    from app.models import Review
+    db.add(Review(tenant_id=site.tenant_id, product_id=product_page.product_id,
+                  author_name="Example reviewer", rating=5, title="Example", body="Example",
+                  is_approved=True))
+    article = SitePage(
+        tenant_id=site.tenant_id, site_id=site.id, path="/articles/generic-copy",
+        title="Generic copy", kind="article", draft_json={"version": 1, "title": "Generic copy", "blocks": []},
+        published_json={"version": 1, "title": "Generic copy", "image": "/article.jpg",
+                         "blocks": [], "blog": {"state": "published"}},
+    )
+    db.add(article)
+    db.execute(delete(SiteMenu).where(SiteMenu.site_id == site.id, SiteMenu.tenant_id == site.tenant_id))
+    db.add(SiteMenu(tenant_id=site.tenant_id, site_id=site.id, name="header",
+        items_json=[{"id": "shop", "label": "Shop", "kind": "page", "path": "/shop"}],
+        published_items_json=[{"id": "shop", "label": "Shop", "kind": "page", "path": "/shop"}]))
+    db.commit()
+
+    def commerce_config(*_args):
+        return SimpleNamespace(subscription_product_ids_json=[product_page.product_id],
+                               customer_accounts_enabled=True)
+
+    monkeypatch.setattr("app.commerce.settings_for", commerce_config)
+    monkeypatch.setattr("app.commerce.payments_enabled", lambda *_args: True)
+    monkeypatch.setattr("app.commerce.payment_mode", lambda *_args: "sandbox")
+    rendered = "".join(client.get(f"/sites/{site.slug}{path}").text for path in (
+        "/", "/products/hydrogen-tablets", "/pages/contact"))
+    monkeypatch.setattr("app.commerce.payments_enabled", lambda *_args: False)
+    rendered += client.get(f"/sites/{site.slug}/").text
+    rendered += client.get(f"/sites/{site.slug}/products/hydrogen-tablets").text
+    monkeypatch.setattr("app.commerce.payments_enabled", lambda *_args: True)
+    monkeypatch.setattr("app.commerce.payment_mode", lambda *_args: "live")
+    rendered += client.get(f"/sites/{site.slug}/products/hydrogen-tablets").text
+    monkeypatch.setattr("app.commerce.payment_mode", lambda *_args: "sandbox")
+    original_product_id = product_page.product_id
+    product_page.product_id = None
+    db.commit()
+    rendered += client.get(f"/sites/{site.slug}/products/hydrogen-tablets").text
+    product_page.product_id = original_product_id
+    db.commit()
+    listings = list(db.scalars(select(VariantChannelListing).where(
+        VariantChannelListing.channel_id == site.channel_id)))
+    listing_values = [{key: getattr(row, key) for key in (
+        "variant_id", "channel_id", "currency", "price_minor", "compare_at_minor", "cost_minor")}
+        for row in listings]
+    db.execute(delete(VariantChannelListing).where(VariantChannelListing.channel_id == site.channel_id))
+    db.commit()
+    rendered += client.get(f"/sites/{site.slug}/").text
+    db.add_all(VariantChannelListing(**value) for value in listing_values)
+    db.commit()
+    review = db.scalar(select(Review).where(Review.tenant_id == site.tenant_id))
+    db.delete(review)
+    db.commit()
+    rendered += client.get(f"/sites/{site.slug}/").text
+    missing = [key for key, sentinel in labels.items() if sentinel not in rendered]
+    assert not missing, f"Generic labels were not rendered: {missing}"
+    research = {"id": "preview-research", "type": "research", "heading": "Research",
+                "body": "", "items": [{"heading": "Preview study", "body": "Preview body",
+                                          "url": "https://example.test"}]}
+    preview_markup = str(to_xml(render_section(db, site, home, site.published_settings_json,
+        research, f"/sites/{site.slug}", "csrf", preview=True)))
+    assert 'data-field="items.0.heading"' in preview_markup
+    assert 'data-field="items.0.body"' in preview_markup
+    product_block = {"id": "preview-product", "type": "product", "heading": "Preview product",
+                     "body": "Preview product body", "image": "", "gallery": []}
+    product_markup = str(to_xml(render_section(db, site, product_page,
+        site.published_settings_json, product_block, f"/sites/{site.slug}", "csrf", preview=True)))
+    assert 'data-field="heading"' in product_markup
+    assert 'data-field="body"' in product_markup
+
+
+def test_generic_label_defaults_keep_storefront_copy_byte_identical(browser, monkeypatch):
+    from types import SimpleNamespace
+
+    client, db, site = browser
+    site.published_settings_json = {
+        key: value for key, value in site.published_settings_json.items() if key != "theme_pack"
+    }
+    site.published_settings_json.pop("science_date", None)
+    home = db.scalar(select(SitePage).where(SitePage.site_id == site.id, SitePage.path == "/"))
+    home.published_json = {**home.published_json, "blocks": home.published_json["blocks"] + [
+        {"id": "default-products", "type": "products", "heading": "Products", "body": ""},
+        {"id": "default-empty", "type": "products", "heading": "Empty", "body": "",
+         "category": "no-such-category"},
+        {"id": "default-video", "type": "hero", "heading": "Video", "body": "",
+         "video": "/video.mp4"},
+        {"id": "default-split", "type": "split", "heading": "Split", "body": "",
+         "video": "/video.mp4"},
+        {"id": "default-editorial-image", "type": "hero", "heading": "Image", "body": "",
+         "image": "/image.jpg"},
+        {"id": "default-facts", "type": "facts", "heading": "Facts", "body": ""},
+        {"id": "default-claims", "type": "claims", "heading": "Claims", "body": ""},
+        {"id": "default-reviews", "type": "reviews", "heading": "Reviews", "body": ""},
+        {"id": "default-research", "type": "research", "heading": "Research", "body": "",
+         "items": [{"body": "Source text", "url": "https://example.test"}]},
+        {"id": "default-team", "type": "team", "heading": "Team", "body": "",
+         "items": [{"heading": "A person", "body": "Bio", "image": "", "url": "https://example.test"}]},
+    ]}
+    product_page = db.scalar(select(SitePage).where(
+        SitePage.site_id == site.id, SitePage.path == "/products/hydrogen-tablets"))
+    original_product_id = product_page.product_id
+    product_page.published_json = {"version": 1, "title": "Product", "blocks": [{
+        "id": "default-product", "type": "product", "heading": "Product", "body": "",
+        "image": "/product.jpg", "gallery": ["/gallery.jpg"], "subscription_preview": True,
+    }]}
+    contact_page = SitePage(
+        tenant_id=site.tenant_id, site_id=site.id, path="/pages/contact", title="Contact",
+        kind="page", draft_json={"version": 1, "title": "Contact", "blocks": [{"id": "contact", "type": "contact"}]},
+        published_json={"version": 1, "title": "Contact", "blocks": [{"id": "contact", "type": "contact"}]},
+    )
+    db.add(contact_page)
+    db.commit()
+    monkeypatch.setattr("app.commerce.settings_for", lambda *_args: SimpleNamespace(
+        subscription_product_ids_json=[original_product_id], customer_accounts_enabled=False))
+    monkeypatch.setattr("app.commerce.payments_enabled", lambda *_args: True)
+    monkeypatch.setattr("app.commerce.payment_mode", lambda *_args: "sandbox")
+    pages = "".join(client.get(f"/sites/{site.slug}{path}").text for path in (
+        "/", "/products/hydrogen-tablets", "/pages/contact"))
+    monkeypatch.setattr("app.commerce.payments_enabled", lambda *_args: False)
+    pages += client.get(f"/sites/{site.slug}/products/hydrogen-tablets").text
+    product_page.product_id = None
+    db.commit()
+    pages += client.get(f"/sites/{site.slug}/products/hydrogen-tablets").text
+    listings = list(db.scalars(select(VariantChannelListing).where(
+        VariantChannelListing.channel_id == site.channel_id)))
+    listing_values = [{key: getattr(row, key) for key in (
+        "variant_id", "channel_id", "currency", "price_minor", "compare_at_minor", "cost_minor")}
+        for row in listings]
+    db.execute(delete(VariantChannelListing).where(VariantChannelListing.channel_id == site.channel_id))
+    db.commit()
+    pages += client.get(f"/sites/{site.slug}/").text
+    db.add_all(VariantChannelListing(**value) for value in listing_values)
+    db.commit()
+    originals = (
+        "PLACEHOLDER IMAGE", "Your collection is coming soon.", "Water and bubbles — placeholder video",
+        "Placeholder motion study", "Source: ", "hydrogenclinicalresearch.com",
+        "Editorial placeholder photography",
+        " — figures as of ", "date to be confirmed", "SAMPLE SECTION · NO CUSTOMER TESTIMONIALS",
+        "Read original source ↗", "PLACEHOLDER PRODUCT IMAGES", "US price to be confirmed",
+        "Price to be confirmed",
+        "PLACEHOLDER PRICE · final price and pack size pending", "Choose your option", "Quantity",
+        "Purchase option", "One-time purchase", "Subscribe and save 10% · monthly",
+        " / box · one-time price", " · draft price", "USD · Sandbox checkout",
+        "Shipping and state-specific sales tax are calculated before payment.",
+        "Add to cart — coming in Phase 2", "Design preview. Orders and subscriptions are not open yet.",
+        "Cookie preferences",
+        "A LITTLE SOMETHING TO LOOK FORWARD TO", "Our first-order offer is coming when the shop opens.",
+        "Explore", "Here to help", "Terms and Conditions", "Privacy Policy", "FAQ",
+        "Returns and Refunds", "© 2026 ", "Email my confirmation link",
+    )
+    missing = [original for original in originals if original not in pages]
+    assert not missing, f"Default storefront copy changed or did not render: {missing}"
