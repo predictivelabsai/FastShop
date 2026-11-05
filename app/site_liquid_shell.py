@@ -59,11 +59,21 @@ def fields():
     offer, footer, nav = CONTENT["offer"], CONTENT["footer"], CONTENT["nav"]
     o, f, n, c, lab = "liquid_shell.offer.", "liquid_shell.footer.", "liquid_shell.nav.", \
         "liquid_consent.", "liquid_shell.labels."
+    from app.account_copy import DEFAULT_ACCOUNT_COPY
     from app.subscription_portal_copy import DEFAULT_PORTAL_COPY
 
     return [
         *[_text("liquid_shell.portal." + key, key.replace("_", " ").capitalize(), default,
                 group="portal") for key, default in DEFAULT_PORTAL_COPY.items()],
+        *[{"id": "account_copy." + key, "label": key.replace("_", " ").capitalize(),
+           "type": "text", "default": default, "group": "pages", "max_length": 2000}
+          for key, default in DEFAULT_ACCOUNT_COPY.items()],
+        {"id": "liquid_shell.header.logo", "label": "Store logo", "type": "image",
+         "default": "/static/h24you/liquid/logo-clean-light.png", "group": "header",
+         "max_length": 2048},
+        {"id": "liquid_shell.header.favicon", "label": "Store favicon", "type": "image",
+         "default": "/static/h24you/liquid/logo-clean-dark.png", "group": "header",
+         "max_length": 2048},
         *[_text("liquid_shell.pages." + key, label, default, group="pages") for key, label, default in (
             ("cart_title", "Cart heading", "Your bag"),
             ("account_title", "Account heading", "My account"),
@@ -76,6 +86,23 @@ def fields():
             ("cart_empty", "Empty cart message", "Your cart is still waiting for its first fizz. Have a look at the tablets or the bottle, and we will keep a spot warm here."),
             ("subtotal", "Subtotal label", "Subtotal"),
             ("checkout", "Checkout button", "Continue to checkout"),
+            ("not_found_message", "Not found message", "The page you were looking for has moved or no longer exists."),
+            ("order_summary", "Order summary heading", "Order summary"),
+            ("shipping_next", "Shipping and tax message", "Shipping and destination sales tax are calculated next."),
+            ("quantity_label", "Quantity label", "Quantity"),
+            ("discount_label", "Discount code label", "Discount code"),
+            ("discount_help", "Discount code help", "Save your code here. Eligibility and savings are checked at checkout using your email. An empty code removes it."),
+            ("save_discount", "Save discount button", "Save discount code"),
+            ("monthly_subscription", "Monthly subscription label", "Monthly subscription · Deliver every month"),
+            ("resume_checkout", "Resume checkout link", "Resume existing checkout"),
+            ("free_shipping", "Free shipping message", "You've got free shipping"),
+            ("free_shipping_remaining", "Free shipping progress message", "Spend {amount} more for free shipping"),
+            ("quantity_remove", "Quantity removal label", "Quantity (0 removes)"),
+            ("update_quantity", "Update quantity button", "Update quantity"),
+            ("subscribe_save", "Subscription purchase option", "Subscribe & save 10%"),
+            ("one_time", "One-time purchase option", "One-time purchase"),
+            ("update", "Update button", "Update"),
+            ("remove", "Remove button", "Remove"),
         )],
         _text(o + "title", "Offer bar text", offer["title"], group="header"),
         _text(lab + "request", "Offer bar button", LABEL_DEFAULTS["request"], group="header"),

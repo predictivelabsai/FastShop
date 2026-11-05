@@ -683,8 +683,11 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     )
 
     def logo():
+        from app.site_editable_settings import shell_fields, shell_values
+        shell_settings = shell_values({**config, "theme_pack": "liquid"},
+                                      shell_fields({"theme_pack": "liquid"}))
         return Img(
-            src=config.get("logo_light", "/static/h24you/liquid/logo-clean-light.png"),
+            src=shell_settings["liquid_shell"]["header"]["logo"],
             alt=site.name,
             width=1774,
             height=262,
@@ -757,6 +760,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         has_privacy_policy = privacy_href not in {"", "#"}
     copyright_line = labels.get("copyright") or (
         f"© {datetime.now(UTC).year} {footer['company']}. All rights reserved.")
+    from app.site_editable_settings import shell_fields, shell_values
+    shell_settings = shell_values({**config, "theme_pack": "liquid"},
+                                  shell_fields({"theme_pack": "liquid"}))
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(document["title"] if document["title"].endswith(" | " + site.name)
@@ -772,7 +778,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Meta(property="og:title", content=document["title"]),
         Meta(property="og:description", content=document.get("description", "")),
         Link(rel="canonical", href=canonical),
-        Link(rel="icon", type="image/png", href="/static/h24you/liquid/logo-clean-dark.png") if not preferences or not preferences.favicon_id else None,
+        Link(rel="icon", type="image/png", href=shell_settings["liquid_shell"]["header"]["favicon"]),
         faq_jsonld(document["blocks"]) if page.path == "/faq" else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid.css")),
         Script(src=static_asset("site-liquid.js"), defer=True),

@@ -30,6 +30,8 @@ def liquid_page(site, request, title, *children, message_page=False):
                  "Please check your details": "message_title"}.get(title)
     if title_key:
         title = page_copy[title_key]
+    if title == "Login":
+        title = pages["account_copy"]["heading"]
 
     request.session.setdefault("csrf_token", secrets.token_urlsafe(32))
     root = request.scope.get("site_base", "/sites/" + site.slug)
@@ -47,11 +49,12 @@ def liquid_page(site, request, title, *children, message_page=False):
                 SiteCart.id == request.session.get("cart:" + site.id, ""),
                 SiteCart.site_id == site.id, SiteCart.tenant_id == site.tenant_id))
             lines = commerce.price_lines(db, site, commerce.settings_for(db, site), cart.lines_json)
-            summary = Div(H2("Order summary"),
+            summary = Div(H2(page_copy["order_summary"]),
                 *[liquid_order_line(line.name, line.variant_name, line.quantity,
-                                     line.amount_minor, "USD") for line in lines],
-                P("Subtotal: " + money(sum(line.amount_minor for line in lines), "USD")),
-                P("Shipping and destination sales tax are calculated next."),
+                                     line.amount_minor, "USD", quantity_label=page_copy["quantity_label"])
+                  for line in lines],
+                P(page_copy["subtotal"] + ": " + money(sum(line.amount_minor for line in lines), "USD")),
+                P(page_copy["shipping_next"]),
                 cls="e-card liquid-order-summary", aria_live="polite")
     if summary is not None:
         left, right = [], [summary]
@@ -66,7 +69,7 @@ def liquid_page(site, request, title, *children, message_page=False):
                         Div(*right, cls="liquid-checkout-summary"), cls="liquid-checkout-grid")]
     content = Section(
         Div(H1(title, cls="font-display"),
-            Small("Sandbox · No live payments")
+            Small(pages["account_copy"]["sandbox_notice"])
             if getattr(site, "_payment_mode", "sandbox") != "live" else None,
             Div(*children, cls="liquid-commerce-content", aria_live="polite"),
             cls="metal-container"), cls="metal-section liquid-commerce")
@@ -99,7 +102,7 @@ def public_message(request, slug, message, *, status_code=400, plain=True):
             page_copy = pages["liquid_shell"]["pages"]
             body = str(message)
             if body.rstrip(".") == title:
-                body = "The page you were looking for has moved or no longer exists."
+                body = page_copy["not_found_message"]
             return FtResponse(liquid_page(site, request,
                 title, P(body, cls="text-muted-foreground"),
                 Div(A(page_copy["shop_link"], href=root + "/shop", cls="e-button metal-cta"),
@@ -116,7 +119,7 @@ def product_title(name, variant):
     return name.replace("\u2014", "·")
 
 
-def liquid_order_line(name, variant, quantity, amount, currency, purchase=""):
+def liquid_order_line(name, variant, quantity, amount, currency, purchase="", quantity_label="Quantity"):
     from fasthtml.common import Span
 
     from app.services import money
@@ -125,7 +128,7 @@ def liquid_order_line(name, variant, quantity, amount, currency, purchase=""):
     return Div(Div(H2(product_name(product_title(name, variant))),
                    P(money(amount, currency)), cls="liquid-cart-line-title"),
                P(variant, cls="text-muted-foreground") if variant else None,
-               P(Span("Quantity: " + str(quantity)), " · " + purchase if purchase else ""),
+               P(Span(quantity_label + ": " + str(quantity)), " · " + purchase if purchase else ""),
                cls="liquid-cart-line")
 
 
@@ -149,27 +152,28 @@ def liquid_cart(root, cart, lines, csrf, page_copy=None):
                         Button(text, aria_label=label, disabled=disabled),
                         method="post", action=root + "/cart/update")
         return Div(
-            Div(step(line.quantity - 1, "−", "Decrease quantity", line.quantity <= 1),
-                Form(*fields(), Label(Span("Quantity (0 removes)", cls="sr-only"),
+                Div(step(line.quantity - 1, "−", "Decrease quantity", line.quantity <= 1),
+                Form(*fields(), Label(Span(page_copy.get("quantity_remove", "Quantity (0 removes)"), cls="sr-only"),
                      Input(type="number", name="quantity", value=line.quantity,
                            min=0, max=25, required=True)),
-                     Button("Update quantity", cls="liquid-cart-update"),
+                     Button(page_copy.get("update_quantity", "Update quantity"), cls="liquid-cart-update"),
                      method="post", action=root + "/cart/update"),
                 step(line.quantity + 1, "+", "Increase quantity", line.quantity >= 25),
                 cls="cart-stepper"),
             Form(*fields(),
-                 Select(Option("Subscribe & save 10%", value="on", selected=line.subscription),
-                        Option("One-time purchase", value="off", selected=not line.subscription),
+                 Select(Option(page_copy.get("subscribe_save", "Subscribe & save 10%"), value="on", selected=line.subscription),
+                        Option(page_copy.get("one_time", "One-time purchase"), value="off", selected=not line.subscription),
                         name="target_subscription", aria_label="Purchase type", cls="cart-select"),
-                 Button("Update", cls="liquid-cart-update"), method="post",
+                 Button(page_copy.get("update", "Update"), cls="liquid-cart-update"), method="post",
                  action=root + "/cart/purchase", cls="liquid-cart-purchase")
-            if line.subscription_eligible else Span("One-time purchase", cls="text-muted-foreground"),
+            if line.subscription_eligible else Span(page_copy.get("one_time", "One-time purchase"), cls="text-muted-foreground"),
             Form(*fields(), Input(type="hidden", name="quantity", value=0),
-                 Button("Remove", cls="liquid-cart-remove"), method="post", action=root + "/cart/update"),
+                 Button(page_copy.get("remove", "Remove"), cls="liquid-cart-remove"), method="post", action=root + "/cart/update"),
             cls="liquid-cart-controls")
     return Div(
-        Div(P("You've got free shipping" if total >= 7500 else
-              "Spend " + money(7500 - total, "USD") + " more for free shipping", aria_live="polite"),
+        Div(P(page_copy.get("free_shipping", "You've got free shipping") if total >= 7500 else
+              page_copy.get("free_shipping_remaining", "Spend {amount} more for free shipping").format(
+                  amount=money(7500 - total, "USD")), aria_live="polite"),
             Div(Span(style=f"width:{progress}%"), cls="cart-shipping-track",
                 role="progressbar", aria_label="Free shipping progress", aria_valuemin=0,
                 aria_valuemax=100, aria_valuenow=progress), cls="cart-shipping"),
@@ -183,15 +187,15 @@ def liquid_cart(root, cart, lines, csrf, page_copy=None):
                 cls="liquid-empty-glass", aria_hidden="true"),
             P(page_copy.get("cart_empty", "Your cart is still waiting for its first fizz. Have a look at the tablets or the bottle, and we will keep a spot warm here.")),
             A(page_copy.get("shop_link", "Shop all"), href=root + "/shop", cls="e-button"), cls="liquid-cart-empty"),
-        Div(P("Monthly subscription · Deliver every month", cls="tablet-pills") if any(line.subscription for line in lines) else None,
+        Div(P(page_copy.get("monthly_subscription", "Monthly subscription · Deliver every month"), cls="tablet-pills") if any(line.subscription for line in lines) else None,
             Div(Span(page_copy.get("subtotal", "Subtotal")), Span(money(total, "USD")), cls="liquid-cart-subtotal", aria_live="polite"),
-            P("Shipping and destination sales tax are calculated next."),
+            P(page_copy.get("shipping_next", "Shipping and destination sales tax are calculated next.")),
             Form(csrf, Input(type="hidden", name="version", value=cart.version),
-                 Label("Discount code", Input(name="code", value=cart.discount_code, maxlength=40)),
-                 P("Save your code here. Eligibility and savings are checked at checkout using your email. An empty code removes it."),
-                 Button("Save discount code", cls="e-button"), action=root + "/cart/discount",
+                 Label(page_copy.get("discount_label", "Discount code"), Input(name="code", value=cart.discount_code, maxlength=40)),
+                 P(page_copy.get("discount_help", "Save your code here. Eligibility and savings are checked at checkout using your email. An empty code removes it.")),
+                 Button(page_copy.get("save_discount", "Save discount code"), cls="e-button"), action=root + "/cart/discount",
                  method="post", cls="e-form"),
             A(page_copy.get("checkout", "Continue to checkout"), href=root + "/checkout", cls="e-button liquid-checkout-button"),
             cls="liquid-cart-summary e-card") if lines else None,
-        A("Resume existing checkout", href=root + "/checkout/" + cart.checkout_id) if cart.checkout_id else None,
+        A(page_copy.get("resume_checkout", "Resume existing checkout"), href=root + "/checkout/" + cart.checkout_id) if cart.checkout_id else None,
         cls="liquid-cart-page")
