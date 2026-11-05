@@ -102,6 +102,10 @@ def cta(section, base, config):
              href=url(base, section["link"]), cls="h-button") if section.get("link") else None
 
 
+def _research_preview_marker(preview, section, index, field):
+    return {"data_block_id": section.get("id"), "data_field": f"items.{index}.{field}"} if preview else {}
+
+
 # Recognisable payment-method chips (brief §4.3). Brand-neutral SVG badges carrying the
 # label, so they read as icons rather than a run-on line of text.
 _PAYMENT_METHODS = ["Visa", "Mastercard", "PayPal", "Apple Pay", "Google Pay"]
@@ -170,8 +174,8 @@ def product_cards(db, site, base, config, category=""):
             VariantChannelListing.channel_id == site.channel_id,
         ).order_by(ProductVariant.sort_order))
         result.append(Article(A(
-            Div(image(product.image_url, f"{product.name} — placeholder product image"), Span(label(config, "placeholder_image"), cls="h-image-label"), cls="h-product-image"),
-            Div(H3(product.name), Span(money(listing.price_minor, listing.currency) + " · draft price" if listing else "Price to be confirmed"), cls="h-card-caption"),
+            Div(image(product.image_url, f"{product.name}: {label(config, 'card_product_alt')}"), Span(label(config, "placeholder_image"), cls="h-image-label"), cls="h-product-image"),
+            Div(H3(product.name), Span(money(listing.price_minor, listing.currency) + label(config, "draft_price_suffix") if listing else label(config, "card_price_confirm")), cls="h-card-caption"),
             P(product.subtitle),
             href=url(base, f"/products/{product.slug}")), cls="h-product-card"))
     return Div(*result, cls="h-products") if result else P(label(config, "collection_empty"))
@@ -195,7 +199,7 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
     if kind == "hero":
         media = Video(Source(src=section["mobile_video"], type="video/mp4", media="(max-width: 600px)") if section.get("mobile_video") else None,
                       Source(src=section["video"], type="video/mp4"), autoplay=True, muted=True, loop=True,
-                      playsinline=True, poster=section.get("image", ""), aria_label="Hero background video") if section.get("video") else image(section.get("image"), eager=True)
+                      playsinline=True, poster=section.get("image", ""), aria_label=label(config, "hero_video_alt")) if section.get("video") else image(section.get("image"), label(config, "editorial_image_alt"), eager=True)
         return Section(Div(media, cls="h-hero-media"), Div(Small(section.get("eyebrow", ""), cls="h-eyebrow"),
             H1(heading), *paragraphs(section.get("body")), cta(section, base, config), cls="h-hero-copy"),
             Button(label(config, "video_toggle"), type="button", data_video_toggle="", cls="h-video-toggle") if section.get("video") else None,
@@ -204,13 +208,13 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
         return Section(intro, product_cards(db, site, base, config, section.get("category", "")), cls="h-section h-container")
     if kind == "split":
         media = Video(Source(src=section["video"], type="video/mp4"), controls=True, muted=True, playsinline=True,
-                      preload="none", poster=section.get("image", ""), aria_label="Placeholder motion study") if section.get("video") else image(section.get("image"))
+                      preload="none", poster=section.get("image", ""), aria_label=label(config, "split_video_alt")) if section.get("video") else image(section.get("image"), label(config, "editorial_image_alt"))
         return Section(Div(media, Span(label(config, "placeholder_media"), cls="h-image-label"), cls="h-split-media"),
             Div(intro, cta(section, base, config), cls="h-split-copy"), cls="h-split h-section")
     if kind == "facts":
         return Section(intro, Div(*[Div(Strong(item["value"]), P(item["label"])) for item in config.get("facts", [])], cls="h-facts"),
-            Small("Source: ", A(config.get("science_source_label", "Research source"), href=config.get("science_source", ""), target="_blank", rel="noopener noreferrer"),
-                  " — figures as of " + config.get("science_date", "date to be confirmed")), cls="h-section h-facts-section")
+            Small(label(config, "facts_source"), A(label(config, "facts_source_name"), href=config.get("science_source", ""), target="_blank", rel="noopener noreferrer"),
+                  label(config, "facts_date_prefix") + config.get("science_date", label(config, "facts_date"))), cls="h-section h-facts-section")
     if kind == "claims":
         approved = [item for item in config.get("claims", []) if item.get("approved")]
         return Section(intro, *[P(item["text"]) for item in approved],
@@ -221,32 +225,40 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
         reviews = approved_reviews(db, site, product_id)
         if reviews:
             count, average = review_summary(db, site, product_id)
-            return Section(Small("WHAT PEOPLE ARE SAYING", cls="h-eyebrow"), H2(heading),
+            return Section(Small(label(config, "reviews_eyebrow"), cls="h-eyebrow"), H2(heading),
                 P(f"{average} average from {count} approved review" + ("s" if count != 1 else "")),
                 Div(*[review_card(r) for r in reviews], cls="h-reviews-list"), cls="h-section h-reviews")
-        return Section(Small("ROOM FOR YOUR EXPERIENCE", cls="h-eyebrow"), H2(heading),
-            *paragraphs(section.get("body")), Span("SAMPLE SECTION · NO CUSTOMER TESTIMONIALS", cls="h-tag"), cls="h-section h-reviews")
+        return Section(Small(label(config, "reviews_empty_eyebrow"), cls="h-eyebrow"), H2(heading),
+            *paragraphs(section.get("body")), Span(label(config, "reviews_sample"), cls="h-tag"), cls="h-section h-reviews")
     if kind == "articles":
         from app.site_blog import articles_for, metadata
         articles = articles_for(db, site, preview=preview)[:3] if blog_articles is None else blog_articles
         cards = []
         for p in articles:
-            card = Article(A(image(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview)).get("image")),
+            card = Article(A(image(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview)).get("image"), label(config, "editorial_image_alt")),
             Small(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview)).get("category", "LEARN"), cls="h-eyebrow"),
-            H3(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview))["title"]), Span("Read the story ↗"), href=url(base, p.path)))
+            H3(resolve_document(p.draft_json if preview else p.published_json, default_locale(site, preview=preview))["title"]), Span(label(config, "article_read")), href=url(base, p.path)))
             author = metadata(p.draft_json if preview else p.published_json)["author_name"] or f"{site.name} team"
             cards.append(Div(card, P("By " + author, cls="h-blog-byline")) if blog_articles is not None else card)
         return Section(intro, Div(*cards, cls="h-articles"), cls="h-section h-container")
     if kind in {"research", "references"}:
-        return Section(intro, Div(*[Button(label, type="button", data_research_filter=label, cls="h-filter", aria_pressed=str(label == "All").lower()) for label in ["All", "Exercise", "Reviews", "Meta-analyses"]], cls="h-filters") if kind == "research" else None,
-            Div(*[Article(Small(item.get("theme", "SOURCE"), cls="h-eyebrow"), H3(item.get("heading", "Study")),
-                P(item.get("body", "")), A("Read original source ↗", href=item["url"], target="_blank", rel="noopener noreferrer"),
-                data_research_theme=item.get("theme", "")) for item in section.get("items", [])], cls="h-research"), cls="h-section h-container")
+        research_items = []
+        for index, item in enumerate(section.get("items", [])):
+            research_items.append(Article(
+                Small(item.get("theme", label(config, "research_source")), cls="h-eyebrow",
+                      **_research_preview_marker(preview, section, index, "theme")),
+                H3(item.get("heading", label(config, "research_study")),
+                   **_research_preview_marker(preview, section, index, "heading")),
+                P(item.get("body", ""), **_research_preview_marker(preview, section, index, "body")),
+                A(label(config, "research_read"), href=item["url"], target="_blank", rel="noopener noreferrer"),
+                data_research_theme=item.get("theme", "")))
+        return Section(intro, Div(*[Button(label(config, key), type="button", data_research_filter=label(config, key), cls="h-filter", aria_pressed=str(index == 0).lower()) for index, key in enumerate(("research_all", "research_exercise", "research_reviews", "research_meta"))], cls="h-filters") if kind == "research" else None,
+            Div(*research_items, cls="h-research"), cls="h-section h-container")
     if kind == "faq":
         return Section(intro, Div(*[Details(Summary(item["heading"]), *paragraphs(item.get("body"))) for item in section.get("items", [])], cls="h-faq"), cls="h-section h-container")
     if kind == "team":
-        return Section(intro, Div(*[Article(image(item["image"], item["heading"]) if item.get("image") else Div(Span("PHOTO PLACEHOLDER"), cls="h-person-placeholder"), H3(item["heading"]),
-            P(item.get("body", "")), A("Learn more ↗", href=item["url"], target="_blank", rel="noopener noreferrer") if item.get("url") else None) for item in section.get("items", [])], cls="h-team"), cls="h-section h-container")
+        return Section(intro, Div(*[Article(image(item["image"], item["heading"]) if item.get("image") else Div(Span(label(config, "team_photo")), cls="h-person-placeholder"), H3(item["heading"]),
+            P(item.get("body", "")), A(label(config, "team_learn"), href=item["url"], target="_blank", rel="noopener noreferrer") if item.get("url") else None) for item in section.get("items", [])], cls="h-team"), cls="h-section h-container")
     if kind == "contact":
         return Section(Div(H2(label(config, "contact_heading")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
             P(config.get("company", site.name)), P(config.get("address", "")), cls="h-contact-info"),
@@ -278,28 +290,28 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
         product = catalog_product(db, site, page.product_id) if page.product_id else None
         variants = list(db.scalars(select(ProductVariant).where(ProductVariant.product_id == product.id, ProductVariant.tenant_id == site.tenant_id).order_by(ProductVariant.sort_order))) if product else []
         listing = db.scalar(select(VariantChannelListing).where(VariantChannelListing.channel_id == site.channel_id, VariantChannelListing.variant_id == variants[0].id)) if variants else None
-        tablets = section.get("subscription_preview", False)
+        subscription_preview = section.get("subscription_preview", False)
         subscription_enabled = bool(checkout_enabled and product and product.id in commerce_config.subscription_product_ids_json)
         gallery = [section.get("image", ""), *section.get("gallery", [])]
-        return Section(Figure(Div(image(section.get("image"), "Placeholder product mock-up", eager=True), data_gallery_main=""),
-            Div(*[Button(image(src, f"Placeholder gallery image {i + 1}"), type="button", data_gallery_src=src, aria_label=f"View gallery image {i + 1}") for i, src in enumerate(gallery) if src], cls="h-gallery-thumbs"),
-            Figcaption("PLACEHOLDER PRODUCT IMAGES")),
-            Div(Small(product.name if product else "PRODUCT", cls="h-eyebrow"), H1(heading), *paragraphs(section.get("body")),
-                P(money(listing.price_minor, listing.currency) + (" / box · one-time price" if subscription_enabled else " / box") if listing else "US price to be confirmed", cls="h-price"),
-                Small("PLACEHOLDER PRICE · final price and pack size pending"),
+        return Section(Figure(Div(image(section.get("image"), label(config, "product_alt"), eager=True), data_gallery_main=""),
+            Div(*[Button(image(src, label(config, "gallery_alt") + f" {i + 1}"), type="button", data_gallery_src=src, aria_label=f"{label(config, 'gallery_view')} {i + 1}") for i, src in enumerate(gallery) if src], cls="h-gallery-thumbs"),
+            Figcaption(label(config, "product_gallery_caption"))),
+            Div(Small(product.name if product else label(config, "product_eyebrow"), cls="h-eyebrow"), H1(heading), *paragraphs(section.get("body")),
+                P(money(listing.price_minor, listing.currency) + label(config, "price_unit") + (label(config, "one_time_price_suffix") if subscription_enabled else "") if listing else label(config, "price_confirm"), cls="h-price"),
+                Small(label(config, "price_notice")),
                 Form(Input(type="hidden", name="csrf_token", value=csrf),
-                    Label("Choose your option", Select(*[Option(v.name, value=v.id) for v in variants if v.is_active], name="variant_id", aria_label="Choose your option", required=True)),
-                    Label("Quantity", Input(type="number", name="quantity", value=1, min=1, max=25, required=True)),
-                    Label("Purchase option", Select(Option("One-time purchase", value="off", selected=True),
-                        Option("Subscribe and save 10% · monthly", value="on"), name="subscription")) if subscription_enabled else None,
-                    P("USD · " + ("Live checkout" if provider_mode == "live" else "Sandbox checkout") + ". Shipping and state-specific sales tax are calculated before payment."),
-                    P("Monthly delivery at 10% off merchandise.") if subscription_enabled else None,
-                    Button("Add to bag", cls="h-button"), method="post", action=base + "/cart/add", cls="h-contact-form") if checkout_enabled and listing else None,
-                Label("Choose your option", Select(*[Option(v.name, value=v.id) for v in variants], aria_label="Choose your option")) if len(variants) > 1 and not checkout_enabled else None,
-                Div(Label(Input(type="radio", name="purchase", checked=True), " One-time purchase"),
-                    Label(Input(type="radio", name="purchase"), " Subscribe and save 10% · monthly"), cls="h-purchase") if tablets and not checkout_enabled else None,
-                Button("Add to cart — coming in Phase 2", disabled=True, cls="h-button") if not checkout_enabled else None,
-                P(("Live payments accepted." if provider_mode == "live" else "Sandbox only. No live payments.") if checkout_enabled else "Design preview. Orders and subscriptions are not open yet.", cls="h-muted"), cls="h-product-copy"), cls="h-product-detail h-container")
+                    Label(label(config, "choose_option"), Select(*[Option(v.name, value=v.id) for v in variants if v.is_active], name="variant_id", aria_label=label(config, "choose_option"), required=True)),
+                    Label(label(config, "quantity"), Input(type="number", name="quantity", value=1, min=1, max=25, required=True)),
+                    Label(label(config, "purchase_option"), Select(Option(label(config, "one_time"), value="off", selected=True),
+                        Option(label(config, "subscribe"), value="on"), name="subscription")) if subscription_enabled else None,
+                    P(label(config, "checkout_currency_prefix") + (label(config, "live_checkout") if provider_mode == "live" else label(config, "sandbox_checkout")) + ". " + label(config, "shipping_notice")),
+                    P(label(config, "monthly_notice")) if subscription_enabled else None,
+                    Button(label(config, "add_bag"), cls="h-button"), method="post", action=base + "/cart/add", cls="h-contact-form") if checkout_enabled and listing else None,
+                Label(label(config, "choose_option"), Select(*[Option(v.name, value=v.id) for v in variants], aria_label=label(config, "choose_option"))) if len(variants) > 1 and not checkout_enabled else None,
+                Div(Label(Input(type="radio", name="purchase", checked=True), " " + label(config, "one_time")),
+                    Label(Input(type="radio", name="purchase"), " " + label(config, "subscribe")), cls="h-purchase") if subscription_preview and not checkout_enabled else None,
+                Button(label(config, "add_cart_phase2"), disabled=True, cls="h-button") if not checkout_enabled else None,
+                P((label(config, "live_payments") if provider_mode == "live" else label(config, "sandbox_payments")) if checkout_enabled else label(config, "design_preview"), cls="h-muted"), cls="h-product-copy"), cls="h-product-detail h-container")
     return Section(intro, cta(section, base, config), cls="h-section h-container h-editorial")
 
 
@@ -425,49 +437,49 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if customer_services_enabled and not preview else None,
         Script(src=static_asset("cart-drawer.js"), defer=True) if customer_services_enabled and not preview else None,
         Div(
-            A("Skip to content", href="#content", cls="h-skip"),
+            A(label(config, "skip"), href="#content", cls="h-skip"),
             Div("SANDBOX · Test purchases only" if customer_services_enabled and not preview else "PHASE 1 PREVIEW · Design & content · Purchasing opens after review", cls="h-preview-note") if site.status != "published" or preview or customer_services_enabled else None,
             Div(config.get("announcement", ""), cls="h-announcement"),
             Header(A(brand(), href=base + "/", cls="h-brand h-brand-dark"), A(brand(True), href=base + "/", cls="h-brand h-brand-light"),
-                Button("Menu", type="button", data_menu_toggle="", aria_expanded="false", aria_controls="site-navigation", cls="h-menu-toggle"),
-                Nav(*[Details(Summary("Shop"), Div(A("All products", href=url(base, "/shop")), *[A(category["label"], href=url(base, category["path"])) for category in config.get("collections", [])], cls="h-dropdown"), cls="h-shop-menu") if item["label"] == "Shop" and item["path"] == "/shop" and config.get("collections") else A(item["label"], href=url(base, item["path"])) for item in header_navigation], id="site-navigation", cls="h-nav"),
-                Div(A("Account", href=base + "/account", aria_label="My account") if commerce_config and commerce_config.customer_accounts_enabled else None, A("Bag", href=base + "/cart", data_cart_open="") if customer_services_enabled else Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items · Phase 2"), cls="h-header-actions"),
+                Button(label(config, "menu"), type="button", data_menu_toggle="", aria_expanded="false", aria_controls="site-navigation", cls="h-menu-toggle"),
+                Nav(*[Details(Summary(label(config, "shop")), Div(A(label(config, "all_products"), href=url(base, "/shop")), *[A(category["label"], href=url(base, category["path"])) for category in config.get("collections", [])], cls="h-dropdown"), cls="h-shop-menu") if item["label"] == "Shop" and item["path"] == "/shop" and config.get("collections") else A(item["label"], href=url(base, item["path"])) for item in header_navigation], id="site-navigation", cls="h-nav"),
+                Div(A(label(config, "account"), href=base + "/account", aria_label=label(config, "account")) if commerce_config and commerce_config.customer_accounts_enabled else None, A(label(config, "bag"), href=base + "/cart", data_cart_open="") if customer_services_enabled else Button(label(config, "bag_empty"), type="button", data_commerce_notice="", aria_label=label(config, "cart_aria")), cls="h-header-actions"),
                 cls="h-header", data_builder_shell="header" if preview else None),
             Div(message, role="status", cls="h-message") if message else None,
             Main(Div(Small(document.get("category", "LEARN"), cls="h-eyebrow"), H1(document["title"]),
                 P("By " + blog["author_name"] if blog["author_name"] else f"By {site.name} team · Draft for editorial review"),
                 P(blog["author_bio"]) if blog["author_bio"] else None,
-                image(document.get("image")), cls="h-article-heading h-container") if page.kind == "article" else None,
+                image(document.get("image"), label(config, "editorial_image_alt")), cls="h-article-heading h-container") if page.kind == "article" else None,
                 H1(document["title"], cls="h-container h-policy-title") if policy_html is not None else None,
                 Div(NotStr(policy_html), cls="h-container h-policy-content") if policy_html else None,
                 P(policy_empty_message, cls="h-container h-policy-empty") if policy_empty_message else None,
                 *[section_view(s, i) for i, s in enumerate(document.get("blocks", [])) if not s.get("hidden")], id="content"),
-            Section(Div(Small("A LITTLE SOMETHING TO LOOK FORWARD TO", cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P("Our first-order offer is coming when the shop opens.")),
-                    Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer"),
+            Section(Div(Small(label(config, "offer_eyebrow"), cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P(label(config, "offer_body"))),
+                    Button(label(config, "offer_preview"), type="button", data_offer_open="", cls="h-button"), cls="h-offer"),
             *pre_footer_snippets,
             Footer(Div(Div(A(brand(), href=base + "/", cls="h-brand"), P(config.get("tagline", ""))),
-                Div(H3("Explore"), *[A(item["label"], href=url(base, item["path"])) for item in footer_navigation]),
-                Div(H3("Here to help"), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", "Terms and Conditions"), ("privacy-policy", "Privacy Policy"), ("faq", "FAQ"), ("returns-and-refunds", "Returns and Refunds")]]),
+                Div(H3(label(config, "footer_explore")), *[A(item["label"], href=url(base, item["path"])) for item in footer_navigation]),
+                Div(H3(label(config, "footer_help")), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", label(config, "terms")), ("privacy-policy", label(config, "privacy_policy")), ("faq", label(config, "faq")), ("returns-and-refunds", label(config, "returns"))]]),
                 Div(H3(config.get("company", site.name)), P(config.get("address", "")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
-                P(config.get("footer", ""), cls="h-disclaimer"), Div(Span("© 2026 " + config.get("company", site.name)), payment_methods(), Button("Cookie preferences", type="button", data_cookie_open=""), cls="h-footer-bottom"),
+                P(config.get("footer", ""), cls="h-disclaimer"), Div(Span(label(config, "copyright") + config.get("company", site.name)), payment_methods(), Button(label(config, "cookies"), type="button", data_cookie_open=""), cls="h-footer-bottom"),
                 cls="h-footer", data_builder_shell="footer" if preview else None),
             *foot_snippets,
             Div(H2("Your privacy, your choice."), P("Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."),
                 Details(Summary("Preferences"), Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"), Label(Input(type="checkbox", id="consent-preferences"), " Preferences: remembers things like products you viewed on this device"), Label(Input(type="checkbox", id="consent-analytics"), " Analytics"), Label(Input(type="checkbox", id="consent-marketing"), " Marketing")),
                 Div(Button("Accept all", data_consent="all"), Button("Decline", data_consent="none"), Button("Save preferences", data_consent="custom")),
                 A("Privacy policy", href=url(base, "/pages/privacy-policy")), id="h-cookie", cls="h-cookie", role="region", aria_label="Cookie preferences", hidden=True),
-            Div(Button("Close ×", type="button", data_offer_close=""), H2(config.get("offer", "Stay curious.")),
+            Div(Button(label(config, "offer_close"), type="button", data_offer_close=""), H2(config.get("offer", "Stay curious.")),
                 Form(Input(type="hidden", name="csrf_token", value=csrf),
-                    P("Confirm your email to receive a personal first-order code. Checkout is still in sandbox setup."),
-                    Label(label(config, "contact_email"), Input(name="email", type="email", required=True, maxlength=320, autocomplete="email")),
+                    P(label(config, "offer_confirm")),
+                    Label(label(config, "offer_email"), Input(name="email", type="email", required=True, maxlength=320, autocomplete="email")),
                     Label(Input(name="marketing_consent", type="checkbox", required=True), " " + consent_text(site)),
                     Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
-                    Button("Email my confirmation link", type="submit", cls="h-button"), method="post", action=base + "/newsletter") if customer_services_enabled else Div(
-                    P("Design preview: email signup and discount delivery open in Phase 2. No email is collected here."),
-                    Label(label(config, "contact_email"), Input(type="email", placeholder=label(config, "email_placeholder"), disabled=True)),
+                    Button(label(config, "offer_submit"), type="submit", cls="h-button"), method="post", action=base + "/newsletter") if customer_services_enabled else Div(
+                    P(label(config, "offer_preview_body")),
+                    Label(label(config, "offer_email"), Input(type="email", placeholder=label(config, "email_placeholder"), disabled=True)),
                     Label(Input(type="checkbox", disabled=True), " " + consent_text(site))),
-                A("Privacy policy", href=url(base, "/pages/privacy-policy")), id="h-offer-panel", cls="h-offer-panel", hidden=True),
+                A(label(config, "privacy"), href=url(base, "/pages/privacy-policy")), id="h-offer-panel", cls="h-offer-panel", hidden=True),
             Div(id="h-toast", role="status", cls="h-toast", hidden=True),
             cls="h-site " + ("h-home" if home else "h-inner"), data_site=site.id,
             data_ga4=analytics_id, data_analytics_path=base or "/",

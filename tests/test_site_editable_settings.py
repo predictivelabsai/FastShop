@@ -1,5 +1,6 @@
 """Theme-pack shell settings are merchant-editable through the visual editor."""
 import pytest
+from fastcore.xml import to_xml
 
 from app import site_editable_settings
 from app.models import Site
@@ -100,7 +101,9 @@ def test_default_theme_shell_settings_are_editable(workspace):
     loaded = load(w)
     ids = {field["id"] for field in loaded["shell_schema"]["fields"]}
     assert {"name", "announcement", "footer", "generic_labels.cta",
-            "generic_labels.contact_heading", "account_copy.heading",
+            "generic_labels.contact_heading", "generic_labels.card_product_alt",
+            "generic_labels.research_read", "generic_labels.editorial_image_alt",
+            "account_copy.heading",
             "account_copy.order_summary"} <= ids
     values = {"footer": "A note for visitors.", "announcement": "A store update.",
               "generic_labels": {"contact_heading": "Contact our team"},
@@ -135,3 +138,26 @@ def test_generic_shell_labels_use_defaults_and_merchant_values():
 
     assert label({}, "cta") == "Explore"
     assert label({"generic_labels": {"cta": "Browse items"}}, "cta") == "Browse items"
+
+
+def test_generic_research_copy_renders_merchant_values(workspace):
+    from app.content import site_pages
+    from app.site_ui import render_section
+
+    with workspace.sessions() as db:
+        site = db.get(Site, workspace.site.id)
+        page = site_pages(db, site)[0]
+        config = {"generic_labels": {
+            "research_all": "Every topic", "research_exercise": "Movement",
+            "research_reviews": "Reviews", "research_meta": "Overviews",
+            "research_source": "Reference", "research_study": "Untitled reference",
+            "research_read": "Open reference",
+        }}
+        section = {"id": "research-copy", "type": "research", "heading": "References",
+                   "items": [{"theme": "Reference", "heading": "Example study",
+                              "body": "A neutral summary.", "url": "https://example.test/source"}]}
+        markup = to_xml(render_section(db, site, page, config, section, "", "csrf", preview=True))
+
+    assert "Every topic" in markup and "Movement" in markup
+    assert "Overviews" in markup and "Open reference" in markup
+    assert "Example study" in markup and "A neutral summary." in markup
