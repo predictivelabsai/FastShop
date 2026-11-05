@@ -479,3 +479,33 @@ def test_platform_credential_actions_reject_merchants_before_provider_calls(entr
     from app.models import SiteStripeLiveCredential
     with entry.sessions() as db:
         assert db.scalar(select(SiteStripeLiveCredential)) is None
+
+
+def test_store_assistant_membership_provider_state_and_admin_launcher(entry, monkeypatch):
+    from app import config
+    from app.models import SitePage
+
+    assistant_url = f"/admin/sites/{entry.site.id}/assistant"
+    client = entry.signed_in()
+    monkeypatch.setattr(config, "settings", replace(config.settings, xai_api_key=""))
+    missing_key = client.get(assistant_url)
+    assert missing_key.status_code == 200
+    assert "AI provider not configured" in missing_key.text
+    assert "Which products sold best this month?" in missing_key.text
+    assert 'data-stream="/admin/sites/' + entry.site.id + '/editor/agent"' in missing_key.text
+    assert client.get(f"/admin/sites/{entry.foreign.id}/assistant").status_code == 400
+
+    monkeypatch.setattr(config, "settings", replace(config.settings, xai_api_key="test-key"))
+    configured = client.get(assistant_url)
+    assert configured.status_code == 200
+    assert "AI provider not configured" not in configured.text
+    assert "Make the homepage hero shorter" in configured.text
+
+    with entry.sessions() as db:
+        product = db.scalar(select(SitePage).where(SitePage.site_id == entry.site.id))
+    product_page = client.get(f"/admin/sites/{entry.site.id}/products")
+    assert product_page.status_code == 200
+    assert "data-agent-launcher" in product_page.text
+    editor_page = client.get(f"/admin/sites/{entry.site.id}/editor?page={product.id}")
+    assert editor_page.status_code == 200
+    assert "data-agent-launcher" not in editor_page.text
