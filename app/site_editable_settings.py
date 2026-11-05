@@ -31,7 +31,44 @@ def shell_fields(config: dict | None) -> list[dict]:
         except ModuleNotFoundError:
             pass
     provider = _PROVIDERS.get(pack)
-    return copy.deepcopy(provider()) if provider else []
+    fields = copy.deepcopy(provider()) if provider else []
+    if pack == "generic":
+        fields.extend([
+            {"id": "generic_labels.split_video_alt", "label": "Split video alt",
+             "type": "text", "default": "Placeholder motion study",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.card_product_alt", "label": "Card product alt",
+             "type": "text", "default": "placeholder product mock-up",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.editorial_image_alt", "label": "Editorial image alt",
+             "type": "text", "default": "Editorial placeholder photography",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.gallery_view", "label": "Gallery view label",
+             "type": "text", "default": "View gallery image",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.draft_price_suffix", "label": "Draft price suffix",
+             "type": "text", "default": " · draft price",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.price_unit", "label": "Price unit",
+             "type": "text", "default": " / box",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.card_price_confirm", "label": "Card price fallback",
+             "type": "text", "default": "Price to be confirmed",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.one_time_price_suffix", "label": "One-time price suffix",
+             "type": "text", "default": " · one-time price",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.checkout_currency_prefix", "label": "Checkout currency prefix",
+             "type": "text", "default": "USD · ",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.live_checkout", "label": "Live checkout notice",
+             "type": "text", "default": "Live checkout",
+             "group": "store labels", "max_length": 2000},
+            {"id": "generic_labels.sandbox_checkout", "label": "Sandbox checkout notice",
+             "type": "text", "default": "Sandbox checkout",
+             "group": "store labels", "max_length": 2000},
+        ])
+    return fields
 
 
 def _get(data, path):
