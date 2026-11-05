@@ -1,6 +1,7 @@
 """Visual editor schemas, strict nested documents and theme compatibility."""
 
 import copy
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -201,6 +202,104 @@ def test_seeded_liquid_documents_load_and_render_unchanged(context):
                 render_block(db, site, page, site.settings_json, block, "", "", False) is not None
             )
             assert render_section(db, site, page, site.settings_json, block, "", "") is not None
+
+
+def test_liquid_repeater_text_fields_are_inline_editable_in_preview(context):
+    db, site, page = context
+    block = validate_block(default_block("liquid_stats") | {
+        "id": "editable-stats",
+        "items": [{"label": "Study label", "value": "42+", "body": "Study note"}],
+    })
+    markup = to_xml(render_block(db, site, page, {}, block, "", "", False, True))
+    for field in ("items.0.label", "items.0.value", "items.0.body"):
+        assert f'data-field="{field}"' in markup
+
+
+@pytest.mark.parametrize(
+    "kind,values,fields",
+    [
+        ("liquid_hero", {"heading": "Hero", "body": "Body*", "button": "Shop"},
+         {"heading", "body", "button", "pause_label", "pause_aria_label"}),
+        ("liquid_stats", {"heading": "Stats", "body": "Source", "items": [
+            {"label": "Label", "value": "42+", "body": "Note"}]},
+         {"body", "items.0.label", "items.0.value", "items.0.body"}),
+        ("liquid_collection", {"heading": "Collection", "items": [
+            {"theme": "product", "heading": "Card", "label": "Tag", "body": "Copy",
+             "url": "/products/missing", "image": "/card.jpg", "alt": "Card image",
+             "value": "Price"}]},
+         {"heading", "items.0.heading", "items.0.label", "items.0.body",
+          "items.0.image", "items.0.alt"}),
+        ("liquid_benefits", {"heading": "Benefits", "button": "Learn", "link": "/learn",
+         "items": [{"theme": "leaf", "heading": "Leaf", "body": "Benefit"}]},
+         {"heading", "items.0.heading", "items.0.body", "button", "link"}),
+        ("liquid_reviews", {"heading": "Reviews", "items": [
+            {"heading": "Review", "body": "Quote", "label": "Name", "value": "5",
+             "image": "/portrait.jpg", "alt": "Person", "theme": "Place"}]},
+         {"heading", "sample_note", "carousel_label", "previous_label", "next_label",
+          "dot_label", "position_label", "position_text", "reviews_label",
+          "items.0.heading", "items.0.body", "items.0.label", "items.0.value",
+          "items.0.image", "portrait_alt", "items.0.theme"}),
+        ("liquid_articles", {"heading": "Articles", "body": "Intro", "read_more": "Continue",
+         "items": [{"label": "Topic", "heading": "Article", "body": "Summary",
+                    "image": "/article.jpg", "alt": "Article image", "url": "/article"}]},
+         {"heading", "body", "read_more", "items.0.label", "items.0.heading",
+          "items.0.body", "items.0.image", "items.0.alt", "items.0.url"}),
+        ("liquid_catalog", {"items": [{"theme": "product", "heading": "Card", "label": "Tag",
+         "body": "Copy", "url": "/products/missing", "image": "/catalog.jpg",
+         "alt": "Catalog image", "value": "Price"}]},
+         {"items.0.heading", "items.0.label", "items.0.body", "items.0.image", "items.0.alt",
+          "view_product"}),
+        ("liquid_choices", {"heading": "Choices", "items": [
+            {"heading": "Choice", "body": "Copy", "url": "/choice", "label": "Product"}]},
+         {"heading", "items.0.heading", "items.0.body", "items.0.url", "items.0.label"}),
+        ("liquid_trust", {"items": [{"label": "Shipping", "theme": "shipping"}]},
+         {"assurances_label", "items.0.label"}),
+    ],
+)
+def test_liquid_audit_blocks_mark_fields_only_in_preview(context, kind, values, fields):
+    db, site, page = context
+    block = validate_block(default_block(kind) | values)
+    preview = to_xml(render_block(db, site, page, {}, block, "", "csrf", False, True))
+    public = to_xml(render_block(db, site, page, {}, block, "", "csrf", False, False))
+    markers = set(re.findall(r'data-field="([^"]+)"', preview))
+    markers.update(re.findall(r'data-alt-field="([^"]+)"', preview))
+    markers.update(re.findall(r'data-link-field="([^"]+)"', preview))
+    assert fields <= markers, preview
+    assert "data-field=" not in public
+
+
+def test_liquid_pause_and_product_action_copy_defaults_remain_byte_identical():
+    hero = default_block("liquid_hero")
+    assert hero["pause_label"] == "Ⅱ Pause"
+    assert hero["pause_aria_label"] == "Pause background motion"
+    for kind in ("liquid_collection", "liquid_catalog"):
+        block = default_block(kind)
+        assert block["view_product"] == "View product"
+        assert block["flavor_label"] == "Flavor"
+        assert block["add_to_cart"] == "Add to cart"
+
+
+def test_liquid_product_action_labels_have_preview_markers(context):
+    from app.site_ui_liquid import add_form
+
+    class FakeDB:
+        def scalar(self, _query):
+            return SimpleNamespace(id="product")
+
+        def scalars(self, _query):
+            return [SimpleNamespace(id="variant", name="Raspberry")]
+
+    _, site, _ = context
+    site_view = SimpleNamespace(tenant_id=site.tenant_id)
+    labels = {"view_product": "View product", "flavor_label": "Flavor",
+              "add_to_cart": "Add to cart"}
+    form = to_xml(add_form(FakeDB(), site_view, {"url": "/products/sample"}, "", "csrf",
+                           True, flavors=[{}], labels=labels, preview=True))
+    assert 'data-field="flavor_label"' in form
+    assert 'data-field="add_to_cart"' in form
+    public = to_xml(add_form(FakeDB(), site_view, {"url": "/products/sample"}, "", "csrf",
+                             True, flavors=[{}], labels=labels, preview=False))
+    assert "data-field=" not in public
 
 
 def test_newsletter_reuses_consent_flow_and_disables_preview(context):
