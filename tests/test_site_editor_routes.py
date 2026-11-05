@@ -12,7 +12,7 @@ from starlette.responses import Response
 from starlette.testclient import TestClient
 
 from app import content, site_editor_routes
-from app.models import Base, Membership, SitePage, User
+from app.models import AgentConversation, AgentMessage, Base, Membership, SitePage, User
 from app.services import CommerceError
 
 
@@ -101,23 +101,59 @@ def test_agent_history_is_tenant_scoped(workspace):
     assert w.client.get(f"/admin/sites/{w.other.id}/editor/agent/history").status_code == 403
 
 
+def test_agent_history_rebuilds_steps_from_saved_tool_calls(workspace):
+    w = workspace
+    with w.sessions() as db:
+        conversation = AgentConversation(tenant_id=w.site.tenant_id, site_id=w.site.id,
+                                        user_id=w.owner.id, title="Edit the page")
+        db.add(conversation)
+        db.flush()
+        db.add_all([
+            AgentMessage(tenant_id=w.site.tenant_id, site_id=w.site.id,
+                         conversation_id=conversation.id, role="assistant", content="Updated",
+                         tool_calls_json=[{"name": "update_block", "label": "Updated hero"},
+                                          {"name": "update_theme", "label": "Updated colours"}]),
+            AgentMessage(tenant_id=w.site.tenant_id, site_id=w.site.id,
+                         conversation_id=conversation.id, role="tool", content='{"ok": true}',
+                         tool_calls_json=[{"function": {"name": "update_block"}}]),
+            AgentMessage(tenant_id=w.site.tenant_id, site_id=w.site.id,
+                         conversation_id=conversation.id, role="tool", content='{"error": "Rejected"}',
+                         tool_calls_json=[{"function": {"name": "update_theme"}}]),
+        ])
+        db.commit()
+    result = w.client.get(f"/admin/sites/{w.site.id}/editor/agent/history")
+    assistant = next(message for message in result.json()["messages"]
+                     if message["role"] == "assistant")
+    events = assistant["events"]
+    assert [(event["label"], event["status"]) for event in events] == [
+        ("Updated hero", "done"), ("Updated colours", "error")]
+
+
 def test_agent_stream_forwards_run_turn_event_order(workspace, monkeypatch):
     from app import site_editor_routes, store_agent
 
     w = workspace
     monkeypatch.setattr(site_editor_routes, "settings", SimpleNamespace(xai_api_key="configured", environment="test"))
-    monkeypatch.setattr(store_agent, "run_turn", lambda *args, **kwargs: iter([
+    observed = {}
+    def run_turn(db, site, user, message, *, page_id, selection=None,
+                 conversation_id=None, transport=None):
+        observed.update(conversation_id=conversation_id)
+        return iter([
+        {"type": "conversation", "conversation_id": "conversation-1"},
         {"type": "tool_called", "name": "update_block", "label": "Updating block..."},
         {"type": "tool_result", "name": "update_block", "summary": "Updated"},
         {"type": "assistant_text", "text": "Done"},
         {"type": "done"},
-    ]))
+    ])
+    monkeypatch.setattr(store_agent, "run_turn", run_turn)
     path = f"/admin/sites/{w.site.id}/editor/agent"
-    result = w.client.post(path, json={"message": "Update it", "page_id": w.page.id},
+    result = w.client.post(path, json={"message": "Update it", "page_id": w.page.id,
+                                       "conversation_id": "conversation-1"},
                            headers=w.headers)
     assert result.status_code == 200
     events = [json.loads(line[6:]) for line in result.text.splitlines() if line.startswith("data: ")]
-    assert [event["type"] for event in events] == ["tool_called", "tool_result", "assistant_text", "done"]
+    assert [event["type"] for event in events] == ["conversation", "tool_called", "tool_result", "assistant_text", "done"]
+    assert observed["conversation_id"] == "conversation-1"
 
 
 def test_agent_restore_checks_csrf_and_uses_owned_site(workspace, monkeypatch):

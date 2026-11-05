@@ -26,6 +26,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="fastshop-editor-agent-") as data_dir:
         isolate(data_dir, port)
         os.environ["FASTSHOP_AGENT_FAKE"] = "1"
+        os.environ["FASTSHOP_AGENT_FAKE_DELAY"] = "1.5"
         from app.db import SessionLocal, engine
         from app.main import app
         from app import content
@@ -57,11 +58,21 @@ def main():
                 page.get_by_role("button", name="Sign in", exact=True).click(); page.wait_for_url("**/admin/sites")
                 page.goto(f"/admin/sites/{site_id}/editor?page={page_id}")
                 page.locator('[data-mode="assistant"]').click()
+                sent = []
+                page.on("request", lambda request: sent.append(request.post_data_json)
+                        if request.method == "POST" and request.url.endswith("/editor/agent") else None)
                 page.locator("#agent-input").fill("Change the selected headline")
                 page.locator("#agent-form").press("Enter")
+                expect(page.locator(".agent-step.is-done")).to_be_visible()
+                page.screenshot(path=str(OUTPUT / "streaming.png"), full_page=True)
                 expect(page.locator(".agent-message.assistant")).to_contain_text("updated")
-                frame = page.locator("#editor-canvas").content_frame
-                expect(frame.locator("body")).to_contain_text("Assistant preview update")
+                page.locator("#agent-input").fill("Now make the subheading shorter")
+                page.locator("#agent-form").press("Enter")
+                expect(page.locator(".agent-message.user")).to_have_count(2)
+                expect(page.locator(".agent-message.assistant").last).to_contain_text("updated")
+                history = page.request.get(f"/admin/sites/{site_id}/editor/agent/history").json()
+                assert sent[1]["conversation_id"] == history["conversation_id"]
+                assert [message["role"] for message in history["messages"]].count("user") == 2
                 page.screenshot(path=str(OUTPUT / "desktop.png"), full_page=True)
                 restore = page.locator("[data-restore-message]").last
                 expect(restore).to_be_visible()
