@@ -74,6 +74,67 @@ def test_load_requires_active_actor_membership_and_scoped_page(workspace):
     assert w.client.get(w.base).status_code == 401
 
 
+def test_agent_stream_requires_csrf_and_scopes_membership(workspace, monkeypatch):
+    from app import site_editor_routes
+
+    w = workspace
+    monkeypatch.setattr(site_editor_routes, "settings", SimpleNamespace(xai_api_key="", environment="test"))
+    path = f"/admin/sites/{w.site.id}/editor/agent"
+    body = {"message": "Update the hero", "page_id": w.page.id}
+    assert w.client.post(path, json=body).status_code == 403
+    denied = w.client.post(f"/admin/sites/{w.other.id}/editor/agent", json=body,
+                           headers=w.headers)
+    assert denied.status_code == 403
+    result = w.client.post(path, json=body, headers=w.headers)
+    assert result.status_code == 200
+    assert result.headers["content-type"].startswith("text/event-stream")
+    events = [json.loads(line[6:]) for line in result.text.splitlines() if line.startswith("data: ")]
+    assert [event["type"] for event in events] == ["assistant_text", "done"]
+
+
+def test_agent_history_is_tenant_scoped(workspace):
+    w = workspace
+    path = f"/admin/sites/{w.site.id}/editor/agent/history"
+    result = w.client.get(path)
+    assert result.status_code == 200
+    assert result.json() == {"conversation_id": None, "messages": []}
+    assert w.client.get(f"/admin/sites/{w.other.id}/editor/agent/history").status_code == 403
+
+
+def test_agent_stream_forwards_run_turn_event_order(workspace, monkeypatch):
+    from app import site_editor_routes, store_agent
+
+    w = workspace
+    monkeypatch.setattr(site_editor_routes, "settings", SimpleNamespace(xai_api_key="configured", environment="test"))
+    monkeypatch.setattr(store_agent, "run_turn", lambda *args, **kwargs: iter([
+        {"type": "tool_called", "name": "update_block", "label": "Updating block..."},
+        {"type": "tool_result", "name": "update_block", "summary": "Updated"},
+        {"type": "assistant_text", "text": "Done"},
+        {"type": "done"},
+    ]))
+    path = f"/admin/sites/{w.site.id}/editor/agent"
+    result = w.client.post(path, json={"message": "Update it", "page_id": w.page.id},
+                           headers=w.headers)
+    assert result.status_code == 200
+    events = [json.loads(line[6:]) for line in result.text.splitlines() if line.startswith("data: ")]
+    assert [event["type"] for event in events] == ["tool_called", "tool_result", "assistant_text", "done"]
+
+
+def test_agent_restore_checks_csrf_and_uses_owned_site(workspace, monkeypatch):
+    from app import store_agent
+
+    w = workspace
+    observed = {}
+    def restore(db, site, user, message_id):
+        observed.update(site=site.id, user=user, message=message_id)
+    monkeypatch.setattr(store_agent, "restore_checkpoint", restore)
+    path = f"/admin/sites/{w.site.id}/editor/agent/restore"
+    assert w.client.post(path, json={"message_id":"msg-1"}).status_code == 403
+    result = w.client.post(path, json={"message_id":"msg-1"}, headers=w.headers)
+    assert result.status_code == 200
+    assert observed == {"site": w.site.id, "user": w.owner.id, "message": "msg-1"}
+
+
 def test_unsaved_render_does_not_write_and_rejects_foreign_media(workspace):
     w = workspace
     loaded = load(w)
