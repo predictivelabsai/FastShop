@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app import commerce, customer_services
 from app.db import SessionLocal
 from app.integrations.commerce_email import render_message
-from app.models import CommerceMail, CustomerLoginCodeChallenge, ShopCustomer
+from app.models import CommerceMail, CustomerLoginCodeChallenge, NotificationTemplate, ShopCustomer
 from app.services import CommerceError
 from tests.test_customer_routes import csrf, customer_site  # noqa: F401
 
@@ -50,6 +50,13 @@ def test_code_queued_encrypted_and_correct_code_signs_in(customer_site):
             ShopCustomer.email == "code@example.test")) is None
         subject, body = render_message(db, mail, site)
         assert code in body and site.name in subject
+        db.add(NotificationTemplate(tenant_id=site.tenant_id, site_id=site.id,
+            event="customer_account", subject="Edited {{ store_name }} login",
+            body="Custom login message: {{ message }}"))
+        db.flush()
+        edited_subject, edited_body = render_message(db, mail, site)
+        assert edited_subject == f"Edited {site.name} login"
+        assert "Custom login message:" in edited_body and code in edited_body
     verify = client.get(base + "/account/login/verify?email=code%40example.test&next=%2Faccount%2Fsubscriptions")
     result = client.post(base + "/account/login/verify", data={
         "csrf_token": csrf(verify), "email": "code@example.test", "code": code,

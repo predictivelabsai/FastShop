@@ -127,11 +127,14 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                         code=cart.discount_code if rule else "", email=customer.email if customer else "", preview=True)
                 db.commit()
                 if is_liquid(site):
+                    from app.site_editable_settings import shell_fields, shell_values
                     from app.storefront_ui import liquid_cart
+                    page_settings = shell_values({**(site.published_settings_json or {}), "theme_pack": "liquid"},
+                                                 shell_fields({"theme_pack": "liquid"}))
                     return screen(site, request, "Your bag",
                         P("Discount savings: " + money(sum(r["amount_minor"] for r in applied), "USD")) if applied else None,
                         liquid_cart(root, cart, lines, csrf(session),
-                            (site.published_settings_json or {}).get("liquid_shell", {}).get("pages", {})))
+                            page_settings["liquid_shell"]["pages"]))
                 return screen(site, request, "Your bag", csrf(session), *[Div(H2(line.name), P(money(line.amount_minor, "USD")),
                     P("Monthly subscription · 10% merchandise saving" if line.subscription else "One-time purchase"),
                     Form(csrf(session), Input(type="hidden", name="version", value=cart.version),
@@ -514,8 +517,10 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     "Monthly subscription" if line["subscription"] else "One-time purchase")
         if is_liquid(site):
             from app.storefront_ui import liquid_order_line
+            copy = {**DEFAULT_CHECKOUT_COPY, **(site.published_settings_json or {}).get("checkout_copy", {})}
             return liquid_order_line(line["name"], line.get("variant_name", ""),
-                line["quantity"], line["amount_minor"], quote.currency, purchase)
+                line["quantity"], line["amount_minor"], quote.currency, purchase,
+                quantity_label=copy["quantity_label"])
         return P(f"{line['name']} × {line['quantity']} · "
                  + money(line["amount_minor"], quote.currency) + " · " + purchase)
 

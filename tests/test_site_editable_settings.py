@@ -108,6 +108,60 @@ def test_store_pages_fields_render_and_cart_copy_is_editable(browser):  # noqa: 
     assert "Page not found" in missing
 
 
+def test_store_pages_customer_and_checkout_copy_defaults_and_overrides(browser):  # noqa: F811
+    from app.account_copy import DEFAULT_ACCOUNT_COPY
+    client, db, site = browser
+    fields = shell_fields(site.published_settings_json)
+    values = shell_values(site.published_settings_json, fields)
+    defaults = values["liquid_shell"]["pages"]
+    assert defaults["not_found_message"] == "The page you were looking for has moved or no longer exists."
+    assert defaults["shipping_next"] == "Shipping and destination sales tax are calculated next."
+    assert defaults["order_summary"] == "Order summary"
+    assert values["account_copy"] == DEFAULT_ACCOUNT_COPY
+    assert values["liquid_shell"]["portal"]["calculated_when_prepared"] == "Calculated when prepared"
+    edited = apply_shell(site.published_settings_json, {
+        "account_copy": {"heading": "Member access", "verification_code": "One-time code"},
+        "liquid_shell": {"pages": {"not_found_message": "This page has moved.",
+                                      "shipping_next": "Delivery costs appear next."},
+                         "portal": {"calculated_when_prepared": "Set before dispatch"}}}, fields)
+    site.published_settings_json = edited
+    db.commit()
+    missing = client.get("/sites/" + site.slug + "/missing").text
+    assert "This page has moved." in missing
+    import re
+
+    from tests.test_liquid_bundle_commerce import variants_for
+
+    base = "/sites/" + site.slug
+    empty_cart = client.get(base + "/cart")
+    csrf = re.search(r'name="csrf_token" value="([^"]+)"', empty_cart.text)[1]
+    variant = variants_for(db, site, "h2-4-you-one")[0]
+    client.post(base + "/cart/add", data={"csrf_token": csrf, "variant_id": variant.id,
+                                          "quantity": "1", "subscription": "off"})
+    cart = client.get(base + "/cart").text
+    assert "Delivery costs appear next." in cart
+    assert "Member access" in client.get("/sites/" + site.slug + "/account").text
+
+
+def test_header_logo_and_favicon_are_editable_image_fields(browser):  # noqa: F811
+    client, db, site = browser
+    fields = shell_fields(LIQUID)
+    by_id = {field["id"]: field for field in fields}
+    assert by_id["liquid_shell.header.logo"]["type"] == "image"
+    assert by_id["liquid_shell.header.logo"]["default"] == "/static/h24you/liquid/logo-clean-light.png"
+    assert by_id["liquid_shell.header.favicon"]["type"] == "image"
+    assert by_id["liquid_shell.header.favicon"]["default"] == "/static/h24you/liquid/logo-clean-dark.png"
+    saved = apply_shell(LIQUID, {"liquid_shell": {"header": {
+        "logo": "/site-media/site-1/media-1", "favicon": "/site-media/site-1/media-2"}}}, fields)
+    assert saved["liquid_shell"]["header"]["logo"] == "/site-media/site-1/media-1"
+    assert saved["liquid_shell"]["header"]["favicon"] == "/site-media/site-1/media-2"
+    site.published_settings_json = saved
+    db.commit()
+    rendered = client.get("/sites/" + site.slug + "/").text
+    assert 'src="/site-media/site-1/media-1"' in rendered
+    assert 'rel="icon" type="image/png" href="/site-media/site-1/media-2"' in rendered
+
+
 def test_hero_disclaimer_can_be_edited_and_hidden(browser):  # noqa: F811
     client, db, site = browser
     page = db.scalar(select(SitePage).where(SitePage.site_id == site.id, SitePage.path == "/"))

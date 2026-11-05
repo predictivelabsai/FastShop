@@ -22,6 +22,7 @@ DEFAULT_CHECKOUT_COPY = {
     "payment_security": "All transactions are secure and encrypted.",
     "billing_address": "Use shipping address as billing address",
     "summary_heading": "Order summary",
+    "quantity_label": "Quantity",
     "summary_toggle": "Show order summary",
     "discount_label": "Discount code or gift card number",
     "discount_code_option": "Discount code",

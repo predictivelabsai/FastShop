@@ -79,7 +79,12 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
 
     def account_copy(site):
         from app.account_copy import DEFAULT_ACCOUNT_COPY
-        return {**DEFAULT_ACCOUNT_COPY, **(site.published_settings_json or {}).get("account_copy", {})}
+        config = site.published_settings_json or {}
+        edited = config.get("account_copy", {})
+        if is_liquid(site):
+            from app.site_editable_settings import shell_fields, shell_values
+            edited = {**edited, **shell_values(config, shell_fields({"theme_pack": "liquid"})).get("account_copy", {})}
+        return {**DEFAULT_ACCOUNT_COPY, **edited}
 
     def safe_local_next(value, fallback):
         return safe_next_path(str(value or ""), fallback)
@@ -116,22 +121,23 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 root = base(site, request)
                 customer = customers.signed_in_customer(db, site, session)
                 if not customer:
-                    return private_response(screen(db, site, request, "Login", *login_card(site, request, session)))
+                    return private_response(screen(db, site, request, account_copy(site)["heading"], *login_card(site, request, session)))
                 orders = customers.orders_for(db, site, customer)
+                copy = account_copy(site)
                 consent = db.scalar(select(MarketingConsent).where(MarketingConsent.site_id == site.id,
                     MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.customer_id == customer.id))
                 offer = db.scalar(select(CustomerOffer).where(CustomerOffer.site_id == site.id,
                     CustomerOffer.tenant_id == site.tenant_id, CustomerOffer.customer_id == customer.id))
-                return private_response(screen(db, site, request, "My account", P(customer.email),
-                    Div(H2("Subscriptions"), A("Manage your subscriptions", href=root + "/account/subscriptions", cls="e-button"), cls="e-card"),
-                    Div(H2("Your orders"), *[P(A(order.number, href=root + "/account/orders/" + link.id),
+                return private_response(screen(db, site, request, copy["my_account"], P(customer.email),
+                    Div(H2(copy["subscriptions"]), A(copy["manage_subscriptions"], href=root + "/account/subscriptions", cls="e-button"), cls="e-card"),
+                    Div(H2(copy["orders"]), *[P(A(order.number, href=root + "/account/orders/" + link.id),
                         " · " + money(order.total_minor, order.currency) + " · " + order.payment_status) for link, order in orders],
-                        P("No orders yet. Your confirmed purchases will appear here.") if not orders else None, cls="e-card"),
-                    Div(H2("Email preferences"), P("Marketing: " + (consent.status if consent else "not subscribed")),
-                        Form(csrf(session), Button("Unsubscribe from marketing", cls="e-button"), method="post", action=root + "/account/unsubscribe") if consent and consent.status == "subscribed" else None,
-                        P("Your first-order code: " + offer.code + " · expires " + offer.expires_at.strftime("%Y-%m-%d")) if offer and not offer.redeemed_order_id else None,
-                        P("Transactional order and security messages are separate from marketing."), cls="e-card"),
-                    Form(csrf(session), Button("Sign out", cls="e-button"), method="post", action=root + "/account/logout")))
+                        P(copy["no_orders"]) if not orders else None, cls="e-card"),
+                    Div(H2(copy["email_preferences"]), P(copy["marketing_label"] + ": " + (consent.status if consent else copy["not_subscribed"])),
+                        Form(csrf(session), Button(copy["unsubscribe"], cls="e-button"), method="post", action=root + "/account/unsubscribe") if consent and consent.status == "subscribed" else None,
+                        P(copy["first_order_code"].format(code=offer.code, date=offer.expires_at.strftime("%Y-%m-%d"))) if offer and not offer.redeemed_order_id else None,
+                        P(copy["transactional_notice"]), cls="e-card"),
+                    Form(csrf(session), Button(copy["sign_out"], cls="e-button"), method="post", action=root + "/account/logout")))
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
@@ -148,8 +154,9 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     consent=form.get("marketing_consent") == "on")
                 message_id = mail.id if mail else None
                 db.commit()
-                response = screen(db, site, request, "Check your email", Div(P("If your request can be processed, an email link will arrive shortly. Check your spam folder too. Repeated requests are limited."),
-                    P("The link expires and can only be used once. No order has been placed."), cls="e-card"))
+                copy = account_copy(site)
+                response = screen(db, site, request, copy["check_email"], Div(P(copy["email_link_message"]),
+                    P(copy["link_expiry_message"]), cls="e-card"))
             if message_id:
                 dispatch_mail(message_id)
             return private_response(response)
@@ -175,7 +182,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 email = str(form.get("email", ""))[:320]
                 next_path = safe_local_next(form.get("next", ""), base(site, request) + "/account/subscriptions")
                 db.commit()
-                response = screen(db, site, request, "Login", *login_card(site, request, session,
+                response = screen(db, site, request, account_copy(site)["heading"], *login_card(site, request, session,
                     verify=True, next_path=next_path, email=email), P(account_copy(site)["sent_message"]))
             if message_id:
                 dispatch_mail(message_id)
@@ -191,7 +198,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
             with SessionLocal() as db:
                 site = account_site(db, slug)
                 target = safe_local_next(next, base(site, request) + "/account/subscriptions")
-                return private_response(screen(db, site, request, "Login", *login_card(site, request,
+                return private_response(screen(db, site, request, account_copy(site)["heading"], *login_card(site, request,
                     session, verify=True, next_path=target, email=email)))
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
@@ -208,7 +215,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 customer = customers.consume_login_code(db, site, form.get("email", ""), form.get("code", ""))
                 if not customer:
                     db.commit()
-                    return private_response(screen(db, site, request, "Login",
+                    return private_response(screen(db, site, request, account_copy(site)["heading"],
                         *login_card(site, request, session, verify=True,
                             next_path=safe_local_next(form.get("next", ""), base(site, request) + "/account/subscriptions"),
                             email=str(form.get("email", ""))[:320]),
@@ -234,10 +241,11 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         try:
             with SessionLocal() as db:
                 site = verification_site(db, slug, challenge_id)
-                return private_response(screen(db, site, request, "Confirm your email", Div(
-                    P("Select Confirm to finish the request. Opening the link alone does not sign you in or subscribe you."),
-                    Form(csrf(session), Label("Verification code", Input(name="token", required=True, data_email_token="", autocomplete="off", maxlength=64)),
-                        Button("Confirm", cls="e-button"), method="post", cls="e-form"), cls="e-card")))
+                copy = account_copy(site)
+                return private_response(screen(db, site, request, copy["confirm_email"], Div(
+                    P(copy["confirm_email_instruction"]),
+                    Form(csrf(session), Label(copy["verification_code"], Input(name="token", required=True, data_email_token="", autocomplete="off", maxlength=64)),
+                        Button(copy["confirm"], cls="e-button"), method="post", cls="e-form"), cls="e-card")))
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
@@ -260,8 +268,9 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     return RedirectResponse(base(site, request) + "/account", status_code=303)
                 mails = list(db.scalars(select(CommerceMail.id).where(CommerceMail.site_id == site.id,
                     CommerceMail.tenant_id == site.tenant_id, CommerceMail.customer_id == customer.id, CommerceMail.status == "pending")))
-                response = screen(db, site, request, "Email confirmed", Div(P("Your marketing preference has been confirmed. If eligible, your first-order code will arrive by email. You can unsubscribe at any time."),
-                    A("Back to store", href=base(site, request) + "/"), cls="e-card"))
+                copy = account_copy(site)
+                response = screen(db, site, request, copy["email_confirmed"], Div(P(copy["email_confirmed_message"]),
+                    A(copy["back_to_store"], href=base(site, request) + "/"), cls="e-card"))
             for message_id in mails:
                 dispatch_mail(message_id)
             return private_response(response)
@@ -304,9 +313,10 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         try:
             with SessionLocal() as db:
                 site = resolve(db, slug, enabled=False)
-                return private_response(screen(db, site, request, "Unsubscribe", Div(P("Confirm below to stop marketing emails. Order and account-security messages are unaffected."),
-                    Form(csrf(session), Label("Confirmation code", Input(name="token", required=True, data_email_token="", maxlength=64, autocomplete="off")),
-                        Button("Unsubscribe", cls="e-button"), method="post", cls="e-form"), cls="e-card")))
+                copy = account_copy(site)
+                return private_response(screen(db, site, request, copy["unsubscribe_title"], Div(P(copy["unsubscribe_instruction"]),
+                    Form(csrf(session), Label(copy["confirmation_code"], Input(name="token", required=True, data_email_token="", maxlength=64, autocomplete="off")),
+                        Button(copy["unsubscribe"], cls="e-button"), method="post", cls="e-form"), cls="e-card")))
         except CommerceError as exc:
             return public_message(request, slug, exc)
 
@@ -323,7 +333,8 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     raise CommerceError("Invalid unsubscribe link.")
                 customers.unsubscribe(db, site, customer)
                 db.commit()
-                return private_response(screen(db, site, request, "Unsubscribed", P("You will no longer receive marketing emails from this store.")))
+                copy = account_copy(site)
+                return private_response(screen(db, site, request, copy["unsubscribed"], P(copy["unsubscribed_message"])))
         except CommerceError as exc:
             return public_message(request, slug, exc)
 
@@ -339,18 +350,19 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     SiteOrder.id == site_order_id, SiteOrder.site_id == site.id, SiteOrder.tenant_id == site.tenant_id,
                     SiteOrder.customer_id == customer.id, Order.tenant_id == site.tenant_id)).first()
                 if not row:
-                    return public_message(request, slug, "Order not found", status_code=404, plain=False)
+                    return public_message(request, slug, account_copy(site)["order_not_found"], status_code=404, plain=False)
                 link, order = row
                 events = customers.tracking_for(db, site, link.id)
                 return private_response(screen(db, site, request, order.number,
-                    Div(H2("Order summary"), P("Payment: " + order.payment_status),
-                        P("Sales tax: " + money(order.tax_minor, order.currency)), P("Total: " + money(order.total_minor, order.currency)),
+                    Div(H2(account_copy(site)["order_summary"]), P(account_copy(site)["payment_label"] + ": " + order.payment_status),
+                        P(account_copy(site)["sales_tax_label"] + ": " + money(order.tax_minor, order.currency)), P(account_copy(site)["total_label"] + ": " + money(order.total_minor, order.currency)),
                         *[liquid_order_line(line.product_name, line.variant_name, line.quantity,
-                            line.total_minor, order.currency) if is_liquid(site) else
+                            line.total_minor, order.currency,
+                            quantity_label=account_copy(site)["quantity_label"]) if is_liquid(site) else
                             P(f"{line.product_name} · {line.variant_name} × {line.quantity}") for line in order.lines], cls="e-card"),
-                    Div(H2("Delivery tracking"), P("No shipment updates yet.") if not events else None,
+                    Div(H2(account_copy(site)["delivery_tracking"]), P(account_copy(site)["no_shipment_updates"]) if not events else None,
                         Ul(*[Li(P(event.status.replace("_", " ").title()), P(event.carrier + " " + event.tracking_number),
-                            P(event.note), A("Track with carrier ↗", href=event.tracking_url, target="_blank", rel="noopener noreferrer") if event.tracking_url else None,
+                            P(event.note), A(account_copy(site)["track_carrier"], href=event.tracking_url, target="_blank", rel="noopener noreferrer") if event.tracking_url else None,
                             Small(str(event.created_at))) for event in events]), cls="e-card")))
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
