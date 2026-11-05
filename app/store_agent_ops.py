@@ -808,18 +808,26 @@ def register_routes(rt, actor, csrf, check_csrf, shell, error):
             return error(exc)
 
     for decision, handler in (("confirm", confirm_action), ("decline", decline_action)):
-        async def endpoint(site_id: str, action_id: str, request, _handler=handler):
-            try:
-                form = await request.form()
-                check_csrf(request.session, form)
-                user_id = actor(request.session)
-                with SessionLocal() as db:
-                    site = db.scalar(select(Site).where(Site.id == site_id))
-                    if not site:
-                        raise CommerceError("Site not found.")
-                    action = _handler(db, site, user_id, action_id)
-                    return JSONResponse({"status": action.status, "summary": action.summary,
-                                         "result": action.result_json})
-            except Exception as exc:
-                return error(exc)
-        rt(f"/admin/sites/{{site_id}}/agent/actions/{{action_id}}/{decision}", methods=["POST"])(endpoint)
+        def make_endpoint(action_handler):
+            async def endpoint(site_id: str, action_id: str, request):
+                try:
+                    headers = getattr(request, "headers", {})
+                    if headers.get("content-type", "").startswith("application/json"):
+                        form = await request.json()
+                    else:
+                        form = await request.form()
+                    check_csrf(request.session, form)
+                    user_id = actor(request.session)
+                    with SessionLocal() as db:
+                        site = db.scalar(select(Site).where(Site.id == site_id))
+                        if not site:
+                            raise CommerceError("Site not found.")
+                        action = action_handler(db, site, user_id, action_id)
+                        return JSONResponse({"status": action.status, "summary": action.summary,
+                                             "result": action.result_json})
+                except Exception as exc:
+                    return error(exc)
+            return endpoint
+
+        rt(f"/admin/sites/{{site_id}}/agent/actions/{{action_id}}/{decision}", methods=["POST"])(
+            make_endpoint(handler))

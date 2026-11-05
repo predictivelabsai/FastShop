@@ -2,10 +2,10 @@
 
 from urllib.parse import urlencode
 
-from fasthtml.common import A, Button, Div, Form, P, Script
+from fasthtml.common import A, Button, Div, Form
 from starlette.responses import RedirectResponse
 
-from app import content, ui
+from app import content, store_agent_admin, ui
 from app.admin_ui import card
 from app.db import SessionLocal
 from app.integrations import fasterp
@@ -95,10 +95,27 @@ def register_admin_capability_routes(rt, actor, csrf, check_csrf, shell, error):
         try:
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
+                page = store_agent_admin.home_page(db, site)
                 csrf(session)
-                return shell("Assistant", P("Ask about orders, stock and FastERP sync."),
-                    ui.assistant("merchant", session["csrf_token"],
-                                 f"/admin/sites/{site.id}/assistant", embedded=True, inline=True),
-                    Script(src=ui.static_asset("app.js"), defer=True))
+                csrf_token = session["csrf_token"]
+                return shell("Assistant", *store_agent_admin.page(site, page, csrf_token))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/assistant/conversations", methods=["GET"])
+    def conversations(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session), publish=True)
+                return store_agent_admin.conversations(db, site, actor(session))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/assistant/history", methods=["GET"])
+    def history(session, site_id: str, conversation_id: str = ""):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session), publish=True)
+                return store_agent_admin.history(db, site, actor(session), conversation_id)
         except CommerceError as exc:
             return error(exc)
