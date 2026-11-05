@@ -491,7 +491,8 @@ def test_store_assistant_membership_provider_state_and_admin_launcher(entry, mon
     missing_key = client.get(assistant_url)
     assert missing_key.status_code == 200
     assert "AI provider not configured" in missing_key.text
-    assert "Which products sold best this month?" in missing_key.text
+    assert "Message the assistant" not in missing_key.text
+    assert "Which products sold best this month?" not in missing_key.text
     assert 'data-stream="/admin/sites/' + entry.site.id + '/editor/agent"' in missing_key.text
     assert client.get(f"/admin/sites/{entry.foreign.id}/assistant").status_code == 400
 
@@ -499,6 +500,7 @@ def test_store_assistant_membership_provider_state_and_admin_launcher(entry, mon
     configured = client.get(assistant_url)
     assert configured.status_code == 200
     assert "AI provider not configured" not in configured.text
+    assert "Message the assistant" in configured.text
     assert "Make the homepage hero shorter" in configured.text
 
     with entry.sessions() as db:
