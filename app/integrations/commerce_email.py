@@ -44,11 +44,14 @@ def send_email(recipient, subject, body, *, message_id, site=None, db=None):
         sender = os.getenv("FASTSHOP_CONTACT_FROM") or os.getenv("FROM_EMAIL", "")
     if not token or not sender:
         return "awaiting_configuration", ""
+    payload = {"From": sender, "To": recipient, "Subject": subject, "TextBody": body,
+               "MessageStream": "outbound", "TrackOpens": False, "TrackLinks": "None",
+               "Metadata": {"fastshop_message_id": message_id}}
+    if site is not None and config.get("reply_to"):
+        payload["ReplyTo"] = config["reply_to"]
     try:
         response = httpx.post("https://api.postmarkapp.com/email", timeout=15,
-            headers={"X-Postmark-Server-Token": token}, json={"From": sender, "To": recipient,
-                "Subject": subject, "TextBody": body, "MessageStream": "outbound",
-                "TrackOpens": False, "TrackLinks": "None", "Metadata": {"fastshop_message_id": message_id}})
+            headers={"X-Postmark-Server-Token": token}, json=payload)
         response.raise_for_status()
         result = response.json()
         if result.get("ErrorCode") == 0 and result.get("MessageID"):

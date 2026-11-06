@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import UTC, datetime
+from email.utils import formataddr, parseaddr
 
 import httpx
 from sqlalchemy import select
@@ -146,10 +147,16 @@ def mail_settings(site: Site, db=None) -> dict:
         return {key: connected.get(key, "") for key in ("token", "sender", "sender_name")}
     import os
 
+    settings = site.published_settings_json or site.settings_json or {}
+    store_name = str(settings.get("name") or site.name).strip()
+    store_name = re.sub(r'["\r\n<>]', "", store_name)
+    platform_sender = os.getenv("FASTSHOP_CONTACT_FROM") or os.getenv("FROM_EMAIL", "")
+    _, platform_address = parseaddr(platform_sender)
     return {
         "token": os.getenv("POSTMARK_SERVER_TOKEN") or os.getenv("POSTMARK_API_TOKEN", ""),
-        "sender": os.getenv("FASTSHOP_CONTACT_FROM") or os.getenv("FROM_EMAIL", ""),
-        "sender_name": "",
+        "sender": platform_address or platform_sender,
+        "sender_name": store_name,
+        "reply_to": str(settings.get("email") or "").strip(),
         "account_token": "",
     }
 
@@ -173,4 +180,4 @@ def send_test_email(site: Site, recipient: str, db, *, client=None) -> bool:
 def _from_address(config: dict) -> str:
     name = str(config.get("sender_name", "")).strip()
     sender = str(config.get("sender", "")).strip()
-    return f"{name} <{sender}>" if name else sender
+    return formataddr((name, sender)) if name else sender
