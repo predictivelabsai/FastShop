@@ -128,10 +128,55 @@ def test_email_connection_precedence_and_disconnect(workspace, monkeypatch):
     assert commerce_email.send_email("buyer@example.test", "Subject", "Body",
         message_id="mail-id", site=site, db=db) == ("sent", "provider-id")
     assert api.calls[0][2]["headers"]["X-Postmark-Server-Token"] == "site-token"
+    assert api.calls[0][2]["json"]["From"] == "Shop <orders@example.test>"
+    assert "ReplyTo" not in api.calls[0][2]["json"]
     assert site_integrations.disconnect(db, site, "email")
     db.commit()
     assert site_integrations.mail_settings(site, db)["token"] == "fallback-token"
     assert site_integrations.disconnect(db, site, "email") is False
+
+
+def test_platform_sender_uses_store_name_and_merchant_reply_to(workspace, monkeypatch):
+    db, site, _, _, _ = workspace
+    site.settings_json = {"name": "Editable brand", "email": "help@example.test"}
+    site.published_settings_json = site.settings_json
+    monkeypatch.setenv("POSTMARK_API_TOKEN", "fallback-token")
+    monkeypatch.setenv("FROM_EMAIL", 'Platform sender <platform@example.test>')
+    api = FakeHTTP([FakeResponse({"ErrorCode": 0, "MessageID": "provider-id"})])
+    monkeypatch.setattr(commerce_email.httpx, "post", api.post)
+
+    assert commerce_email.send_email("buyer@example.test", "Subject", "Body",
+        message_id="mail-id", site=site, db=db) == ("sent", "provider-id")
+    payload = api.calls[0][2]["json"]
+    assert payload["From"] == "Editable brand <platform@example.test>"
+    assert payload["ReplyTo"] == "help@example.test"
+
+
+def test_platform_sender_omits_reply_to_without_site_contact_email(workspace, monkeypatch):
+    db, site, _, _, _ = workspace
+    site.settings_json = {"name": "Editable brand"}
+    monkeypatch.setenv("POSTMARK_API_TOKEN", "fallback-token")
+    monkeypatch.setenv("FROM_EMAIL", "platform@example.test")
+    api = FakeHTTP([FakeResponse({"ErrorCode": 0, "MessageID": "provider-id"})])
+    monkeypatch.setattr(commerce_email.httpx, "post", api.post)
+
+    assert commerce_email.send_email("buyer@example.test", "Subject", "Body",
+        message_id="mail-id", site=site, db=db) == ("sent", "provider-id")
+    assert "ReplyTo" not in api.calls[0][2]["json"]
+
+
+def test_platform_store_name_is_sanitised_for_from_header(workspace, monkeypatch):
+    db, site, _, _, _ = workspace
+    site.settings_json = {"name": 'Bad"\r\n<Bcc:attacker@example.test>'}
+    site.published_settings_json = site.settings_json
+    monkeypatch.setenv("POSTMARK_API_TOKEN", "fallback-token")
+    monkeypatch.setenv("FROM_EMAIL", "platform@example.test")
+    api = FakeHTTP([FakeResponse({"ErrorCode": 0, "MessageID": "provider-id"})])
+    monkeypatch.setattr(commerce_email.httpx, "post", api.post)
+
+    assert commerce_email.send_email("buyer@example.test", "Subject", "Body",
+        message_id="mail-id", site=site, db=db) == ("sent", "provider-id")
+    assert api.calls[0][2]["json"]["From"] == '"BadBcc:attacker@example.test" <platform@example.test>'
 
 
 def test_postmark_test_message_uses_merchant_address(workspace):
