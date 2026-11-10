@@ -350,7 +350,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
             ),
             ReadinessCheck(
                 "commerce_configuration",
-                "Sandbox commerce configuration is complete",
+                "Test checkout configuration is complete",
                 not configuration_missing,
                 "Origin, shipping, destinations and reviewed tax settings are complete." if not configuration_missing else
                 "Complete: " + ", ".join(configuration_missing) + ".",
@@ -541,7 +541,7 @@ def set_sandbox_commerce(
         SiteCommerceSettings.tenant_id == site.tenant_id,
     ).with_for_update().execution_options(populate_existing=True))
     if not config:
-        raise CommerceError("Save sandbox commerce settings before changing checkout availability.")
+        raise CommerceError("Save commerce settings before changing checkout availability.")
     if config_version is not None and config.version != config_version:
         raise CommerceError("Commerce settings changed. Reload the checklist and try again.")
     before = _state(site, config.mode)
@@ -549,36 +549,36 @@ def set_sandbox_commerce(
         if config.mode == "live":
             raise CommerceError("Only the platform operator can disable accepted live payments.")
         if config.mode == "disabled":
-            return TransitionDecision(False, False, "Sandbox commerce is already disabled.")
+            return TransitionDecision(False, False, "Checkout is already off.")
         config.mode = "disabled"
         config.version += 1
         site.version += 1
         db.flush()
         _audit(db, site, user_id, action="sandbox-commerce-disable", decision="approved",
-               reason="Merchant disabled sandbox checkout and restored the read-only storefront.", before=before)
-        return TransitionDecision(True, False, "Sandbox commerce disabled; the storefront is read-only.")
+               reason="Merchant turned checkout off and restored the read-only storefront.", before=before)
+        return TransitionDecision(True, False, "Checkout is off; the storefront is read-only.")
     report = assess(db, site, commerce_requested=True)
     if report.failures:
         _audit(db, site, user_id, action="sandbox-commerce-enable", decision="blocked",
-               reason="Merchant requested sandbox checkout.", before=before, report=report)
+               reason="Merchant requested Test mode.", before=before, report=report)
         return TransitionDecision(
             False,
             False,
-            "Sandbox commerce blocked: " + "; ".join(check.label for check in report.failures) + ".",
+            "Test mode is unavailable until these checks pass: " + "; ".join(check.label for check in report.failures) + ".",
             report,
         )
     if config.mode == "sandbox":
-        return TransitionDecision(False, False, "Sandbox commerce is already enabled.", report)
+        return TransitionDecision(False, False, "Test mode is already active.", report)
     if config.mode != "disabled":
-        raise CommerceError("Only disabled or sandbox mode is available in this slice.")
+        raise CommerceError("Only Checkout off or Test mode is available here.")
     config.mode = "sandbox"
     config.version += 1
     site.version += 1
     db.flush()
     _audit(db, site, user_id, action="sandbox-commerce-enable", decision="approved",
-           reason="Merchant requested sandbox checkout after all readiness checks passed.",
+           reason="Merchant requested Test mode after all readiness checks passed.",
            before=before, report=report)
-    return TransitionDecision(True, False, "Sandbox commerce enabled. Live payments remain unavailable.", report)
+    return TransitionDecision(True, False, "Test mode is active. Live payments remain off.", report)
 
 
 def switch_live_payments(db, site_id: str, user_id: str, version: int,
