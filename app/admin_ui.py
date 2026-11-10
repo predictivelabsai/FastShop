@@ -292,7 +292,9 @@ def _assistant_drawer(site, path, csrf_token):
     if not site or "/editor" in path:
         return None
     from app import store_agent_admin
-    return (store_agent_admin.drawer(site.id, csrf_token),
+    # The full assistant page already renders the chat; a second copy duplicates its ids.
+    on_assistant_page = path.rstrip("/").endswith("/assistant")
+    return (None if on_assistant_page else store_agent_admin.drawer(site.id, csrf_token),
             Link(rel="stylesheet", href=static_asset("admin/agent.css")),
             Link(rel="stylesheet", href=static_asset("agent-chat.css")),
             Script(src=static_asset("admin/agent.js"), type="module"))
