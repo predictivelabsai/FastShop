@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -56,6 +57,8 @@ def main() -> None:
             "connected": True, "mode": "test", "charges_enabled": True,
             "account_id": "acct_browser_fixture", "account_name": "Local Stripe Shop",
             "country": "EE", "tax_settings_active": True,
+            "tax_settings": {"status": "active", "missing_fields": [],
+                "defaults": {}, "head_office": {"country": "EE"}},
             "webhook_secret_configured": True, "provider_acceptance_complete": False,
         }
 
@@ -121,6 +124,24 @@ def main() -> None:
                 page.goto(url)
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
                 page.screenshot(path=str(OUTPUT / f"{device}-connected.png"), full_page=True)
+
+            with SessionLocal() as db:
+                site = db.get(Site, site_id)
+                settings_json = dict(site.settings_json or {})
+                tax_cache = dict(settings_json.get("stripe_tax_status", {}))
+                tax_cache["test"] = {"status": "pending",
+                    "missing_fields": ["head_office.address.city"],
+                    "checked_at": datetime.now(UTC).isoformat()}
+                settings_json["stripe_tax_status"] = tax_cache
+                site.settings_json = settings_json
+                db.commit()
+            golive_url = f"http://127.0.0.1:{port}/admin/sites/{site_id}/golive"
+            for device, width, height in (("desktop", 1440, 1000), ("mobile", 390, 844)):
+                page.set_viewport_size({"width": width, "height": height})
+                page.goto(golive_url)
+                expect(page.get_by_text("Missing fields: head_office.address.city")).to_be_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+                page.screenshot(path=str(OUTPUT / f"{device}-golive.png"), full_page=True)
             browser.close()
     finally:
         server.should_exit = True
