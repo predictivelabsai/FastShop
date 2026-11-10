@@ -99,6 +99,28 @@ def test_tool_turn_edits_and_checkpoint_restores(workspace):
     assert page.draft_json["blocks"][0] == first and len(page.draft_json["blocks"]) == 1
 
 
+def test_seo_settings_tool_saves_validated_draft_values(workspace):
+    db, user, site = workspace
+    page = content.site_pages(db, site)[0]
+    transport = FakeTransport([
+        call("update_seo_settings", {"values": {
+            "seo_default_description": "A clear store description",
+            "seo_indexing": False,
+        }}),
+        {"content": "Updated search settings."},
+    ])
+    events = list(run_turn(
+        db, site, user, "Update search settings", page_id=page.id, transport=transport,
+    ))
+    assert events[-1]["type"] == "done"
+    assert site.settings_json["seo_default_description"] == "A clear store description"
+    assert site.settings_json["seo_indexing"] is False
+    assert site.published_settings_json.get("seo_default_description") != "A clear store description"
+    assert "update_seo_settings" in {
+        tool["function"]["name"] for tool in transport.schemas[0]
+    }
+
+
 def test_invalid_arguments_are_returned_as_tool_error(workspace):
     db, user, site = workspace
     page = content.site_pages(db, site)[0]

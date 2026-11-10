@@ -186,6 +186,50 @@ def test_custom_host_housekeeping_routes_follow_publication_and_include_publishe
             db.commit()
 
 
+def test_seo_settings_require_csrf_and_publish_store_metadata():
+    site, _ = sample_store()
+    client, token = signed_in()
+    path = f"/admin/sites/{site.id}/settings/seo"
+    page = client.get(path)
+    assert page.status_code == 200
+    assert "Search appearance" in page.text
+    assert "Custom robots.txt" in page.text
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        version = saved.version
+        home = db.scalar(select(SitePage).where(
+            SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id, SitePage.path == "/",
+        ))
+        home_id = home.id
+    form = {
+        "csrf_token": token,
+        "version": str(version),
+        "action": "publish",
+        "home_title": "Storefront title",
+        "home_description": "Storefront description",
+        "title_format": "{page} | {store}",
+        "default_description": "A store description",
+        "social_image": "",
+        "social_title": "A social title",
+        "indexing": "on",
+        "robots_override": "",
+        "google_verification": "verify_123",
+        "bing_verification": "bing-123",
+    }
+    rejected = client.post(path, data=form | {"csrf_token": "wrong"})
+    assert rejected.status_code == 400
+    response = client.post(path, data=form, follow_redirects=False)
+    assert response.status_code == 303
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        home = db.get(SitePage, home_id)
+        assert saved.settings_json["seo_default_description"] == "A store description"
+        assert saved.published_settings_json["seo_google_verification"] == "verify_123"
+        assert saved.published_settings_json["seo_bing_verification"] == "bing-123"
+        assert home.published_json["seo_title"] == "Storefront title"
+        assert home.published_json["seo_description"] == "Storefront description"
+
+
 def test_unpublished_upload_is_private_even_on_public_preview_site():
     from app.models import SiteMedia
     site, _ = sample_store()

@@ -386,6 +386,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             cls="h-container h-blog-tools")
         if active:
             document["title"] += " — " + active
+    from app.site_seo import metadata as seo_metadata
+    seo = seo_metadata(site, page, document, canonical, preview=preview)
     from app.site_menus import rendered_navigation
     header_navigation = rendered_navigation(db, site, "header", preview=preview)
     footer_navigation = rendered_navigation(db, site, "footer", preview=preview)
@@ -413,10 +415,14 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     def brand(light=False):
         return image(config.get("logo_light" if light else "logo"), config.get("name", site.name), eager=True) or Span(config.get("name", site.name))
     return (
-        Title(f"{document['title']} — {site.name}"), Meta(name="viewport", content="width=device-width, initial-scale=1"),
-        Meta(name="description", content=document.get("description", "")), Meta(name="robots", content="noindex,nofollow" if site.status != "published" or preview else "noindex,follow" if blog_listing and (blog_tag or not listing_articles) else "index,follow"),
-        Meta(property="og:title", content=document["title"]), Meta(property="og:description", content=document.get("description", "")),
-        Meta(property="og:url", content=canonical), Link(rel="canonical", href=canonical),
+        Title(seo["title"]), Meta(name="viewport", content="width=device-width, initial-scale=1"),
+        Meta(name="description", content=seo["description"]), Meta(name="robots", content="noindex,nofollow" if site.status != "published" or preview else "noindex,follow" if not seo["indexing"] or (blog_listing and (blog_tag or not listing_articles)) else "index,follow"),
+        Meta(property="og:title", content=seo["social_title"]), Meta(property="og:description", content=seo["description"]),
+        Meta(property="og:image", content=seo["image"]) if seo["image"] else None,
+        Meta(property="og:url", content=seo["canonical"]), Meta(name="twitter:card", content="summary_large_image" if seo["image"] else "summary"),
+        Meta(name="google-site-verification", content=seo["google_verification"]) if seo["google_verification"] else None,
+        Meta(name="msvalidate.01", content=seo["bing_verification"]) if seo["bing_verification"] else None,
+        Link(rel="canonical", href=seo["canonical"]),
         *head_snippets,
         *head_nodes(db, site, preferences, preview=preview),
         Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml") if not preferences or not preferences.favicon_id else None, Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
