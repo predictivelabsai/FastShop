@@ -10,6 +10,7 @@ from app import commerce as commerce_service
 from app.config import settings
 from app.db import SessionLocal
 from app.models import Site, SiteCommerceSettings
+from app.services import CommerceError
 
 
 class SiteHostMiddleware:
@@ -71,7 +72,17 @@ class SiteHostMiddleware:
                             (path.startswith(("/cart", "/checkout")) and
                              not commerce_service.payments_enabled(db, site, commerce))):
                         return await Response("Commerce is not open on this preview site.", status_code=404)(scope, receive, send)
-                    if (getattr(site, "published_settings_json", None) or {}).get("sandbox_demo"):
+                    sandbox_demo = (getattr(site, "published_settings_json", None) or {}).get(
+                        "sandbox_demo"
+                    )
+                    if sandbox_demo:
+                        try:
+                            is_live = commerce_service.payment_mode(db, site, commerce) == "live"
+                        except CommerceError:
+                            is_live = False
+                    else:
+                        is_live = False
+                    if sandbox_demo and not is_live:
                         original_send = send
 
                         async def demo_send(message):
