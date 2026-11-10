@@ -203,8 +203,6 @@ def quote_order(db, site, config, selections, destination, gateway, *, first_ord
     if config.site_id != site.id or config.tenant_id != site.tenant_id:
         raise CommerceError("Commerce settings do not belong to this site.")
     payment_mode(db, site, config)
-    if not config.tax_registration_reviewed:
-        raise CommerceError("Review the merchant's Stripe Tax registrations before quoting.")
     destination = address(destination)
     if destination["state"] not in config.allowed_states_json:
         raise CommerceError("Shipping is not enabled for this state.")
@@ -231,8 +229,28 @@ def quote_order(db, site, config, selections, destination, gateway, *, first_ord
     fingerprint = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
     now = datetime.now(UTC)
     quote_id = new_id()
-    tax = gateway.calculate_tax(lines, destination, origin, shipping,
-        idempotency_key=f"tax-{site.id}-{quote_id}")
+    from app.integrations.stripe_commerce import StripeTaxError, TaxResult
+    from app.stripe_connections import cached_tax_status
+    tax_mode = "live" if payment_mode(db, site, config) == "live" else "test"
+    if cached_tax_status(site, tax_mode).get("status") == "active":
+        try:
+            tax = gateway.calculate_tax(lines, destination, origin, shipping,
+                idempotency_key=f"tax-{site.id}-{quote_id}")
+        except StripeTaxError:
+            cache = dict((site.settings_json or {}).get("stripe_tax_status", {}))
+            cache[tax_mode] = {"status": "unknown", "missing_fields": [],
+                "checked_at": now.isoformat()}
+            settings_json = dict(site.settings_json or {})
+            settings_json["stripe_tax_status"] = cache
+            settings_json["stripe_tax_warning"] = {
+                "quote_id": quote_id, "recorded_at": now.isoformat(),
+            }
+            site.settings_json = settings_json
+            tax = TaxResult("stripe_tax_unavailable", "USD", 0, discounted_subtotal + shipping,
+                now + timedelta(minutes=15), [])
+    else:
+        tax = TaxResult("stripe_tax_unavailable", "USD", 0, discounted_subtotal + shipping,
+            now + timedelta(minutes=15), [])
     # Stripe remains authoritative for live payments. Merchant tax rates provide
     # deterministic sandbox quotes without changing live Stripe Tax paths.
     local_tax = tax_amount(db, site, destination, discounted_subtotal + shipping)

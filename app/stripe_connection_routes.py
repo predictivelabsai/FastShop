@@ -42,12 +42,8 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                 records = {mode: stripe_connections.connection_for(db, site, mode)
                            for mode in ("test", "live")}
                 selected = "live" if config and config.mode == "live" else "test"
-                tax_status = None
-                if records[selected]:
-                    try:
-                        tax_status = stripe_connections.test_connection(db, site, selected)["tax_settings_active"]
-                    except CommerceError:
-                        tax_status = None
+                tax = stripe_connections.tax_status(db, site, selected)
+                db.commit()
                 cards = []
                 for mode, record in records.items():
                     cards.append(Div(H3("Live mode" if mode == "live" else "Test mode"),
@@ -76,12 +72,7 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                     Div(H2("Connections"), *cards, cls="e-grid"),
                     Div(H2("Connect Stripe"),
                         P("Enter keys from your Stripe Dashboard. FastShop verifies the account and stores each value encrypted. Secrets cannot be viewed after saving."),
-                        P("Stripe automatic tax is enabled at checkout by default unless merchant-configured local tax or gift tender applies. " +
-                          ("Stripe Tax is active for this account." if tax_status is True else
-                           "Stripe Tax is not active for this account." if tax_status is False else
-                           "Stripe Tax status is currently unavailable. You can still save the connection.")),
-                        A("Open Stripe Tax settings", href="https://dashboard.stripe.com/settings/tax",
-                          target="_blank", rel="noreferrer") if tax_status is not True else None,
+                        stripe_connections.stripe_tax_status_line(tax, selected),
                         Form(csrf(session),
                             Label("Connection mode", Select(Option("Test mode", value="test", selected=selected == "test"),
                                 Option("Live mode", value="live", selected=selected == "live"), name="mode")),
@@ -128,7 +119,9 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
             def verify_connection():
                 with SessionLocal() as db:
                     site = content.owned_site(db, site_id, user_id)
-                    return stripe_connections.test_connection(db, site, mode)
+                    result = stripe_connections.test_connection(db, site, mode)
+                    db.commit()
+                    return result
 
             status = await run_in_threadpool(verify_connection)
             return back(site_id, "Stripe " + status["mode"] + " connection is healthy.")

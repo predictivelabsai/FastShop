@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -28,6 +28,69 @@ def decrypted(db, site: Site, connection: SiteStripeConnection) -> tuple[str, st
         live_credentials.decrypt_secret(connection.webhook_secret_ciphertext, aad=prefix + "webhook-secret"),
         live_credentials.decrypt_secret(connection.publishable_key_ciphertext, aad=prefix + "publishable-key"),
     )
+
+
+def tax_status(db, site: Site, mode: str, *, transport=None, refresh_after=timedelta(minutes=5)) -> dict:
+    """Return a short lived Stripe Tax snapshot for a site's selected connection."""
+    cache = dict((site.settings_json or {}).get("stripe_tax_status", {}))
+    stored = cache.get(mode, {})
+    checked_at = stored.get("checked_at")
+    if checked_at:
+        try:
+            checked = datetime.fromisoformat(checked_at)
+            if checked.tzinfo is None:
+                checked = checked.replace(tzinfo=UTC)
+            if datetime.now(UTC) - checked < refresh_after:
+                return stored
+        except (TypeError, ValueError):
+            pass
+    connection = connection_for(db, site, mode)
+    result = {"status": "unknown", "missing_fields": [], "defaults": {}, "head_office": None}
+    if connection:
+        try:
+            secret, webhook, _ = decrypted(db, site, connection)
+            result = StripeGateway.for_connection(secret, webhook, transport=transport).tax_settings()
+        except CommerceError:
+            pass
+    result["checked_at"] = datetime.now(UTC).isoformat()
+    cache[mode] = result
+    settings_json = dict(site.settings_json or {})
+    settings_json["stripe_tax_status"] = cache
+    site.settings_json = settings_json
+    db.flush()
+    return result
+
+
+def cached_tax_status(site: Site, mode: str, *, max_age=timedelta(minutes=5)) -> dict:
+    """Use only a fresh persisted result in checkout's locked transaction."""
+    stored = (site.settings_json or {}).get("stripe_tax_status", {}).get(mode, {})
+    try:
+        checked = datetime.fromisoformat(stored.get("checked_at", ""))
+        if checked.tzinfo is None:
+            checked = checked.replace(tzinfo=UTC)
+        if datetime.now(UTC) - checked <= max_age:
+            return stored
+    except (TypeError, ValueError):
+        pass
+    return {"status": "unknown", "missing_fields": []}
+
+
+def stripe_tax_status_line(status: dict, mode: str):
+    """Small shared warning for Payments and Go-live pages."""
+    from fasthtml.common import A, P
+
+    tax_status = status.get("status", "unknown")
+    if tax_status == "active":
+        return P("Stripe Tax: active")
+    dashboard = ("https://dashboard.stripe.com/test/settings/tax" if mode == "test"
+                 else "https://dashboard.stripe.com/settings/tax")
+    if tax_status == "pending":
+        missing = status.get("missing_fields") or []
+        detail = " Missing fields: " + ", ".join(missing) + "." if missing else ""
+        return P("Stripe Tax is not set up in your Stripe account, so no sales tax is being collected." +
+                 detail + " Set it up in Stripe: ", A("Stripe Tax settings", href=dashboard))
+    return P("Stripe Tax is not set up in your Stripe account, so no sales tax is being collected. "
+             "Set it up in Stripe: ", A("Stripe Tax settings", href=dashboard))
 
 
 def _validate(mode: str, secret: str, publishable: str) -> None:
@@ -122,6 +185,12 @@ def save(db, site: Site, user_id: str, mode: str, secret: str, publishable: str,
     connection.account_name = str(status["account_name"] or "")[:200]
     connection.account_country = str(status["country"] or "")[:2]
     connection.verified_at = datetime.now(UTC)
+    cache = dict((site.settings_json or {}).get("stripe_tax_status", {}))
+    tax_status = status.get("tax_settings") or {"status": "unknown", "missing_fields": []}
+    cache[mode] = {**tax_status, "checked_at": datetime.now(UTC).isoformat()}
+    settings_json = dict(site.settings_json or {})
+    settings_json["stripe_tax_status"] = cache
+    site.settings_json = settings_json
     if mode == "live":
         _live_mirror(db, site, user_id, connection, secret, webhook_secret, publishable)
     db.flush()
@@ -140,6 +209,11 @@ def test_connection(db, site: Site, mode: str, *, transport=None) -> dict:
     secret, _, webhook = decrypted(db, site, connection)
     gateway = StripeGateway.for_connection(secret, webhook, transport=transport)
     result = gateway.connection_status()
+    cache = dict((site.settings_json or {}).get("stripe_tax_status", {}))
+    cache[mode] = {**result["tax_settings"], "checked_at": datetime.now(UTC).isoformat()}
+    settings_json = dict(site.settings_json or {})
+    settings_json["stripe_tax_status"] = cache
+    site.settings_json = settings_json
     result.update({"account_id": connection.account_id, "account_name": connection.account_name,
         "country": connection.account_country, "verified_at": connection.verified_at,
         "endpoint_id": connection.webhook_endpoint_id})

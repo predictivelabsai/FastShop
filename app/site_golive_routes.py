@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.responses import RedirectResponse
 
-from app import content, site_golive
+from app import content, site_golive, stripe_connections
 from app.admin_ui import empty_state
 from app.config import settings
 from app.db import SessionLocal
@@ -71,6 +71,9 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     SiteCommerceSettings.site_id == site.id,
                     SiteCommerceSettings.tenant_id == site.tenant_id,
                 ))
+                tax_mode = "live" if config and config.mode == "live" else "test"
+                tax = stripe_connections.tax_status(db, site, tax_mode)
+                db.commit()
                 operator = bool(
                     role == "admin"
                     and current_user
@@ -161,6 +164,7 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     P(f"{site.name} · Site status: {site.status} · Commerce: {commerce_mode}", cls="g-summary"),
                     P("Live payments: " + ("approved by operator" if commerce_mode == "live" else "not approved"),
                       cls="g-state g-state-live" if commerce_mode == "live" else "g-state"),
+                    stripe_connections.stripe_tax_status_line(tax, tax_mode),
                     A("Open operator live-payment ceremony →",
                       href=f"/admin/platform/sites/{site.id}/live-credentials") if operator else None,
                     P(notice, role="status", cls="e-note") if notice else None,

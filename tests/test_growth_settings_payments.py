@@ -57,7 +57,8 @@ def test_default_provider_tax_command_is_unchanged(ready):
     attempt = prepare(r)
     quote = r.db.get(CommerceQuote, attempt.quote_id)
     assert "local_tax" not in quote.snapshot_json
-    assert payment_command(r.site, attempt, quote, r.customer)["session"]["automatic_tax"] == {"enabled": True}
+    assert payment_command(r.site, attempt, quote, r.customer,
+        automatic_tax_active=True)["session"]["automatic_tax"] == {"enabled": True}
 
 
 def test_local_renewal_tax_ledger_completes_without_provider_transaction(contract):

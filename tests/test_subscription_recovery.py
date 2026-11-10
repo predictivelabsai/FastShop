@@ -60,7 +60,7 @@ def test_paid_recovery_settles_once_without_new_contract_or_resuming(failed, can
     response = {"id": "cs_test_recovery1", "livemode": False, "mode": "payment",
         "client_reference_id": attempt.id, "metadata": {"site_id": r.site.id, "quote_id": quote.id},
         "currency": "usd", "amount_total": quote.total_minor, "status": "open", "payment_status": "unpaid",
-        "automatic_tax": {"status": "complete"}, "total_details": {"amount_tax": quote.tax_minor, "amount_shipping": quote.shipping_minor},
+        "automatic_tax": {"enabled": True, "status": "complete"}, "total_details": {"amount_tax": quote.tax_minor, "amount_shipping": quote.shipping_minor},
         "url": "https://checkout.stripe.com/c/pay/cs_test_recovery1"}
 
     class HostedGateway:

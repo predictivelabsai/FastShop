@@ -123,6 +123,7 @@ def test_tax_settings_failure_does_not_block_connection_save(workspace):
     record = stripe_connections.save(db, site, owner.id, "test", KEY, PUBLISHABLE, WEBHOOK,
         transport=httpx.MockTransport(account_only))
     assert record.verified_at is not None and record.account_id == "acct_fixture"
+    assert stripe_connections.cached_tax_status(site, "test")["status"] == "unknown"
 
 
 def test_replacement_and_disconnect_delete_old_endpoint_best_effort(workspace):
@@ -147,6 +148,28 @@ def test_test_connection_reports_tax_status(workspace):
     status = stripe_connections.test_connection(db, site, "test", transport=fake_transport(seen))
     assert status["tax_settings_active"] is True
     assert status["account_name"] == "Fixture Shop"
+
+
+def test_pending_tax_settings_are_saved_with_missing_fields(workspace):
+    db, owner, site = workspace
+
+    def reply(request):
+        if request.url.path == "/v1/account":
+            return httpx.Response(200, json={"id": "acct_fixture", "livemode": False})
+        if request.url.path == "/v1/tax/settings":
+            return httpx.Response(200, json={"object": "tax.settings", "livemode": False,
+                "status": "pending", "status_details": {"pending": {
+                    "missing_fields": ["head_office.address.city", "head_office.address.line1"]}},
+                "defaults": {"tax_behavior": "exclusive"}, "head_office": {"country": "US"}})
+        return httpx.Response(404, json={})
+
+    stripe_connections.save(db, site, owner.id, "test", KEY, PUBLISHABLE, WEBHOOK,
+        transport=httpx.MockTransport(reply))
+    status = stripe_connections.cached_tax_status(site, "test")
+    assert status["status"] == "pending"
+    assert status["missing_fields"] == ["head_office.address.city", "head_office.address.line1"]
+    assert status["defaults"] == {"tax_behavior": "exclusive"}
+    assert status["head_office"] == {"country": "US"}
 
 
 def test_merchant_live_connection_still_needs_operator_acceptance(workspace):
