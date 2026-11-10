@@ -299,6 +299,110 @@ def test_render_fragment_and_invalid_json_are_bounded(workspace):
     assert invalid.status_code == 422
     assert w.client.put(w.base + "/draft", json=[], headers=w.headers).status_code == 422
 
+
+@pytest.mark.parametrize("theme", ["cell", "shield", "exercise", "leaf", "molecule", "water"])
+def test_live_liquid_benefits_fields_round_trip_through_editor_save(workspace, theme):
+    w = workspace
+    loaded = load(w)
+    benefits = {
+        "id": "why",
+        "type": "liquid_benefits",
+        "version": 1,
+        "heading": "Why drink hydrogen water?",
+        "body": "The disclaimer.",
+        "button": "More questions",
+        "link": "/faq",
+        "items": [
+            {"heading": "Cellular health*", "body": "Supports cellular health.*", "theme": "cell"},
+            {"heading": "Antioxidant support*", "body": "Helps neutralise free radicals.*", "theme": "shield"},
+        ],
+    }
+    loaded["document"]["blocks"] = [benefits]
+    loaded["document"]["blocks"][0]["items"][1]["icon"] = theme
+    loaded["document"]["blocks"][0]["items"][0]["body"] = "Edited benefit text."
+    result = w.client.put(
+        w.base + "/draft",
+        json={"document": loaded["document"], "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert result.status_code == 200, result.text
+    saved = result.json()["document"]["blocks"][0]["items"][1]
+    assert saved["theme"] == theme
+    assert "icon" not in saved
+    assert result.json()["document"]["blocks"][0]["items"][0]["body"] == "Edited benefit text."
+
+
+def test_unsupported_item_field_error_names_field_and_index(workspace):
+    w = workspace
+    loaded = load(w)
+    loaded["document"]["blocks"] = [{
+        "id": "why",
+        "type": "liquid_benefits",
+        "items": [
+            {"heading": "One", "body": "Text", "theme": "cell"},
+            {"heading": "Two", "body": "Text", "theme": "shield", "mystery": "value"},
+        ],
+    }]
+    result = w.client.put(
+        w.base + "/draft",
+        json={"document": loaded["document"], "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert result.status_code == 422
+    assert 'item 2: "mystery" is not a supported field' in result.json()["error"]
+
+
+def test_widget_item_field_error_names_field_and_index(workspace):
+    w = workspace
+    loaded = load(w)
+    loaded["document"]["blocks"] = [{
+        "id": "features",
+        "type": "icon_list",
+        "items": [{"heading": "Feature", "body": "Detail", "theme": "check", "unknown": "value"}],
+    }]
+    result = w.client.put(
+        w.base + "/draft",
+        json={"document": loaded["document"], "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert result.status_code == 422
+    assert 'item 1: "unknown" is not a supported field' in result.json()["error"]
+
+
+@pytest.mark.parametrize("kind", [
+    "liquid_stats", "liquid_collection", "liquid_benefits", "liquid_reviews",
+    "liquid_articles", "liquid_catalog", "liquid_choices", "liquid_trust",
+])
+def test_liquid_editor_item_fields_round_trip_through_save(workspace, kind):
+    w = workspace
+    loaded = load(w)
+    schema = loaded["schema"][kind]
+    items_field = next(field for field in schema["fields"] if field["id"] == "items")
+    item = dict(items_field["item_default"])
+    for field in items_field["item_fields"]:
+        key = field["id"]
+        if key == "theme":
+            continue
+        if key == "url":
+            item[key] = "/edited"
+        elif key == "image":
+            item[key] = "/static/edited.jpg"
+        elif key == "value" and kind == "liquid_reviews":
+            item[key] = "4"
+        else:
+            item[key] = f"Edited {key}"
+    block = {"id": f"liquid-{kind}", "type": kind, "items": [item]}
+    loaded["document"]["blocks"] = [block]
+    result = w.client.put(
+        w.base + "/draft",
+        json={"document": loaded["document"], "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert result.status_code == 200, result.text
+    saved_item = result.json()["document"]["blocks"][0]["items"][0]
+    for field in items_field["item_fields"]:
+        assert saved_item[field["id"]] == item[field["id"]]
+
 def test_restore_never_changes_publication_and_cannot_cross_pages(workspace):
     w = workspace
     values = load(w)
