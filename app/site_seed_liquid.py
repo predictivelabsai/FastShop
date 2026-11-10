@@ -30,7 +30,6 @@ from app.site_catalog import create_catalog_product
 ASSETS = "/static/h24you/liquid/"
 CONTENT = json.loads(Path(__file__).with_name("site_liquid_content.json").read_text("utf-8"))
 H24YOU_LIQUID_ADMIN_EMAILS = ("helen@h24you.com",)
-_MEMBERSHIP_ROLE_PRIORITY = {"editor": 1, "merchant": 2, "admin": 3}
 
 
 def block(kind, identity, **values):
@@ -483,16 +482,13 @@ def ensure_liquid_admin_memberships(db, site):
         membership = db.scalar(select(Membership).where(
             Membership.tenant_id == site.tenant_id, Membership.user_id == user.id,
         ))
-        if membership:
-            if membership.role != "admin":
-                membership.role = "admin"
-        else:
+        if not membership:
             db.add(Membership(tenant_id=site.tenant_id, user_id=user.id, role="admin"))
     db.flush()
 
 
 def bootstrap_liquid_demo(db, site):
-    """Explicit, repeatable demo cutover in the caller's bootstrap transaction.
+    """Bind the Liquid demo hostname once in the bootstrap transaction.
 
     This is a sandbox demo binding, not a go-live readiness approval. All site
     rows are locked in ID order; release conflicting unique hostnames before
@@ -511,6 +507,11 @@ def bootstrap_liquid_demo(db, site):
     sites = list(db.scalars(select(Site).where(
         (func.lower(Site.hostname) == hostname) | (Site.id == site.id)
     ).order_by(Site.id).with_for_update().execution_options(populate_existing=True)))
+    site_settings = site.settings_json or {}
+    published_settings = site.published_settings_json or {}
+    if (site.hostname == hostname or site_settings.get("liquid_cutover_done")
+            or published_settings.get("liquid_cutover_done")):
+        return
     for previous in sites:
         if previous.id != site.id:
             previous.hostname = None
@@ -524,6 +525,7 @@ def bootstrap_liquid_demo(db, site):
     for field in ("settings_json", "published_settings_json"):
         values = dict(getattr(site, field) or {})
         values["sandbox_demo"] = True
+        values["liquid_cutover_done"] = True
         setattr(site, field, values)
     config = settings_for(db, site, create=True)
     if config.mode != "sandbox" or not config.customer_accounts_enabled:
@@ -536,12 +538,9 @@ def bootstrap_liquid_demo(db, site):
             target = db.scalar(select(Membership).where(
                 Membership.tenant_id == site.tenant_id, Membership.user_id == source.user_id,
             ))
-            if target:
-                if _MEMBERSHIP_ROLE_PRIORITY.get(source.role, 0) > (
-                    _MEMBERSHIP_ROLE_PRIORITY.get(target.role, 0)
-                ):
-                    target.role = source.role
-            else:
+            if not target:
+                user = db.get(User, source.user_id)
+                role = "admin" if user and user.email.lower() in H24YOU_LIQUID_ADMIN_EMAILS else source.role
                 db.add(Membership(tenant_id=site.tenant_id,
-                    user_id=source.user_id, role=source.role))
+                    user_id=source.user_id, role=role))
     db.flush()

@@ -3,8 +3,11 @@ import copy
 import json
 
 import pytest
+from fastcore.xml import to_xml
+from fasthtml.common import P
 from sqlalchemy import create_engine, func, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
+from starlette.requests import Request
 
 from app.models import Base, Membership, Site, SiteCommerceSettings, SitePage, Tenant, User
 from app.seed import seed
@@ -76,10 +79,59 @@ def test_cutover_is_idempotent_and_preserves_roles_content_passwords(database, m
         assert page.draft_json == draft and page.published_json == published
 
 
+def test_boot_reseed_preserves_live_settings_and_hides_sandbox_notice(database, monkeypatch):
+    db, site, _ = database
+    monkeypatch.setenv("FASTSHOP_H24YOU_LIQUID_HOSTNAME", "h24you.fastsme.com")
+    bootstrap_liquid_demo(db, site)
+    config = db.scalar(select(SiteCommerceSettings).where(SiteCommerceSettings.site_id == site.id))
+    config.mode = "live"
+    config.customer_accounts_enabled = False
+    site.status = "draft"
+    site.settings_json = site.settings_json | {"sandbox_demo": True, "liquid_cutover_done": True}
+    site.published_settings_json = site.published_settings_json | {
+        "sandbox_demo": True, "liquid_cutover_done": True,
+    }
+    db.commit()
+
+    seed_h24you_liquid(db, "operator@example.test")
+    db.commit()
+
+    assert config.mode == "live"
+    assert config.customer_accounts_enabled is False
+    assert site.status == "draft"
+    from app import storefront_ui
+
+    monkeypatch.setattr(storefront_ui, "SessionLocal", sessionmaker(bind=db.bind, expire_on_commit=False))
+    monkeypatch.setattr("app.commerce.payment_mode", lambda *_args, **_kwargs: "live")
+    request = Request({
+        "type": "http", "method": "GET", "scheme": "https", "path": "/account",
+        "raw_path": b"/account", "query_string": b"", "headers": [],
+        "server": ("h24you.fastsme.com", 443), "client": ("127.0.0.1", 1234),
+        "root_path": "", "session": {},
+    })
+    markup = str(to_xml(storefront_ui.liquid_page(site, request, "My account", P("Account body"))))
+    assert "Sandbox · No live payments" not in markup
+
+
+def test_first_liquid_cutover_on_fresh_database_binds_sandbox(monkeypatch):
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        monkeypatch.setenv("FASTSHOP_H24YOU_LIQUID_HOSTNAME", "h24you.example.test")
+        site = seed_h24you_liquid(db, "operator@example.test")
+        config = db.scalar(select(SiteCommerceSettings).where(SiteCommerceSettings.site_id == site.id))
+        assert site.hostname == "h24you.example.test"
+        assert site.status == "published"
+        assert config.mode == "sandbox" and config.customer_accounts_enabled is True
+        assert site.published_settings_json["sandbox_demo"] is True
+        assert site.settings_json["liquid_cutover_done"] is True
+    engine.dispose()
+
+
 @pytest.mark.parametrize("source_role,target_role,expected", [
-    ("admin", "merchant", "admin"),
-    ("admin", "editor", "admin"),
-    ("merchant", "editor", "merchant"),
+    ("admin", "merchant", "merchant"),
+    ("admin", "editor", "editor"),
+    ("merchant", "editor", "editor"),
     ("merchant", "admin", "admin"),
     ("editor", "admin", "admin"),
     ("editor", "merchant", "merchant"),
@@ -87,7 +139,7 @@ def test_cutover_is_idempotent_and_preserves_roles_content_passwords(database, m
     ("merchant", "merchant", "merchant"),
     ("editor", "editor", "editor"),
 ])
-def test_cutover_only_upgrades_existing_roles(
+def test_cutover_preserves_existing_roles(
     database, monkeypatch, source_role, target_role, expected,
 ):
     db, site, previous = database
@@ -129,14 +181,15 @@ def test_liquid_seed_ensures_named_admin_idempotently(
     membership = db.scalar(select(Membership).where(
         Membership.tenant_id == site.tenant_id, Membership.user_id == helen.id,
     ))
-    assert membership.role == "admin"
+    expected_role = existing_role or "admin"
+    assert membership.role == expected_role
     before = (membership.id, membership.created_at, membership.updated_at)
     users_before = db.scalar(select(func.count()).select_from(User))
     seed_h24you_liquid(db, "operator@example.test")
     db.commit()
     db.refresh(membership)
     assert (membership.id, membership.created_at, membership.updated_at) == before
-    assert membership.role == "admin"
+    assert membership.role == expected_role
     assert db.scalar(select(func.count()).select_from(User)) == users_before
     assert db.scalar(select(func.count()).select_from(Membership).where(
         Membership.tenant_id == site.tenant_id, Membership.user_id == helen.id,
