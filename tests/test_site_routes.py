@@ -53,6 +53,8 @@ def test_all_sample_pages_render_and_articles_have_references():
         assert "https://example.test/guide" in response.text
         assert "References" in response.text
         assert "Northstar Goods team" in response.text
+    homepage = client.get("/sites/northstar/")
+    assert 'href="/sites/northstar/pages/shipping-policy"' in homepage.text
 
 
 def test_draft_preview_requires_real_site_membership():
@@ -140,6 +142,50 @@ def test_custom_domain_resolves_only_its_site_and_blocks_demo_commerce():
             db.commit()
 
 
+def test_custom_host_housekeeping_routes_follow_publication_and_include_published_pages():
+    site, pages = sample_store()
+    home = next(page for page in pages if page.path == "/")
+    hostname = "store-index.example.test"
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        original_status, original_hostname = saved.status, saved.hostname
+        saved_pages = list(db.scalars(select(SitePage).where(SitePage.site_id == site.id)))
+        original_publications = {page.id: page.published_json for page in saved_pages}
+        saved.hostname = hostname
+        saved.status = "draft"
+        for page in saved_pages:
+            page.published_json = None
+        db.get(SitePage, home.id).published_json = home.draft_json
+        db.commit()
+
+    client = TestClient(app, base_url=f"https://{hostname}")
+    try:
+        robots = client.get("/robots.txt")
+        assert robots.status_code == 200
+        assert "Disallow: /" in robots.text
+        draft_map = client.get("/sitemap.xml")
+        assert draft_map.status_code == 200
+        assert "<loc>" not in draft_map.text
+
+        with SessionLocal() as db:
+            db.get(Site, site.id).status = "published"
+            db.commit()
+        robots = client.get("/robots.txt")
+        assert "Allow: /" in robots.text
+        assert f"Sitemap: https://{hostname}/sitemap.xml" in robots.text
+        sitemap = client.get("/sitemap.xml")
+        assert sitemap.status_code == 200
+        assert f"<loc>https://{hostname}/</loc>" in sitemap.text
+        assert "/cart" not in sitemap.text
+    finally:
+        with SessionLocal() as db:
+            saved = db.get(Site, site.id)
+            saved.status, saved.hostname = original_status, original_hostname
+            for page_id, published_json in original_publications.items():
+                db.get(SitePage, page_id).published_json = published_json
+            db.commit()
+
+
 def test_unpublished_upload_is_private_even_on_public_preview_site():
     from app.models import SiteMedia
     site, _ = sample_store()
@@ -164,6 +210,13 @@ def test_commerce_settings_keep_fastshop_brand_and_require_csrf():
     response = client.get(path)
     assert response.status_code == 200
     assert "US commerce · FastShop" in response.text
+    assert 'href="/admin/sites/' + site.id + '/commerce/payments">Manage in Payments</a>' in response.text
+    assert any(status in response.text for status in (
+        "Connected in test mode", "Connected in live mode", "Not connected",
+    ))
+    assert "Stripe test key: required" not in response.text
+    assert "Webhook signing secret: required" not in response.text
+    assert "Live payments are disabled." not in response.text
     assert 'aria-label="Store administration"' in response.text
     assert re.search(r'href="/static/admin/admin\.css\?v=\d+"', response.text)
     assert TestClient(app).get(path).status_code == 400

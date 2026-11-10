@@ -69,6 +69,9 @@ from app.subscription_portal_copy import DEFAULT_PORTAL_COPY
 
 
 def register_site_routes(rt):
+    from app.site_index_routes import register_site_index_routes
+    register_site_index_routes(rt)
+
     def actor(session):
         with SessionLocal() as db:
             user = db.get(User, session.get("user_id", ""))

@@ -462,7 +462,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             *pre_footer_snippets,
             Footer(Div(Div(A(brand(), href=base + "/", cls="h-brand"), P(config.get("tagline", ""))),
                 Div(H3(label(config, "footer_explore")), *[A(item["label"], href=url(base, item["path"])) for item in footer_navigation]),
-                Div(H3(label(config, "footer_help")), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", label(config, "terms")), ("privacy-policy", label(config, "privacy_policy")), ("faq", label(config, "faq")), ("returns-and-refunds", label(config, "returns"))]]),
+                Div(H3(label(config, "footer_help")), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", label(config, "terms")), ("privacy-policy", label(config, "privacy_policy")), ("faq", label(config, "faq")), ("returns-and-refunds", label(config, "returns")), ("shipping-policy", label(config, "shipping_policy"))]]),
                 Div(H3(config.get("company", site.name)), P(config.get("address", "")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
                 P(config.get("footer", ""), cls="h-disclaimer"), Div(Span(label(config, "copyright") + config.get("company", site.name)), payment_methods(), Button(label(config, "cookies"), type="button", data_cookie_open=""), cls="h-footer-bottom"),
