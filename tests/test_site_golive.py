@@ -320,8 +320,8 @@ def test_test_mode_enables_with_only_advisory_failures_and_records_warnings():
         event = site_golive.audit_event(site_golive.audit_trail(db, site)[0])
         assert event["decision"] == "approved"
         warning_keys = {check["key"] for check in event["warnings"]}
-        assert {"site_published", "custom_domain", "fulfilment_origin", "shipping_fee",
-                "delivery_destinations", "tax_registration_review", "commerce_policies"} <= warning_keys
+        assert {"site_published", "custom_domain", "commerce_configuration",
+                "commerce_policies"} <= warning_keys
         assert all(not check["blocking"] for check in event["warnings"])
 
 
