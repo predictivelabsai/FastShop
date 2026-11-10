@@ -201,6 +201,7 @@ const isLocalizedText = (value) =>
   typeof value === "object" &&
   !Array.isArray(value) &&
   Object.keys(value).length > 0 &&
+  Object.prototype.hasOwnProperty.call(value, state?.default_locale || "en") &&
   Object.entries(value).every(
     ([locale, text]) =>
       /^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/.test(locale) &&
