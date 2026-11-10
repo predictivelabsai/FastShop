@@ -184,6 +184,9 @@ def signed_in():
 def test_generation_route_creates_draft_and_lands_in_builder(monkeypatch):
     import app.site_generation as generation
 
+    # Earlier tests share this account, so its plan quota must not decide the outcome.
+    monkeypatch.setattr("app.plans.ensure_sites", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.plans.ensure_ai_generations", lambda *_args, **_kwargs: None)
     original = generation.generate_plan
     monkeypatch.setattr(
         generation, "generate_plan", lambda value: original(value, force_guided=True)
@@ -223,7 +226,10 @@ def test_generation_route_creates_draft_and_lands_in_builder(monkeypatch):
         )) == media_count
 
 
-def test_generation_route_surfaces_invalid_brief_as_notice():
+def test_generation_route_surfaces_invalid_brief_as_notice(monkeypatch):
+    # Earlier tests share this account, so its plan quota must not decide the outcome.
+    monkeypatch.setattr("app.plans.ensure_sites", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.plans.ensure_ai_generations", lambda *_args, **_kwargs: None)
     client, token = signed_in()
     response = client.post("/admin/sites/generate", data={
         "csrf_token": token, "business_name": "", "kind": "SaaS",
