@@ -44,17 +44,21 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
         for check in report.checks:
             if check.scope != scope:
                 continue
+            advisory = scope == "commerce" and not check.blocking
+            result_text = "Pass" if check.passed else "Review" if advisory else "Fix"
+            result_class = "g-pass" if check.passed else "g-warning" if advisory else "g-fail"
+            row_class = "g-check-pass" if check.passed else "g-check-warning" if advisory else "g-check-fail"
             rows.append(Div(
                 Div(
-                    Small("Pass" if check.passed else "Fix", cls="g-result g-pass" if check.passed else "g-result g-fail"),
+                    Small(result_text, cls="g-result " + result_class),
                     Div(H3(check.label), P(check.explanation)),
                     cls="g-check-copy",
                 ),
-                A("Fix", href=check.action_url, cls="g-check-action")
+                A("Fix" if check.blocking else "Review", href=check.action_url, cls="g-check-action")
                 if not check.passed and scope == "commerce" else
                 A("Review setting", href=check.action_url, cls="g-check-action")
                 if not check.passed else None,
-                cls="g-check g-check-pass" if check.passed else "g-check g-check-fail",
+                cls="g-check " + row_class,
             ))
         return Div(*rows, cls="g-checklist")
 
@@ -166,12 +170,17 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
 
                 commerce_action = f"/admin/sites/{site.id}/golive/commerce"
                 live_action = f"/admin/sites/{site.id}/golive/live"
+                test_mode_blocked = any(
+                    not check.passed and check.blocking and check.scope == "commerce"
+                    for check in commerce_report.checks
+                )
                 mode_control = Div(
                     mode_form("Turn off checkout", commerce_action, False,
                               commerce_mode == "disabled", config is None or commerce_mode in {"disabled", "live"}),
                     mode_form("Test mode", live_action if commerce_mode == "live" else commerce_action,
                               commerce_mode != "live", commerce_mode == "sandbox",
-                              config is None or commerce_mode == "sandbox"),
+                              config is None or commerce_mode == "sandbox" or
+                              (commerce_mode != "live" and test_mode_blocked)),
                     mode_form("Live payments", live_action, True, commerce_mode == "live",
                               not live_ready or commerce_mode == "live", confirm_live=True),
                     cls="g-mode-control", role="group", **{"aria-label": "Checkout mode"},
