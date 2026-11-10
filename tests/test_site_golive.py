@@ -1,5 +1,6 @@
 import copy
 from contextlib import contextmanager
+from dataclasses import replace
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -142,6 +143,8 @@ def test_readiness_avoids_draft_compliance_menu_and_price_false_positives():
         report = site_golive.assess(db, site, commerce_requested=True)
         assert not report.passed
         assert {check.key for check in report.failures} == {"site_published", "custom_domain"}
+        assert not report.blocking_failures
+        assert {check.key for check in report.warnings_for("commerce")} == {"site_published", "custom_domain"}
         db.delete(db.scalar(select(VariantChannelListing).where(
             VariantChannelListing.variant_id == variant.id,
             VariantChannelListing.channel_id == site.channel_id,
@@ -150,6 +153,10 @@ def test_readiness_avoids_draft_compliance_menu_and_price_false_positives():
         price_check = next(check for check in site_golive.assess(db, site, commerce_requested=True).checks
                            if check.key == "channel_prices")
         assert not price_check.passed and variant.sku in price_check.explanation
+        assert not price_check.blocking and price_check.classification == "advisory"
+        priced_check = next(check for check in site_golive.assess(db, site, commerce_requested=True).checks
+                            if check.key == "priced_product")
+        assert not priced_check.passed and priced_check.blocking
         assert config.mode == "disabled"
 
 
@@ -263,6 +270,8 @@ def test_commerce_enablement_is_gated_and_disable_restores_read_only_mode():
             db, site.id, owner.id, site.version, True, config_version=config.version
         )
         assert not blocked.applied and config.mode == "disabled"
+        assert "technical prerequisites" in blocked.message
+        assert "At least one published product has a site-channel price" in blocked.message
 
         prepare_publication(db, site)
         config, _ = prepare_commerce(db, site)
@@ -278,6 +287,96 @@ def test_commerce_enablement_is_gated_and_disable_restores_read_only_mode():
             db, site.id, owner.id, site.version, False, config_version=config.version
         )
         assert disabled.applied and config.mode == "disabled"
+
+
+def test_test_mode_enables_with_only_advisory_failures_and_records_warnings():
+    with workspace() as (db, _, owner, _, site):
+        prepare_publication(db, site)
+        config, _ = prepare_commerce(db, site)
+        config.origin_json = {}
+        config.shipping_minor = None
+        config.allowed_states_json = []
+        config.tax_registration_reviewed = False
+        for path in site_golive.COMMERCE_POLICY_PATHS:
+            policy = db.scalar(select(SitePage).where(SitePage.site_id == site.id, SitePage.path == path))
+            published = copy.deepcopy(policy.published_json)
+            published["blocks"][0]["body"] = "Policy placeholder awaiting review."
+            policy.published_json = published
+        db.flush()
+
+        report = site_golive.assess(db, site, commerce_requested=True)
+        assert report.failures
+        assert not report.blocking_failures
+        assert report.warnings
+        decision = site_golive.set_sandbox_commerce(
+            db, site.id, owner.id, site.version, True, config_version=config.version
+        )
+
+        assert decision.applied and not decision.overridden
+        assert config.mode == "sandbox"
+        assert site.status == "draft" and site.hostname is None
+        assert decision.message.startswith("Test mode is on. Review: ")
+        assert all(check.label in decision.message for check in report.warnings_for("commerce"))
+        event = site_golive.audit_event(site_golive.audit_trail(db, site)[0])
+        assert event["decision"] == "approved"
+        warning_keys = {check["key"] for check in event["warnings"]}
+        assert {"site_published", "custom_domain", "commerce_configuration",
+                "commerce_policies"} <= warning_keys
+        configuration_warning = next(
+            check for check in event["warnings"] if check["key"] == "commerce_configuration"
+        )
+        assert all(
+            detail in configuration_warning["explanation"]
+            for detail in (
+                "fulfilment origin",
+                "shipping fee",
+                "allowed destinations",
+                "tax registration review",
+            )
+        )
+        assert all(not check["blocking"] for check in event["warnings"])
+
+
+def test_test_mode_remains_blocked_without_a_site_channel_price():
+    with workspace() as (db, _, owner, _, site):
+        prepare_publication(db, site)
+        config, variant = prepare_commerce(db, site)
+        db.delete(db.scalar(select(VariantChannelListing).where(
+            VariantChannelListing.variant_id == variant.id,
+            VariantChannelListing.channel_id == site.channel_id,
+        )))
+        db.flush()
+
+        decision = site_golive.set_sandbox_commerce(
+            db, site.id, owner.id, site.version, True, config_version=config.version
+        )
+
+        assert not decision.applied and config.mode == "disabled"
+        assert "technical prerequisites" in decision.message
+        assert "At least one published product has a site-channel price" in decision.message
+        assert [check.key for check in decision.report.blocking_failures_for("commerce")] == [
+            "priced_product",
+        ]
+
+
+def test_test_mode_requires_a_valid_checkout_return_url(monkeypatch):
+    with workspace() as (db, _, owner, _, site):
+        config, _ = prepare_commerce(db, site)
+        monkeypatch.setattr(
+            site_golive,
+            "settings",
+            replace(settings, public_url="http://preview.example.test"),
+        )
+
+        decision = site_golive.set_sandbox_commerce(
+            db, site.id, owner.id, site.version, True, config_version=config.version
+        )
+
+        assert not decision.applied and config.mode == "disabled"
+        assert "Checkout return URL is valid" in decision.message
+        assert [check.key for check in decision.report.blocking_failures_for("commerce")] == [
+            "checkout_url",
+        ]
 
 
 def test_host_middleware_requires_publish_and_sandbox_transitions(monkeypatch):

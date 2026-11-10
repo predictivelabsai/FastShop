@@ -43,6 +43,11 @@ class ReadinessCheck:
     explanation: str
     action_url: str
     scope: str = "publish"
+    blocking: bool = False
+
+    @property
+    def classification(self) -> str:
+        return "technical prerequisite" if self.blocking else "advisory"
 
     def as_dict(self) -> dict:
         return {
@@ -52,6 +57,8 @@ class ReadinessCheck:
             "explanation": self.explanation,
             "action_url": self.action_url,
             "scope": self.scope,
+            "blocking": self.blocking,
+            "classification": self.classification,
         }
 
 
@@ -69,12 +76,28 @@ class ReadinessReport:
     def failures(self) -> tuple[ReadinessCheck, ...]:
         return tuple(check for check in self.checks if not check.passed)
 
+    @property
+    def blocking_failures(self) -> tuple[ReadinessCheck, ...]:
+        return tuple(check for check in self.failures if check.blocking)
+
+    @property
+    def warnings(self) -> tuple[ReadinessCheck, ...]:
+        return tuple(check for check in self.failures if not check.blocking)
+
+    def blocking_failures_for(self, scope: str) -> tuple[ReadinessCheck, ...]:
+        return tuple(check for check in self.blocking_failures if check.scope == scope)
+
+    def warnings_for(self, scope: str) -> tuple[ReadinessCheck, ...]:
+        return tuple(check for check in self.warnings if check.scope == scope)
+
     def as_dict(self) -> dict:
         return {
             "site_id": self.site_id,
             "commerce_requested": self.commerce_requested,
             "passed": self.passed,
             "checks": [check.as_dict() for check in self.checks],
+            "blocking_failures": [check.as_dict() for check in self.blocking_failures],
+            "warnings": [check.as_dict() for check in self.warnings],
         }
 
 
@@ -133,6 +156,34 @@ def _hostname_available(db, site: Site) -> tuple[bool, str]:
     if conflict:
         return False, "This hostname is already bound to another site."
     return True, f"{hostname} is normalized and unique."
+
+
+def _checkout_url_check(site: Site, host_ok: bool) -> tuple[bool, str]:
+    if site.hostname:
+        if not host_ok:
+            return False, "The custom hostname is invalid or unavailable for checkout return URLs."
+        return True, f"Checkout return URLs will use https://{site.hostname}."
+
+    root = settings.public_url.rstrip("/") + "/sites/" + site.slug
+    try:
+        parsed = urlsplit(root)
+        hostname = parsed.hostname
+        _ = parsed.port  # Validate the optional port in the configured preview URL.
+    except ValueError:
+        return False, "Configure an HTTPS store URL or a local preview host for checkout return URLs."
+    local_http = parsed.scheme == "http" and hostname in {"localhost", "127.0.0.1"}
+    valid = bool(
+        hostname
+        and not any(character.isspace() for character in hostname)
+        and (parsed.scheme == "https" or local_http)
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.query
+        and not parsed.fragment
+    )
+    if not valid:
+        return False, "Configure an HTTPS store URL or a local preview host for checkout return URLs."
+    return True, f"Checkout return URLs will use {root}."
 
 
 def _published_pages(db, site: Site) -> dict[str, SitePage]:
@@ -206,6 +257,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
     published_pages = _published_pages(db, site)
     missing_publication = [path for path in PUBLICATION_REQUIRED_PATHS if path not in published_pages]
     host_ok, host_explanation = _hostname_available(db, site)
+    checkout_url_ok, checkout_url_explanation = _checkout_url_check(site, host_ok)
     menu_ok, menu_explanation = _menu_check(db, site, published_pages)
     compliance_ok, compliance_explanation = _compliance_check(db, site)
     reviews = pending_reviews(site.settings_json)
@@ -282,6 +334,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
             VariantChannelListing.variant_id.in_([variant.id for variant in active_variants])
             if active_variants else False,
         )))
+        priced_variants = [variant for variant in active_variants if variant.id in priced_variant_ids]
         unpriced = [variant.sku for variant in active_variants if variant.id not in priced_variant_ids]
         config = db.scalar(select(SiteCommerceSettings).where(
             SiteCommerceSettings.site_id == site.id,
@@ -308,7 +361,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
                 "Site is published",
                 site.status == "published",
                 "The reviewed site is public." if site.status == "published" else
-                "Publish the reviewed site before enabling checkout.",
+                "Test checkout can run on the preview path. Publish the site to open it to the public.",
                 f"/admin/sites/{site.id}/golive#publish",
                 "commerce",
             ),
@@ -316,10 +369,19 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
                 "custom_domain",
                 "Custom domain is bound",
                 bool(site.hostname) and host_ok,
-                f"Checkout will use https://{site.hostname}." if site.hostname and host_ok else
-                "Bind a unique custom domain before enabling checkout.",
+                f"Checkout can use https://{site.hostname}." if site.hostname and host_ok else
+                f"Test checkout remains available at /sites/{site.slug}/; bind a custom domain for public host traffic.",
                 f"/admin/sites/{site.id}/golive#domain",
                 "commerce",
+            ),
+            ReadinessCheck(
+                "checkout_url",
+                "Checkout return URL is valid",
+                checkout_url_ok,
+                checkout_url_explanation,
+                f"/admin/sites/{site.id}/golive#domain",
+                "commerce",
+                blocking=True,
             ),
             ReadinessCheck(
                 "commerce_policies",
@@ -338,6 +400,16 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
                 "Publish at least one product and its site product page.",
                 f"/admin/sites/{site.id}/products",
                 "commerce",
+            ),
+            ReadinessCheck(
+                "priced_product",
+                "At least one published product has a site-channel price",
+                bool(priced_variants),
+                "At least one published product has an active option with a site-channel price." if priced_variants else
+                "Publish a product and site page with an active option that has a site-channel price.",
+                f"/admin/sites/{site.id}/products",
+                "commerce",
+                blocking=True,
             ),
             ReadinessCheck(
                 "channel_prices",
@@ -410,6 +482,8 @@ def _audit(
         "actor_id": user_id,
         "overridden": overridden,
         "checks": [check.as_dict() for check in report.checks] if report else [],
+        "blocking_failures": [check.as_dict() for check in report.blocking_failures] if report else [],
+        "warnings": [check.as_dict() for check in report.warnings] if report else [],
         "recorded_at": datetime.now(UTC).isoformat(),
     }
     current_mode = db.scalar(select(SiteCommerceSettings.mode).where(
@@ -558,13 +632,15 @@ def set_sandbox_commerce(
                reason="Merchant turned checkout off and restored the read-only storefront.", before=before)
         return TransitionDecision(True, False, "Checkout is off; the storefront is read-only.")
     report = assess(db, site, commerce_requested=True)
-    if report.failures:
+    blockers = report.blocking_failures_for("commerce")
+    if blockers:
         _audit(db, site, user_id, action="sandbox-commerce-enable", decision="blocked",
                reason="Merchant requested Test mode.", before=before, report=report)
         return TransitionDecision(
             False,
             False,
-            "Test mode is unavailable until these checks pass: " + "; ".join(check.label for check in report.failures) + ".",
+            "Test mode is unavailable until these technical prerequisites pass: "
+            + "; ".join(check.label for check in blockers) + ".",
             report,
         )
     if config.mode == "sandbox":
@@ -576,9 +652,14 @@ def set_sandbox_commerce(
     site.version += 1
     db.flush()
     _audit(db, site, user_id, action="sandbox-commerce-enable", decision="approved",
-           reason="Merchant requested Test mode after all readiness checks passed.",
+           reason="Merchant requested Test mode after reviewing readiness warnings.",
            before=before, report=report)
-    return TransitionDecision(True, False, "Test mode is active. Live payments remain off.", report)
+    warnings = report.warnings_for("commerce")
+    if warnings:
+        message = "Test mode is on. Review: " + "; ".join(check.label for check in warnings) + "."
+    else:
+        message = "Test mode is on. Live payments remain off."
+    return TransitionDecision(True, False, message, report)
 
 
 def switch_live_payments(db, site_id: str, user_id: str, version: int,
