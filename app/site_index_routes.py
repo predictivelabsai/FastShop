@@ -10,9 +10,12 @@ from app.db import SessionLocal
 from app.models import Product, Site, SitePage
 
 
+def site_origin(site):
+    return "https://" + (site.hostname or settings.public_url.split("://", 1)[-1].split("/", 1)[0])
+
+
 def register_site_index_routes(rt):
-    def site_origin(site):
-        return "https://" + (site.hostname or settings.public_url.split("://", 1)[-1].split("/", 1)[0])
+    from app.site_seo import robots_content
 
     @rt("/sites/{site_slug}/robots.txt")
     def robots(site_slug: str):
@@ -22,12 +25,7 @@ def register_site_index_routes(rt):
                 return PlainTextResponse("", status_code=404)
             if site.status != "published":
                 return PlainTextResponse("User-agent: *\nDisallow: /\n")
-            body = (
-                "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /cart\n"
-                "Disallow: /checkout\nDisallow: /account\nDisallow: /login\n"
-                "Disallow: /api\nSitemap: " + site_origin(site) + "/sitemap.xml\n"
-            )
-            return PlainTextResponse(body)
+            return PlainTextResponse(robots_content(site, site.published_settings_json or {}))
 
     @rt("/sites/{site_slug}/sitemap.xml")
     def sitemap(site_slug: str):
