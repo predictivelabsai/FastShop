@@ -162,7 +162,20 @@ def test_classical_settings_save_is_reversible_from_builder(editor):
     response = client.post(base + "/build/undo", data={"csrf_token": token, "version": version, "change_id": change_id})
     assert response.status_code == 200
     with SessionLocal() as db:
-        assert db.get(Site, site.id).settings_json == site.settings_json
+        restored = db.get(Site, site.id)
+        assert restored.settings_json == site.settings_json and restored.name == site.name
+
+
+def test_published_brand_name_renames_the_store(editor):
+    client, site, page, token = editor
+    base = f"/admin/sites/{site.id}"
+    with SessionLocal() as db:
+        version = db.get(Site, site.id).version
+    assert f'value="{site.name}"' in client.get(base + "/settings/general").text
+    assert client.post(base + "/settings", data={"csrf_token": token, "version": version,
+        "name": "Renamed store", "action": "publish"}).status_code == 200
+    with SessionLocal() as db:
+        assert db.get(Site, site.id).name == "Renamed store"
 
 
 def test_cancel_route_is_csrf_protected_and_late_response_cannot_write(editor):

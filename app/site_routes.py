@@ -488,7 +488,7 @@ def register_site_routes(rt):
                     A("← Settings", href=f"/admin/sites/{site.id}/settings"),
                     Div(
                         Div(H2("Brand and shared content"), Form(csrf(session), Input(type="hidden", name="version", value=site.version),
-                            *[Label(label, Input(name=key, value=config.get(key, ""))) for key, label in [
+                            *[Label(label, Input(name=key, value=config.get(key) or (site.name if key == "name" else ""))) for key, label in [
                                 ("name", "Brand name"), ("tagline", "Tagline"), ("email", "Contact email"),
                                 ("company", "Company"), ("address", "Company address"), ("announcement", "Announcement"),
                                 ("offer", "First-order banner"), ("logo", "Logo URL"), ("logo_light", "Light logo URL"),
@@ -563,6 +563,9 @@ def register_site_routes(rt):
                 config["payment_methods"] = ["card"] + (["paypal"] if form.get("offer_paypal") == "on" else [])
                 for key in ("name", "tagline", "email", "company", "address", "announcement", "offer", "logo", "logo_light", "science_date", "footer"):
                     config[key] = str(form.get(key, ""))[:2000]
+                # A published brand name is also the store's name in lists, emails and the assistant.
+                if form.get("action") == "publish" and config["name"].strip():
+                    site.name = config["name"].strip()[:160]
                 from app.site_widgets import sanitise_html
                 config["policies"] = {key: sanitise_html(str(form.get("policy_" + key, ""))[:100000])
                                       for key in ("privacy", "terms", "refunds", "shipping")}
