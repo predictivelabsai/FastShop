@@ -71,6 +71,9 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     SiteCommerceSettings.site_id == site.id,
                     SiteCommerceSettings.tenant_id == site.tenant_id,
                 ))
+                tax_mode = "live" if config and config.mode == "live" else "test"
+                tax = stripe_connections.tax_status(db, site, tax_mode)
+                db.commit()
                 operator = bool(
                     role == "admin"
                     and current_user
@@ -194,6 +197,7 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                         P("Connect and verify live Stripe keys to enable this control.", cls="e-help") if not live_ready and commerce_mode != "live" else None,
                         A("Manage Stripe connection", href=f"/admin/sites/{site.id}/commerce/payments"),
                         cls="e-card g-stage"),
+                    stripe_connections.stripe_tax_status_line(tax, tax_mode),
                     A("Open operator live-payment ceremony →",
                       href=f"/admin/platform/sites/{site.id}/live-credentials") if operator else None,
                     P(notice, role="status", cls="e-note") if notice else None,
