@@ -323,9 +323,15 @@ def validate_widget(block):
         items = block.get("items", [])
         if not isinstance(items, list) or not schema.get("min", 0) <= len(items) <= schema.get("max", 200):
             raise CommerceError(f"Block entries must contain between {schema.get('min', 0)} and {schema.get('max', 200)} objects.")
-        for item in items:
-            if not isinstance(item, dict) or set(item) - schema["fields"].keys():
-                raise CommerceError("Choose supported block entry fields.")
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise CommerceError(f"Block item {index + 1} must be an object.")
+            unsupported = set(item) - schema["fields"].keys()
+            if unsupported:
+                field = sorted(unsupported)[0]
+                raise CommerceError(
+                    f'Block item {index + 1}: "{field}" is not a supported field.'
+                )
             if not set(schema.get("required", ())) <= item.keys():
                 raise CommerceError("Block entry is missing required fields.")
             for key, value in item.items():

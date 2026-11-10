@@ -299,6 +299,61 @@ def test_render_fragment_and_invalid_json_are_bounded(workspace):
     assert invalid.status_code == 422
     assert w.client.put(w.base + "/draft", json=[], headers=w.headers).status_code == 422
 
+
+def test_unsupported_item_field_error_names_field_and_index(workspace):
+    w = workspace
+    loaded = load(w)
+    loaded["document"]["blocks"] = [{
+        "id": "why",
+        "type": "faq",
+        "items": [
+            {"heading": "First question", "body": "First answer."},
+            {"heading": "Second question", "body": "Second answer.", "mystery": "value"},
+        ],
+    }]
+    result = w.client.put(
+        w.base + "/draft",
+        json={"document": loaded["document"], "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert result.status_code == 422
+    assert 'item 2: "mystery" is not a supported field' in result.json()["error"]
+
+
+def test_item_field_error_names_the_invalid_item_index(workspace):
+    w = workspace
+    loaded = load(w)
+    loaded["document"]["blocks"] = [{
+        "id": "faq-items",
+        "type": "faq",
+        "items": [{"heading": "Question", "body": "Answer."}, "not-an-object"],
+    }]
+    result = w.client.put(
+        w.base + "/draft",
+        json={"document": loaded["document"], "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert result.status_code == 422
+    assert "Block item 2 must be an object" in result.json()["error"]
+
+
+def test_widget_item_field_error_names_field_and_index(workspace):
+    w = workspace
+    loaded = load(w)
+    loaded["document"]["blocks"] = [{
+        "id": "features",
+        "type": "icon_list",
+        "items": [{"heading": "Feature", "body": "Detail", "theme": "check", "unknown": "value"}],
+    }]
+    result = w.client.put(
+        w.base + "/draft",
+        json={"document": loaded["document"], "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert result.status_code == 422
+    assert 'item 1: "unknown" is not a supported field' in result.json()["error"]
+
+
 def test_restore_never_changes_publication_and_cannot_cross_pages(workspace):
     w = workspace
     values = load(w)
