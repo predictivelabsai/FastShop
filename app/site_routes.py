@@ -113,13 +113,12 @@ def register_site_routes(rt):
                 csrf(session),
                 Button("Resend verification email", cls="e-button"),
                 method="post",
-                action="/account/verification/resend",
+                action="/admin/account/verification/resend",
             ),
             cls="e-card e-verification-banner",
         )
 
-    @rt("/account/verification/resend", methods=["POST"])
-    async def post(session, request):
+    async def resend_verification(session, request):
         form = await request.form()
         try:
             check_csrf(session, form)
@@ -154,6 +153,14 @@ def register_site_routes(rt):
             )
         except CommerceError:
             return RedirectResponse("/login?next=/admin/sites", status_code=303)
+
+    @rt("/admin/account/verification/resend", methods=["POST"])
+    async def post(session, request):
+        return await resend_verification(session, request)
+
+    @rt("/account/verification/resend", methods=["POST"])
+    async def post(session, request):
+        return await resend_verification(session, request)
 
     from app.admin_gap_routes import register_admin_gap_routes
     register_admin_gap_routes(rt, actor, csrf, check_csrf, shell, error)

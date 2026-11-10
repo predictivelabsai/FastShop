@@ -46,7 +46,7 @@ class SiteHostMiddleware:
             return await self.app(scope, receive, send)
         shared = (
             "/static/", "/site-media/", "/admin", "/login", "/logout", "/auth/",
-            "/healthz", "/readyz", "/marketing/", "/signup",
+            "/healthz", "/readyz", "/marketing/", "/signup", "/staff/accept",
         )
         if not path.startswith(shared):
             with SessionLocal() as db:

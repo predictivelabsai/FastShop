@@ -286,9 +286,11 @@ def test_host_middleware_requires_publish_and_sandbox_transitions(monkeypatch):
         config = commerce.settings_for(db, site, create=True)
         db.commit()
 
+        import app.db as database_module
         import app.site_context as context_module
 
         monkeypatch.setattr(context_module, "SessionLocal", lambda: Session(engine))
+        monkeypatch.setattr(database_module, "SessionLocal", lambda: Session(engine))
 
         async def endpoint(scope, receive, send):
             await PlainTextResponse(scope["path"])(scope, receive, send)
@@ -301,6 +303,7 @@ def test_host_middleware_requires_publish_and_sandbox_transitions(monkeypatch):
         site.status = "published"
         db.commit()
         assert client.get("/").text == "/sites/golive-test/"
+        assert client.get("/staff/accept").text == "/staff/accept"
         assert client.get("/cart").status_code == 404
         config.mode = "sandbox"
         db.commit()
