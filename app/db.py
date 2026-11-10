@@ -27,9 +27,10 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
-def _remember_queued_mail(session: Session, _flush_context, _instances) -> None:
+def _remember_queued_mail(session: Session, _flush_context) -> None:
     queued = session.info.setdefault("commerce_mail_after_commit", set())
-    queued.update(row.id for row in session.new if isinstance(row, CommerceMail))
+    # after_flush still lists pre-flush "new" rows, and their generated ids now exist.
+    queued.update(row.id for row in session.new if isinstance(row, CommerceMail) and row.id)
 
 
 def _dispatch_committed_mail(session: Session) -> None:
@@ -49,7 +50,7 @@ def _forget_rolled_back_mail(session: Session) -> None:
     session.info.pop("commerce_mail_after_commit", None)
 
 
-event.listen(SessionLocal, "before_flush", _remember_queued_mail)
+event.listen(SessionLocal, "after_flush", _remember_queued_mail)
 event.listen(SessionLocal, "after_commit", _dispatch_committed_mail)
 event.listen(SessionLocal, "after_rollback", _forget_rolled_back_mail)
 
