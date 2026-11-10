@@ -458,13 +458,15 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     *[
                         Article(
                             icon(s["theme"], benefit=True),
-                            H3(s["heading"], cls="font-display"),
-                            P(s["body"], cls="text-muted-foreground"),
+                            H3(s["heading"], cls="font-display",
+                               **_field_attrs(preview, f"items.{i}.heading")),
+                            P(s["body"], cls="text-muted-foreground",
+                              **_field_attrs(preview, f"items.{i}.body")),
                             P(b.get("body", ""), cls="liquid-card-disclaimer")
                             if "*" in s["heading"] or "*" in s["body"] else None,
                             cls="metal-card metal-benefit-card",
                         )
-                        for s in items
+                        for i, s in enumerate(items)
                     ],
                     cls="liquid-benefits-grid",
                 ),

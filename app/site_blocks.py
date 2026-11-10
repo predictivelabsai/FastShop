@@ -139,7 +139,7 @@ EXTRA_BLOCK_TEXT_FIELDS = {
     'liquid_collection': {'view_product', 'flavor_label', 'add_to_cart'},
     'text': {'breadcrumb_label'},
 }
-ITEM_FIELDS = {'heading', 'body', 'url', 'theme', 'image', 'alt', 'label', 'value'}
+ITEM_FIELDS = {'heading', 'body', 'url', 'theme', 'icon', 'image', 'alt', 'label', 'value'}
 URL_FIELDS = {'image', 'video', 'mobile_video', 'poster', 'link', 'url'}
 LOCALE = re.compile(r'[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*')
 
@@ -224,13 +224,21 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
     if 'items' in result and not (result['type'] in WIDGETS and WIDGETS[result['type']].item_schema):
         if not isinstance(result['items'], list) or len(result['items']) > 200:
             raise CommerceError('Block entries must be a list of up to 200 objects.')
-        for item in result['items']:
-            if not isinstance(item, dict) or set(item) - ITEM_FIELDS:
-                raise CommerceError('Choose supported block entry fields.')
+        for index, item in enumerate(result['items']):
+            if not isinstance(item, dict):
+                raise CommerceError(f'Block item {index + 1} must be an object.')
+            unsupported = set(item) - ITEM_FIELDS
+            if unsupported:
+                field = sorted(unsupported)[0]
+                raise CommerceError(
+                    f'Block item {index + 1}: "{field}" is not a supported field.'
+                )
             if not set(BLOCK_TYPES[result['type']].required_item_fields) <= item.keys():
                 raise CommerceError('Block entry is missing required fields.')
             for key, value in item.items():
                 _text(value, key)
+            if result['type'] == 'liquid_benefits' and 'icon' in item:
+                item['theme'] = item.pop('icon')
             if result['type'] in LIQUID_PRODUCT_THEMES:
                 theme = item.get('theme')
                 if not isinstance(theme, str) or theme not in LIQUID_PRODUCT_THEMES[result['type']]:
@@ -258,10 +266,12 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
                 ratings = item['value'].values() if isinstance(item['value'], dict) else [item['value']]
                 if any(rating not in {'1', '2', '3', '4', '5'} for rating in ratings):
                     raise CommerceError('Sample review ratings must be between one and five.')
-            if result['type'] == 'liquid_benefits' and (not isinstance(item['theme'], str) or item['theme'] not in {
-                'cell', 'shield', 'exercise', 'leaf', 'molecule', 'water'
-            }):
-                raise CommerceError('Choose a supported Liquid benefit icon.')
+            if result['type'] == 'liquid_benefits':
+                theme = item.get('theme')
+                if not isinstance(theme, str) or theme not in {
+                    'cell', 'shield', 'exercise', 'leaf', 'molecule', 'water'
+                }:
+                    raise CommerceError('Choose a supported Liquid benefit icon.')
             if result['type'] == 'liquid_collection':
                 required = {
                     'product': {'heading', 'label', 'body', 'url', 'image', 'alt', 'value'},
