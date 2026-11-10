@@ -361,5 +361,5 @@ def test_operator_form_is_csrf_protected_never_echoes_secrets_and_merchant_page_
     assert "sk_live_****1234" in rendered
     assert LIVE_KEY not in rendered and LIVE_WEBHOOK not in rendered
     merchant_surface = client.get(f"/admin/sites/{site_id}/integrations").text
-    assert "Live payments off, test mode" in merchant_surface
+    assert "Checkout off" in merchant_surface
     assert LIVE_KEY not in merchant_surface and LIVE_WEBHOOK not in merchant_surface

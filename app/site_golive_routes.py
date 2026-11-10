@@ -16,6 +16,7 @@ from fasthtml.common import (
     Label,
     P,
     Small,
+    Span,
     Summary,
     Textarea,
 )
@@ -49,7 +50,10 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     Div(H3(check.label), P(check.explanation)),
                     cls="g-check-copy",
                 ),
-                A("Review setting", href=check.action_url, cls="g-check-action") if not check.passed else None,
+                A("Fix", href=check.action_url, cls="g-check-action")
+                if not check.passed and scope == "commerce" else
+                A("Review setting", href=check.action_url, cls="g-check-action")
+                if not check.passed else None,
                 cls="g-check g-check-pass" if check.passed else "g-check g-check-fail",
             ))
         return Div(*rows, cls="g-checklist")
@@ -147,32 +151,49 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                         )
                     except CommerceError:
                         live_ready = False
-                commerce_form = (Form(
-                    csrf(session),
-                    Input(type="hidden", name="version", value=site.version),
-                    Input(type="hidden", name="config_version", value=config.version if config else ""),
-                    Input(type="hidden", name="enabled", value="0" if commerce_mode == "sandbox" else "1"),
-                    Button(
-                        "Disable sandbox commerce" if commerce_mode == "sandbox" else "Enable sandbox commerce",
-                        cls=None if commerce_mode == "sandbox" else "e-button",
-                        disabled=config is None,
-                    ),
-                    method="post",
-                    action=f"/admin/sites/{site.id}/golive/commerce",
-                ) if commerce_mode != "live" else
-                    P("Use the live payments control below to switch back to test mode."))
+                def mode_form(label: str, action: str, enabled: bool, selected: bool, disabled: bool,
+                              *, confirm_live: bool = False):
+                    return Form(
+                        csrf(session),
+                        Input(type="hidden", name="version", value=site.version),
+                        Input(type="hidden", name="config_version", value=config.version if config else ""),
+                        Input(type="hidden", name="enabled", value="1" if enabled else "0"),
+                        Button(label, cls="g-mode-selected" if selected else "g-mode-button", disabled=disabled),
+                        method="post", action=action,
+                        onsubmit="return confirm('Real cards will be charged. Continue?')" if confirm_live else None,
+                        cls="g-mode-form",
+                    )
+
+                commerce_action = f"/admin/sites/{site.id}/golive/commerce"
+                live_action = f"/admin/sites/{site.id}/golive/live"
+                mode_control = Div(
+                    mode_form("Turn off checkout", commerce_action, False,
+                              commerce_mode == "disabled", config is None or commerce_mode in {"disabled", "live"}),
+                    mode_form("Test mode", live_action if commerce_mode == "live" else commerce_action,
+                              commerce_mode != "live", commerce_mode == "sandbox",
+                              config is None or commerce_mode == "sandbox"),
+                    mode_form("Live payments", live_action, True, commerce_mode == "live",
+                              not live_ready or commerce_mode == "live", confirm_live=True),
+                    cls="g-mode-control", role="group", **{"aria-label": "Checkout mode"},
+                )
                 audit_nodes = []
                 for entry in audits:
                     event = site_golive.audit_event(entry)
+                    action_name = {
+                        "sandbox-commerce-enable": "test-mode-enable",
+                        "sandbox-commerce-disable": "checkout-off",
+                    }.get(event.get("action"), event.get("action", "transition"))
                     failed = [item["label"] for item in event.get("checks", []) if not item.get("passed")]
                     person = users.get(entry.user_id)
+                    reason = str(event.get("reason", "Not recorded"))
+                    reason = reason.replace("Sandbox", "Test").replace("sandbox", "test")
                     audit_nodes.append(Details(
                         Summary(
-                            f"{event.get('action', 'transition')} · {event.get('decision', 'recorded')} · "
+                            f"{action_name} · {event.get('decision', 'recorded')} · "
                             f"{entry.created_at.strftime('%Y-%m-%d %H:%M UTC')}"
                         ),
                         P("Actor: " + (person.name or person.email if person else entry.user_id)),
-                        P("Reason: " + str(event.get("reason", "Not recorded"))),
+                        P("Reason: " + reason),
                         P("Failed checks: " + ", ".join(failed)) if failed else P("All recorded checks passed."),
                         P("Development override recorded.", cls="g-override") if event.get("overridden") else None,
                         cls="g-audit",
@@ -180,47 +201,41 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                 return shell(
                     "Go-live review",
                     A("← Site settings", href=f"/admin/sites/{site.id}"),
-                    P(f"{site.name} · Site status: {site.status} · Commerce: {commerce_mode}", cls="g-summary"),
-                    P("Live payments on" if commerce_mode == "live" else "Live payments off, test mode",
-                      cls="g-state g-state-live" if commerce_mode == "live" else "g-state"),
-                    stripe_connections.stripe_tax_status_line(tax, tax_mode),
-                    Div(H2("Live payments", id="live-payments"),
-                        P("A verified live Stripe connection is required to switch modes. The checks below are advisories and do not prevent live payments."),
-                        checklist(commerce_report, scope="commerce"),
-                        Form(csrf(session), Input(type="hidden", name="version", value=site.version),
-                             Input(type="hidden", name="config_version", value=config.version if config else ""),
-                             Input(type="hidden", name="enabled", value="0" if commerce_mode == "live" else "1"),
-                             Button("Switch back to test mode" if commerce_mode == "live" else "Turn on live payments",
-                                    cls="e-button", disabled=not live_ready if commerce_mode != "live" else False),
-                             method="post", action=f"/admin/sites/{site.id}/golive/live",
-                             onsubmit="return confirm('Real cards will be charged. Continue?')" if commerce_mode != "live" else None,
-                             cls="e-form"),
-                        P("Connect and verify live Stripe keys to enable this control.", cls="e-help") if not live_ready and commerce_mode != "live" else None,
-                        A("Manage Stripe connection", href=f"/admin/sites/{site.id}/commerce/payments"),
-                        cls="e-card g-stage"),
-                    A("Open operator live-payment ceremony →",
-                      href=f"/admin/platform/sites/{site.id}/live-credentials") if operator else None,
+                    Div(H2("Go-live status"),
+                        Div(Div(Small("Store"), Span("Published" if site.status == "published" else "Draft"),
+                                cls="g-status-chip"),
+                            Div(Small("Domain"), Span(site.hostname or "Not set"), cls="g-status-chip"),
+                            Div(Small("Payments"), Span({"disabled": "Checkout off", "sandbox": "Test mode",
+                                "live": "Live payments"}.get(commerce_mode, "Checkout off")), cls="g-status-chip"),
+                            cls="g-status-chips"), cls="g-summary-card"),
                     P(notice, role="status", cls="e-note") if notice else None,
                     Div(
-                        H2("Publish the reviewed site", id="publish"),
+                        H2("Store", id="publish"),
                         P("Publication uses only stored site state. Merchants cannot bypass failed hard checks."),
                         checklist(publish_report, scope="publish"),
                         publish_controls,
                         cls="e-card g-stage",
                     ),
                     Div(
-                        H2("Bind the custom domain", id="domain"),
+                        H2("Domain", id="domain"),
                         P(f"The bounded preview stays at /sites/{site.slug}/. Custom-host traffic opens only after publication."),
                         domain_form,
                         cls="e-card g-stage",
                     ),
-                    Div(
-                        H2("Enable sandbox commerce", id="commerce"),
-                        P("Catalog and checkout checks run only for this request. This slice cannot accept live credentials or live payments."),
+                    Div(H2("Payments", id="live-payments"),
+                        P("Checkout readiness checks are advisory. Resolve any findings before taking payments."),
                         checklist(commerce_report, scope="commerce"),
-                        Div(A("Configure sandbox commerce", href=f"/admin/sites/{site.id}/commerce"), commerce_form, cls="e-actions"),
+                        H3("Checkout mode"),
+                        P("Choose whether checkout is off, uses test cards, or charges real cards."),
+                        mode_control,
+                        P("Connect and verify live Stripe keys to enable live payments.", cls="g-help")
+                        if not live_ready and commerce_mode != "live" else None,
+                        stripe_connections.stripe_tax_status_line(tax, tax_mode),
+                        A("Manage Stripe connection", href=f"/admin/sites/{site.id}/commerce/payments"),
                         cls="e-card g-stage",
                     ),
+                    P("Platform · ", A("Open operator live-payment ceremony →",
+                      href=f"/admin/platform/sites/{site.id}/live-credentials"), cls="g-platform") if operator else None,
                     Div(H2("Payment and go-live activity"),
                         *audit_nodes if audit_nodes else [empty_state("No go-live decisions yet",
                             "Publication and commerce decisions will appear here after a review.",

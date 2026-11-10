@@ -335,6 +335,13 @@ def test_golive_actions_use_csrf_prg_and_record_blocked_review():
     assert page.status_code == 200
     assert "Go-live review" in page.text and "Publish site" in page.text
     assert "Missing fields: head_office.address.city" in page.text
+    assert "Payments" in page.text and "Checkout off" in page.text
+    assert "sandbox" not in page.text.lower()
+    assert page.text.count("Test checkout configuration is complete") == 1
+    commerce_status = client.get(f"/admin/sites/{site_id}/commerce").text
+    payments_status = client.get(f"/admin/sites/{site_id}/commerce/payments").text
+    assert "Checkout status: Checkout off" in commerce_status
+    assert "Checkout off" in payments_status
 
     form = {
         "csrf_token": token,
@@ -362,3 +369,5 @@ def test_golive_actions_use_csrf_prg_and_record_blocked_review():
         ))
         assert saved.status == "draft"
         assert audit.after_json["audit"]["decision"] == "blocked"
+    activity_page = client.get(f"/admin/sites/{site_id}/golive").text
+    assert "sandbox" not in activity_page.lower()
