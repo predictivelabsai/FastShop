@@ -27,7 +27,7 @@ from app import content, site_golive, stripe_connections
 from app.admin_ui import empty_state
 from app.config import settings
 from app.db import SessionLocal
-from app.models import Membership, SiteCommerceSettings, User
+from app.models import Membership, SiteCommerceSettings, SiteStripeConnection, User
 from app.services import CommerceError
 
 
@@ -79,7 +79,7 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     and current_user
                     and current_user.email.lower() == settings.admin_email
                 )
-                audits = site_golive.audit_trail(db, site) if operator else []
+                audits = site_golive.audit_trail(db, site)
                 users = {
                     user.id: user for user in db.scalars(select(User).where(
                         User.id.in_({entry.user_id for entry in audits}) if audits else False
@@ -128,6 +128,25 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     cls="e-form",
                 )
                 commerce_mode = config.mode if config else "disabled"
+                live_connection = db.scalar(select(SiteStripeConnection).where(
+                    SiteStripeConnection.site_id == site.id,
+                    SiteStripeConnection.tenant_id == site.tenant_id,
+                    SiteStripeConnection.mode == "live",
+                ))
+                live_ready = False
+                if live_connection and live_connection.verified_at and live_connection.account_id:
+                    try:
+                        live_secret, live_webhook, live_publishable = stripe_connections.decrypted(
+                            db, site, live_connection
+                        )
+                        live_ready = bool(
+                            config and site.status == "published" and site.hostname
+                            and live_secret.startswith(("sk_live_", "rk_live_"))
+                            and live_publishable.startswith("pk_live_")
+                            and (live_connection.webhook_endpoint_id or live_webhook)
+                        )
+                    except CommerceError:
+                        live_ready = False
                 commerce_form = (Form(
                     csrf(session),
                     Input(type="hidden", name="version", value=site.version),
@@ -141,7 +160,7 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     method="post",
                     action=f"/admin/sites/{site.id}/golive/commerce",
                 ) if commerce_mode != "live" else
-                    P("Live checkout can only be disabled from the operator acceptance ceremony."))
+                    P("Use the live payments control below to switch back to test mode."))
                 audit_nodes = []
                 for entry in audits:
                     event = site_golive.audit_event(entry)
@@ -162,9 +181,23 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     "Go-live review",
                     A("← Site settings", href=f"/admin/sites/{site.id}"),
                     P(f"{site.name} · Site status: {site.status} · Commerce: {commerce_mode}", cls="g-summary"),
-                    P("Live payments: " + ("approved by operator" if commerce_mode == "live" else "not approved"),
+                    P("Live payments on" if commerce_mode == "live" else "Live payments off, test mode",
                       cls="g-state g-state-live" if commerce_mode == "live" else "g-state"),
                     stripe_connections.stripe_tax_status_line(tax, tax_mode),
+                    Div(H2("Live payments", id="live-payments"),
+                        P("A verified live Stripe connection is required to switch modes. The checks below are advisories and do not prevent live payments."),
+                        checklist(commerce_report, scope="commerce"),
+                        Form(csrf(session), Input(type="hidden", name="version", value=site.version),
+                             Input(type="hidden", name="config_version", value=config.version if config else ""),
+                             Input(type="hidden", name="enabled", value="0" if commerce_mode == "live" else "1"),
+                             Button("Switch back to test mode" if commerce_mode == "live" else "Turn on live payments",
+                                    cls="e-button", disabled=not live_ready if commerce_mode != "live" else False),
+                             method="post", action=f"/admin/sites/{site.id}/golive/live",
+                             onsubmit="return confirm('Real cards will be charged. Continue?')" if commerce_mode != "live" else None,
+                             cls="e-form"),
+                        P("Connect and verify live Stripe keys to enable this control.", cls="e-help") if not live_ready and commerce_mode != "live" else None,
+                        A("Manage Stripe connection", href=f"/admin/sites/{site.id}/commerce/payments"),
+                        cls="e-card g-stage"),
                     A("Open operator live-payment ceremony →",
                       href=f"/admin/platform/sites/{site.id}/live-credentials") if operator else None,
                     P(notice, role="status", cls="e-note") if notice else None,
@@ -188,11 +221,11 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                         Div(A("Configure sandbox commerce", href=f"/admin/sites/{site.id}/commerce"), commerce_form, cls="e-actions"),
                         cls="e-card g-stage",
                     ),
-                    Div(H2("Operator audit trail"),
+                    Div(H2("Payment and go-live activity"),
                         *audit_nodes if audit_nodes else [empty_state("No go-live decisions yet",
                             "Publication and commerce decisions will appear here after a review.",
                             A("Review publication", href="#publish", cls="e-button"))],
-                        cls="e-card g-stage") if operator else None,
+                        cls="e-card g-stage"),
                 )
         except CommerceError as exc:
             return error(exc)
@@ -250,6 +283,22 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     int(form.get("version", 0)),
                     form.get("enabled") == "1",
                     config_version=int(form.get("config_version")) if form.get("config_version") else None,
+                )
+                db.commit()
+            return redirect(site_id, decision.message)
+        except (CommerceError, ValueError) as exc:
+            return redirect(site_id, str(exc))
+
+    @rt("/admin/sites/{site_id}/golive/live", methods=["POST"])
+    async def post(session, request, site_id: str):
+        form = await request.form()
+        try:
+            check_csrf(session, form)
+            with SessionLocal() as db:
+                decision = site_golive.switch_live_payments(
+                    db, site_id, actor(session), int(form.get("version", 0)),
+                    int(form.get("config_version")) if form.get("config_version") else None,
+                    form.get("enabled") == "1",
                 )
                 db.commit()
             return redirect(site_id, decision.message)

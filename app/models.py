@@ -389,6 +389,7 @@ class Order(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320))
     status: Mapped[str] = mapped_column(String(30), default="unfulfilled")
     payment_status: Mapped[str] = mapped_column(String(30), default="pending")
+    commerce_mode: Mapped[str] = mapped_column(String(12), default="sandbox", server_default="sandbox")
     currency: Mapped[str] = mapped_column(String(3))
     subtotal_minor: Mapped[int] = mapped_column(Integer)
     discount_minor: Mapped[int] = mapped_column(Integer, default=0)

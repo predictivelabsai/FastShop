@@ -1,4 +1,4 @@
-"""Encrypted, operator-approved Stripe live credentials and hard live-mode guards."""
+"""Encrypted Stripe live credentials and hard live-mode guards."""
 
 from __future__ import annotations
 
@@ -298,7 +298,14 @@ def effective_mode(db, site: Site, config: SiteCommerceSettings | None = None) -
         return "sandbox"
     if config.mode == "live" and site.status == "published" and bool(site.hostname):
         credential = credential_for(db, site)
-        if (state_for(db, site, config).accepted and credential):
+        from app import stripe_connections
+        connection = stripe_connections.connection_for(db, site, "live")
+        verified_connection = bool(
+            connection and connection.verified_at and connection.account_id
+            and (connection.webhook_endpoint_id or stripe_connections.decrypted(db, site, connection)[1])
+        )
+        if (credential and credential.verified_at and credential.id == config.live_credential_id
+                and (state_for(db, site, config).accepted or verified_connection)):
             decrypted(db, site, credential)
             return "live"
     raise CommerceError("Commerce is not enabled for this store.")

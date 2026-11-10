@@ -294,7 +294,9 @@ def _paid_order(db, site, attempt, quote, provider, *, manual=False):
     order = Order(tenant_id=site.tenant_id, channel_id=site.channel_id,
         number="FS-" + attempt.id.upper(),
         idempotency_key=("manual-" if manual else "stripe-") + attempt.id,
-        email=customer.email, currency=quote.currency, subtotal_minor=quote.subtotal_minor,
+        email=customer.email, currency=quote.currency,
+        commerce_mode=quote.snapshot_json.get("payment_mode", "sandbox"),
+        subtotal_minor=quote.subtotal_minor,
         discount_minor=quote.discount_minor, shipping_minor=quote.shipping_minor,
         tax_minor=quote.tax_minor, total_minor=quote.snapshot_json.get("gross_total_minor", quote.total_minor), payment_status="paid",
         shipping_address_json=quote.snapshot_json["destination"] | {"name":

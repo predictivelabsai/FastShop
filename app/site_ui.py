@@ -338,6 +338,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     analytics_id = measurement_id(site, preview=preview)
     commerce_config = settings_for(db, site)
     customer_services_enabled = bool(commerce_config and payments_enabled(db, site, commerce_config))
+    if customer_services_enabled:
+        from app.commerce import payment_mode
+        site._payment_mode = payment_mode(db, site, commerce_config)
     ga4_item = None
     if analytics_id and page.kind == "product" and page.product_id:
         ga4_product = catalog_product(db, site, page.product_id)

@@ -167,6 +167,8 @@ def handoff(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_
         if not quote or not customer:
             raise CommerceError("Checkout details are unavailable.")
         mode = commerce.payment_mode(db, site)
+        if quote.snapshot_json.get("payment_mode", mode) != mode:
+            raise CommerceError("Payment mode changed after this quote. Request a fresh checkout quote.")
         if mode == "live" and quote.snapshot_json.get("local_tax"):
             raise CommerceError("Merchant tax rates are available in sandbox mode only. Request a new live Stripe Tax quote.")
         if quote.snapshot_json.get("gift_card") and mode != "sandbox":
@@ -280,6 +282,8 @@ def embedded_session(site_id, customer_id, attempt_id, *, sessions=SessionLocal,
         if not quote or not customer:
             raise CommerceError("Checkout details are unavailable.")
         mode = commerce.payment_mode(db, site)
+        if quote.snapshot_json.get("payment_mode", mode) != mode:
+            raise CommerceError("Payment mode changed after this quote. Request a fresh checkout quote.")
         if mode == "live" and quote.snapshot_json.get("local_tax"):
             raise CommerceError("Merchant tax rates are available in sandbox mode only. Request a new live Stripe Tax quote.")
         if quote.snapshot_json.get("gift_card") and mode != "sandbox":
