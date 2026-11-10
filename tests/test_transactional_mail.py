@@ -134,12 +134,21 @@ def test_default_sessions_dispatch_only_after_mail_commit(monkeypatch):
         assert sent == ["mail-hook-message"]
 
         with database.SessionLocal() as db:
+            # Production rows rely on the generated id, which exists only after the INSERT.
+            generated = CommerceMail(tenant_id="mail-hook-tenant", site_id="mail-hook-site",
+                kind="account_verification", dedupe_key="mail-hook-generated",
+                available_at=datetime.now(UTC))
+            db.add(generated)
+            db.commit()
+        assert sent == ["mail-hook-message", generated.id] and generated.id
+
+        with database.SessionLocal() as db:
             db.add(CommerceMail(tenant_id="mail-hook-tenant", site_id="mail-hook-site",
                 kind="account_verification", dedupe_key="mail-hook-rollback",
                 available_at=datetime.now(UTC)))
             db.flush()
             db.rollback()
-        assert sent == ["mail-hook-message"]
+        assert sent == ["mail-hook-message", generated.id]
     finally:
         database.SessionLocal.configure(bind=old_bind)
         engine.dispose()
