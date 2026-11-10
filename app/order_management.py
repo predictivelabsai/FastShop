@@ -273,6 +273,7 @@ def refund_totals(db, site: Site, link: SiteOrder, order: Order) -> tuple[int, i
 def _manager_site(db, site_id: str, user_id: str) -> Site:
     site = db.scalar(select(Site).join(Membership, Membership.tenant_id == Site.tenant_id).where(
         Site.id == site_id,
+        Site.status != "deleted",
         Membership.user_id == user_id,
         Membership.role.in_(["admin", "merchant"]),
     ))

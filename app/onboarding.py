@@ -61,6 +61,7 @@ def owned_state(
         .join(Membership, Membership.tenant_id == OnboardingState.tenant_id)
         .where(
             OnboardingState.site_id == site_id,
+            Site.status != "deleted",
             Membership.user_id == user_id,
             Membership.role.in_(["admin", "merchant"]),
         )

@@ -311,7 +311,8 @@ def contextual_page(title, *children, subnavigation=None):
         user = db.get(User, session.get("user_id", ""))
         sites = list(db.scalars(select(Site).join(Membership, Membership.tenant_id == Site.tenant_id)
             .where(Membership.user_id == session.get("user_id", ""),
-                   Membership.role.in_(["admin", "merchant", "editor"])).order_by(Site.name))) if user and user.is_active else []
+                   Membership.role.in_(["admin", "merchant", "editor"]),
+                   Site.status != "deleted").order_by(Site.name))) if user and user.is_active else []
         parts = path.strip("/").split("/")
         site_id = parts[2] if len(parts) > 2 else ""
         site = next((s for s in sites if s.id == site_id), None)

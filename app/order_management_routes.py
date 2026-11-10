@@ -283,6 +283,7 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                 sites = list(db.scalars(select(Site).join(Membership, Membership.tenant_id == Site.tenant_id).where(
                     Membership.user_id == user_id,
                     Membership.role == "admin",
+                    Site.status != "deleted",
                 ).order_by(Site.name)))
                 rows = []
                 for site in sites:
@@ -299,6 +300,7 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                     "Per-site revenue",
                     Div(
                         A("← Sites", href="/admin/sites"),
+                        A("Deleted stores", href="/admin/platform/deleted-stores"),
                         A("Platform delivery issues", href="/admin/platform/deliveries"),
                         cls="e-actions",
                     ),
@@ -325,7 +327,8 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                     raise CommerceError("Platform operator access is required.")
                 sites = list(db.scalars(select(Site)
                     .join(Membership, Membership.tenant_id == Site.tenant_id)
-                    .where(Membership.user_id == user_id, Membership.role == "admin")
+                    .where(Membership.user_id == user_id, Membership.role == "admin",
+                           Site.status != "deleted")
                     .order_by(Site.name, Site.id)))
                 rows = []
                 for site in sites:
@@ -341,6 +344,7 @@ def register_order_management_routes(rt, actor, csrf, check_csrf, shell, error):
                     "Platform delivery issues",
                     Div(
                         A("← Sites", href="/admin/sites"),
+                        A("Deleted stores", href="/admin/platform/deleted-stores"),
                         A("Per-site revenue", href="/admin/platform/revenue"),
                         cls="e-actions",
                     ),

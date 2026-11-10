@@ -621,7 +621,7 @@ def woocommerce_guide(base="/admin/integrations"):
 def paypal_guide(session: Session, *, site_id=None, tenant_ids=None,
                  base="/admin/integrations"):
     from app.integrations import paypal
-    statement = select(Site).order_by(Site.slug)
+    statement = select(Site).where(Site.status != "deleted").order_by(Site.slug)
     if tenant_ids is not None:
         statement = statement.where(Site.tenant_id.in_(tenant_ids))
     if site_id is not None:
