@@ -78,8 +78,11 @@ def test_contact_persists_before_delivery_and_rate_limits(monkeypatch):
         assert message.status == "failed"
 
 
-def test_new_site_is_private_and_neutral():
+def test_new_site_is_private_and_neutral(monkeypatch):
     from uuid import uuid4
+
+    # Earlier tests share this account, so its plan quota must not decide the outcome.
+    monkeypatch.setattr("app.plans.ensure_sites", lambda *_args, **_kwargs: None)
     client, token = signed_in()
     slug = "test-" + uuid4().hex[:12]
     response = client.post("/admin/sites", data={"csrf_token": token, "name": "Another brand", "slug": slug})
