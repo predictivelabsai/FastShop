@@ -352,6 +352,29 @@ def test_unsupported_item_field_error_names_field_and_index(workspace):
     assert 'item 2: "mystery" is not a supported field' in result.json()["error"]
 
 
+@pytest.mark.parametrize("locale", ["en", "en-US"])
+def test_locale_keys_on_items_remain_unsupported(workspace, locale):
+    w = workspace
+    loaded = load(w)
+    loaded["document"]["blocks"] = [{
+        "id": "why",
+        "type": "liquid_benefits",
+        "items": [{
+            "heading": "Benefit",
+            "body": "Details",
+            "theme": "cell",
+            locale: {"heading": "Benefit", "body": "Details", "theme": "cell"},
+        }],
+    }]
+    result = w.client.put(
+        w.base + "/draft",
+        json={"document": loaded["document"], "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert result.status_code == 422
+    assert f'item 1: "{locale}" is not a supported field' in result.json()["error"]
+
+
 def test_widget_item_field_error_names_field_and_index(workspace):
     w = workspace
     loaded = load(w)

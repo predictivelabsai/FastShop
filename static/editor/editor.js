@@ -224,6 +224,17 @@ function set(o, p, v) {
   }
   o[last] = v;
 }
+const isLocalizedText = (value) =>
+  value &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  Object.keys(value).length > 0 &&
+  Object.prototype.hasOwnProperty.call(value, state?.default_locale || "en") &&
+  Object.entries(value).every(
+    ([locale, text]) =>
+      /^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/.test(locale) &&
+      typeof text === "string",
+  );
 function text(v) {
   return v && typeof v === "object" && !Array.isArray(v)
     ? (v[state?.default_locale || "en"] ?? "")
@@ -231,11 +242,56 @@ function text(v) {
 }
 function setField(o, p, v) {
   const old = get(o, p);
-  if (old && typeof old === "object" && !Array.isArray(old)) {
+  if (isLocalizedText(old)) {
     const locale = state.default_locale || "en";
     v = { ...old, [locale]: v };
   }
   set(o, p, v);
+}
+function sanitizeBadItemLocaleKeys(document, schema) {
+  const localeKey = /^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/;
+  let removed = 0;
+  const visit = (blocks = []) => {
+    for (const block of blocks) {
+      const itemsField = (schema[block.type]?.fields || []).find(
+        (field) => field.id === "items" && field.type === "repeater",
+      );
+      const allowed = new Set(
+        (itemsField?.item_fields || itemsField?.fields || []).map(
+          (field) => field.id,
+        ),
+      );
+      if (Array.isArray(block.items) && allowed.size) {
+        for (const item of block.items) {
+          if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+          for (const [key, value] of Object.entries(item)) {
+            if (
+              !allowed.has(key) &&
+              localeKey.test(key) &&
+              value &&
+              typeof value === "object" &&
+              !Array.isArray(value)
+            ) {
+              const copiedFields = Object.keys(value);
+              if (
+                copiedFields.length > 1 &&
+                copiedFields.every((field) => allowed.has(field)) &&
+                copiedFields.some((field) =>
+                  Object.prototype.hasOwnProperty.call(item, field),
+                )
+              ) {
+                delete item[key];
+                removed += 1;
+              }
+            }
+          }
+        }
+      }
+      visit(block.children || []);
+    }
+  };
+  visit(document.blocks || []);
+  return removed;
 }
 function historyButtons() {
   $("#undo").disabled = cursor <= 0;
@@ -956,7 +1012,10 @@ function wireFields(obj, update, root = "#settings-content") {
             field = findField(repeaterPath, spec(obj.type).fields || []),
             defaults = field.theme_defaults?.[v];
           if (defaults) {
-            const item = { ...get(obj, itemPath), ...copy(defaults), theme: v };
+            const item =
+              obj.type === "liquid_benefits"
+                ? { ...get(obj, itemPath), theme: v }
+                : { ...get(obj, itemPath), ...copy(defaults), theme: v };
             update(itemPath, item);
             renderSettings();
             return;
@@ -1236,6 +1295,7 @@ async function openLink(callback, type = "url") {
 }
 async function save() {
   if (saving || !state) return false;
+  sanitizeBadItemLocaleKeys(state.document, state.schema);
   saving = true;
   status("Saving…");
   $("#save").disabled = true;
@@ -1284,11 +1344,13 @@ async function load() {
     if (state.schema.blocks) state.schema = state.schema.blocks;
     if (Array.isArray(state.schema))
       state.schema = Object.fromEntries(state.schema.map((s) => [s.type, s]));
+    const loadedDocument = copy(state.document);
+    state.document = copy(state.document);
+    dirty = sanitizeBadItemLocaleKeys(state.document, state.schema) > 0;
     selected = null;
     shellGroup = null;
-    dirty = false;
     themeDirty = designDirty = shellDirty = false;
-    lastSaved = JSON.stringify(state.document);
+    lastSaved = JSON.stringify(loadedDocument);
     history = [];
     snapshot("Opened page");
     $("#current-page").textContent = state.page.title;
@@ -1302,7 +1364,7 @@ async function load() {
     renderLeft();
     renderSettings();
     await preview();
-    status("Saved");
+    status(dirty ? "Unsaved changes" : "Saved");
   } catch (e) {
     showError(e);
     status("Error");
