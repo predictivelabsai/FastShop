@@ -111,13 +111,15 @@
     field.contentEditable = "false";
     send({
       type: "inline",
-      block_id: node.dataset.blockId,
+      block_id: node?.dataset.blockId || null,
+      shell: !node,
       field: field.dataset.field,
       value:
         field.dataset.fieldType === "richtext"
           ? field.innerHTML
           : field.textContent,
     });
+    if (field.dataset.inlineOverlay === "true") field.remove();
     editing = null;
     richTools.hidden = true;
   }
@@ -191,6 +193,27 @@
         return;
       e.preventDefault();
       finishEdit();
+      if (field.tagName === "INPUT") {
+        const rect = field.getBoundingClientRect(),
+          overlay = document.createElement("span");
+        overlay.dataset.field = field.dataset.field;
+        overlay.dataset.fieldType = field.dataset.fieldType || "text";
+        overlay.dataset.inlineOverlay = "true";
+        overlay.textContent = field.placeholder;
+        overlay.contentEditable = "true";
+        overlay.setAttribute("role", "textbox");
+        overlay.setAttribute("aria-label", `Edit ${field.dataset.field}`);
+        overlay.style.cssText = `position:fixed;z-index:2147483647;top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;min-height:${rect.height}px;background:white;color:#222;padding:8px;box-sizing:border-box;overflow:auto`;
+        document.body.append(overlay);
+        editing = overlay;
+        overlay.focus();
+        const range = document.createRange();
+        range.selectNodeContents(overlay);
+        const selection = getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return;
+      }
       editing = field;
       field.contentEditable = "true";
       field.setAttribute("role", "textbox");

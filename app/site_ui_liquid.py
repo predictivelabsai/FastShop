@@ -748,30 +748,47 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
     return render_section(db, site, page, config, b, base, csrf, preview)
 
 
-def newsletter(shell, base, csrf, identity, enabled):
-    offer = shell["offer"]
+def newsletter(shell, base, csrf, identity, enabled, *, preview=False, footer=False):
+    offer = shell["footer"] if footer else shell["offer"]
+    field = (lambda name: "liquid_shell.footer.newsletter" + {
+        "placeholder": "Placeholder", "emailLabel": "EmailLabel", "cta": "Cta",
+        "consent": "Consent",
+        "privacyLabel": "PrivacyLabel", "privacyHref": "PrivacyHref",
+    }[name]) if footer else (lambda name: "liquid_shell.offer." + name)
     return Form(
         Input(type="hidden", name="csrf_token", value=csrf),
+        Input(type="hidden", name="newsletter_source", value="footer" if footer else "offer"),
+        P(offer["body"], **_field_attrs(preview, "liquid_shell.offer.body")) if not footer else None,
         Div(
-            Label("Email address", fr=identity, cls="sr-only"),
+            Label(offer["newsletterEmailLabel"] if footer else offer["emailLabel"],
+                  fr=identity, cls="sr-only", **_field_attrs(preview, field("emailLabel"))),
             Input(
                 type="email",
                 name="email",
                 id=identity,
-                placeholder=offer["placeholder"],
+                placeholder=offer["newsletterPlaceholder"] if footer else offer["placeholder"],
                 required=True,
                 maxlength=320,
                 autocomplete="email",
                 disabled=not enabled,
+                **_field_attrs(preview, field("placeholder")),
             ),
-            Button(offer["cta"], type="submit", cls="bg-metal-sheen", disabled=not enabled),
+            Button(offer["newsletterCta"] if footer else offer["cta"], type="submit",
+                   cls="bg-metal-sheen", disabled=not enabled,
+                   **_field_attrs(preview, field("cta"))),
             cls="liquid-email-row",
         ),
         Label(
             Input(type="checkbox", name="marketing_consent", required=True, disabled=not enabled),
-            Span(offer["consent"] + " ",
-                 A(offer["privacyLabel"], href=url(base, offer["privacyHref"]))
-                 if offer["privacyHref"] not in {"", "#", "/#"} else Span(offer["privacyLabel"]), "."),
+            Span((offer["newsletterConsent"] if footer else offer["consent"]) + " ",
+                 A(offer["newsletterPrivacyLabel"] if footer else offer["privacyLabel"],
+                   href=url(base, offer["newsletterPrivacyHref"] if footer else offer["privacyHref"]),
+                   **_field_attrs(preview, field("privacyLabel")))
+                 if (offer["newsletterPrivacyHref"] if footer else offer["privacyHref"])
+                 not in {"", "#", "/#"} else Span(offer["newsletterPrivacyLabel"]
+                   if footer else offer["privacyLabel"],
+                   **_field_attrs(preview, field("privacyLabel"))), ".",
+                 **_field_attrs(preview, field("consent"))),
             cls="liquid-consent",
         ),
         Input(name="website", tabindex="-1", autocomplete="off", hidden=True),
@@ -955,7 +972,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         cls="metal-offer-line",
                     ),
                     Div(
-                        newsletter(shell, base, csrf, "offer-email", enabled),
+                        newsletter(shell, base, csrf, "offer-email", enabled, preview=preview),
                         id="liquid-offer-form",
                         hidden=True,
                         cls="liquid-offer-form",
@@ -1050,9 +1067,12 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 Div(
                     Div(
                         A(logo(), href=base + "/"),
-                        H2(footer["newsletterTitle"], cls="liquid-footer-title"),
-                        P(footer["newsletterBody"]),
-                        newsletter(shell, base, csrf, "footer-email", enabled),
+                        H2(footer["newsletterTitle"], cls="liquid-footer-title",
+                           **_field_attrs(preview, "liquid_shell.footer.newsletterTitle")),
+                        P(footer["newsletterBody"],
+                          **_field_attrs(preview, "liquid_shell.footer.newsletterBody", "textarea")),
+                        newsletter(shell, base, csrf, "footer-email", enabled,
+                                  preview=preview, footer=True),
                     ),
                     Nav(
                         *[A(s["label"], href=url(base, s["path"])) for s in footer_links],

@@ -1352,6 +1352,15 @@ window.addEventListener("message", (e) => {
   if (d.type === "select") select(d.block_id);
   if (d.type === "shell") openShell(d.group);
   if (d.type === "inline") {
+    if (d.shell) {
+      const field = (state.shell_schema?.fields || []).find((item) => item.id === d.field);
+      if (!field || !["text", "textarea"].includes(field.type)) return;
+      setField(state.shell_settings, d.field, d.value);
+      shellDirty = themeDirty = true;
+      status("Unsaved changes");
+      renderShell();
+      return;
+    }
     const n = locate(d.block_id),
       f = n && findField(d.field, spec(n.block.type).fields || []);
     if (!f || !["text", "textarea", "richtext"].includes(f.type)) return;

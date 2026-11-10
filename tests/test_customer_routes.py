@@ -228,6 +228,27 @@ def test_disabling_accounts_also_gates_existing_customer_session(customer_site):
         commerce.settings_for(db, site).customer_accounts_enabled = False
         db.commit()
     assert client.get(base + "/account").status_code == 404
+
+
+def test_liquid_newsletter_uses_the_matching_published_success_copy(customer_site):
+    site, client, base = customer_site
+    with SessionLocal() as db:
+        site = db.get(Site, site.id)
+        site.settings_json = {**site.settings_json, "theme_pack": "liquid",
+                              "liquid_shell": {"offer": {"thanks": "Offer code sent."},
+                                               "footer": {"newsletterThanks": "Footer welcome sent."}}}
+        site.published_settings_json = site.settings_json.copy()
+        db.commit()
+    page = client.get(base + "/")
+    token = csrf(page)
+    footer = client.post(base + "/newsletter", data={"csrf_token": token,
+        "email": "footer-subscriber@example.test", "marketing_consent": "on",
+        "newsletter_source": "footer"})
+    assert footer.status_code == 200 and "Footer welcome sent." in footer.text
+    offer = client.post(base + "/newsletter", data={"csrf_token": token,
+        "email": "offer-subscriber@example.test", "marketing_consent": "on",
+        "newsletter_source": "offer"})
+    assert offer.status_code == 200 and "Offer code sent." in offer.text
     assert client.get(base + "/account/orders/unknown").status_code == 404
 
 

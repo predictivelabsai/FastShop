@@ -17,6 +17,35 @@ FDA = ("*These statements have not been evaluated by the Food and Drug Administr
        "This product is not intended to diagnose, treat, cure, or prevent any disease.")
 
 
+def liquid_header_footer_cases():
+    cases = []
+    for field in shell_fields(LIQUID):
+        if field.get("group") not in {"header", "footer"}:
+            continue
+        if field["id"] in {"liquid_shell.offer.thanks", "liquid_shell.footer.newsletterThanks"}:
+            # Success copy is rendered by the public newsletter confirmation route.
+            continue
+        kind = field.get("type", "text")
+        if kind in {"text", "textarea"}:
+            value = expected = "Edited " + field["id"]
+        elif kind in {"url", "image"}:
+            value = expected = "/edited-shell-field"
+        elif kind == "list":
+            value = [field["choices"][0]]
+            expected = value[0]
+        elif kind == "repeater":
+            row = {sub["id"]: ("Edited " + field["id"] if sub["id"] == "label"
+                                else "/edited-shell-field" if sub["id"] == "href" else "")
+                   for sub in field["fields"]}
+            value = ([{"label": "Shop all", "href": "/shop"}, row]
+                     if field["id"] == "liquid_shell.nav.shop.items" else [row])
+            expected = value[-1].get("label", value[-1].get("href"))
+        else:
+            continue
+        cases.append((field["id"], value, expected))
+    return cases
+
+
 def test_defaults_fill_absent_paths_only_and_unknown_packs_have_no_fields():
     fields = shell_fields(LIQUID)
     values = shell_values(LIQUID, fields)
@@ -231,6 +260,85 @@ def test_editor_loads_saves_and_publishes_shell(workspace):  # noqa: F811
     assert published.status_code == 200, published.text
     with w.sessions() as db:
         assert db.get(Site, w.site.id).published_settings_json["footer"] == "Draft miracle cure"
+
+
+def test_newsletter_shell_edits_publish_and_render_on_public_liquid_page(workspace):  # noqa: F811
+    from app.site_ui_liquid import storefront
+
+    w = workspace
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        site.settings_json = {**site.settings_json, "theme_pack": "liquid"}
+        site.published_settings_json = {**site.published_settings_json, "theme_pack": "liquid"}
+        db.commit()
+    loaded = load(w)
+    edits = {
+        "liquid_shell": {"offer": {"title": "10% off your first order"}, "footer": {
+            "newsletterTitle": "A note from the water",
+            "newsletterBody": "New flavours and research, once a month.",
+            "newsletterPlaceholder": "Your email for 10% off",
+            "newsletterCta": "Get my 10% offer",
+            "newsletterConsent": "Send me occasional updates.",
+            "newsletterPrivacyLabel": "Read our privacy policy",
+            "newsletterThanks": "Thanks, check your inbox for the 10% offer.",
+        }},
+    }
+    saved = w.client.put(w.base + "/shell-settings", json={
+        "shell_settings": edits, "version": loaded["site_version"]}, headers=w.headers)
+    assert saved.status_code == 200, saved.text
+    published = w.client.post(w.base + "/publish", json={
+        "version": loaded["version"], "site_version": saved.json()["version"]}, headers=w.headers)
+    assert published.status_code == 200, published.text
+
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        page = db.get(SitePage, w.page.id)
+        html = to_xml(storefront(db, site, page, "/sites/" + site.slug, "csrf", ""))
+    for text in ("10% off your first order", "A note from the water",
+                 "New flavours and research, once a month.", "Your email for 10% off",
+                 "Get my 10% offer", "Send me occasional updates.", "Read our privacy policy"):
+        assert text in html
+    assert "Join" not in html
+    with w.sessions() as db:
+        published_settings = db.get(Site, w.site.id).published_settings_json
+        assert published_settings["liquid_shell"]["footer"]["newsletterThanks"] == (
+            "Thanks, check your inbox for the 10% offer.")
+
+        preview = to_xml(storefront(db, site, page, "/sites/" + site.slug, "csrf", "",
+                                    preview=True))
+        for field in ("newsletterTitle", "newsletterBody", "newsletterPlaceholder",
+                      "newsletterEmailLabel", "newsletterCta", "newsletterConsent",
+                      "newsletterPrivacyLabel"):
+            assert f'data-field="liquid_shell.footer.{field}"' in preview
+        assert "data-field=\"liquid_shell.footer.newsletterTitle\"" not in html
+
+
+@pytest.mark.parametrize(("field_id", "value", "expected"), liquid_header_footer_cases())
+def test_liquid_header_and_footer_fields_publish_and_render(workspace, field_id, value,
+                                                            expected):  # noqa: F811
+    from app.site_editable_settings import _get, _set
+
+    w = workspace
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        site.settings_json = {**site.settings_json, "theme_pack": "liquid"}
+        db.commit()
+    loaded = load(w)
+    shell_settings = {}
+    _set(shell_settings, field_id, value)
+    saved = w.client.put(w.base + "/shell-settings", json={
+        "shell_settings": shell_settings, "version": loaded["site_version"]}, headers=w.headers)
+    assert saved.status_code == 200, saved.text
+    published = w.client.post(w.base + "/publish", json={
+        "version": loaded["version"], "site_version": saved.json()["version"]}, headers=w.headers)
+    assert published.status_code == 200, published.text
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        assert _get(site.published_settings_json, field_id) == value
+        from app.site_ui_liquid import storefront
+        page = db.get(SitePage, w.page.id)
+        html = to_xml(storefront(db, site, page, "/sites/" + site.slug, "csrf", ""))
+    assert expected in html
 
 
 def test_generic_label_fields_are_exposed_in_store_editor_panels(workspace):  # noqa: F811
