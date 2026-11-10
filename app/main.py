@@ -95,10 +95,11 @@ app.add_middleware(AdminContextMiddleware)
 # Append inside FastHTML's session middleware so entry handling can use the session.
 app.user_middleware.append(Middleware(AdminEntryMiddleware))
 
-from app.scheduler import start_scheduler  # noqa: E402
+from app.scheduler import start_mail_worker, start_scheduler  # noqa: E402
 
-# Off unless FASTSHOP_ENABLE_SCHEDULER is set; a no-op otherwise.
+# Renewals remain opt-in; production mail delivery starts by default.
 start_scheduler()
+start_mail_worker()
 
 
 def csrf_token(session: dict) -> str:

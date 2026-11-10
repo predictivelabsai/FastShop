@@ -448,3 +448,16 @@ def dispatch_mail(message_id, *, sessions=SessionLocal, sender=send_email):
         row.available_at = datetime.now(UTC) + timedelta(minutes=min(60, 2 ** row.attempts))
         db.commit()
         return status == "sent"
+
+
+def process_due_mail(*, limit=50, sessions=SessionLocal, sender=send_email):
+    """Dispatch due rows through the atomic claim in ``dispatch_mail`` only."""
+    limit = max(1, min(limit, 500))
+    with sessions() as db:
+        ids = list(db.scalars(select(CommerceMail.id).where(
+            CommerceMail.status.in_(["pending", "failed", "awaiting_configuration", "sending"]),
+            CommerceMail.attempts < 5,
+            CommerceMail.available_at <= datetime.now(UTC),
+        ).order_by(CommerceMail.created_at, CommerceMail.id).limit(limit)))
+    sent = sum(bool(dispatch_mail(message_id, sessions=sessions, sender=sender)) for message_id in ids)
+    return {"processed": len(ids), "accepted_by_provider": sent}
