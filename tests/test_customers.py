@@ -97,6 +97,10 @@ def test_mail_queue_retries_without_persisting_bearer_tokens(customer_shop):
     db.expire_all()
     mail = db.get(CommerceMail, mail.id)
     assert mail.status == "failed" and mail.attempts == 1
+    available_at = mail.available_at
+    if available_at.tzinfo is None:
+        available_at = available_at.replace(tzinfo=UTC)
+    assert available_at > datetime.now(UTC) + timedelta(minutes=1)
     assert "#token=" + token in captured[0]
     assert not dispatch_mail(mail.id, sessions=sessions, sender=failing)
     mail.available_at = datetime.now(UTC) - timedelta(seconds=1)
@@ -105,6 +109,26 @@ def test_mail_queue_retries_without_persisting_bearer_tokens(customer_shop):
     db.expire_all()
     assert db.get(CommerceMail, mail.id).attempts == 2
     assert not dispatch_mail(mail.id, sessions=sessions, sender=failing)
+
+
+def test_mail_delivery_stops_after_five_attempts(customer_shop):
+    db, sessions, site, _ = customer_shop
+    mail, _, _ = issue(db, site)
+
+    def failing(*args, **kwargs):
+        return "failed", ""
+
+    for attempt in range(5):
+        if attempt:
+            mail.available_at = datetime.now(UTC) - timedelta(seconds=1)
+            db.commit()
+        assert not dispatch_mail(mail.id, sessions=sessions, sender=failing)
+        db.expire_all()
+        mail = db.get(CommerceMail, mail.id)
+        assert mail.attempts == attempt + 1
+    assert not dispatch_mail(mail.id, sessions=sessions, sender=failing)
+    db.expire_all()
+    assert db.get(CommerceMail, mail.id).attempts == 5
 
 
 def test_duplicate_requests_are_rate_limited_without_duplicate_customers(customer_shop):
