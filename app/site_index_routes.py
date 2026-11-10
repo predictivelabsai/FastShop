@@ -18,7 +18,7 @@ def register_site_index_routes(rt):
     def robots(site_slug: str):
         with SessionLocal() as db:
             site = db.scalar(select(Site).where(Site.slug == site_slug))
-            if not site:
+            if not site or site.status == "deleted":
                 return PlainTextResponse("", status_code=404)
             if site.status != "published":
                 return PlainTextResponse("User-agent: *\nDisallow: /\n")
@@ -33,7 +33,7 @@ def register_site_index_routes(rt):
     def sitemap(site_slug: str):
         with SessionLocal() as db:
             site = db.scalar(select(Site).where(Site.slug == site_slug))
-            if not site:
+            if not site or site.status == "deleted":
                 return Response("", status_code=404, media_type="application/xml")
             if site.status != "published":
                 return Response(

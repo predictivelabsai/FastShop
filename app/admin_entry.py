@@ -70,7 +70,8 @@ def accessible_sites(db, user_id: str) -> list[Site]:
     return list(db.scalars(
         select(Site).join(Membership, Membership.tenant_id == Site.tenant_id)
         .join(User, User.id == Membership.user_id)
-        .where(User.id == user_id, User.is_active.is_(True), Membership.role.in_(STORE_ROLES))
+        .where(User.id == user_id, User.is_active.is_(True), Membership.role.in_(STORE_ROLES),
+               Site.status != "deleted")
         .order_by(Site.name, Site.id)
     ).unique())
 

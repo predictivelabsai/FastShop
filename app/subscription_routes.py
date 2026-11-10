@@ -35,7 +35,7 @@ from app.subscription_portal import render as render_portal
 
 def register_subscription_routes(rt, csrf, check_csrf):
     def identity(db, session, slug):
-        site = db.scalar(select(Site).where(Site.slug == slug))
+        site = db.scalar(select(Site).where(Site.slug == slug, Site.status != "deleted"))
         if site:
             require_customer_accounts(db, site)
         customer = customer_services.signed_in_customer(db, site, session) if site else None
@@ -183,7 +183,7 @@ def register_subscription_routes(rt, csrf, check_csrf):
         except (CommerceError, ValueError) as exc:
             if "/sites/" in request.url.path:
                 with SessionLocal() as db:
-                    site = db.scalar(select(Site).where(Site.slug == slug))
+                    site = db.scalar(select(Site).where(Site.slug == slug, Site.status != "deleted"))
                     if site and is_liquid(site):
                         return public_message(request, slug, str(exc))
             return FtResponse(platform_page("Subscription needs attention", P(str(exc)),

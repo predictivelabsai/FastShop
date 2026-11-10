@@ -112,6 +112,9 @@
 .a-shell .e-field { min-width: 0; }
 .a-shell .e-field input, .a-shell .e-field select, .a-shell .e-field textarea { width: 100%; }
 .a-card, .a-shell .e-card { border: 1px solid #e1e1e3; border-radius: var(--a-radius); background: var(--a-surface); box-shadow: var(--a-shadow); margin: 0 0 24px; padding: 24px; min-width: 0; }
+.a-shell .e-card.danger-zone { border-color: #e2aaa7; background: #fff9f8; }
+.a-shell .e-button.danger { color: var(--danger); border-color: #d9a5a2; }
+.a-shell .e-button.danger:hover { color: #fff; background: var(--danger); border-color: var(--danger); }
 .a-card-section { padding: 20px 0; border-top: 1px solid #ebebed; }
 .a-card-section:first-child { border-top: 0; padding-top: 0; }
 .a-card-section:last-child { padding-bottom: 0; }

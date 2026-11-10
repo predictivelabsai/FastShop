@@ -35,7 +35,7 @@ from app.storefront_ui import is_liquid, liquid_order_line, liquid_page, public_
 
 def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error):
     def resolve(db, slug, *, enabled=True):
-        query = select(Site).where(Site.slug == slug)
+        query = select(Site).where(Site.slug == slug, Site.status != "deleted")
         if enabled:
             query = query.where(Site.status.in_(["preview", "published"]))
         site = db.scalar(query)
