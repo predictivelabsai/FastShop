@@ -46,6 +46,22 @@ def workspace():
         yield db, user, site
 
 
+def test_model_receives_the_current_message_after_history(workspace):
+    db, user, site = workspace
+    page = content.site_pages(db, site)[0]
+    first = FakeTransport([{"content": "First reply"}])
+    events = list(run_turn(db, site, user, "First request", page_id=page.id, transport=first))
+    conversation_id = events[0]["conversation_id"]
+    assert first.histories[0][-1] == {"role": "user", "content": "First request"}
+    second = FakeTransport([{"content": "Second reply"}])
+    list(run_turn(db, site, user, "Second request", page_id=page.id,
+                  conversation_id=conversation_id, transport=second))
+    sent = [m for m in second.histories[0] if m["role"] != "system"]
+    assert sent == [{"role": "user", "content": "First request"},
+                    {"role": "assistant", "content": "First reply"},
+                    {"role": "user", "content": "Second request"}]
+
+
 def test_tool_turn_edits_and_checkpoint_restores(workspace):
     db, user, site = workspace
     page = content.site_pages(db, site)[0]

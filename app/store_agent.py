@@ -323,6 +323,7 @@ def run_turn(db, site, user, message, *, page_id, selection=None, conversation_i
         if compact_tools:
             msgs.append({"role": "system", "content": "Tools used previously: " + ", ".join(compact_tools[-20:])})
         msgs.extend(history)
+        msgs.append({"role": "user", "content": message})
         db.add(AgentMessage(tenant_id=site.tenant_id, site_id=site.id,
             conversation_id=conversation.id, role="user", content=message))
         db.flush()
