@@ -42,6 +42,8 @@ def section(kind, heading="", body="", **kwargs):
 def seed_h24you(db, admin_email):
     existing = db.scalar(select(Site).where(Site.slug == "h24you"))
     if existing:
+        if existing.status == "deleted":
+            return existing
         from app.site_menus import adapt_navigation
         adapt_navigation(db, existing)
         from app.site_media import backfill_media

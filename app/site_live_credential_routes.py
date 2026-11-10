@@ -30,7 +30,8 @@ def register_live_credential_routes(rt, actor, csrf, check_csrf, shell, error):
             raise CommerceError("Platform operator access is required.")
         return list(db.scalars(select(Site).join(
             Membership, Membership.tenant_id == Site.tenant_id
-        ).where(Membership.user_id == user_id, Membership.role == "admin").order_by(Site.name)))
+        ).where(Membership.user_id == user_id, Membership.role == "admin",
+                Site.status != "deleted").order_by(Site.name)))
 
     @rt("/admin/platform/live-credentials", methods=["GET"])
     def get(session):

@@ -333,6 +333,8 @@ def seed_h24you_liquid(db, admin_email):
     """Insert the fixture, or apply only bounded M1/M2 asset and M3 page additions."""
     site = db.scalar(select(Site).where(Site.slug == "h24you-liquid"))
     if site:
+        if site.status == "deleted":
+            return site
         upgrade_liquid_assets_and_bundles(db, site)
         ensure_product_pages(db, site)
         ensure_content_pages(db, site)

@@ -36,7 +36,9 @@ def register_plan_routes(rt, actor, csrf, check_csrf, shell, error):
                 plans.require_platform_operator(db, user_id)
                 rows = []
                 for tenant in db.scalars(select(Tenant).order_by(Tenant.created_at)):
-                    site = db.scalar(select(Site).where(Site.tenant_id == tenant.id).order_by(Site.created_at))
+                    site = db.scalar(select(Site).where(
+                        Site.tenant_id == tenant.id, Site.status != "deleted",
+                    ).order_by(Site.created_at))
                     product_count = int(db.scalar(
                         select(func.count(Product.id)).where(Product.tenant_id == tenant.id)) or 0)
                     usage = plans.tenant_usage(db, tenant.id)
