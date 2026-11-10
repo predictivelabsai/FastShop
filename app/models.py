@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import (
     JSON,
@@ -28,6 +28,16 @@ from app.site_block_storage import BlockDocumentJSON
 
 def new_id() -> str:
     return uuid.uuid4().hex
+
+
+_last_message_time = datetime.min.replace(tzinfo=UTC)
+
+
+def message_time() -> datetime:
+    # PostgreSQL now() is fixed per transaction, so rows from one agent turn would tie.
+    global _last_message_time
+    _last_message_time = max(datetime.now(UTC), _last_message_time + timedelta(microseconds=1))
+    return _last_message_time
 
 
 class Base(DeclarativeBase):
@@ -671,6 +681,8 @@ class AgentConversation(TimestampMixin, Base):
 class AgentMessage(TimestampMixin, Base):
     __tablename__ = "agent_messages"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=message_time, server_default=func.now())
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
     site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
     conversation_id: Mapped[str] = mapped_column(ForeignKey("agent_conversations.id", ondelete="CASCADE"), index=True)
