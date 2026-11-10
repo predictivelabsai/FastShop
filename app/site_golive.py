@@ -482,8 +482,8 @@ def _audit(
         "actor_id": user_id,
         "overridden": overridden,
         "checks": [check.as_dict() for check in report.checks] if report else [],
-        "blocking_failures": [check.as_dict() for check in report.blocking_failures] if report else [],
-        "warnings": [check.as_dict() for check in report.warnings] if report else [],
+        "blocking_failures": [check.as_dict() for check in getattr(report, "blocking_failures", ())],
+        "warnings": [check.as_dict() for check in getattr(report, "warnings", ())],
         "recorded_at": datetime.now(UTC).isoformat(),
     }
     current_mode = db.scalar(select(SiteCommerceSettings.mode).where(
