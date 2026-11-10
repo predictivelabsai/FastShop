@@ -133,6 +133,7 @@ def fields():
         _text(f + "newsletterTitle", "Newsletter heading", footer["newsletterTitle"], group="footer"),
         _text(f + "newsletterBody", "Newsletter text", footer["newsletterBody"], area=True,
               group="footer"),
+        _text(f + "legalTitle", "Legal links heading", footer["legalTitle"], group="footer"),
         _links(f + "links", "Footer links", footer["links"], "footer"),
         _text(f + "helpTitle", "Help column heading", footer["helpTitle"], group="footer"),
         _links(f + "helpLinks", "Help column links", footer["helpLinks"], "footer", hash=True),

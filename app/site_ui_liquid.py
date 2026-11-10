@@ -800,6 +800,39 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     nav, footer, offer = shell["nav"], shell["footer"], shell["offer"]
     shop_links = rendered_navigation(db, site, "header", preview=preview)
     footer_links = rendered_navigation(db, site, "footer", preview=preview)
+    footer_items = footer.get("links", [])
+    old_footer_defaults = [
+        (item.get("label"), item.get("href")) for item in footer_items
+    ] == [
+        ("Shop all", "/shop"), ("Terms and Conditions", "#"),
+        ("Privacy Policy", "#"),
+    ]
+    policy_paths = {
+        "/pages/privacy-policy", "/pages/terms-and-conditions",
+        "/pages/returns-and-refunds", "/pages/shipping-policy",
+    }
+    published_policy_paths = set(db.scalars(select(SitePage.path).where(
+        SitePage.site_id == site.id,
+        SitePage.tenant_id == site.tenant_id,
+        SitePage.published_json.is_not(None),
+        SitePage.path.in_(policy_paths),
+    )))
+    if site.status == "published":
+        published_policy_paths = policy_paths
+    if old_footer_defaults:
+        footer_items = [
+            {"label": "Shop all", "href": "/shop"},
+            {"label": "Privacy policy", "href": "/pages/privacy-policy"},
+            {"label": "Terms and conditions", "href": "/pages/terms-and-conditions"},
+            {"label": "Returns and refunds", "href": "/pages/returns-and-refunds"},
+            {"label": "Shipping policy", "href": "/pages/shipping-policy"},
+        ]
+    footer_legal_links = [
+        {"label": item["label"], "path": item["href"]}
+        for item in footer_items
+        if item.get("href") not in {"/shop", "", "#", "/#"}
+        and (item.get("href") not in policy_paths or item.get("href") in published_policy_paths)
+    ]
     shop_all = next(
         (s for s in shop_links if s["path"] == "/shop"), {"label": "Shop all", "path": "/shop"}
     )
@@ -1054,11 +1087,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     ),
                     Nav(
                         *[A(s["label"], href=url(base, s["path"])) for s in footer_links],
-                        *[
-                            A(s["label"], href=url(base, s["href"]))
-                            for s in footer["links"]
-                            if s["href"] not in {"/shop", "", "#", "/#"}
-                        ],
+                        H3(footer["legalTitle"]) if footer_legal_links else None,
+                        *[A(item["label"], href=url(base, item["path"])) for item in footer_legal_links],
                         H3(footer["helpTitle"]),
                         *[
                             A(
