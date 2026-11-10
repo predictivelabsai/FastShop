@@ -816,6 +816,10 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     shell, consent_copy = resolved["liquid_shell"], resolved["liquid_consent"]
     labels = shell["labels"]
     enabled = payments_enabled(db, site, settings_for(db, site)) and not preview
+    payment_mode = "sandbox"
+    if enabled:
+        from app.commerce import payment_mode as effective_payment_mode
+        payment_mode = effective_payment_mode(db, site)
     nav, footer, offer = shell["nav"], shell["footer"], shell["offer"]
     shop_links = rendered_navigation(db, site, "header", preview=preview)
     footer_links = rendered_navigation(db, site, "footer", preview=preview)
@@ -1128,7 +1132,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     P(resolved["footer"]),
                         Button(labels["cookies"], type="button", data_cookie_open=""),
                     P(copyright_line),
-                    Small("Sandbox · Test purchases only") if enabled else None,
+                    Small("Sandbox · Test purchases only") if enabled and payment_mode != "live" else None,
                     cls="liquid-footer-bottom",
                 ),
                 id="footer",

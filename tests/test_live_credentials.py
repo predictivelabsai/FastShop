@@ -17,7 +17,7 @@ from app import commerce, content, live_credentials, site_builder_services, site
 from app.commerce_webhooks import signature_secret
 from app.config import settings
 from app.integrations.stripe_commerce import StripeGateway, verify_webhook
-from app.models import Base, Membership, SiteChangeSet, User
+from app.models import Base, Membership, SiteChangeSet, SiteStripeConnection, User
 from app.services import CommerceError
 
 LIVE_KEY = "sk_live_fixture_secret_1234"
@@ -201,6 +201,65 @@ def test_live_mode_fails_closed_without_encryption_key_and_on_draft(monkeypatch)
             commerce.payment_mode(db, site, config)
 
 
+def test_merchant_switches_live_with_verified_connection_and_back(monkeypatch):
+    from app import stripe_connections
+    from app.checkout_payments import publishable_for
+
+    with workspace(monkeypatch) as (db, operator, merchant, site, config):
+        credential = stored_and_verified(db, operator, site)
+        site.status = "published"
+        site.hostname = "merchant-live.example.test"
+        connection_id = credential.id
+        prefix = f"fastshop:{site.id}:{connection_id}:"
+        connection = SiteStripeConnection(
+            id=connection_id, tenant_id=site.tenant_id, site_id=site.id, mode="live",
+            secret_key_ciphertext=live_credentials.encrypt_secret(LIVE_KEY, aad=prefix + "secret-key"),
+            publishable_key_ciphertext=live_credentials.encrypt_secret(
+                LIVE_PUBLISHABLE, aad=prefix + "publishable-key"),
+            webhook_secret_ciphertext=live_credentials.encrypt_secret(
+                LIVE_WEBHOOK, aad=prefix + "webhook-secret"),
+            key_last_four=LIVE_KEY[-4:], publishable_last_four=LIVE_PUBLISHABLE[-4:],
+            account_id="acct_live_fixture", account_name="Fixture Live", account_country="US",
+            created_by=merchant.id, verified_at=credential.verified_at,
+        )
+        db.add(connection)
+        db.flush()
+        assert site_golive.assess(db, site, commerce_requested=True).failures
+        decision = site_golive.switch_live_payments(
+            db, site.id, merchant.id, site.version, config.version, True,
+        )
+        assert decision.applied and config.mode == "live"
+        assert commerce.payment_mode(db, site, config) == "live"
+        assert stripe_connections.decrypted(db, site, connection) == (
+            LIVE_KEY, LIVE_WEBHOOK, LIVE_PUBLISHABLE,
+        )
+        assert publishable_for(db, site) == LIVE_PUBLISHABLE
+        gateway = StripeGateway(site, db=db)
+        assert gateway.live_mode and gateway.key == LIVE_KEY
+        change = db.scalar(select(SiteChangeSet).where(
+            SiteChangeSet.site_id == site.id,
+            SiteChangeSet.summary == "merchant-live-enable: enabled",
+        ))
+        assert change and change.user_id == merchant.id
+        assert site_golive.audit_event(change)["actor_id"] == merchant.id
+        site.version, config.version = site.version, config.version
+        decision = site_golive.switch_live_payments(
+            db, site.id, merchant.id, site.version, config.version, False,
+        )
+        assert decision.applied and config.mode == "sandbox"
+        assert commerce.payment_mode(db, site, config) == "sandbox"
+
+
+def test_merchant_live_switch_requires_verified_connection(monkeypatch):
+    with workspace(monkeypatch) as (db, _, merchant, site, config):
+        site.status = "published"
+        site.hostname = "verified-required.example.test"
+        with pytest.raises(CommerceError, match="Connect and verify"):
+            site_golive.switch_live_payments(
+                db, site.id, merchant.id, site.version, config.version, True,
+            )
+
+
 def test_webhook_secret_dispatches_by_site_mode_and_rejects_mismatch(monkeypatch):
     with workspace(monkeypatch) as (db, operator, _, site, config):
         sandbox_secret = "whsec_sandbox_fixture"
@@ -302,5 +361,5 @@ def test_operator_form_is_csrf_protected_never_echoes_secrets_and_merchant_page_
     assert "sk_live_****1234" in rendered
     assert LIVE_KEY not in rendered and LIVE_WEBHOOK not in rendered
     merchant_surface = client.get(f"/admin/sites/{site_id}/integrations").text
-    assert "Live payments: not approved" in merchant_surface
+    assert "Live payments off, test mode" in merchant_surface
     assert LIVE_KEY not in merchant_surface and LIVE_WEBHOOK not in merchant_surface

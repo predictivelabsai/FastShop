@@ -19,7 +19,7 @@ def test_admin_gap_upgrade_downgrade_upgrade(tmp_path):
                                 env=env, capture_output=True, text=True, timeout=90)
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
-    head = "20261105_0040"
+    head = "20261110_0041"
     assert migrate("heads").strip() == head + " (head)"
     migrate("upgrade", "head")
     engine = create_engine(url)

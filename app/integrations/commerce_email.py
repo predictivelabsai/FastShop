@@ -324,17 +324,18 @@ def render_order_message(db, row, site, customer):
     manual = db.scalar(select(PaymentTransaction.id).where(
         PaymentTransaction.order_id == order.id, PaymentTransaction.provider == "manual:"+site.id,
         PaymentTransaction.kind == "charge", PaymentTransaction.status == "succeeded")) is not None
-    heading = "Order confirmation" if manual else "Sandbox order confirmation"
+    live_order = order.commerce_mode == "live"
+    heading = "Order confirmation" if manual or live_order else "Sandbox order confirmation"
     body = f"{site.name}\nOrder {order.number}\n\n"
     body += ("Payment was recorded manually by the merchant. No online charge was made.\n\n"
-        if manual else "TEST ORDER - no real payment or shipment.\n\n")
+        if manual else "" if live_order else "TEST ORDER - no real payment or shipment.\n\n")
     if row.kind == "shipment_update":
         shipment = db.scalar(select(ShipmentEvent).where(ShipmentEvent.id == reference.get("shipment_id"),
             ShipmentEvent.site_order_id == link.id, ShipmentEvent.site_id == site.id,
             ShipmentEvent.tenant_id == site.tenant_id))
         if not shipment:
             return None
-        heading = "Delivery update" if manual else "Sandbox delivery update"
+        heading = "Delivery update" if manual or live_order else "Sandbox delivery update"
         body += f"Status: {shipment.status.replace('_', ' ').title()}\n"
         if shipment.carrier or shipment.tracking_number:
             body += f"Carrier: {shipment.carrier}\nTracking number: {shipment.tracking_number}\n"

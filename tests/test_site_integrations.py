@@ -253,7 +253,7 @@ def test_admin_routes_enforce_csrf_membership_and_never_redisplay_secrets(
         assert "Connection verified and saved" in unquote_plus(saved.headers["location"])
         live = client.post(base + "/save", data=payload | {"mode": "live"},
                            follow_redirects=False)
-        assert "operator-approved live payments" in unquote_plus(live.headers["location"])
+        assert "Switch on live payments" in unquote_plus(live.headers["location"])
         page = client.get(base)
         assert page.status_code == 200
         assert "never-render-this-secret" not in page.text

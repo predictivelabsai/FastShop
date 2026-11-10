@@ -57,6 +57,7 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                 records = {mode: stripe_connections.connection_for(db, site, mode)
                            for mode in ("test", "live")}
                 selected = "live" if config and config.mode == "live" else "test"
+                live_on = selected == "live"
                 tax_status = None
                 if records[selected]:
                     try:
@@ -85,7 +86,10 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                                                 cls="payment-pill connected" if record else "payment-pill"),
                             cls="payment-card-heading"),
                         P(account, cls="payment-account") if record else P("Link your Stripe account to accept payments."),
-                        P("Live charges stay blocked until this connection is reviewed and accepted.",
+                        P("Live payments on. New checkouts use this verified live connection." if live_on else
+                          "Verified. Turn on live payments from the Go-live page when you are ready."
+                          if record and record.verified_at else
+                          "Connect and verify live keys, then turn on live payments from the Go-live page.",
                           cls="payment-live-note") if mode == "live" else None,
                         Div(P("Webhook", Span("Endpoint registered" if record and record.webhook_endpoint_id
                                                else "Secret added manually" if record else "Not configured")),
@@ -104,6 +108,11 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                                   role="alert", cls="payment-error") if failure else None
                 return shell("Payments", A("← Site settings", href=f"/admin/sites/{site.id}/settings"),
                     P(site.name + " · Stripe connection settings", cls="payment-intro"),
+                    P("Live payments on" if live_on else "Test mode is active",
+                      cls="g-state g-state-live" if live_on else "g-state"),
+                    A("Manage live payments on the Go-live page",
+                      href=f"/admin/sites/{site.id}/golive#live-payments", cls="e-button"),
+                    P(notice, role="status", cls="e-note") if notice else None,
                     Div(H2("Connections"), Div(*cards, cls="payment-status-grid"), cls="payment-connections"),
                     Div(H2("Connect Stripe", id="connect-stripe"),
                         P("Stripe Tax: on by default · " + tax_line + "."),
