@@ -11,7 +11,6 @@ from pathlib import Path
 
 from playwright.sync_api import Error, expect, sync_playwright
 from sqlalchemy import select
-
 from verify_admin_v2_browser import EMAIL, PASSWORD, isolate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +19,7 @@ OUTPUT = ROOT / "output/playwright/admin-agent"
 
 def main():
     import os
+
     import uvicorn
 
     sys.path.insert(0, str(ROOT))
@@ -30,11 +30,10 @@ def main():
         isolate(data_dir, port)
         os.environ["XAI_API_KEY"] = ""
         os.environ["FASTSHOP_AGENT_FAKE"] = "1"
-        from app import content
+        from app import store_agent
         from app.db import SessionLocal, engine
         from app.main import app
         from app.models import Product, Site
-        from app import store_agent
 
         real_run_turn = store_agent.run_turn
         demo_product_id = ""
@@ -75,8 +74,7 @@ def main():
             demo_product = db.scalar(select(Product).where(
                 Product.tenant_id == site.tenant_id).order_by(Product.name, Product.id))
             demo_product_id, demo_product_name = demo_product.id, demo_product.name
-            home = next(page for page in content.site_pages(db, site) if page.path == "/")
-            site_id, page_id = site.id, home.id
+            site_id = site.id
         OUTPUT.mkdir(parents=True, exist_ok=True)
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port,
             log_level="error", access_log=False))
@@ -94,7 +92,7 @@ def main():
                 except Error:
                     browser = pw.chromium.launch(channel="chrome", headless=True)
                 context = browser.new_context(base_url=f"http://127.0.0.1:{port}",
-                    viewport={"width": 1440, "height": 960}, reduced_motion="reduce")
+                    viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
                 page = context.new_page()
                 page.goto("/login?next=/admin/sites")
                 page.get_by_label("Email address", exact=True).fill(EMAIL)
@@ -112,6 +110,7 @@ def main():
                 full_chat = page.locator('[data-agent-root]')
                 expect(full_chat.locator('[data-agent-form]')).to_have_count(0)
                 from dataclasses import replace
+
                 import app.config
                 app.config.settings = replace(app.config.settings, xai_api_key="browser-test-key")
                 page.reload()
@@ -133,20 +132,28 @@ def main():
 
                 page.set_viewport_size({"width": 390, "height": 844})
                 page.screenshot(path=str(OUTPUT / "mobile.png"), full_page=True)
-                page.set_viewport_size({"width": 1440, "height": 960})
+                page.set_viewport_size({"width": 1440, "height": 900})
                 page.goto(f"/admin/sites/{site_id}/products")
                 launch = page.get_by_role("button", name="Ask assistant")
                 launch.click()
                 expect(page.locator(".agent-drawer")).to_be_visible()
                 expect(page.locator(".agent-drawer")).to_have_css("width", "420px")
-                expect(page.locator(".agent-scrim")).to_have_css("background-color", "rgb(24, 35, 30)")
-                page.screenshot(path=str(OUTPUT / "drawer.png"), full_page=False)
+                expect(page.locator(".agent-drawer textarea")).to_be_focused()
+                heading = page.locator("main h1").first
+                expect(heading).to_be_visible()
+                assert page.locator(".agent-overlay").evaluate("node => getComputedStyle(node).backgroundColor === 'rgba(0, 0, 0, 0)'")
+                assert page.locator(".agent-scrim").count() == 0
+                assert heading.evaluate("node => { const r = node.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return top === node || node.contains(top); }")
+                page.screenshot(path=str(OUTPUT / "drawer-desktop.png"), full_page=False)
                 page.set_viewport_size({"width": 390, "height": 844})
                 expect(page.locator(".agent-drawer")).to_have_css("width", "390px")
                 page.screenshot(path=str(OUTPUT / "drawer-mobile.png"), full_page=False)
-                page.locator("[data-agent-close]").last.focus()
-                page.keyboard.press("Shift+Tab")
-                assert page.locator(".agent-drawer").evaluate("panel => panel.contains(document.activeElement)")
+                page.locator("[data-agent-close]").last.click()
+                expect(page.locator(".agent-overlay")).to_be_hidden()
+                expect(launch).to_be_focused()
+                launch.focus()
+                page.keyboard.press("Control+j")
+                expect(page.locator(".agent-drawer")).to_be_visible()
                 page.keyboard.press("Escape")
                 expect(page.locator(".agent-overlay")).to_be_hidden()
                 browser.close()
