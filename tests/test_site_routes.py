@@ -264,7 +264,13 @@ def test_commerce_settings_keep_fastshop_brand_and_require_csrf():
     assert 'aria-label="Store administration"' in response.text
     assert re.search(r'href="/static/admin/admin\.css\?v=\d+"', response.text)
     assert TestClient(app).get(path).status_code == 400
-    form = {"csrf_token": token, "version": "1", "mode": "disabled", "origin_country": "EE",
+    from app import commerce
+
+    # Earlier tests may already have saved this shared store's commerce settings.
+    with SessionLocal() as db:
+        config_version = commerce.settings_for(db, db.get(Site, site.id), create=True).version
+        db.commit()
+    form = {"csrf_token": token, "version": str(config_version), "mode": "disabled", "origin_country": "EE",
         "site_version": str(site.version), "shipping_minor": "",
         "free_shipping_threshold_minor": "7500", "states": ["CA", "NY"]}
     assert client.post(path, data=form | {"csrf_token": "bad"}).status_code == 400
