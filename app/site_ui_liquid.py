@@ -760,7 +760,7 @@ def newsletter(shell, base, csrf, identity, enabled, *, preview=False, footer=Fa
         Input(type="hidden", name="newsletter_source", value="footer" if footer else "offer"),
         P(offer["body"], **_field_attrs(preview, "liquid_shell.offer.body")) if not footer else None,
         Div(
-            Label(offer["newsletterEmailLabel"] if footer else offer["emailLabel"],
+            Label(offer.get("newsletterEmailLabel" if footer else "emailLabel", "Email address"),
                   fr=identity, cls="sr-only", **_field_attrs(preview, field("emailLabel"))),
             Input(
                 type="email",
