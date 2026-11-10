@@ -184,31 +184,32 @@ for (const root of document.querySelectorAll("[data-agent-root], [data-agent-lau
   select?.addEventListener("change", () => history(select.value));
 
   if (isDrawer) {
-    const focusable = () => [...panel.querySelectorAll('button:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')]
-      .filter(item => !item.hidden && item.getAttribute("aria-hidden") !== "true");
-    const open = async value => {
-      root.classList.toggle("is-open", value);
-      overlay.hidden = !value;
+    let closeTimer;
+    const open = value => {
+      clearTimeout(closeTimer);
+      if (value) {
+        overlay.hidden = false;
+        requestAnimationFrame(() => root.classList.add("is-open"));
+      } else {
+        root.classList.remove("is-open");
+      }
       launcher.setAttribute("aria-expanded", String(value));
       panel.setAttribute("aria-hidden", String(!value));
       panel.inert = !value;
-      document.body.classList.toggle("agent-drawer-open", value);
-      if (value) { await history(conversationId); (input || focusable()[0])?.focus(); }
-      else launcher.focus();
+      if (value) {
+        input?.focus();
+        history(conversationId);
+      } else {
+        launcher.focus();
+        closeTimer = setTimeout(() => { overlay.hidden = true; }, 220);
+      }
     };
     launcher.addEventListener("click", () => open(true));
     root.querySelectorAll("[data-agent-close]").forEach(button => button.addEventListener("click", () => open(false)));
     document.addEventListener("keydown", event => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "j") { event.preventDefault(); open(!root.classList.contains("is-open")); }
       if (event.key === "Escape" && root.classList.contains("is-open")) { event.preventDefault(); open(false); }
-      if (event.key === "Tab" && root.classList.contains("is-open")) {
-        const items = focusable();
-        if (!items.length) { event.preventDefault(); return; }
-        const first = items[0], last = items[items.length - 1];
-        if (!panel.contains(document.activeElement)) { event.preventDefault(); (event.shiftKey ? last : first).focus(); }
-        else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-      }
+
     });
   }
   loadConversations().then(() => { if (!isDrawer) history(""); });

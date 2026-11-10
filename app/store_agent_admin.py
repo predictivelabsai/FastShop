@@ -73,7 +73,7 @@ def drawer(site_id, csrf_token):
         '<p>Add an xAI API key in the application environment to use the assistant.</p></div>')
     return NotStr(f'''<div class="agent-launcher" data-agent-launcher data-agent-configured="{str(configured).lower()}" data-site-id="{site_id}" data-csrf="{csrf_token}" data-stream="/admin/sites/{site_id}/editor/agent" data-history="/admin/sites/{site_id}/assistant/history" data-conversations="/admin/sites/{site_id}/assistant/conversations" data-restore="/admin/sites/{site_id}/editor/agent/restore">
 <button type="button" class="agent-launch" aria-expanded="false" aria-controls="agent-drawer">✦ Ask assistant</button>
-<div class="agent-overlay" data-agent-overlay hidden><button type="button" class="agent-scrim" data-agent-close aria-label="Close assistant"></button><aside class="agent-drawer" id="agent-drawer" aria-label="Store assistant" aria-hidden="true" inert><header><div><h2>Assistant</h2><p>Ask about your store or request a draft change.</p></div><button type="button" data-agent-close aria-label="Close assistant">×</button></header>
+<div class="agent-overlay" data-agent-overlay hidden><aside class="agent-drawer" id="agent-drawer" aria-label="Store assistant" aria-hidden="true" inert><header><div><h2>Assistant</h2><p>Ask about your store or request a draft change.</p></div><button type="button" data-agent-close aria-label="Close assistant">×</button></header>
 <div class="agent-conversation-strip"><select aria-label="Recent conversations" data-agent-select><option value="">New chat</option></select><button type="button" data-new-chat>＋</button></div>
 {chat}</aside></div></div>''')
 
