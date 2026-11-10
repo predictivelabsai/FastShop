@@ -146,6 +146,7 @@ def fields():
                  group="footer", help="Use # to show the label without a link."), "type": "url"},
         _text(f + "newsletterThanks", "Newsletter success message", offer["thanks"], area=True,
               group="footer"),
+        _text(f + "legalTitle", "Legal links heading", footer["legalTitle"], group="footer"),
         _links(f + "links", "Footer links", footer["links"], "footer"),
         _text(f + "helpTitle", "Help column heading", footer["helpTitle"], group="footer"),
         _links(f + "helpLinks", "Help column links", footer["helpLinks"], "footer", hash=True),

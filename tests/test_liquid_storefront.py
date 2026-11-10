@@ -9,12 +9,13 @@ from starlette.testclient import TestClient
 from app import (
     customer_routes,
     site_context,
+    site_index_routes,
     site_routes,
     store_checkout_routes,
     storefront_ui,
     subscription_routes,
 )
-from app.models import CheckoutAttempt, CommerceQuote, Site
+from app.models import CheckoutAttempt, CommerceQuote, Product, Site, SitePage
 from tests.test_checkout_services import Gateway
 from tests.test_liquid_bundle_commerce import variants_for
 from tests.test_site_seed_liquid import liquid  # noqa: F401
@@ -28,7 +29,7 @@ def browser(liquid, monkeypatch):
     db, site, _ = liquid
     sessions = sessionmaker(bind=db.bind, expire_on_commit=False)
     for module in (site_context, site_routes, store_checkout_routes, customer_routes,
-                   subscription_routes, storefront_ui):
+                   subscription_routes, storefront_ui, site_index_routes):
         monkeypatch.setattr(module, "SessionLocal", sessions)
     monkeypatch.setattr(store_checkout_routes, "StripeGateway", lambda site: Gateway())
     with TestClient(app) as client:
@@ -104,6 +105,56 @@ def test_policy_html_uses_shared_allow_list_sanitiser():
     from app.site_widgets import sanitise_html
     cleaned = sanitise_html('<h2>Policy</h2><p onclick="bad()"><strong>Text</strong><script>alert(1)</script><a href="javascript:alert(1)">link</a></p>')
     assert cleaned == '<h2>Policy</h2><p><strong>Text</strong><a href="" rel="noopener noreferrer">link</a></p>'
+
+
+def test_site_robots_and_sitemap_follow_site_publication(browser):
+    client, db, site = browser
+    site.hostname = "liquid.example.test"
+    site.status = "preview"
+    db.commit()
+    host_client = TestClient(client.app, base_url="https://liquid.example.test")
+    robots = host_client.get("/robots.txt")
+    assert robots.status_code == 200
+    assert robots.text == "User-agent: *\nDisallow: /\n"
+    assert "<url>" not in host_client.get("/sitemap.xml").text
+
+    site.status = "published"
+    db.commit()
+    robots = host_client.get("/robots.txt")
+    assert "Disallow: /admin" in robots.text
+    assert "Disallow: /checkout" in robots.text
+    assert "Sitemap: https://liquid.example.test/sitemap.xml" in robots.text
+    sitemap = host_client.get("/sitemap.xml")
+    assert sitemap.status_code == 200
+    assert "https://liquid.example.test/" in sitemap.text
+    assert "<lastmod>" in sitemap.text
+    product_page = db.scalar(select(SitePage).where(
+        SitePage.site_id == site.id, SitePage.kind == "product",
+    ))
+    assert product_page
+    assert "https://liquid.example.test" + product_page.path in sitemap.text
+    product = db.get(Product, product_page.product_id)
+    product.is_published = False
+    db.commit()
+    assert "https://liquid.example.test" + product_page.path not in host_client.get("/sitemap.xml").text
+
+
+def test_liquid_footer_shows_only_published_policy_pages(browser):
+    client, db, site = browser
+    preview_footer = client.get("/sites/" + site.slug + "/").text.split("<footer", 1)[1]
+    assert "<h3>Legal</h3>" not in preview_footer
+    site.status = "published"
+    db.commit()
+    footer = client.get("/sites/" + site.slug + "/").text.split("<footer", 1)[1]
+    assert "<h3>Legal</h3>" in footer
+    for label, path in (
+        ("Privacy policy", "privacy-policy"),
+        ("Terms and conditions", "terms-and-conditions"),
+        ("Returns and refunds", "returns-and-refunds"),
+        ("Shipping policy", "shipping-policy"),
+    ):
+        assert f'/sites/{site.slug}/pages/{path}' in footer
+        assert label in footer
 
 
 def test_cart_checkout_native_forms_and_error_shell(browser):

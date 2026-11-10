@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import re
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -33,7 +34,10 @@ def main():
         page.screenshot(path=str(output / "desktop-phase1-site-settings.png"), full_page=True)
         page.goto(site_url + "/commerce")
         assert "FastShop" in page.title()
-        assert page.get_by_text("Stripe test key: required", exact=True).is_visible()
+        assert page.get_by_text(
+            re.compile(r"^(Connected in (test|live) mode|Not connected)$")
+        ).is_visible()
+        assert page.get_by_role("link", name="Manage in Payments", exact=True).is_visible()
         page.locator('input[name="shipping_minor"]').fill("1000")
         page.locator('input[name="origin_line1"]').fill("Local test warehouse")
         page.locator('input[name="origin_city"]').fill("Tallinn")

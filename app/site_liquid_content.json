@@ -247,18 +247,27 @@
     "intro": "The smallest molecule in the universe, explained in plain words."
   },
   "footer": {
+    "legalTitle": "Legal",
     "links": [
       {
         "label": "Shop all",
         "href": "/shop"
       },
       {
-        "label": "Terms and Conditions",
-        "href": "#"
+        "label": "Privacy policy",
+        "href": "/pages/privacy-policy"
       },
       {
-        "label": "Privacy Policy",
-        "href": "#"
+        "label": "Terms and conditions",
+        "href": "/pages/terms-and-conditions"
+      },
+      {
+        "label": "Returns and refunds",
+        "href": "/pages/returns-and-refunds"
+      },
+      {
+        "label": "Shipping policy",
+        "href": "/pages/shipping-policy"
       }
     ],
     "helpTitle": "Help",

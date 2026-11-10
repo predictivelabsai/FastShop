@@ -150,6 +150,13 @@ def test_commerce_settings_keep_fastshop_brand_and_require_csrf():
     response = client.get(path)
     assert response.status_code == 200
     assert "US commerce · FastShop" in response.text
+    assert 'href="/admin/sites/' + site.id + '/commerce/payments">Manage in Payments</a>' in response.text
+    assert any(status in response.text for status in (
+        "Connected in test mode", "Connected in live mode", "Not connected",
+    ))
+    assert "Stripe test key: required" not in response.text
+    assert "Webhook signing secret: required" not in response.text
+    assert "Live payments are disabled." not in response.text
     assert 'aria-label="Store administration"' in response.text
     assert re.search(r'href="/static/admin/admin\.css\?v=\d+"', response.text)
     anonymous = TestClient(app).get(path, follow_redirects=False)
