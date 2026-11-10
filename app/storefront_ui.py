@@ -67,6 +67,13 @@ def liquid_page(site, request, title, *children, message_page=False):
                 left.append(node)
         children = [Div(Div(*left, cls="liquid-checkout-details"),
                         Div(*right, cls="liquid-checkout-summary"), cls="liquid-checkout-grid")]
+    with SessionLocal() as db:
+        from app import commerce
+        from app.services import CommerceError
+        try:
+            site._payment_mode = commerce.payment_mode(db, site)
+        except CommerceError:
+            site._payment_mode = "sandbox"
     content = Section(
         Div(H1(title, cls="font-display"),
             Small(pages["account_copy"]["sandbox_notice"])
