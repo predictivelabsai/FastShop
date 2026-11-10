@@ -941,21 +941,27 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     from app.site_editable_settings import shell_fields, shell_values
     shell_settings = shell_values({**config, "theme_pack": "liquid"},
                                   shell_fields({"theme_pack": "liquid"}))
+    from app.site_seo import metadata as seo_metadata
+    seo = seo_metadata(site, page, document, canonical, preview=preview or content is not None)
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
-        Title(document["title"] if document["title"].endswith(" | " + site.name)
-              else document["title"] + " | " + site.name),
+        Title(seo["title"]),
         *head_nodes(db, site, preferences, preview=preview or content is not None),
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
-        Meta(name="description", content=document.get("description", "")),
+        Meta(name="description", content=seo["description"]),
         Meta(
             name="robots",
-            content="noindex,nofollow" if content is not None or preview or site.status != "published" else "index,follow",
+            content="noindex,nofollow" if content is not None or preview or site.status != "published" else "noindex,follow" if not seo["indexing"] else "index,follow",
         ),
         Meta(name="referrer", content="no-referrer") if content is not None else None,
-        Meta(property="og:title", content=document["title"]),
-        Meta(property="og:description", content=document.get("description", "")),
-        Link(rel="canonical", href=canonical),
+        Meta(property="og:title", content=seo["social_title"]),
+        Meta(property="og:description", content=seo["description"]),
+        Meta(property="og:image", content=seo["image"]) if seo["image"] else None,
+        Meta(property="og:url", content=seo["canonical"]),
+        Meta(name="twitter:card", content="summary_large_image" if seo["image"] else "summary"),
+        Meta(name="google-site-verification", content=seo["google_verification"]) if seo["google_verification"] else None,
+        Meta(name="msvalidate.01", content=seo["bing_verification"]) if seo["bing_verification"] else None,
+        Link(rel="canonical", href=seo["canonical"]),
         Link(rel="icon", type="image/png", href=shell_settings["liquid_shell"]["header"]["favicon"]),
         faq_jsonld(document["blocks"]) if page.path == "/faq" else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid.css")),
