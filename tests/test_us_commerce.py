@@ -15,7 +15,13 @@ from sqlalchemy.orm import Session
 
 from app import commerce
 from app.content import create_site
-from app.integrations.stripe_commerce import StripeGateway, TaxResult, credentials, verify_webhook
+from app.integrations.stripe_commerce import (
+    StripeGateway,
+    StripeTaxError,
+    TaxResult,
+    credentials,
+    verify_webhook,
+)
 from app.models import (
     Base,
     Category,
@@ -65,6 +71,8 @@ def shop(tmp_path):
             db.add(owner)
             db.flush()
             site = create_site(db, owner.id, "Test brand", "us-test-brand")
+            site.settings_json = {"stripe_tax_status": {"test": {
+                "status": "active", "missing_fields": [], "checked_at": datetime.now(UTC).isoformat()}}}
             config = commerce.settings_for(db, site, create=True)
             config.mode = "sandbox"
             config.origin_json = {"country": "EE", "line1": "Test warehouse", "city": "Tallinn", "postal_code": "10111"}
@@ -140,12 +148,28 @@ def test_quote_retains_provider_breakdown_and_no_hardcoded_rate(shop):
     assert quote.expires_at <= datetime.now(UTC) + timedelta(minutes=15)
 
 
+def test_tax_calculation_error_falls_back_to_zero_tax_quote(shop):
+    db, site, config, variant = shop
+
+    class Gateway:
+        def calculate_tax(self, *args, **kwargs):
+            raise StripeTaxError("Stripe Tax is unavailable")
+
+    quote = commerce.quote_order(db, site, config,
+        [{"variant_id": variant.id, "quantity": 1}], DESTINATION, Gateway())
+    assert quote.tax_minor == 0
+    assert quote.total_minor == quote.subtotal_minor - quote.discount_minor + quote.shipping_minor
+    assert site.settings_json["stripe_tax_status"]["test"]["status"] == "unknown"
+    assert site.settings_json["stripe_tax_warning"]["quote_id"] == quote.id
+
+
 def test_disabled_state_and_unreviewed_tax_configuration(shop):
     db, site, config, variant = shop
     args = (db, site, config, [{"variant_id": variant.id, "quantity": 1}], DESTINATION, None)
     config.tax_registration_reviewed = False
-    with pytest.raises(CommerceError, match="registrations"):
-        commerce.quote_order(*args)
+    site.settings_json = {"stripe_tax_status": {"test": {"status": "pending"}}}
+    quote = commerce.quote_order(*args)
+    assert quote.tax_minor == 0
     config.tax_registration_reviewed = True
     config.allowed_states_json = ["NY"]
     with pytest.raises(CommerceError, match="not enabled for this state"):

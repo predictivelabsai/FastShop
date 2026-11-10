@@ -57,12 +57,8 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                 records = {mode: stripe_connections.connection_for(db, site, mode)
                            for mode in ("test", "live")}
                 selected = "live" if config and config.mode == "live" else "test"
-                tax_status = None
-                if records[selected]:
-                    try:
-                        tax_status = stripe_connections.test_connection(db, site, selected)["tax_settings_active"]
-                    except CommerceError:
-                        pass
+                tax = stripe_connections.tax_status(db, site, selected)
+                db.commit()
                 cards = []
                 for mode, record in records.items():
                     mode_name = "Live mode" if mode == "live" else "Test mode"
@@ -98,7 +94,7 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                         Div(*card_actions, cls="payment-card-actions"),
                         cls="e-card payment-status-card"))
 
-                tax_line = "Active" if tax_status is True else "Not active" if tax_status is False else "Status unknown"
+                tax_line = stripe_connections.stripe_tax_status_line(tax, selected)
                 expected_key = "pk_live_… / sk_live_… / rk_live_…" if selected == "live" else "pk_test_… / sk_test_… / rk_test_…"
                 error_panel = Div(H3("Stripe could not verify these keys"), P(failure),
                                   role="alert", cls="payment-error") if failure else None
@@ -106,7 +102,8 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                     P(site.name + " · Stripe connection settings", cls="payment-intro"),
                     Div(H2("Connections"), Div(*cards, cls="payment-status-grid"), cls="payment-connections"),
                     Div(H2("Connect Stripe", id="connect-stripe"),
-                        P("Stripe Tax: on by default · " + tax_line + "."),
+                        P("Stripe Tax: on by default."),
+                        tax_line,
                         A("Open Stripe Tax settings", href="https://dashboard.stripe.com/settings/tax",
                           target="_blank", rel="noopener", cls="payment-tax-link"),
                         error_panel,
@@ -195,7 +192,9 @@ const copy=document.getElementById('copy-webhook-url'); if(copy)copy.addEventLis
             def verify_connection():
                 with SessionLocal() as db:
                     site = content.owned_site(db, site_id, user_id)
-                    return stripe_connections.test_connection(db, site, mode)
+                    result = stripe_connections.test_connection(db, site, mode)
+                    db.commit()
+                    return result
 
             status = await run_in_threadpool(verify_connection)
             return back(site_id, "Stripe " + status["mode"] + " connection is healthy.")

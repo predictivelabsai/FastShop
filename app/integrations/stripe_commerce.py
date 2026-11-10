@@ -20,6 +20,10 @@ from app.services import CommerceError
 API_VERSION = "2025-03-31.basil"
 
 
+class StripeTaxError(CommerceError):
+    """A rejected Checkout request specifically caused by automatic tax."""
+
+
 def credentials(site, db=None, mode=None):
     if db is None and hasattr(site, "tenant_id"):
         from app.db import SessionLocal
@@ -168,7 +172,16 @@ class StripeGateway:
                     except httpx.TransportError:
                         if retry:
                             raise
-                response.raise_for_status()
+                if response.is_error:
+                    try:
+                        error = response.json().get("error", {})
+                    except (ValueError, AttributeError):
+                        error = {}
+                    code = str(error.get("code", "")).lower()
+                    param = str(error.get("param", "")).lower()
+                    if code.startswith("tax") or "tax" in param or "automatic_tax" in param:
+                        raise StripeTaxError("Stripe could not apply automatic tax to this checkout.")
+                    response.raise_for_status()
                 result = response.json()
                 if not isinstance(result, dict):
                     raise ValueError("Invalid provider response")
@@ -188,21 +201,19 @@ class StripeGateway:
         account = self.request("GET", "/account")
         if not str(account.get("id", "")).startswith("acct_"):
             raise CommerceError("Stripe returned an invalid readiness response.")
-        tax_active = None
         try:
-            tax = self.request("GET", "/tax/settings")
-            if tax.get("object") == "tax.settings" and tax.get("livemode") is self.live_mode:
-                tax_active = tax.get("status") == "active"
+            tax = self.tax_settings()
         except CommerceError:
             # Tax availability is a status check only. It never blocks connection setup.
-            pass
+            tax = {"status": "unknown", "missing_fields": [], "defaults": {}, "head_office": None}
         return {"connected": True, "mode": "live" if self.live_mode else "test",
             "charges_enabled": account.get("charges_enabled") is True,
             "account_id": account["id"],
             "account_name": (account.get("business_profile") or {}).get("name") or
                 ((account.get("settings") or {}).get("dashboard") or {}).get("display_name", ""),
             "country": account.get("country", ""),
-            "tax_settings_active": tax_active,
+            "tax_settings_active": tax["status"] == "active",
+            "tax_settings": tax,
             "webhook_secret_configured": bool(self.webhook_secret),
             "provider_acceptance_complete": False}
 
@@ -210,9 +221,28 @@ class StripeGateway:
         """Return readiness flags without exposing account identifiers or secrets."""
         verified = self.verify_connection()
         return {key: verified[key] for key in (
-            "connected", "mode", "charges_enabled", "tax_settings_active",
+            "connected", "mode", "charges_enabled", "tax_settings_active", "tax_settings",
             "webhook_secret_configured", "provider_acceptance_complete",
         )}
+
+    def tax_settings(self):
+        """Read the documented Stripe Tax Settings shape without blocking payments."""
+        result = self.request("GET", "/tax/settings")
+        if result.get("object") != "tax.settings" or result.get("livemode") is not self.live_mode:
+            return {"status": "unknown", "missing_fields": [], "defaults": {}, "head_office": None}
+        status = result.get("status")
+        if status not in {"active", "pending"}:
+            status = "unknown"
+        details = result.get("status_details") or {}
+        pending = details.get("pending") or {}
+        missing = pending.get("missing_fields", [])
+        return {
+            "status": status,
+            "missing_fields": [str(field)[:100] for field in missing if isinstance(field, str)]
+                if isinstance(missing, list) else [],
+            "defaults": result.get("defaults") if isinstance(result.get("defaults"), dict) else {},
+            "head_office": result.get("head_office") if isinstance(result.get("head_office"), dict) else None,
+        }
 
     def create_webhook_endpoint(self, url: str):
         from app.commerce_webhooks import CHECKOUT_EVENTS, RENEWAL_EVENTS
@@ -269,14 +299,15 @@ class StripeGateway:
             raise CommerceError("Invalid checkout session.")
         return self.request("GET", "/checkout/sessions/" + session_id)
 
-    def create_checkout(self, attempt_id, command):
+    def create_checkout(self, attempt_id, command, *, tax_fallback=False):
         """Replay an immutable command, never rebuild it from mutable catalog/customer data."""
         customer = self.request("POST", "/customers", command["customer"],
             idempotency_key="fastshop-customer-" + attempt_id)
         if not re.fullmatch(r"cus_[A-Za-z0-9]+", str(customer.get("id", ""))):
             raise CommerceError("Stripe did not return a customer reference.")
+        key = "fastshop-checkout-" + attempt_id + ("-no-tax" if tax_fallback else "")
         return self.request("POST", "/checkout/sessions", command["session"] | {"customer": customer["id"]},
-            idempotency_key="fastshop-checkout-" + attempt_id)
+            idempotency_key=key)
 
     def expire_checkout(self, session_id):
         prefix = "cs_live_" if self.live_mode else "cs_test_"

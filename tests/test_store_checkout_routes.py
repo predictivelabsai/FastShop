@@ -29,7 +29,7 @@ class HostedGateway(Gateway):
         self.responses[session_id] = {"id": session_id, "livemode": False, "mode": "payment",
             "client_reference_id": attempt_id, "metadata": body["metadata"], "currency": "usd", "customer": "cus_fixture",
             "amount_total": subtotal + shipping + 205, "total_details": {"amount_tax": 205, "amount_shipping": shipping},
-            "automatic_tax": {"status": "complete"}, "status": "open", "payment_status": "unpaid",
+            "automatic_tax": {"enabled": True, "status": "complete"}, "status": "open", "payment_status": "unpaid",
             "url": "https://checkout.stripe.com/c/pay/" + session_id}
         return self.responses[session_id]
 
