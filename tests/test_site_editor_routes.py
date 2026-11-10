@@ -337,6 +337,28 @@ def test_item_field_error_names_the_invalid_item_index(workspace):
     assert "Block item 2 must be an object" in result.json()["error"]
 
 
+@pytest.mark.parametrize("locale", ["en", "en-US"])
+def test_locale_keys_on_items_remain_unsupported(workspace, locale):
+    w = workspace
+    loaded = load(w)
+    loaded["document"]["blocks"] = [{
+        "id": "why",
+        "type": "faq",
+        "items": [{
+            "heading": "Question",
+            "body": "Answer.",
+            locale: {"heading": "Question", "body": "Answer."},
+        }],
+    }]
+    result = w.client.put(
+        w.base + "/draft",
+        json={"document": loaded["document"], "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert result.status_code == 422
+    assert f'item 1: "{locale}" is not a supported field' in result.json()["error"]
+
+
 def test_widget_item_field_error_names_field_and_index(workspace):
     w = workspace
     loaded = load(w)
