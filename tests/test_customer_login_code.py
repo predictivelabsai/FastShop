@@ -110,15 +110,20 @@ def test_enumeration_csrf_and_safe_next(customer_site):
     assert re.search(r'name="next" value="/sites/' + site.slug + r'/account/subscriptions"', verify.text)
 
 
-def test_login_code_forms_render_in_liquid_shell(customer_site):
+def test_login_code_forms_render_with_a_test_theme_pack(customer_site, monkeypatch):
+    from tests.site_shell_fixtures import register_shelltest
+
+    register_shelltest(monkeypatch, with_renderer=True)
     site, client, base = customer_site
     with SessionLocal() as db:
         stored = db.get(type(site), site.id)
-        stored.published_settings_json = {"theme_pack": "liquid"}
+        stored.published_settings_json = {"theme_pack": "shelltest"}
         commerce.settings_for(db, stored).customer_accounts_enabled = True
         db.commit()
     login = client.get(base + "/account")
-    assert login.status_code == 200 and "account-login-card" in login.text
-    verify = request_code(site, client, base, "liquid@example.test")
-    assert verify.status_code == 200 and "account-login-card" in verify.text
+    assert login.status_code == 200 and "shelltest-commerce-renderer" in login.text
+    assert "account-login-card" in login.text
+    verify = request_code(site, client, base, "theme-pack@example.test")
+    assert verify.status_code == 200 and "shelltest-commerce-renderer" in verify.text
+    assert "account-login-card" in verify.text
     assert "--store-accent" in verify.text and "--store-radius" in verify.text

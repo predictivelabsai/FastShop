@@ -31,4 +31,9 @@ def register_shelltest(monkeypatch, *, with_renderer=False):
             return Div(P(footer.get("newsletter_title", "")),
                        P(consent.get("heading", "")), cls="shelltest-renderer")
 
-        monkeypatch.setitem(site_theme.THEME_PACKS, "shelltest", {"storefront": storefront})
+        def commerce(site, request, title, *children):
+            return Div(*children, cls="shelltest-commerce-renderer")
+
+        monkeypatch.setitem(site_theme.THEME_PACKS, "shelltest", {
+            "storefront": storefront, "commerce": commerce,
+        })

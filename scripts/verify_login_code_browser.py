@@ -1,7 +1,9 @@
 """Capture isolated desktop and mobile customer login-code pages with fake mail."""
 
+import atexit
 import os
 import secrets
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,7 +15,10 @@ from playwright.sync_api import sync_playwright
 
 
 def main():
-    data_dir = tempfile.mkdtemp(prefix="fastshop-login-code-")
+    data_root = Path(__file__).resolve().parents[1] / "data"
+    data_root.mkdir(parents=True, exist_ok=True)
+    data_dir = tempfile.mkdtemp(prefix="fastshop-login-code-", dir=data_root)
+    atexit.register(shutil.rmtree, data_dir, ignore_errors=True)
     os.environ.pop("FASTSHOP_PUBLIC_URL", None)
     os.environ.update({
         "DB_URL": "", "FASTSHOP_ENV": "development",
@@ -89,6 +94,7 @@ def main():
     finally:
         process.terminate()
         process.wait(timeout=10)
+        shutil.rmtree(data_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

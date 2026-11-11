@@ -6,7 +6,6 @@ import pytest
 from sqlalchemy import select
 from starlette.testclient import TestClient
 
-from app.config import settings
 from app.db import SessionLocal
 from app.main import app
 from app.models import Site, SitePage
