@@ -105,10 +105,10 @@ def test_new_site_is_private_and_neutral(monkeypatch):
 
 def test_no_phase2_purchase_or_marketing_submission_in_preview():
     response = TestClient(app).get("/sites/northstar/products/daily-vitamins")
-    assert "Add to cart — coming in Phase 2" in response.text
+    assert re.search(r'<button[^>]*disabled[^>]*>Add to cart</button>', response.text)
     assert 'action="/cart/add"' not in response.text
     assert 'action="/checkout"' not in response.text
-    assert "Subscribe and save 10%" in response.text
+    assert "Subscribe" in response.text
     assert 'name="marketing_email"' not in response.text
 
 

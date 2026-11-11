@@ -34,11 +34,15 @@ def home_page(db, site):
                                    SitePage.tenant_id == site.tenant_id).order_by(SitePage.path).limit(1))
 
 
+def _suggestions(disabled=False):
+    return Div(*(Button(text, type="button", disabled=disabled, data_suggestion=text)
+                 for text in SUGGESTIONS), id="agent-suggestions", cls="agent-suggestions")
+
+
 def _chat_markup(compact=False):
     return Div(
         Div(id="agent-messages", cls="agent-messages agent-chat-shared", role="log", aria_live="polite"),
-        Div(*(Button(text, type="button", data_suggestion=text) for text in SUGGESTIONS),
-            id="agent-suggestions", cls="agent-suggestions"),
+        _suggestions(),
         Form(Div(Textarea(name="message", rows="1", maxlength="4000",
             placeholder="Ask about your store or request a design change", required=True,
             aria_label="Message the assistant"), Button("↑", type="submit", aria_label="Send message",
@@ -57,6 +61,7 @@ def page(site, selected_page, csrf_token):
                         Div(_chat_markup(), cls="agent-main"), cls="agent-layout") if configured else
                     Div(P("AI provider not configured", cls="agent-state-title"),
                         P("Add an xAI API key in the application environment to use the assistant."),
+                        _suggestions(disabled=True),
                         cls="agent-unconfigured"), cls="agent-content"),
                 data_agent_root="", data_site_id=site.id, data_page_id=selected_page.id if selected_page else "",
                 data_csrf=csrf_token, data_stream=f"/admin/sites/{site.id}/editor/agent",

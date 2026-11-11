@@ -180,7 +180,7 @@ def test_nested_repeater_text_fields_are_inline_editable_in_preview(context):
         "id": "editable-stats",
         "items": [{"heading": "Section heading", "body": "Section copy"}],
     })
-    markup = to_xml(render_block(db, site, page, {}, block, "", "", False, True))
+    markup = to_xml(render_section(db, site, page, {}, block, "", "", True))
     for field in ("items.0.heading", "items.0.body"):
         assert f'data-field="{field}"' in markup
 

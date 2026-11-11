@@ -19,7 +19,7 @@ def test_admin_gap_upgrade_downgrade_upgrade(tmp_path):
                                 env=env, capture_output=True, text=True, timeout=90)
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
-    head = "20261105_0040"
+    head = "20261110_0041"
     assert migrate("heads").strip() == head + " (head)"
     migrate("upgrade", "head")
     engine = create_engine(url)
@@ -29,12 +29,15 @@ def test_admin_gap_upgrade_downgrade_upgrade(tmp_path):
               "site_integration_credentials", "site_stripe_connections", "agent_conversations",
               "agent_messages", "agent_actions"}
     assert tables <= set(inspect(engine).get_table_names())
+    assert "commerce_mode" in {column["name"] for column in inspect(engine).get_columns("orders")}
     migrate("check")
     migrate("downgrade", "20261025_0033_merge_admin_v2")
     assert not tables & set(inspect(engine).get_table_names())
     assert not {"is_active", "is_default", "fulfils_online_orders", "address_json"} & {
         c["name"] for c in inspect(engine).get_columns("warehouses")}
+    assert "commerce_mode" not in {column["name"] for column in inspect(engine).get_columns("orders")}
     migrate("upgrade", "head")
     assert tables <= set(inspect(engine).get_table_names())
+    assert "commerce_mode" in {column["name"] for column in inspect(engine).get_columns("orders")}
     migrate("check")
     engine.dispose()

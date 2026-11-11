@@ -144,7 +144,7 @@ def public_footer():
     )
 
 
-def assistant(surface: str, csrf: str, route: str, embedded: bool = False, inline: bool = False):
+def assistant(surface: str, csrf: str, route: str, embedded: bool = False):
     form_id = "copilot-form" if embedded else "ai-form"
     samples = (
         ("/orders", "/stock", "/sync") if surface == "merchant" else ("Recommend something", "/products", "How does delivery work?")
@@ -153,10 +153,9 @@ def assistant(surface: str, csrf: str, route: str, embedded: bool = False, inlin
         Div(
             Div(
                 Strong("Merchant copilot" if surface == "merchant" else "Shopping assistant"),
-                P(Small("Grounded in this page and live commerce data")) if inline else
                 Small("Grounded in this page and live commerce data"),
             ),
-            Button("×" if not embedded else "›", type="button", cls="ai-close", onclick="toggleAssistant(false)" if not embedded else "toggleCopilot()", aria_label="Close assistant") if not inline else None,
+            Button("×" if not embedded else "›", type="button", cls="ai-close", onclick="toggleAssistant(false)" if not embedded else "toggleCopilot()", aria_label="Close assistant"),
             cls="ai-head",
         ),
         Div(
@@ -167,7 +166,7 @@ def assistant(surface: str, csrf: str, route: str, embedded: bool = False, inlin
             ),
             cls="ai-messages",
         ),
-        Div(*[Button(text, type="button", onclick=f"askSample({text!r}, {form_id!r})") for text in samples], cls="ai-samples a-actions" if inline else "ai-samples"),
+        Div(*[Button(text, type="button", onclick=f"askSample({text!r}, {form_id!r})") for text in samples], cls="ai-samples"),
         Form(
             csrf_input(csrf),
             Input(type="hidden", name="surface", value=surface),
@@ -175,11 +174,11 @@ def assistant(surface: str, csrf: str, route: str, embedded: bool = False, inlin
             Input(name="message", placeholder="Ask FastShop…", maxlength="1000", autocomplete="off"),
             Button("Send", type="submit", cls="button small"),
             id=form_id,
-            cls="ai-form a-actions" if inline else "ai-form",
+            cls="ai-form",
         ),
     )
     if embedded:
-        return Div(*content, cls="copilot a-card" if inline else "copilot")
+        return Div(*content, cls="copilot")
     return (
         Button("✦ Ask FastShop", type="button", cls="ai-launch", onclick="toggleAssistant(true)"),
         Div(*content, id="ai-drawer", cls="ai-drawer", aria_hidden="true"),
@@ -429,6 +428,31 @@ def success_page(order: Order):
     )
 
 
+MERCHANT_NAV = (
+    ("Overview", (("dashboard", "Dashboard", "/admin"), ("assistant", "AI Assistant", "/admin/assistant"))),
+    ("Commerce", (("products", "Products", "/admin/products"), ("orders", "Orders", "/admin/orders"), ("customers", "Customers", "/admin/customers"), ("promotions", "Promotions", "/admin/promotions"))),
+    ("Operations", (("inventory", "Inventory", "/admin/inventory"), ("channels", "Channels", "/admin/channels"), ("content", "Sites & content", "/admin/sites"), ("integrations", "Integrations", "/admin/integrations"))),
+    ("Build", (("developers", "Developers", "/developers"), ("store", "View storefront", "/"))),
+)
+
+
+def merchant_page(title: str, active: str, *content, user: dict, csrf: str, route: str):
+    navigation = Div(
+        brand(),
+        *[Div(Div(label, cls="nav-label"), *[A(name, href=href, cls="active" if key == active else "") for key, name, href in items], cls="nav-group") for label, items in MERCHANT_NAV],
+        cls="merchant-nav",
+    )
+    return (
+        *document_head(title),
+        Div(
+            navigation,
+            Main(Div(H1(title), Div(Button("Copilot", type="button", cls="button secondary small", onclick="toggleCopilot()"), Span(user["email"]), A("Sign out", href="/logout"), cls="merchant-actions"), cls="merchant-top"), *content, cls="merchant-main"),
+            assistant("merchant", csrf, route, embedded=True),
+            cls="merchant-shell",
+        ),
+    )
+
+
 def dashboard(session: Session, tenant_ids: set[str] | None = None):
     revenue_query = select(func.coalesce(func.sum(Order.total_minor), 0)).where(Order.payment_status == "paid")
     order_count_query = select(func.count(Order.id))
@@ -501,37 +525,36 @@ def integration_page(session: Session, message: str = "", tenant_ids: set[str] |
     )
 
 
-def integrations_hub(session: Session, base: str = "/admin/integrations"):
+def integrations_hub(session: Session, *, base="/admin/integrations", in_store=False):
     state = fasterp.status()
-    in_store = base.startswith("/admin/sites/")
+    store_root = base.rsplit("/settings/integrations", 1)[0] if in_store else ""
 
     def card(name, desc, label, ok, href, cta="Setup guide"):
         return Div(Div(H3(name), Span(label, cls="pill green" if ok else "pill amber"), cls="panel-head"),
-                   P(desc), A(cta + " →", href=href, cls="button secondary small"),
-                   cls="a-card" if in_store else "developer-card")
+                   P(desc), A(cta + " →", href=href, cls="button secondary small"), cls="developer-card")
 
     return (
         Div(None if in_store else Span("Connect FastShop", cls="eyebrow"),
             None if in_store else H2("Integrations"),
-            P("Connect payments, transactional email, storefront sync and back-office services from your store settings."),
+            P("Connect payments, transactional email, storefront sync and back-office services from store settings."),
             cls="page-head"),
         Div(
             card("Stripe", "Card payments, Apple Pay / Google Pay and US sales tax for sandbox checkout.",
-                 "Admin connection", True,
-                 (base.rsplit("/settings/integrations", 1)[0] + "/commerce/payments") if in_store else base + "/stripe",
+                 "Admin connection" if in_store else "Sandbox-gated", True,
+                 store_root + "/commerce/payments" if in_store else "/admin/integrations/stripe",
                  "Manage payments" if in_store else "Setup guide"),
-            card("PayPal", "Connect and verify PayPal credentials for this store.",
-                 "Store connection", True,
-                 base.rsplit("/settings/integrations", 1)[0] + "/settings/integrations/paypal"
-                 if in_store else base + "/paypal", "Connect PayPal" if in_store else "Open guide"),
+            card("PayPal", "Connect and verify PayPal credentials for this store." if in_store else
+                 "Offer PayPal at checkout with a store connection or operator fallback.",
+                 "Store connection" if in_store else "Available", True,
+                 base + "/paypal" if in_store else "/admin/integrations/paypal",
+                 "Connect PayPal" if in_store else "Open guide"),
             card("Email", "Connect Postmark for order updates, customer login codes and contact messages.",
-                 "Store connection", True,
-                 base.rsplit("/settings/integrations", 1)[0] + "/settings/integrations/email"
-                 if in_store else base + "/email", "Connect email" if in_store else "Open guide"),
+                 "Store connection", True, base + "/email", "Connect email") if in_store else None,
             card("WooCommerce", "Reviewed import of catalog, customers and orders, plus JSON catalog export.",
-                 "Optional", True, base + "/woocommerce"),
+                 "Optional", True, store_root + "/integrations" if in_store else "/admin/integrations/woocommerce",
+                 "Manage store imports" if in_store else "Setup guide"),
             card("FastERP", state.message, "Reachable" if state.reachable else "Unavailable",
-                 state.reachable, base + "/fasterp", "Open"),
+                 state.reachable, "/admin/integrations/fasterp", "Open"),
             cls="a-columns" if in_store else "developer-grid"),
     )
 
@@ -540,7 +563,8 @@ def _env_var(name, example=""):
     return Li(Code(name), Small(" " + example) if example else None)
 
 
-def _guide(eyebrow, title, lead, steps, env_title, env_items, *extra, docs=None, base="/admin/integrations"):
+def _guide(eyebrow, title, lead, steps, env_title, env_items, *extra, docs=None,
+           base="/admin/integrations"):
     return (
         Div(Span(eyebrow, cls="eyebrow"), H2(title), P(lead),
             A("← All integrations", href=base), cls="page-head"),
@@ -589,7 +613,8 @@ def woocommerce_guide(base="/admin/integrations"):
          _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CONSUMER_SECRET", "= cs_…"),
          _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CURRENCY", "= USD"),
          _env_var("FASTSHOP_WOOCOMMERCE_{SITE_ID}_CURRENCY_SCALE", "= 2")],
-        base=base, docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
+        docs=("Stripe & WooCommerce checklist", "https://github.com/predictivelabsai/FastShop/blob/main/docs/WOOCOMMERCE_STRIPE_INTEGRATION.md"),
+        base=base,
     )
 
 
@@ -612,24 +637,27 @@ def paypal_guide(session: Session, *, site_id=None, tenant_ids=None,
     table = Div(Table(Thead(Tr(Th("Store"), Th("Site id"), Th("Mode"), Th("Client ID"), Th("Secret"), Th("Status"))),
                       Tbody(*rows)), cls="table-scroll") if rows else P("No stores yet.")
     if site_id is not None:
-        href = f"/admin/sites/{site_id}/settings/integrations/paypal"
         return (
             Div(Span("Payments", cls="eyebrow"), H2("PayPal connection"),
                 P("Connect PayPal from this store's settings. Credentials are encrypted and never shown again."),
-                A("Open PayPal settings", href=href, cls="button primary"), cls="page-head"),
+                A("Open PayPal settings", href=f"/admin/sites/{site_id}/settings/integrations/paypal",
+                  cls="button primary"), cls="page-head"),
             panel("Connection status", table),
-            panel("Operator fallback", P("If no store connection exists, the operator can configure PayPal environment variables for the service.")),
+            panel("Operator fallback", P("Environment variables are used only when a store has no admin connection.")),
             panel("Notes", P("Choose test or live payment mode from the Go-live page after saving and verifying the matching Stripe connection.")),
         )
     return _guide(
         "Payments", "PayPal setup",
-        "Merchants connect PayPal from Settings → Integrations → PayPal. This page is an operator reference.",
+        "Merchants connect PayPal from store settings. This page is an operator reference.",
         ["Open the store's Settings → Integrations → PayPal page.",
          "Enter the REST app Client ID and Secret, choose Sandbox or Live, then verify and save."],
         "Operator fallback",
-        [Li("Environment variables are used only when the store has no admin connection.")],
-        panel("PayPal readiness by store", table), base=base,
+        [Li("Environment variables are used only when the store has no admin connection."),
+         _env_var("FASTSHOP_PAYPAL_{SITE_ID}_CLIENT_ID"),
+         _env_var("FASTSHOP_PAYPAL_{SITE_ID}_SECRET")],
+        panel("PayPal readiness by store", table),
         docs=("PayPal integration", "https://github.com/predictivelabsai/FastShop/blob/main/docs/PAYPAL_INTEGRATION.md"),
+        base=base,
     )
 
 

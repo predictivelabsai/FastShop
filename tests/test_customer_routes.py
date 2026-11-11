@@ -192,7 +192,8 @@ def test_order_tracking_is_owned_by_customer_not_guessed_order_number(customer_s
             db.flush()
             links.append(link.id)
         db.add(ShipmentEvent(tenant_id=site.tenant_id, site_id=site.id, site_order_id=links[0],
-            carrier="Test carrier", tracking_number="TEST123", status="in_transit", note="Fixture only"))
+            carrier="Test carrier", tracking_number="TEST123", tracking_url="https://carrier.example.test/track/TEST123",
+            status="in_transit", note="Fixture only"))
         db.commit()
     response = client.get(base + "/account/orders/" + links[0])
     assert response.status_code == 200 and "TEST123" in response.text

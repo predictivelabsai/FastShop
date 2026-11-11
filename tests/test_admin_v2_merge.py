@@ -21,7 +21,7 @@ def test_admin_merge_single_head_and_round_trip(tmp_path):
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
 
-    head = "20261105_0040"
+    head = "20261110_0041"
     assert migrate("heads").strip() == head + " (head)"
     migrate("upgrade", "20261011_0029")
     migrate("upgrade", "head")
@@ -32,6 +32,7 @@ def test_admin_merge_single_head_and_round_trip(tmp_path):
               "site_stripe_connections", "agent_conversations", "agent_messages",
               "agent_actions"}
     assert tables <= set(inspect(engine).get_table_names())
+    assert "commerce_mode" in {column["name"] for column in inspect(engine).get_columns("orders")}
     with engine.connect() as db:
         assert list(db.scalars(text("SELECT version_num FROM alembic_version"))) == [head]
     migrate("downgrade", "20261011_0029")
