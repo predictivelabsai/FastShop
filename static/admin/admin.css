@@ -320,6 +320,49 @@
 .a-shell .a-empty svg { width: 36px; height: 36px; margin-bottom: 16px; color: #61616a; }
 .a-shell dialog { max-height: calc(100dvh - 48px); overflow-y: auto; }
 .a-shell .e-main > .e-card, .a-shell .e-dashboard-section { margin-block: 24px; }
+.a-shell .payment-connections { margin-block: 24px; }
+.a-shell .payment-status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.a-shell .payment-status-card { margin: 0; padding: 20px; }
+.a-shell .payment-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.a-shell .payment-card-heading h3 { margin: 0; }
+.a-shell .payment-pill { padding: 4px 9px; border-radius: 999px; background: #f1f1f2; color: #454549; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.a-shell .payment-pill.connected { background: #e7f4e4; color: #244b20; }
+.a-shell .payment-account { margin-block: 14px; font-size: 16px; font-weight: 650; }
+.a-shell .payment-live-note { margin-block: 8px; color: var(--a-muted); font-size: 12px; }
+.a-shell .payment-status-list { display: grid; gap: 7px; margin-block: 12px; }
+.a-shell .payment-status-list p { display: flex; justify-content: space-between; gap: 12px; margin: 0; color: var(--a-muted); font-size: 13px; }
+.a-shell .payment-status-list span { color: var(--a-ink); text-align: right; }
+.a-shell .payment-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.a-shell .payment-card-actions form { margin: 0; }
+.a-shell .payment-card-confirmation { margin-top: 12px; padding: 9px 11px; border-radius: 7px; background: #e7f4e4; color: #244b20; font-size: 13px; font-weight: 600; }
+.a-shell .payment-card-actions .e-button.primary { background: #303033; }
+.a-shell .payment-connect-card { max-width: 760px; margin-top: 28px; }
+.a-shell .payment-connect-card h2 { margin-bottom: 8px; }
+.a-shell .payment-connect-form { display: grid; gap: 12px; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+.a-shell .payment-step-label { margin: 12px 0 0; font-size: 13px; font-weight: 700; }
+.a-shell .payment-mode-switch { display: inline-flex; width: max-content; gap: 4px; padding: 4px; border: 1px solid #dedee0; border-radius: 10px; background: #f5f5f6; }
+.a-shell .payment-mode-option { display: flex; align-items: center; cursor: pointer; }
+.a-shell .payment-mode-option input { position: absolute; opacity: 0; pointer-events: none; }
+.a-shell .payment-mode-option span { padding: 8px 18px; border-radius: 7px; font-weight: 600; }
+.a-shell .payment-mode-option input:checked + span { background: #303033; color: #fff; }
+.a-shell .payment-mode-option input:focus-visible + span { outline: 2px solid #2859a8; outline-offset: 2px; }
+.a-shell .payment-key-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.a-shell .payment-key-fields label, .a-shell .payment-advanced label { display: grid; min-width: 0; gap: 6px; font-size: 13px; font-weight: 600; }
+.a-shell .payment-key-fields input { width: 100%; box-sizing: border-box; }
+.a-shell #stripe-keys-link { width: fit-content; }
+.a-shell .payment-submit { width: 100%; box-sizing: border-box; }
+.a-shell .payment-tax-link { display: inline-block; margin-bottom: 12px; }
+.a-shell .payment-advanced { margin-block: 6px; padding: 12px 0; border-top: 1px solid #e5e5e7; }
+.a-shell .payment-advanced summary { cursor: pointer; font-weight: 650; }
+.a-shell .payment-webhook-row { display: flex; align-items: end; gap: 8px; margin-block: 14px; }
+.a-shell .payment-webhook-row label { flex: 1; }
+.a-shell .payment-success { padding: 12px 14px; border-radius: 8px; background: #e7f4e4; color: #244b20; }
+.a-shell .payment-error { margin-block: 16px; padding: 14px; border: 1px solid #d59a9a; border-radius: 8px; background: #fff5f4; color: #642e2e; }
+.a-shell .payment-error h3 { margin-top: 0; }
+@media (max-width: 700px) {
+  .a-shell .payment-status-grid, .a-shell .payment-key-fields { grid-template-columns: minmax(0, 1fr); }
+  .a-shell .payment-webhook-row { align-items: stretch; flex-direction: column; }
+}
 @media (max-width: 800px) {
   .a-shell button, .a-shell .a-button, .a-shell summary.a-button, .a-shell .e-button { min-height: 44px; }
   .a-shell input:not([type=hidden]):not([type=checkbox]):not([type=radio]), .a-shell select { min-height: 44px; font-size: 14px; }

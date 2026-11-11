@@ -185,12 +185,27 @@ def test_stripe_payments_page_requires_membership_and_csrf():
     path = f"/admin/sites/{site.id}/commerce/payments"
     page = client.get(path)
     assert page.status_code == 200 and "Connect Stripe" in page.text
+    assert 'class="payment-status-grid"' in page.text
+    assert "Not connected" in page.text and "Step 1" in page.text
+    assert 'href="https://dashboard.stripe.com/test/apikeys"' in page.text
+    assert "Stripe Tax: on by default" in page.text
+    assert "advanced" in page.text and "manual fallback" in page.text
+    invalid_keys = client.post(path + "/connect", data={
+        "csrf_token": token,
+        "mode": "test",
+        "secret_key": "sk_live_wrong_mode_12345678",
+        "publishable_key": "pk_live_wrong_mode_12345678",
+        "webhook_secret": "whsec_browser_manual_1234",
+    }, follow_redirects=True)
+    assert invalid_keys.status_code == 200
+    assert 'role="alert"' in invalid_keys.text
+    assert "valid Stripe test secret or restricted key" in invalid_keys.text
     rejected = client.post(path + "/connect", data={"csrf_token": "wrong", "mode": "test"},
                            follow_redirects=False)
     assert rejected.status_code == 303 and "session+expired" in rejected.headers["location"]
 
     with SessionLocal() as db:
-        owner = User(email="stripe-other-owner@example.test", name="Other owner")
+        owner = User(email="stripe-other-owner-" + uuid4().hex[:8] + "@example.test", name="Other owner")
         db.add(owner)
         db.flush()
         other_site = content.create_site(db, owner.id, "Other Stripe site", "stripe-other-" + uuid4().hex[:8])
