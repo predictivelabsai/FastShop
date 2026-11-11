@@ -149,7 +149,7 @@ _ICONS = {
     "Discounts": '<path d="m3 12 3-3V5h4l2-2 3 2h4v4l2 3-2 3v4h-4l-3 2-2-2H6v-4zM8 16l8-8"/><path d="M8 8h.01M16 16h.01"/>',
     "Content": '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     "Analytics": '<path d="M4 3v18h17M8 17v-5M13 17V7M18 17V4"/>',
-    "Marketing/Integrations": '<path d="m3 11 17-7v16L3 13zM7 14l2 7h4l-3-6"/>',
+    "Marketing": '<path d="m3 11 17-7v16L3 13zM7 14l2 7h4l-3-6"/>',
     "Online Store": '<path d="M3 10V4h18v6M4 10v11h16V10M9 21v-7h6v7M2 10h20"/>',
     "Settings": '<path d="m9 3-1 3-3 1-2 4 2 2v4l4 2 3-1 3 1 4-2v-4l2-2-2-4-3-1-1-3z"/><circle cx="12" cy="12" r="3"/>',
 }
@@ -192,13 +192,17 @@ def nav_section(path):
     key = part[0] if part else ""
     if key == "coming-soon" and len(part) > 1:
         key = part[1]
+    if key == "settings" and len(part) > 1 and part[1] == "seo":
+        return "Marketing"
     return {
         "": "Home", "orders": "Orders", "drafts": "Orders", "abandoned-checkouts": "Orders",
         "deliveries": "Orders", "products": "Products", "collections": "Products",
-        "inventory": "Products", "gift-cards": "Products", "customers": "Customers", "discounts": "Discounts",
+        "inventory": "Products", "gift-cards": "Products", "customers": "Customers",
+        "discounts": "Marketing",
         "pages": "Content", "blog-posts": "Content", "menus": "Content", "media": "Content", "content": "Content",
-        "snippets": "Content", "redirects": "Content", "reviews": "Content", "placeholders": "Content", "inbox": "Content",
-        "revenue": "Analytics", "analytics": "Analytics", "integrations": "Marketing/Integrations", "subscriptions": "Products",
+        "snippets": "Content", "redirects": "Marketing", "reviews": "Content", "placeholders": "Content", "inbox": "Content",
+        "revenue": "Analytics", "analytics": "Analytics", "integrations": "Marketing",
+        "marketing": "Marketing", "subscriptions": "Products",
         "build": "Online Store", "samples": "Online Store", "editor": "Online Store",
         "preferences": "Online Store", "settings": "Settings", "commerce": "Settings",
         "golive": "Settings", "live-credentials": "Settings", "billing": "Settings",
@@ -221,10 +225,9 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         ("Orders", base + "/orders", [("Drafts", base + "/drafts"), ("Abandoned checkouts", base + "/abandoned-checkouts")]),
         ("Products", base + "/products", [("Collections", base + "/collections"), ("Inventory", base + "/inventory"), ("Subscriptions", base + "/subscriptions"), ("Gift cards", base + "/gift-cards")]),
         ("Customers", base + "/customers", []),
-        ("Discounts", base + "/discounts", []),
-        ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files"), ("URL redirects", base + "/redirects"), ("Activity", base + "/activity")]),
+        ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files"), ("Activity", base + "/activity")]),
         ("Analytics", base + "/analytics", []),
-        ("Marketing/Integrations", base + "/integrations", []),
+        ("Marketing", base + "/marketing", [("Search engine optimisation", base + "/settings/seo"), ("URL redirects", base + "/redirects"), ("Discounts", base + "/discounts"), ("Integrations", base + "/integrations")]),
         ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Themes", base + "/themes"), ("Preferences", base + "/preferences")]),
         ("Settings", base + "/settings", [("Store settings", base + "/settings"), ("Payments", base + "/commerce/payments"), ("Commerce", base + "/commerce"), ("Go-live checklist", base + "/golive")]),
     ]

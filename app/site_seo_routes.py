@@ -43,7 +43,7 @@ def register_site_seo_routes(rt, actor, csrf, check_csrf, shell, error):
                     SiteMedia.tenant_id == site.tenant_id).order_by(SiteMedia.created_at.desc())).all()
                 images = [m for m in media if m.content_type.startswith("image/")]
                 origin = "https://" + (site.hostname or "your-store.example")
-                return shell("SEO", A("← Settings", href=f"/admin/sites/{site.id}/settings"),
+                return shell("SEO", A("← Marketing", href=f"/admin/sites/{site.id}/marketing"),
                     P(notice[:300], role="status") if notice else None,
                     Form(csrf(session), Input(type="hidden", name="version", value=site.version),
                         H2("Search appearance"),

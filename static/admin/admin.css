@@ -119,6 +119,9 @@
 .a-card-section:first-child { border-top: 0; padding-top: 0; }
 .a-card-section:last-child { padding-bottom: 0; }
 .a-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); gap: 24px; align-items: start; }
+.a-marketing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; margin-block: 20px; }
+.a-marketing-grid > .a-card { margin: 0; }
+.a-marketing-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .a-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 550; line-height: 1.6; white-space: nowrap; background: #e9e9eb; color: #49494d; }
 .a-badge-success { background: #c7f0d9; color: #065e45; }
 .a-badge-info { background: #e0edff; color: #174b91; }
@@ -234,6 +237,7 @@
   .a-header { gap: 12px; margin-bottom: 20px; }
   .a-header h1 { font-size: 23px; }
   .a-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .a-marketing-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .a-card, .a-shell .e-card { padding: 20px; margin-bottom: 16px; }
   .a-settings { grid-template-columns: minmax(0, 1fr); }
   .a-settings-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
