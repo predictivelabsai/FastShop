@@ -48,7 +48,7 @@ from app.config import settings
 from app.content_gap_models import UrlRedirect
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
-from app.models import Discount, MarketingConsent, ShopCustomer, SitePage, User
+from app.models import Discount, MarketingSubscriber, SitePage, User
 from app.services import CommerceError
 from app.site_blocks import BLOCK_TYPES
 from app.site_generation import MAX_PAGES
@@ -1208,15 +1208,10 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                     ))
                 )
                 subscriber_count = db.scalar(
-                    select(func.count(func.distinct(MarketingConsent.customer_id)))
-                    .select_from(MarketingConsent)
-                    .join(ShopCustomer, ShopCustomer.id == MarketingConsent.customer_id)
-                    .where(
-                        MarketingConsent.tenant_id == site.tenant_id,
-                        MarketingConsent.site_id == site.id,
-                        MarketingConsent.status == "subscribed",
-                        ShopCustomer.tenant_id == site.tenant_id,
-                        ShopCustomer.site_id == site.id,
+                    select(func.count()).select_from(MarketingSubscriber).where(
+                        MarketingSubscriber.tenant_id == site.tenant_id,
+                        MarketingSubscriber.site_id == site.id,
+                        MarketingSubscriber.status == "subscribed",
                     )
                 ) or 0
 
@@ -1279,8 +1274,8 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                     title="Discounts",
                 )
                 subscribers_card = card(
-                    P(f"{subscriber_count} subscribed customer" + ("" if subscriber_count == 1 else "s")),
-                    A("View customers", href=base + "/customers", cls="a-button"),
+                    P(f"{subscriber_count} subscribed email subscriber" + ("" if subscriber_count == 1 else "s")),
+                    A("Manage subscribers", href=base + "/marketing/subscribers", cls="a-button"),
                     title="Email subscribers",
                 )
                 return shell(

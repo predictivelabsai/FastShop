@@ -322,7 +322,9 @@ def has_published_recently_viewed(db, site):
                              {"recently_viewed"}) for doc in documents)
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag="", policy_html=None, policy_empty_message=None):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="",
+               newsletter_result="", blog_listing=False, blog_category="", blog_tag="",
+               policy_html=None, policy_empty_message=None):
     from app.site_theme import theme_pack
     config = site.settings_json if preview else site.published_settings_json
     from app.site_editable_settings import shell_fields, shell_values
@@ -330,7 +332,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     if theme_pack(config or {}) == "liquid":
         from app.site_ui_liquid import storefront as liquid_storefront
         return liquid_storefront(db, site, page, base, csrf, canonical,
-                                 preview=preview, editor=editor, message=message)
+                                 preview=preview, editor=editor, message=message,
+                                 newsletter_result=newsletter_result)
     from app.commerce import payments_enabled, settings_for
     from app.customer_services import consent_text
     from app.site_theme import theme_style

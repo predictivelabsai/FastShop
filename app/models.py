@@ -978,6 +978,10 @@ class MarketingSubscriber(TimestampMixin, Base):
     consent_evidence: Mapped[str] = mapped_column(Text, default="")
     unsubscribe_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
 
+    @validates("email")
+    def normalize_email(self, key, value):
+        return str(value or "").strip().lower()
+
 
 class CustomerOffer(TimestampMixin, Base):
     __tablename__ = "customer_offers"

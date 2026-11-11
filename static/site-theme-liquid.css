@@ -740,6 +740,7 @@
 .h-site[data-pack="liquid"] .liquid-consent { display:flex; align-items:flex-start; gap:8px; margin-top:12px; font-size:12px; }
 .h-site[data-pack="liquid"] .liquid-consent input { margin-top:3px; flex-shrink:0; accent-color:var(--primary); }
 .h-site[data-pack="liquid"] .liquid-consent a { text-decoration:underline; }
+.h-site[data-pack="liquid"] .liquid-newsletter-message { margin:12px 0 0; font-size:14px; line-height:1.5; }
 .h-site[data-pack="liquid"] .liquid-skip { position:absolute; top:-100px; left:10px; z-index:100; padding:12px; background:var(--card); }
 .h-site[data-pack="liquid"] .liquid-skip:focus { top:10px; }
 .h-site[data-pack="liquid"] .liquid-message { padding:16px; text-align:center; }

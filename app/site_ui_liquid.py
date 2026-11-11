@@ -748,14 +748,14 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
     return render_section(db, site, page, config, b, base, csrf, preview)
 
 
-def newsletter(shell, base, csrf, identity, enabled, *, preview=False, footer=False):
+def newsletter(shell, base, csrf, identity, enabled, *, preview=False, footer=False, message=""):
     offer = shell["footer"] if footer else shell["offer"]
     field = (lambda name: "liquid_shell.footer.newsletter" + {
         "placeholder": "Placeholder", "emailLabel": "EmailLabel", "cta": "Cta",
         "consent": "Consent",
         "privacyLabel": "PrivacyLabel", "privacyHref": "PrivacyHref",
     }[name]) if footer else (lambda name: "liquid_shell.offer." + name)
-    return Form(
+    form = Form(
         Input(type="hidden", name="csrf_token", value=csrf),
         Input(type="hidden", name="newsletter_source", value="footer" if footer else "offer"),
         P(offer["body"], **_field_attrs(preview, "liquid_shell.offer.body")) if not footer else None,
@@ -796,9 +796,12 @@ def newsletter(shell, base, csrf, identity, enabled, *, preview=False, footer=Fa
         action=base + "/newsletter",
         cls="liquid-newsletter",
     )
+    return Div(form, P(message, role="status", cls="liquid-newsletter-message") if message else None,
+               cls="liquid-newsletter-block")
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", content=None, cart_count=0):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="",
+               newsletter_result="", content=None, cart_count=0):
     config = (site.settings_json if preview else site.published_settings_json) or {}
     document = resolve_document(
         page.draft_json if preview else page.published_json, default_locale(site, preview=preview)
@@ -1130,7 +1133,10 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         P(footer["newsletterBody"],
                           **_field_attrs(preview, "liquid_shell.footer.newsletterBody", "textarea")),
                         newsletter(shell, base, csrf, "footer-email", enabled,
-                                  preview=preview, footer=True),
+                                  preview=preview, footer=True,
+                                  message=(footer.get("newsletterThanks", "") if newsletter_result == "success"
+                                           else footer.get("newsletterError", "")
+                                           if newsletter_result == "error" else "")),
                     ),
                     Nav(
                         *[A(s["label"], href=url(base, s["path"])) for s in footer_links],

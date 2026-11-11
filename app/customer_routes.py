@@ -145,35 +145,44 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
 
     async def request_link(session, request, slug, purpose):
         form = await request.form()
+        newsletter_source = "footer" if form.get("newsletter_source") == "footer" else "account"
+        footer_signup = purpose == "newsletter" and newsletter_source == "footer"
         try:
             with SessionLocal() as db:
                 site = account_site(db, slug) if purpose == "login" else resolve(db, slug)
                 check_csrf(session, form)
                 mail = None if form.get("website") else customers.request_email_challenge(db, site,
                     form.get("email", ""), purpose, request.client.host if request.client else "unknown",
-                    consent=form.get("marketing_consent") == "on")
+                    consent=form.get("marketing_consent") == "on", source=newsletter_source)
                 message_id = mail.id if mail else None
                 db.commit()
-                copy = account_copy(site)
-                newsletter_thanks = ""
-                if purpose == "newsletter" and is_liquid(site):
-                    from app.site_editable_settings import shell_fields, shell_values
-                    values = shell_values(site.published_settings_json,
-                                          shell_fields({"theme_pack": "liquid"}))
-                    source = "footer" if form.get("newsletter_source") == "footer" else "offer"
-                    newsletter_thanks = (values["liquid_shell"]["footer"]["newsletterThanks"]
-                                         if source == "footer"
-                                         else values["liquid_shell"]["offer"]["thanks"])
-                response = screen(db, site, request, copy["check_email"], Div(
-                    P(newsletter_thanks) if newsletter_thanks else None,
-                    P(copy["email_link_message"]),
-                    P(copy["link_expiry_message"]), cls="e-card"))
+                if footer_signup:
+                    response = RedirectResponse(base(site, request) + "/?newsletter=success#footer", status_code=303)
+                else:
+                    copy = account_copy(site)
+                    newsletter_thanks = ""
+                    if purpose == "newsletter" and is_liquid(site):
+                        from app.site_editable_settings import shell_fields, shell_values
+                        values = shell_values(site.published_settings_json,
+                                              shell_fields({"theme_pack": "liquid"}))
+                        newsletter_thanks = values["liquid_shell"]["offer"]["thanks"]
+                    response = screen(db, site, request, copy["check_email"], Div(
+                        P(newsletter_thanks) if newsletter_thanks else None,
+                        P(copy["email_link_message"]),
+                        P(copy["link_expiry_message"]), cls="e-card"))
             if message_id:
                 dispatch_mail(message_id)
+            if isinstance(response, RedirectResponse):
+                response.headers["Cache-Control"] = "private, no-store"
+                response.headers["Referrer-Policy"] = "no-referrer"
+                return response
             return private_response(response)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
+            if footer_signup:
+                root = request.scope.get("site_base", "/sites/" + slug)
+                return RedirectResponse(root + "/?newsletter=error#footer", status_code=303)
             return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/account/login", methods=["POST"])
