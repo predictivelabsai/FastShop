@@ -14,6 +14,15 @@ def editor_page(site, page, csrf_token):
                          "theme_id": getattr(site, "theme_context_id", ""),
                          "csrf_token": csrf_token}, ensure_ascii=True).replace("<", "\\u003c")
     title = escape(str(getattr(site, "name", "Store")))
+    kind = getattr(page, "kind", "")
+    if kind == "article":
+        seo_href = f"/admin/sites/{site.id}/content/blog-posts/{page.id}"
+    elif kind == "product":
+        seo_href = f"/admin/sites/{site.id}/products/{page.product_id}"
+    elif kind == "collection":
+        seo_href = f"/admin/sites/{site.id}/collections/{page.collection_id}"
+    else:
+        seo_href = f"/admin/sites/{site.id}/content/pages/{page.id}/seo"
     markup = '''
 <div class="a-shell editor-shell" id="editor" aria-label="Visual page editor">
 <header class="editor-topbar">
@@ -21,7 +30,7 @@ def editor_page(site, page, csrf_token):
  <div class="editor-brand"><strong>STORE</strong><span>Theme editor <span class="live-badge">Draft</span></span></div>
  <details class="page-switcher"><summary id="current-page">Choose page</summary><div class="page-menu"><input id="page-search" type="search" placeholder="Search pages" aria-label="Search pages"><div id="page-options"></div></div></details>
  <div class="device-controls" role="group" aria-label="Preview device"><button data-device="desktop" aria-pressed="true" title="Desktop preview">▱<span>Desktop</span></button><button data-device="tablet" aria-pressed="false" title="Tablet preview">▯<span>Tablet</span></button><button data-device="mobile" aria-pressed="false" title="Mobile preview">▯<span>Mobile</span></button></div>
- <div class="top-actions"><button id="undo" aria-label="Undo" title="Undo (Ctrl Z)">↶</button><button id="redo" aria-label="Redo" title="Redo (Ctrl Shift Z)">↷</button><a id="preview-link" class="icon-link" target="_blank" rel="noopener" aria-label="Preview in new tab" title="Preview in new tab">↗</a><button id="revisions" title="Revisions">History</button><span id="save-status" role="status" aria-live="polite">Loading…</span><button id="save">Save</button><button id="publish" class="publish-button">Publish</button></div>
+ <div class="top-actions"><button id="undo" aria-label="Undo" title="Undo (Ctrl Z)">↶</button><button id="redo" aria-label="Redo" title="Redo (Ctrl Shift Z)">↷</button><a class="icon-link" href="SEO_HREF">SEO</a><a id="preview-link" class="icon-link" target="_blank" rel="noopener" aria-label="Preview in new tab" title="Preview in new tab">↗</a><button id="revisions" title="Revisions">History</button><span id="save-status" role="status" aria-live="polite">Loading…</span><button id="save">Save</button><button id="publish" class="publish-button">Publish</button></div>
 </header>
 <div id="editor-error" role="alert" hidden></div>
 <div class="editor-layout">
@@ -36,8 +45,11 @@ def editor_page(site, page, csrf_token):
 <dialog id="revision-dialog"><div class="dialog-heading"><h2>Saved revisions</h2><button data-close-dialog aria-label="Close">×</button></div><p class="subtle">Restore a previous version as a draft. Your published page stays live.</p><div id="revision-list"></div></dialog>
 <dialog id="publish-dialog"><div class="dialog-heading"><h2>Publish this page?</h2><button data-close-dialog aria-label="Close">×</button></div><p>Your latest saved changes will become visible on your storefront.</p><button id="confirm-publish" class="publish-button">Publish page</button></dialog>
 <dialog id="conflict-dialog"><h2>A newer draft is available</h2><p>Someone has saved this page since you opened it. Reload their version, or replace it with your current changes.</p><div class="dialog-actions"><button id="conflict-reload">Reload latest</button><button id="conflict-overwrite">Overwrite with my changes</button></div></dialog>
-</div>'''.replace("SITE", escape(str(site.id))).replace("PAGE", escape(str(page.id))).replace("STORE", title)
-    return (Link(rel="icon", href=static_asset("favicon.svg")), Title(f"Theme editor · {title}"), Meta(name="viewport", content="width=device-width, initial-scale=1"),
+</div>'''.replace("SITE", escape(str(site.id))).replace("PAGE", escape(str(page.id))).replace(
+        "STORE", title,
+    ).replace("SEO_HREF", escape(seo_href))
+    return (Link(rel="icon", href=static_asset("favicon.svg")),
+            Title(f"Theme editor · {title}"), Meta(name="viewport", content="width=device-width, initial-scale=1"),
             Link(rel="stylesheet", href="/static/admin/admin.css"),
             Link(rel="stylesheet", href="/static/editor/editor.css"),
             Link(rel="stylesheet", href="/static/agent-chat.css"),

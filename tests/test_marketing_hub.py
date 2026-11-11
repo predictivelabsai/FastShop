@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from starlette.responses import Response
 from starlette.testclient import TestClient
 
-from app import content, marketing_routes, site_seo_routes
+from app import content, growth_content_routes, marketing_routes, site_seo_routes
 from app.admin_ui import AdminContextMiddleware, admin_page, admin_scope, nav_section
 from app.content_gap_models import SitePreferences, UrlRedirect
 from app.models import (
@@ -96,11 +96,15 @@ def marketing_hub(monkeypatch):
     app, rt = fast_app(secret_key="marketing-hub-test-only")
     app.add_middleware(AdminContextMiddleware)
     monkeypatch.setattr(marketing_routes, "SessionLocal", sessions)
+    monkeypatch.setattr(growth_content_routes, "SessionLocal", sessions)
     monkeypatch.setattr(site_seo_routes, "SessionLocal", sessions)
     def error(exc):
         return Response(str(exc), status_code=400)
     marketing_routes.register_admin_marketing_routes(rt, actor, shell, error)
     site_seo_routes.register_site_seo_routes(
+        rt, actor, lambda session: None, lambda session, form: None, shell, error,
+    )
+    growth_content_routes.register_growth_content_routes(
         rt, actor, lambda session: None, lambda session, form: None, shell, error,
     )
     with TestClient(app) as client:

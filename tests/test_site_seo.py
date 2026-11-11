@@ -56,6 +56,7 @@ def test_seo_head_output_for_generic_storefront(workspace):
         'name="description"',
         'property="og:title"',
         'property="og:description"',
+        'property="og:type"',
         'property="og:url"',
         'name="twitter:card"',
         'name="google-site-verification"',
@@ -73,7 +74,7 @@ def test_seo_noindex_robots_custom_and_verification_validation(workspace):
     config = validate({"seo_indexing": False})
     configure_public_site(w, config)
     output = render_home(w)
-    assert 'name="robots" content="noindex,follow"' in output
+    assert 'name="robots" content="noindex"' in output
     with w.sessions() as db:
         site = db.get(Site, w.site.id)
         robots = robots_content(site, config)

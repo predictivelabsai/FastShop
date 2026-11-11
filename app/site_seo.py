@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 
 from app.services import CommerceError
 
 ROBOTS_LIMIT = 5000
 TOKEN = re.compile(r"^[A-Za-z0-9_=-]{1,200}$")
+ENTITY_FIELDS = {"seo_title", "seo_description", "seo_social_title", "seo_social_image", "seo_noindex"}
 
 
 def validate_site_image(db, site, value: str) -> str:
@@ -59,6 +61,63 @@ def validate(settings: dict) -> dict:
     return result
 
 
+def validate_entity_fields(db, site, values: dict) -> dict:
+    """Validate metadata shared by page, blog, product and collection editors."""
+    if not isinstance(values, dict) or set(values) - ENTITY_FIELDS:
+        raise CommerceError("Choose supported page SEO fields.")
+    result = {}
+    limits = {"seo_title": 240, "seo_description": 320, "seo_social_title": 240}
+    for key, limit in limits.items():
+        if key in values:
+            value = values[key]
+            if not isinstance(value, str):
+                raise CommerceError("SEO titles and descriptions must be text.")
+            result[key] = value.strip()[:limit]
+    if "seo_social_image" in values:
+        if not isinstance(values["seo_social_image"], str):
+            raise CommerceError("Choose an image from this store's media library.")
+        result["seo_social_image"] = validate_site_image(db, site, values["seo_social_image"])
+    if "seo_noindex" in values:
+        if type(values["seo_noindex"]) is not bool:
+            raise CommerceError("Search visibility must be enabled or disabled.")
+        result["seo_noindex"] = values["seo_noindex"]
+    return result
+
+
+def seo_document(db, site, page, document: dict) -> dict:
+    """Apply catalogue column values to the site page metadata view."""
+    from sqlalchemy import select
+
+    from app.models import Collection, Product
+
+    result = deepcopy(document or {})
+    product_id = getattr(page, "product_id", None)
+    collection_id = getattr(page, "collection_id", None)
+    if product_id:
+        entity = db.scalar(select(Product).where(
+            Product.id == product_id, Product.tenant_id == site.tenant_id,
+        ))
+        if entity:
+            result["seo_title"] = entity.seo_title
+            result["seo_description"] = entity.seo_description
+            result.setdefault("title", entity.name)
+            result.setdefault("description", entity.short_description or entity.description)
+            if not result.get("image") and entity.image_url:
+                result["image"] = entity.image_url
+    elif collection_id:
+        entity = db.scalar(select(Collection).where(
+            Collection.id == collection_id, Collection.tenant_id == site.tenant_id,
+        ))
+        if entity:
+            result["seo_title"] = entity.seo_title
+            result["seo_description"] = entity.seo_description
+            result.setdefault("title", entity.title)
+            result.setdefault("description", entity.seo_description or entity.description)
+            if not result.get("image") and entity.image_url:
+                result["image"] = entity.image_url
+    return result
+
+
 def metadata(site, page, document, canonical: str, preview: bool = False) -> dict:
     from app.content import safe_url
 
@@ -71,16 +130,109 @@ def metadata(site, page, document, canonical: str, preview: bool = False) -> dic
     description = document.get("seo_description") or document.get("description") or config["seo_default_description"]
     if home and config.get("seo_home_description"):
         description = config["seo_home_description"]
-    social_title = (document.get("social_title") or document.get("seo_title")
-                    or config.get("seo_social_title") or title)
-    image_value = document.get("social_image") or document.get("image") or config.get("seo_social_image", "")
+    social_title = (document.get("seo_social_title") or document.get("social_title")
+                    or document.get("seo_title") or config.get("seo_social_title") or title)
+    image_value = (document.get("seo_social_image") or document.get("social_image")
+                   or document.get("image") or config.get("seo_social_image", ""))
     image = safe_url(image_value, media=True) if image_value else ""
     origin = "https://" + (site.hostname or "")
+    logo_value = config.get("logo") or config.get("logo_dark") or config.get("logo_light") or ""
+    logo = safe_url(logo_value, media=True) if logo_value else ""
+    indexing = config["seo_indexing"]
+    noindex = bool(document.get("seo_noindex", False)) or not indexing
+    kind = getattr(page, "kind", "")
+    og_type = "product" if kind == "product" else "article" if kind == "article" else "website"
     return {"title": title, "description": description, "social_title": social_title,
             "image": image, "canonical": origin + page.path if site.hostname else canonical,
-            "indexing": config["seo_indexing"],
+            "indexing": indexing, "noindex": noindex, "og_type": og_type, "logo": logo,
+            "has_seo_title": bool(str(document.get("seo_title") or "").strip()
+                                   or (home and config.get("seo_home_title"))),
             "google_verification": config["seo_google_verification"],
             "bing_verification": config["seo_bing_verification"]}
+
+
+def health_report(db, site) -> list[dict]:
+    """Return advisory SEO issues for published pages owned by this site."""
+    from sqlalchemy import select
+
+    from app.models import Collection, Product, SitePage
+    from app.site_blocks import default_locale, resolve_document
+    from app.site_blog import is_listed
+    from app.site_index_routes import site_origin
+
+    pages = list(db.scalars(select(SitePage).where(
+        SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+        SitePage.published_json.is_not(None),
+    ).order_by(SitePage.path, SitePage.id)))
+    canonical_base = site_origin(site)
+    rows = []
+    for page in pages:
+        if page.product_id:
+            product = db.scalar(select(Product).where(
+                Product.id == page.product_id, Product.tenant_id == site.tenant_id,
+                Product.status == "active", Product.is_published.is_(True),
+            ))
+            if not product:
+                continue
+        elif page.collection_id:
+            collection = db.scalar(select(Collection).where(
+                Collection.id == page.collection_id, Collection.tenant_id == site.tenant_id,
+                Collection.is_published.is_(True),
+            ))
+            if not collection:
+                continue
+        if page.kind == "article" and not is_listed(page):
+            continue
+
+        published = page.published_json or page.draft_json or {
+            "title": page.title, "blocks": [],
+        }
+        document = seo_document(db, site, page, resolve_document(
+            published, default_locale(site),
+        ))
+        seo = metadata(site, page, document, canonical_base + page.path)
+        if page.product_id:
+            edit_href = f"/admin/sites/{site.id}/products/{page.product_id}"
+        elif page.collection_id:
+            edit_href = f"/admin/sites/{site.id}/collections/{page.collection_id}"
+        elif page.kind == "article":
+            edit_href = f"/admin/sites/{site.id}/content/blog-posts/{page.id}"
+        else:
+            edit_href = f"/admin/sites/{site.id}/content/pages/{page.id}/seo"
+        title = str(seo["title"] or "").strip()
+        description = str(seo["description"] or "").strip()
+        issues = []
+        if not seo["has_seo_title"]:
+            issues.append(("missing_title", "Missing SEO title"))
+        if not description:
+            issues.append(("missing_description", "Missing description"))
+        elif len(description) > 160:
+            issues.append(("long_description", "Description over 160 characters"))
+        if not seo["image"]:
+            issues.append(("missing_social_image", "Missing social image"))
+        if seo["noindex"]:
+            issues.append(("noindex", "Hidden from search engines"))
+        if len(title) > 60:
+            issues.append(("long_title", "Title over 60 characters"))
+        rows.append({
+            "id": page.id,
+            "kind": page.kind,
+            "path": page.path,
+            "title": title or page.title,
+            "url": canonical_base + page.path,
+            "edit_href": edit_href,
+            "issues": [{"code": code, "label": label} for code, label in issues],
+        })
+
+    counts = {}
+    for row in rows:
+        normalized = row["title"].casefold()
+        if normalized:
+            counts[normalized] = counts.get(normalized, 0) + 1
+    for row in rows:
+        if row["title"].casefold() and counts.get(row["title"].casefold(), 0) > 1:
+            row["issues"].append({"code": "duplicate_title", "label": "Duplicate title"})
+    return rows
 
 
 def robots_content(site, config: dict) -> str:

@@ -756,11 +756,20 @@ def register_site_routes(rt):
                 blog_categories = categories_for(db, site) if page.kind == "article" else []
                 from app.site_media import media_for, media_url
                 library = [(media_url(m), m.title or "Untitled image", resolve_text(m.localized_alt if m.localized_alt is not None else m.alt, default_locale(site))) for m in media_for(db, site) if m.content_type.startswith("image/")]
+                if page.kind == "article":
+                    seo_href = f"/admin/sites/{site.id}/content/blog-posts/{page.id}"
+                elif page.kind == "product":
+                    seo_href = f"/admin/sites/{site.id}/products/{page.product_id}"
+                elif page.kind == "collection":
+                    seo_href = f"/admin/sites/{site.id}/collections/{page.collection_id}"
+                else:
+                    seo_href = f"/admin/sites/{site.id}/content/pages/{page.id}/seo"
 
                 revisions = list(db.scalars(select(SiteRevision).where(SiteRevision.page_id == page.id,
                     SiteRevision.site_id == site.id, SiteRevision.tenant_id == site.tenant_id).order_by(SiteRevision.created_at.desc()).limit(20)))
                 return shell(document["title"], Div(A("← Pages", href=f"/admin/sites/{site.id}/pages"),
                     A("Open visual editor", href=f"/admin/sites/{site.id}/editor?page={page.id}"),
+                    A("Edit SEO", href=seo_href),
                     A("Browse media library", href=f"/admin/sites/{site.id}/media", target="_blank"), cls="e-actions"),
                     Div(Form(csrf(session), Input(type="hidden", name="version", value=page.version),
                         Label("URL path", Input(name="path", value=page.path, required=True)),
