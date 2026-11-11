@@ -18,7 +18,6 @@ from fasthtml.common import (
     Option,
     P,
     Select,
-    Small,
     Span,
     Summary,
 )
@@ -58,9 +57,11 @@ def render(db, site, customer, request, session, csrf, tab="next"):
     active = next((row for row in contracts if row.state == "active"), None)
     tabs = (("next", copy["next_order"]), ("subscriptions", copy["subscriptions"]),
             ("orders", copy["order_history"]), ("account", copy["account"]))
-    nav = Div(*[A(label, href=base + "?tab=" + key, aria_current="page" if tab == key else None,
+    nav = Div(*[A(label, href=base + "?tab=" + key, role="tab",
+                    aria_selected="true" if tab == key else "false",
+                    aria_current="page" if tab == key else None,
                     cls="portal-tab" + (" is-active" if tab == key else ""))
-               for key, label in tabs], role="tablist", aria_label="Customer account", cls="portal-tabs")
+               for key, label in tabs], role="tablist", aria_label=copy["navigation_label"], cls="portal-tabs")
 
     def action_form(contract, action, label, *fields, cls="portal-action-form"):
         return Form(csrf(session), Input(type="hidden", name="version", value=contract.version),
@@ -109,34 +110,43 @@ def render(db, site, customer, request, session, csrf, tab="next"):
                 current_variant_ids = {item["variant_id"] for item in active.lines_json}
                 swap_options = [(option, product) for option, product in options
                     if option.id != line["variant_id"] and option.id not in current_variant_ids]
+                edit_panel = Details(Summary(copy["edit"]),
+                    action_form(active, "quantity", copy["save_changes"],
+                        Input(type="hidden", name="variant_id", value=line["variant_id"]),
+                        Label(copy["quantity"], Input(name="quantity", type="number", value=line["quantity"],
+                            min=1, max=25, required=True))),
+                    action_form(active, "variant", copy["save_changes"],
+                        Input(type="hidden", name="from_variant_id", value=line["variant_id"]),
+                        Label(copy["variant"], Select(*[Option(option.name, value=option.id,
+                            selected=option.id == line["variant_id"]) for option in variants],
+                            name="variant_id", required=True))),
+                    action_form(active, "frequency", copy["save_changes"],
+                        Label(copy["frequency"], Select(*[Option(frequency_text(months), value=months,
+                            selected=months == active.interval_months)
+                            for months in range(1, 13)], name="months"))),
+                    action_form(active, "remove_product", copy["remove_product"],
+                        Input(type="hidden", name="variant_id", value=line["variant_id"]),
+                        cls="portal-remove-form"), cls="portal-item-panel")
+                swap_panel = Details(Summary(copy["swap"]),
+                    action_form(active, "swap", copy["save_changes"],
+                        Input(type="hidden", name="from_variant_id", value=line["variant_id"]),
+                        Label(copy["swap"], Select(*[Option(option.name + " · " + product.name,
+                            value=option.id) for option, product in swap_options],
+                            name="variant_id", required=True)) if swap_options else P(copy["no_swap_options"]),
+                        cls="portal-inline-form"), cls="portal-item-panel")
                 item_nodes.append(Div(
-                    Img(src=product.image_url, alt="", loading="lazy") if product and product.image_url else None,
-                    Div(H3(line["name"]), P(frequency_text(active.interval_months), cls="portal-frequency"),
+                    Div(Img(src=product.image_url, alt="", loading="lazy") if product and product.image_url else None,
+                        Span(str(line["quantity"]), cls="portal-quantity-badge"), cls="portal-item-image"),
+                    Div(Div(H3(product.name if product else line["name"]),
+                            Span(frequency_text(active.interval_months),
+                            cls="portal-frequency"), cls="portal-item-title"),
+                        P(next((option.name for option in variants if option.id == line["variant_id"]), ""),
+                          cls="portal-variant"),
                         P(Del(money(compare, "USD")) if compare else None,
-                          Span(money(line["unit_minor"] * line["quantity"], "USD"))), cls="portal-item-price"),
-                    Div(Details(Summary(copy["edit"]),
-                        action_form(active, "quantity", copy["save_changes"],
-                            Input(type="hidden", name="variant_id", value=line["variant_id"]),
-                            Label(copy["quantity"], Input(name="quantity", type="number", value=line["quantity"],
-                                min=1, max=25, required=True))),
-                        action_form(active, "variant", copy["save_changes"],
-                            Input(type="hidden", name="from_variant_id", value=line["variant_id"]),
-                            Label(copy["variant"], Select(*[Option(option.name, value=option.id,
-                                selected=option.id == line["variant_id"]) for option in variants],
-                                name="variant_id", required=True))),
-                        action_form(active, "frequency", copy["save_changes"],
-                            Label(copy["frequency"], Select(*[Option(frequency_text(months), value=months,
-                                selected=months == active.interval_months)
-                                for months in range(1, 13)], name="months"))), cls="portal-edit-details"),
-                        action_form(active, "swap", copy["swap"],
-                            Input(type="hidden", name="from_variant_id", value=line["variant_id"]),
-                            Label(copy["swap"], Select(*[Option(product.name + " · " + option.name, value=option.id)
-                                for option, product in swap_options],
-                                name="variant_id", required=True)) if swap_options else None)
-                            if swap_options else None,
-                        action_form(active, "remove_product", copy["remove_product"],
-                            Input(type="hidden", name="variant_id", value=line["variant_id"])),
-                        cls="portal-item-actions"), cls="portal-item"))
+                          Span(money(line["unit_minor"] * line["quantity"], "USD")), cls="portal-item-price"),
+                        cls="portal-item-details"),
+                    Div(edit_panel, swap_panel, cls="portal-item-actions"),
+                    cls="portal-item"))
 
             product_rows, add_options = [], []
             contract_product_ids = {line["product_id"] for line in active.lines_json}
@@ -156,24 +166,33 @@ def render(db, site, customer, request, session, csrf, tab="next"):
                     add_options.append(Option(product.name + " · " + variant.name, value=variant.id))
                     product_rows.append(Div(Img(src=product.image_url, alt="", loading="lazy")
                         if product.image_url else None, H3(product.name),
-                        P(variant.name + " · " + money(commerce.discounted(listing.price_minor, 10), "USD")),
+                        P(money(commerce.discounted(listing.price_minor, 10), "USD")),
                         action_form(active, "add_product", copy["add_to_order"],
                             Input(type="hidden", name="variant_id", value=variant.id),
                             Input(type="hidden", name="quantity", value="1")), cls="portal-product"))
             now_date = datetime.now(UTC).date()
             content.extend([
-                Div(Div(Small(copy["processing"]), H2(active.next_due_at.strftime("%d %B %Y")),
-                        P(frequency_text(active.interval_months))),
-                    Div(action_form(active, "reschedule", copy["reschedule"], Label(copy["date"],
-                        Input(type="date", name="date", min=(now_date + timedelta(days=1)).isoformat(),
-                              max=(now_date + timedelta(days=90)).isoformat(), required=True)),
-                        cls="portal-inline-form"), action_form(active, "skip", copy["skip"]),
+                Div(Div(P(copy["next_order_intro"], cls="portal-next-label"),
+                        P(copy["processing_date"].format(date=active.next_due_at.strftime("%d %B %Y")),
+                          cls="portal-processing")),
+                    Div(Details(Summary(copy["reschedule"], cls="portal-button portal-button-primary"),
+                            action_form(active, "reschedule", copy["save"], Label(copy["date"],
+                                Input(type="date", name="date", value=active.next_due_at.date().isoformat(),
+                                      min=(now_date + timedelta(days=1)).isoformat(),
+                                      max=(now_date + timedelta(days=90)).isoformat(), required=True)),
+                                cls="portal-inline-form"), cls="portal-reschedule-panel"),
+                        action_form(active, "skip", copy["skip"], cls="portal-action-form portal-secondary"),
                         cls="portal-header-actions"), cls="portal-card portal-next-date"),
-                Div(H2(copy["items"]), *item_nodes, cls="portal-card"),
-                Div(H2(copy["add_product"]),
-                    action_form(active, "add_product", copy["add_to_order"],
-                        Label(copy["add_product"], Select(*add_options, name="variant_id", required=True)),
-                        Input(type="hidden", name="quantity", value="1")), cls="portal-card") if add_options else None,
+                Div(H2(copy["items"]), *item_nodes,
+                    Details(Summary(Span(copy["add_product"], cls="portal-add-icon"),
+                                    cls="portal-button portal-add-button"),
+                        action_form(active, "add_product", copy["add_to_order"],
+                            Label(copy["add_product"], Select(*add_options, name="variant_id", required=True)),
+                            Input(type="hidden", name="quantity", value="1"), cls="portal-inline-form"),
+                        cls="portal-add-panel") if add_options else None,
+                    cls="portal-card portal-items-card"),
+                Div(H2(copy["recommended"]), *product_rows[:4], cls="portal-card portal-recommendations")
+                    if product_rows else None,
                 Div(H2(copy["order_summary"]),
                     P(Span(copy["subtotal"]), Span(money(raw_subtotal, "USD")), cls="portal-summary-row"),
                     P(Span(copy["discounts"]), Span("−" + money(raw_discount, "USD") if raw_discount else money(0, "USD")), cls="portal-summary-row"),
@@ -182,6 +201,11 @@ def render(db, site, customer, request, session, csrf, tab="next"):
                     P(Span(copy["total"]), Span("Calculated when prepared"), cls="portal-summary-row portal-total"),
                     cls="portal-card portal-summary"),
                 Div(H2(copy["shipping_address"]),
+                    P(active.recipient_name),
+                    P(" · ".join(str(active.destination_json.get(key, "")) for key in
+                        ("line1", "line2", "city", "state", "postal_code")
+                        if active.destination_json.get(key)), cls="portal-address-copy"),
+                    Details(Summary(copy["edit"], cls="portal-text-action"),
                     Form(csrf(session), Input(type="hidden", name="version", value=active.version),
                         Input(type="hidden", name="request_key", value=secrets.token_hex(16)),
                         *[Label(label, Input(name=key, value=(active.recipient_name if key == "recipient_name"
@@ -192,12 +216,12 @@ def render(db, site, customer, request, session, csrf, tab="next"):
                         Input(type="hidden", name="country", value="US"),
                         Button(copy["change_address"], cls="portal-button"), method="post",
                         action=base + "/" + active.id + "/address", cls="portal-address-form"),
+                        cls="portal-address-panel"),
                     cls="portal-card"),
                 Div(H2(copy["payment_method"]), P(copy["card_on_file"]),
-                    action_form(active, "payment", copy["change_payment"]), cls="portal-card"),
+                    action_form(active, "payment", copy["update_payment"], cls="portal-action-form portal-secondary"),
+                    cls="portal-card"),
             ])
-            if product_rows:
-                content.append(Div(H2(copy["recommended"]), *product_rows[:4], cls="portal-card portal-recommendations"))
         else:
             content.append(Div(H2(copy["next_order"]), P(copy["no_subscriptions"]),
                 A(copy["subscriptions_heading"], href=base + "?tab=subscriptions"), cls="portal-card"))
