@@ -961,6 +961,24 @@ class MarketingConsent(TimestampMixin, Base):
     unsubscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class MarketingSubscriber(TimestampMixin, Base):
+    __tablename__ = "marketing_subscribers"
+    __table_args__ = (
+        UniqueConstraint("site_id", "email"),
+        CheckConstraint("status IN ('pending', 'subscribed', 'unsubscribed')"),
+        CheckConstraint("source IN ('footer', 'checkout', 'account', 'admin', 'import')"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    source: Mapped[str] = mapped_column(String(24), default="footer", index=True)
+    consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    consent_evidence: Mapped[str] = mapped_column(Text, default="")
+    unsubscribe_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+
+
 class CustomerOffer(TimestampMixin, Base):
     __tablename__ = "customer_offers"
     __table_args__ = (UniqueConstraint("site_id", "customer_id"), UniqueConstraint("site_id", "code"))
