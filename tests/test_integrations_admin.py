@@ -3,13 +3,13 @@
 from types import SimpleNamespace
 
 from fasthtml.common import to_xml
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app import ui
 from app.integrations import paypal
 from app.integrations.stripe_commerce import credentials as stripe_credentials
-from app.models import Base, User
+from app.models import Base, Site, User
 from scripts.demo_site import seed_demo_site
 
 
@@ -87,6 +87,23 @@ def test_paypal_guide_lists_key_env_vars_and_readiness(monkeypatch):
     assert "northstar" in html  # the seeded store appears in the readiness table
 
 
+def test_paypal_guide_points_to_the_generic_store_connection_page():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        db.add(User(email="admin@fastshop.example", name="Admin"))
+        db.flush()
+        seed_demo_site(db, "admin@fastshop.example")
+        db.commit()
+        site = db.scalar(select(Site).where(Site.slug == "northstar"))
+        base = f"/admin/sites/{site.id}/settings/integrations"
+        html = "".join(to_xml(p) for p in ui.paypal_guide(
+            db, site_id=site.id, tenant_ids={site.tenant_id}, base=base) if p is not None)
+    assert "Open PayPal settings" in html
+    assert base + "/paypal" in html
+    assert "Operator fallback" in html
+
+
 def test_integrations_hub_renders_all_providers():
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
@@ -94,3 +111,14 @@ def test_integrations_hub_renders_all_providers():
         html = "".join(to_xml(p) for p in ui.integrations_hub(db) if p is not None)
     for provider in ("Stripe", "PayPal", "WooCommerce", "FastERP"):
         assert provider in html
+
+
+def test_store_integrations_hub_includes_email_connection():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        base = "/admin/sites/store-id/settings/integrations"
+        html = "".join(to_xml(p) for p in ui.integrations_hub(
+            db, base=base, in_store=True) if p is not None)
+    assert "Email" in html
+    assert base + "/email" in html

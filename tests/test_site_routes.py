@@ -67,7 +67,7 @@ def test_draft_preview_requires_real_site_membership():
 
 def test_contact_persists_before_delivery_and_rate_limits(monkeypatch):
     import app.site_routes as routes
-    monkeypatch.setattr(routes, "deliver", lambda entry, config: "failed")
+    monkeypatch.setattr(routes, "deliver", lambda entry, config, **_kwargs: "failed")
     client = TestClient(app)
     page = client.get("/sites/northstar/pages/contact")
     token = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
