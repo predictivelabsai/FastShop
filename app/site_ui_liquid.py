@@ -942,7 +942,13 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     shell_settings = shell_values({**config, "theme_pack": "liquid"},
                                   shell_fields({"theme_pack": "liquid"}))
     from app.site_seo import metadata as seo_metadata
+    from app.site_seo import seo_document
+    from app.site_ui_liquid_support import jsonld_for_page
+    document = seo_document(db, site, page, document)
     seo = seo_metadata(site, page, document, canonical, preview=preview or content is not None)
+    structured_data = [] if content is not None else jsonld_for_page(
+        db, site, page, document, seo["canonical"], seo, preview=preview,
+    )
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(seo["title"]),
@@ -951,17 +957,19 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Meta(name="description", content=seo["description"]),
         Meta(
             name="robots",
-            content="noindex,nofollow" if content is not None or preview or site.status != "published" else "noindex,follow" if not seo["indexing"] else "index,follow",
+            content="noindex,nofollow" if content is not None or preview or site.status != "published" else "noindex" if seo["noindex"] else "index,follow",
         ),
         Meta(name="referrer", content="no-referrer") if content is not None else None,
         Meta(property="og:title", content=seo["social_title"]),
         Meta(property="og:description", content=seo["description"]),
         Meta(property="og:image", content=seo["image"]) if seo["image"] else None,
+        Meta(property="og:type", content=seo["og_type"]),
         Meta(property="og:url", content=seo["canonical"]),
         Meta(name="twitter:card", content="summary_large_image" if seo["image"] else "summary"),
         Meta(name="google-site-verification", content=seo["google_verification"]) if seo["google_verification"] else None,
         Meta(name="msvalidate.01", content=seo["bing_verification"]) if seo["bing_verification"] else None,
         Link(rel="canonical", href=seo["canonical"]),
+        *structured_data,
         Link(rel="icon", type="image/png", href=shell_settings["liquid_shell"]["header"]["favicon"]),
         faq_jsonld(document["blocks"]) if page.path == "/faq" else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid.css")),

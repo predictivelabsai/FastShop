@@ -1185,6 +1185,13 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                 default_description = published_settings.get("seo_default_description", "")
                 indexing_enabled = published_settings.get("seo_indexing", True)
                 sitemap = "https://" + (site.hostname or "your-store.example") + "/sitemap.xml"
+                from app.site_seo import health_report
+
+                seo_rows = health_report(db, site)
+                seo_counts = {}
+                for row in seo_rows:
+                    for issue in row["issues"]:
+                        seo_counts[issue["code"]] = seo_counts.get(issue["code"], 0) + 1
 
                 redirect_count = db.scalar(select(func.count()).select_from(UrlRedirect).where(
                     UrlRedirect.site_id == site.id,
@@ -1226,6 +1233,29 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                     A("Edit SEO settings", href=base + "/settings/seo", cls="a-button"),
                     title="Search engine optimisation",
                 )
+                health_labels = (
+                    ("missing_title", "Missing SEO title"),
+                    ("duplicate_title", "Duplicate title"),
+                    ("missing_description", "Missing description"),
+                    ("long_description", "Description over 160 characters"),
+                    ("missing_social_image", "Missing social image"),
+                    ("noindex", "Hidden from search engines"),
+                    ("long_title", "Title over 60 characters"),
+                )
+                review_count = sum(bool(row["issues"]) for row in seo_rows)
+                review_label = "published item needs" if review_count == 1 else "published items need"
+                health_card = card(
+                    P(f"{review_count} {review_label} review."),
+                    *[
+                        P(
+                            label + ": ",
+                            Strong(str(seo_counts.get(code, 0)) if seo_counts.get(code) else "Clear"),
+                        )
+                        for code, label in health_labels
+                    ],
+                    A("Review SEO health", href=base + "/marketing/seo-health", cls="a-button"),
+                    title="SEO health",
+                )
                 redirects_card = card(
                     P(f"{redirect_count} URL redirect" + ("" if redirect_count == 1 else "s")),
                     A("Manage redirects", href=base + "/redirects", cls="a-button"),
@@ -1259,11 +1289,48 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                     P("Review search, tracking, redirects and promotions for this store."),
                     Div(
                         seo_card,
+                        health_card,
                         redirects_card,
                         tracking_card,
                         discounts_card,
                         subscribers_card,
                         cls="a-marketing-grid",
+                    ),
+                )
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/marketing/seo-health", methods=["GET"])
+    def seo_health(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session))
+                from app.site_seo import health_report
+
+                rows = [row for row in health_report(db, site) if row["issues"]]
+                entries = [
+                    Article(
+                        Div(
+                            Small(row["kind"].replace("_", " ").title()),
+                            H3(row["title"]),
+                            P(row["url"]),
+                            P(*[
+                                Span(issue["label"], cls="a-seo-issue")
+                                for issue in row["issues"]
+                            ]),
+                        ),
+                        A("Edit SEO", href=row["edit_href"], cls="a-button"),
+                        cls="a-seo-health-row",
+                    )
+                    for row in rows
+                ]
+                return shell(
+                    "SEO health",
+                    page_header("SEO health", back_href=f"/admin/sites/{site.id}/marketing"),
+                    P("Review these recommendations for published pages and catalogue entries."),
+                    card(
+                        *(entries if entries else [P("No SEO issues found for published content.")]),
+                        title="Published content",
                     ),
                 )
         except CommerceError as exc:

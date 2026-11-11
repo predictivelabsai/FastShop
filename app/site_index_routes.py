@@ -15,7 +15,8 @@ def site_origin(site):
 
 
 def register_site_index_routes(rt):
-    from app.site_seo import robots_content
+    from app.site_seo import metadata as seo_metadata
+    from app.site_seo import robots_content, seo_document
 
     @rt("/sites/{site_slug}/robots.txt")
     def robots(site_slug: str):
@@ -46,6 +47,9 @@ def register_site_index_routes(rt):
             ).order_by(SitePage.path)))
             urls = []
             for page in pages:
+                document = seo_document(db, site, page, page.published_json or {})
+                if seo_metadata(site, page, document, site_origin(site) + page.path)["noindex"]:
+                    continue
                 if page.kind == "product":
                     product = db.scalar(select(Product).where(
                         Product.id == page.product_id,

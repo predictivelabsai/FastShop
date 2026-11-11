@@ -1,6 +1,7 @@
 """Tenant-scoped store tools and confirmed merchant actions for the agent."""
 from __future__ import annotations
 
+import copy
 import secrets
 from datetime import UTC, date, datetime, timedelta
 
@@ -10,6 +11,7 @@ from app.models import (
     AgentAction,
     AgentMessage,
     Channel,
+    Collection,
     Discount,
     DiscountCode,
     Membership,
@@ -21,6 +23,7 @@ from app.models import (
     ShopCustomer,
     SiteCommerceSettings,
     SiteOrder,
+    SitePage,
     Stock,
     SubscriptionContract,
     TaxRate,
@@ -245,6 +248,51 @@ def register_tools(db, site, user_id, conversation_id):
         if fields.get("status") not in (None, "active", "draft", "archived"):
             raise CommerceError("Choose active, draft or archived status.")
         return {"product_id": p.id, "fields": fields}, f"Update {p.name}", p.version
+
+    def validate_entity_seo(a):
+        from app.site_seo import validate_entity_fields
+
+        entity_type = a["entity_type"]
+        values = {key: a[key] for key in (
+            "seo_title", "seo_description", "seo_social_title", "seo_social_image", "seo_noindex",
+        ) if key in a}
+        if not values:
+            raise CommerceError("Provide at least one SEO field to update.")
+        values = validate_entity_fields(db, site, values)
+        entity_id = a["entity_id"]
+        if entity_type in {"page", "blog_post"}:
+            expected_kind = "article" if entity_type == "blog_post" else None
+            query = select(SitePage).where(
+                SitePage.id == entity_id,
+                SitePage.site_id == site.id,
+                SitePage.tenant_id == site.tenant_id,
+            )
+            if expected_kind:
+                query = query.where(SitePage.kind == expected_kind)
+            else:
+                query = query.where(SitePage.kind.notin_({"product", "collection", "article"}))
+            row = db.scalar(query)
+            if not row:
+                raise CommerceError("Page not found in this store.")
+            label = row.title
+            version = row.version
+        elif entity_type == "product":
+            row = product(entity_id)
+            label, version = row.name, row.version
+        elif entity_type == "collection":
+            row = db.scalar(select(Collection).where(
+                Collection.id == entity_id, Collection.tenant_id == site.tenant_id,
+            ))
+            if not row:
+                raise CommerceError("Collection not found in this store.")
+            label, version = row.title, row.version
+        else:
+            raise CommerceError("Choose a page, blog post, product or collection.")
+        return {
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "fields": values,
+        }, f"Update SEO for {label}", version
 
     def validate_price(a):
         variant = db.scalar(select(ProductVariant).where(
@@ -486,6 +534,12 @@ def register_tools(db, site, user_id, conversation_id):
         {"product_id": {"type": "string"}, "name": {"type": "string"},
          "description": {"type": "string"}, "status": {"type": "string", "enum": ["active", "draft", "archived"]}},
         ["product_id"], "update_product", validate_update_product))
+    tools.append(write("update_entity_seo", "Set SEO metadata for a page, blog post, product or collection",
+        {"entity_type": {"type": "string", "enum": ["page", "blog_post", "product", "collection"]},
+         "entity_id": {"type": "string"}, "seo_title": {"type": "string"},
+         "seo_description": {"type": "string"}, "seo_social_title": {"type": "string"},
+         "seo_social_image": {"type": "string"}, "seo_noindex": {"type": "boolean"}},
+        ["entity_type", "entity_id"], "update_entity_seo", validate_entity_seo))
     tools.append(write("set_variant_price", "Set a variant price in integer minor currency units",
         {"variant_id": {"type": "string"}, "price_minor": {"type": "integer", "minimum": 0}},
         ["variant_id", "price_minor"], "set_variant_price", validate_price))
@@ -607,6 +661,61 @@ def confirm_action(db, site, user, action_id, *, gateway_factory=None):
             p = catalog_admin.update_product(db, site, p.id, action.payload_json["fields"],
                 expected_version=p.version, user_id=user_id)
             action.result_json = {"product_id": p.id, "version": p.version}
+        elif action.kind == "update_entity_seo":
+            from app import catalog_admin, content
+
+            payload = action.payload_json
+            entity_type = payload["entity_type"]
+            entity_id = payload["entity_id"]
+            values = payload["fields"]
+            column_fields = {key: values[key] for key in ("seo_title", "seo_description")
+                             if key in values}
+            if entity_type == "product":
+                row = catalog_admin.get_product(db, site, entity_id)
+                if row.version != payload["expected_version"]:
+                    raise CommerceError("This product changed after the SEO change was proposed.")
+                catalog_admin.update_product(db, site, row.id, column_fields,
+                    expected_version=row.version, user_id=user_id)
+                page = db.scalar(select(SitePage).where(
+                    SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+                    SitePage.product_id == row.id,
+                ))
+            elif entity_type == "collection":
+                row = db.scalar(select(Collection).where(
+                    Collection.id == entity_id, Collection.tenant_id == site.tenant_id,
+                ))
+                if not row or row.version != payload["expected_version"]:
+                    raise CommerceError("This collection changed after the SEO change was proposed.")
+                catalog_admin.save_collection(db, site, column_fields,
+                    collection_id=row.id, expected_version=row.version)
+                page = db.scalar(select(SitePage).where(
+                    SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+                    SitePage.collection_id == row.id,
+                ))
+            else:
+                page = db.scalar(select(SitePage).where(
+                    SitePage.id == entity_id,
+                    SitePage.site_id == site.id,
+                    SitePage.tenant_id == site.tenant_id,
+                ))
+                if not page or page.version != payload["expected_version"]:
+                    raise CommerceError("This page changed after the SEO change was proposed.")
+                document = copy.deepcopy(page.draft_json or {}) | values
+                content.save_page(db, site, page.id, user_id, document, page.version, "draft")
+                if page.published_json is not None:
+                    published = copy.deepcopy(page.published_json) | values
+                    page.published_json = published
+            extra_fields = {key: value for key, value in values.items()
+                            if key not in {"seo_title", "seo_description"}}
+            if entity_type in {"product", "collection"} and page and extra_fields:
+                draft = copy.deepcopy(page.draft_json or {}) | extra_fields
+                page.draft_json = draft
+                if page.published_json is not None:
+                    page.published_json = copy.deepcopy(page.published_json) | extra_fields
+            if entity_type in {"product", "collection"} and not page:
+                raise CommerceError("Catalogue page not found in this store.")
+            action.result_json = {"entity_type": entity_type, "entity_id": entity_id,
+                                  "updated": sorted(values)}
         elif action.kind == "set_variant_price":
             from app import catalog_admin
             payload = action.payload_json

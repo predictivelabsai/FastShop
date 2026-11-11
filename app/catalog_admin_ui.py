@@ -249,6 +249,7 @@ def product_editor(
     previous=None,
     following=None,
     currency="USD",
+    seo_fields=None,
 ):
     base = f"/admin/sites/{site.id}/products"
     p = product
@@ -417,12 +418,21 @@ def product_editor(
         ),
         title="Variants",
     )
+    from app.site_seo_ui import seo_editor_fields
+    seo_fields = seo_fields or {}
     seo = card(
-        NotStr(
-            f'<div class="c-seo"><strong data-seo-preview-title>{e(get("seo_title") or get("name"))}</strong><span>/products/<span data-seo-preview-handle>{e(get("slug"))}</span></span><p data-seo-preview-description>{e(get("seo_description"))}</p></div>'
+        seo_editor_fields(
+            site,
+            title=get("name"),
+            path=f"/products/{get('slug')}",
+            seo_title=get("seo_title"),
+            seo_description=get("seo_description"),
+            social_title=seo_fields.get("seo_social_title", ""),
+            social_image=seo_fields.get("seo_social_image", ""),
+            noindex=seo_fields.get("seo_noindex", False),
+            images=library,
+            default_description=get("short_description") or get("description"),
         ),
-        field("SEO title", "seo_title", get("seo_title"), maxlength="70"),
-        area("SEO description", "seo_description", get("seo_description"), maxlength="320"),
         field("URL handle", "slug", get("slug"), pattern=r"[a-z0-9\-]+"),
         Label(Input(type="hidden", name="create_redirect", value="off"), Input(type="checkbox", name="create_redirect", value="on", checked=True), " Create a redirect when the handle changes"),
         title="Search engine listing",
@@ -607,7 +617,9 @@ def collection_index(site, rows, q="", kind="", sort="title"):
     )
 
 
-def collection_editor(site, collection, products, selected, csrf, count=0):
+def collection_editor(site, collection, products, selected, csrf, count=0, library=(), seo_fields=None):
+    from app.site_seo_ui import seo_editor_fields
+
     c = collection
 
     def get(key, default=""):
@@ -659,8 +671,18 @@ def collection_editor(site, collection, products, selected, csrf, count=0):
             title="Products",
         ),
         card(
-            field("SEO title", "seo_title", get("seo_title")),
-            area("SEO description", "seo_description", get("seo_description")),
+            seo_editor_fields(
+                site,
+                title=get("title"),
+                path=f"/collections/{get('handle')}",
+                seo_title=get("seo_title"),
+                seo_description=get("seo_description"),
+                social_title=(seo_fields or {}).get("seo_social_title", ""),
+                social_image=(seo_fields or {}).get("seo_social_image", ""),
+                noindex=(seo_fields or {}).get("seo_noindex", False),
+                images=library,
+                default_description=get("description"),
+            ),
             field("URL handle", "handle", get("handle")),
             Label(Input(type="hidden", name="create_redirect", value="off"), Input(type="checkbox", name="create_redirect", value="on", checked=True), " Create a redirect when the handle changes"),
             title="Search engine listing",
