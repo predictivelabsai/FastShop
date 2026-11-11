@@ -193,6 +193,8 @@ def register_tools(db, site, user_id, conversation_id):
             "version": _iso(d.updated_at)} for d in rows]}
 
     def store_settings(_a):
+        from app.site_tracking import tracking_ids
+
         settings = db.scalar(select(SiteCommerceSettings).where(
             SiteCommerceSettings.site_id == site.id, SiteCommerceSettings.tenant_id == site.tenant_id))
         zones = db.scalars(select(ShippingZone).where(ShippingZone.tenant_id == site.tenant_id,
@@ -213,8 +215,18 @@ def register_tools(db, site, user_id, conversation_id):
                 "prices_include_tax": t.prices_include_tax} for t in taxes],
             "payments": {"connected": bool(settings and settings.mode),
                          "mode": settings.mode if settings else "unconfigured"},
+            "tracking": tracking_ids(db, site),
             "policies": {k: str(v)[:2000] for k, v in (site.settings_json or {}).items()
                          if k in {"shipping_policy", "returns_policy", "privacy_policy", "terms_policy"}}}
+
+    def validate_tracking_update(a):
+        from app.site_tracking import TRACKING_FIELDS, tracking_ids, validate_tracking_ids
+
+        submitted = {field: a[field] for field in TRACKING_FIELDS if field in a}
+        if not submitted:
+            raise CommerceError("Provide at least one tracking ID to update.")
+        values = tracking_ids(db, site) | submitted
+        return {"fields": validate_tracking_ids(values)}, "Update tracking IDs", site.version
 
     def sales_summary(a):
         from app.order_management import revenue_report
@@ -237,6 +249,10 @@ def register_tools(db, site, user_id, conversation_id):
         read("list_subscriptions", "List subscriptions", {"state": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, [], list_subscriptions),
         read("list_discounts", "List store discounts", {}, [], list_discounts),
         read("get_store_settings", "Read shipping, tax, policies and payment connection status without secrets", {}, [], store_settings),
+        write("set_tracking_ids", "Set GA4, Google Ads, Meta and TikTok tracking IDs", {
+            field: {"type": "string", "maxLength": 120} for field in (
+                "ga4_measurement_id", "google_ads_conversion_id", "google_ads_purchase_label",
+                "meta_pixel_id", "tiktok_pixel_id")}, [], "set_tracking_ids", validate_tracking_update),
         read("sales_summary", "Read sales summary for a bounded period", {"period": {"type": "string", "enum": ["7d", "30d", "90d"]}}, ["period"], sales_summary),
     ]
 
@@ -661,6 +677,29 @@ def confirm_action(db, site, user, action_id, *, gateway_factory=None):
             p = catalog_admin.update_product(db, site, p.id, action.payload_json["fields"],
                 expected_version=p.version, user_id=user_id)
             action.result_json = {"product_id": p.id, "version": p.version}
+        elif action.kind == "set_tracking_ids":
+            from app import site_builder_services as builder
+            from app.site_tracking import TRACKING_FIELDS, validate_tracking_ids
+
+            payload = action.payload_json
+            site = builder.lock_site(db, site.id, user_id, payload["expected_version"])
+            before = builder.snapshot(db, site)
+            values = validate_tracking_ids({
+                field: payload["fields"].get(field, "") for field in TRACKING_FIELDS
+            })
+            draft = copy.deepcopy(site.settings_json or {})
+            draft.pop("ga4_measurement_id", None)
+            draft["tracking"] = values
+            site.settings_json = draft
+            if site.status == "published":
+                published = copy.deepcopy(site.published_settings_json or {})
+                published.pop("ga4_measurement_id", None)
+                published["tracking"] = values
+                site.published_settings_json = published
+            site.version += 1
+            db.flush()
+            builder.record_change(db, site, user_id, before, "agent", "Tracking settings")
+            action.result_json = {"tracking": values, "version": site.version}
         elif action.kind == "update_entity_seo":
             from app import catalog_admin, content
 

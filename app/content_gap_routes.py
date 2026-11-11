@@ -200,9 +200,9 @@ def register_content_gap_routes(rt, actor, csrf, check_csrf, shell, error):
                             checked=bool(value("password_enabled"))), " Require a storefront password"),
                         Label("New password", Input(name="password", type="password", minlength=8, maxlength=256,
                             autocomplete="new-password")), P("Leave blank to keep the current password. Merchant previews bypass protection."),
-                        H2("Analytics and marketing"), P("Tags load only after the relevant visitor consent."),
-                        Label("Google Analytics measurement ID", Input(name="analytics_id", value=value("analytics_id"))),
-                        Label("Meta pixel ID", Input(name="meta_pixel_id", value=value("meta_pixel_id"))),
+                        H2("Tracking and pixels"),
+                        P("Manage GA4, Google Ads, Meta and TikTok IDs on the marketing tracking page."),
+                        A("Open tracking settings", href=base(site.id) + "/marketing/tracking", cls="a-button"),
                         Button("Save preferences", cls="a-button a-button-primary"), method="post",
                         action=base(site.id) + "/preferences", cls="e-form cg-form")))
         except CommerceError as exc:
