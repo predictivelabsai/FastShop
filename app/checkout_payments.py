@@ -26,12 +26,11 @@ def publishable_for(db, site):
     mode = commerce.payment_mode(db, site)
     if mode == "live":
         live_credentials.live_secrets(db, site)
-        credential = live_credentials.credential_for(db, site)
-        key = credential.publishable_key if credential else ""
+        _, _, key = credentials(site, db=db, mode="live")
         if key and not key.startswith("pk_live_"):
             raise CommerceError("The live Stripe publishable key does not match live payments.")
         return key or None
-    _, _, key = credentials(site)
+    _, _, key = credentials(site, db=db)
     if key and not key.startswith("pk_test_"):
         raise CommerceError("The Stripe publishable key does not match sandbox payments.")
     return key or None

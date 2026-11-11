@@ -25,7 +25,7 @@ from app.models import (
 )
 from app.services import CommerceError
 
-_SECRET_KEY = re.compile(r"sk_live_[A-Za-z0-9_]{8,}")
+_SECRET_KEY = re.compile(r"(?:sk|rk)_live_[A-Za-z0-9_]{8,}")
 _WEBHOOK_SECRET = re.compile(r"whsec_[A-Za-z0-9_]{8,}")
 _PUBLISHABLE_KEY = re.compile(r"pk_live_[A-Za-z0-9_]{8,}")
 _FORMAT = b"FSL1"
@@ -109,13 +109,25 @@ def state_for(db, site: Site, config: SiteCommerceSettings | None = None) -> Liv
     )
     if not credential:
         return LiveCredentialState(False, False, False)
+    masked_publishable = (f"pk_live_...{credential.publishable_key[-4:]}"
+                          if credential.publishable_key else "")
+    from app.models import SiteStripeConnection
+    connection = db.scalar(select(SiteStripeConnection).where(
+        SiteStripeConnection.site_id == site.id,
+        SiteStripeConnection.tenant_id == site.tenant_id,
+        SiteStripeConnection.mode == "live",
+    ))
+    if connection:
+        from app.stripe_connections import decrypted as decrypt_connection
+        _, _, publishable = decrypt_connection(db, site, connection)
+        masked_publishable = f"pk_live_...{publishable[-4:]}"
     return LiveCredentialState(
         True,
         bool(credential.verified_at),
         accepted,
         credential.id,
         f"{credential.key_prefix}****{credential.key_last_four}",
-        (f"pk_live_...{credential.publishable_key[-4:]}" if credential.publishable_key else ""),
+        masked_publishable,
         credential.created_by,
         credential.created_at,
         credential.verified_at,

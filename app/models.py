@@ -803,6 +803,28 @@ class SiteIntegrationCredential(TimestampMixin, Base):
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class SiteStripeConnection(TimestampMixin, Base):
+    """Merchant-managed encrypted Stripe connection for one site and mode."""
+
+    __tablename__ = "site_stripe_connections"
+    __table_args__ = (UniqueConstraint("site_id", "mode"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    mode: Mapped[str] = mapped_column(String(12))
+    secret_key_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    publishable_key_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    webhook_secret_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    webhook_endpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    key_last_four: Mapped[str] = mapped_column(String(4))
+    publishable_last_four: Mapped[str] = mapped_column(String(4))
+    account_id: Mapped[str] = mapped_column(String(64), default="")
+    account_name: Mapped[str] = mapped_column(String(200), default="")
+    account_country: Mapped[str] = mapped_column(String(2), default="")
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class CommerceQuote(TimestampMixin, Base):
     __tablename__ = "commerce_quotes"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)

@@ -8,6 +8,7 @@ import inspect
 import json
 import os
 import re
+import secrets
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -19,7 +20,53 @@ from app.services import CommerceError
 API_VERSION = "2025-03-31.basil"
 
 
-def credentials(site):
+def credentials(site, db=None, mode=None):
+    if db is None and hasattr(site, "tenant_id"):
+        from app.db import SessionLocal
+
+        with SessionLocal() as session:
+            return credentials(site, db=session, mode=mode)
+    if db is not None:
+        from sqlalchemy import select
+
+        from app.live_credentials import decrypt_secret
+        from app.models import SiteCommerceSettings, SiteStripeConnection
+
+        config = db.scalar(select(SiteCommerceSettings).where(
+            SiteCommerceSettings.site_id == site.id,
+            SiteCommerceSettings.tenant_id == site.tenant_id,
+        ))
+        selected_mode = ("live" if mode == "live" or (mode is None and config and config.mode == "live")
+                         else "test")
+        if selected_mode == "live":
+            from app.live_credentials import credential_for, live_secrets
+            key, secret = live_secrets(db, site, config)
+            connection = db.scalar(select(SiteStripeConnection).where(
+                SiteStripeConnection.site_id == site.id,
+                SiteStripeConnection.tenant_id == site.tenant_id,
+                SiteStripeConnection.mode == selected_mode,
+            ))
+            if connection:
+                aad = f"fastshop:{site.id}:{connection.id}:"
+                publishable = decrypt_secret(connection.publishable_key_ciphertext,
+                    aad=aad + "publishable-key")
+            else:
+                credential = credential_for(db, site)
+                publishable = credential.publishable_key or "" if credential else ""
+            return key, secret, publishable
+
+        connection = db.scalar(select(SiteStripeConnection).where(
+            SiteStripeConnection.site_id == site.id,
+            SiteStripeConnection.tenant_id == site.tenant_id,
+            SiteStripeConnection.mode == selected_mode,
+        ))
+        if connection:
+            aad = f"fastshop:{site.id}:{connection.id}:"
+            return (
+                decrypt_secret(connection.secret_key_ciphertext, aad=aad + "secret-key"),
+                decrypt_secret(connection.webhook_secret_ciphertext, aad=aad + "webhook-secret"),
+                decrypt_secret(connection.publishable_key_ciphertext, aad=aad + "publishable-key"),
+            )
     prefix = f"FASTSHOP_STRIPE_{site.id.upper()}_"
     key = os.getenv(prefix + "SECRET_KEY", "")
     secret = os.getenv(prefix + "WEBHOOK_SECRET", "")
@@ -68,7 +115,7 @@ class StripeGateway:
                 self.key, self.webhook_secret = live_credentials.live_secrets(db, site, config)
                 self.live_mode = True
             else:
-                self.key, self.webhook_secret, _ = credentials(site)
+                self.key, self.webhook_secret, _ = credentials(site, db=db, mode="test")
         else:
             self.key, self.webhook_secret, _ = credentials(site)
         self.transport = transport
@@ -77,8 +124,19 @@ class StripeGateway:
             raise CommerceError("Configure a Stripe sandbox key for this site. Live keys are not enabled.")
 
     @classmethod
+    def for_connection(cls, key: str, webhook_secret: str = "", *, transport=None):
+        if not re.fullmatch(r"(?:sk|rk)_(?:test|live)_[A-Za-z0-9_]{8,}", key):
+            raise CommerceError("Enter a valid Stripe secret or restricted key.")
+        gateway = cls.__new__(cls)
+        gateway.key = key
+        gateway.webhook_secret = webhook_secret
+        gateway.transport = transport
+        gateway.live_mode = "_live_" in key
+        return gateway
+
+    @classmethod
     def for_live_validation(cls, key: str, webhook_secret: str, *, transport=None):
-        if not re.fullmatch(r"sk_live_[A-Za-z0-9_]{8,}", key) or not re.fullmatch(
+        if not re.fullmatch(r"(?:sk|rk)_live_[A-Za-z0-9_]{8,}", key) or not re.fullmatch(
             r"whsec_[A-Za-z0-9_]{8,}", webhook_secret
         ):
             raise CommerceError("Stored live Stripe credentials are invalid.")
@@ -90,7 +148,7 @@ class StripeGateway:
         return gateway
 
     def request(self, method, path, payload=None, *, idempotency_key=None):
-        if method not in {"GET", "POST"} or not re.fullmatch(r"/[A-Za-z0-9_/]+", path) or path.startswith("//"):
+        if method not in {"GET", "POST", "DELETE"} or not re.fullmatch(r"/[A-Za-z0-9_/]+", path) or path.startswith("//"):
             raise CommerceError("Invalid Stripe operation.")
         if method == "POST" and (not isinstance(idempotency_key, str) or not 1 <= len(idempotency_key) <= 255):
             raise CommerceError("Stripe writes require a stable idempotency key.")
@@ -125,19 +183,53 @@ class StripeGateway:
             # Stripe errors can include customer/address data or account details.
             raise CommerceError("Stripe could not complete this request. Check configuration or try again; no payment is assumed.") from None
 
-    def connection_status(self):
-        """Read-only provider check, returning no account identifiers or secret values."""
+    def verify_connection(self):
+        """Verify the account and collect identity plus best-effort Stripe Tax state."""
         account = self.request("GET", "/account")
-        tax = self.request("GET", "/tax/settings")
-        if (not str(account.get("id", "")).startswith("acct_")
-                or tax.get("object") != "tax.settings"
-                or tax.get("livemode") is not self.live_mode):
+        if not str(account.get("id", "")).startswith("acct_"):
             raise CommerceError("Stripe returned an invalid readiness response.")
-        return {"connected": True, "mode": "live" if self.live_mode else "sandbox",
+        tax_active = None
+        try:
+            tax = self.request("GET", "/tax/settings")
+            if tax.get("object") == "tax.settings" and tax.get("livemode") is self.live_mode:
+                tax_active = tax.get("status") == "active"
+        except CommerceError:
+            # Tax availability is a status check only. It never blocks connection setup.
+            pass
+        return {"connected": True, "mode": "live" if self.live_mode else "test",
             "charges_enabled": account.get("charges_enabled") is True,
-            "tax_settings_active": tax.get("status") == "active",
+            "account_id": account["id"],
+            "account_name": (account.get("business_profile") or {}).get("name") or
+                ((account.get("settings") or {}).get("dashboard") or {}).get("display_name", ""),
+            "country": account.get("country", ""),
+            "tax_settings_active": tax_active,
             "webhook_secret_configured": bool(self.webhook_secret),
             "provider_acceptance_complete": False}
+
+    def connection_status(self):
+        """Return readiness flags without exposing account identifiers or secrets."""
+        verified = self.verify_connection()
+        return {key: verified[key] for key in (
+            "connected", "mode", "charges_enabled", "tax_settings_active",
+            "webhook_secret_configured", "provider_acceptance_complete",
+        )}
+
+    def create_webhook_endpoint(self, url: str):
+        from app.commerce_webhooks import CHECKOUT_EVENTS, RENEWAL_EVENTS
+
+        result = self.request("POST", "/webhook_endpoints", {
+            "url": url,
+            "enabled_events": sorted(CHECKOUT_EVENTS | RENEWAL_EVENTS),
+            "description": "FastShop site payment events",
+        }, idempotency_key="fastshop-webhook-" + secrets.token_hex(24))
+        if not str(result.get("id", "")).startswith("we_") or not str(result.get("secret", "")).startswith("whsec_"):
+            raise CommerceError("Stripe did not return a usable webhook endpoint.")
+        return result["id"], result["secret"]
+
+    def delete_webhook_endpoint(self, endpoint_id: str):
+        if not re.fullmatch(r"we_[A-Za-z0-9_]+", endpoint_id):
+            raise CommerceError("Invalid webhook endpoint reference.")
+        return self.request("DELETE", "/webhook_endpoints/" + endpoint_id)
 
     def validate_live_account(self):
         if not self.live_mode:

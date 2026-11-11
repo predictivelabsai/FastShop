@@ -21,14 +21,15 @@ def test_admin_merge_single_head_and_round_trip(tmp_path):
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
 
-    head = "20261104_0037_site_integration_credentials"
+    head = "20261104_0038_site_integration_credentials"
     assert migrate("heads").strip() == head + " (head)"
     migrate("upgrade", "20261011_0029")
     migrate("upgrade", "head")
     engine = create_engine(url)
     tables = {"draft_orders", "return_requests", "customer_addresses", "discounts",
               "shipping_zones", "tax_rates", "notification_templates", "staff_invites",
-              "customer_login_code_challenges", "site_integration_credentials"}
+              "customer_login_code_challenges", "site_integration_credentials",
+              "site_stripe_connections"}
     assert tables <= set(inspect(engine).get_table_names())
     with engine.connect() as db:
         assert list(db.scalars(text("SELECT version_num FROM alembic_version"))) == [head]
