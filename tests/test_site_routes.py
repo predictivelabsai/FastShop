@@ -177,6 +177,29 @@ def test_commerce_settings_keep_fastshop_brand_and_require_csrf():
     assert "changed" in response.text
 
 
+def test_stripe_payments_page_requires_membership_and_csrf():
+    from uuid import uuid4
+
+    site, _ = sample_store()
+    client, token = signed_in()
+    path = f"/admin/sites/{site.id}/commerce/payments"
+    page = client.get(path)
+    assert page.status_code == 200 and "Connect Stripe" in page.text
+    rejected = client.post(path + "/connect", data={"csrf_token": "wrong", "mode": "test"},
+                           follow_redirects=False)
+    assert rejected.status_code == 303 and "session+expired" in rejected.headers["location"]
+
+    with SessionLocal() as db:
+        owner = User(email="stripe-other-owner@example.test", name="Other owner")
+        db.add(owner)
+        db.flush()
+        other_site = content.create_site(db, owner.id, "Other Stripe site", "stripe-other-" + uuid4().hex[:8])
+        other_id = other_site.id
+        db.commit()
+    denied = client.get(f"/admin/sites/{other_id}/commerce/payments")
+    assert denied.status_code == 400
+
+
 def test_golive_actions_use_csrf_prg_and_record_blocked_review():
     from uuid import uuid4
 

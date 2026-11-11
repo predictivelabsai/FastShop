@@ -177,6 +177,8 @@ def register_site_routes(rt):
     register_demo_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.commerce_routes import register_commerce_routes
     register_commerce_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.stripe_connection_routes import register_stripe_connection_routes
+    register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.order_management_routes import register_order_management_routes
     register_order_management_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.order_admin_routes import register_order_admin_routes

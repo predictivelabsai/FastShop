@@ -65,9 +65,10 @@ def test_readiness_never_exposes_values(monkeypatch):
     assert "supersecret-id" not in blob and "supersecret-value" not in blob
 
 
-def test_static_guides_render_with_env_var_names():
+def test_static_guides_use_admin_flow_with_short_operator_fallback():
     stripe_html = "".join(to_xml(p) for p in ui.stripe_guide() if p is not None)
-    assert "FASTSHOP_STRIPE_{SITE_ID}_SECRET_KEY" in stripe_html and "sk_test_" in stripe_html
+    assert "Settings → Payments" in stripe_html and "FASTSHOP_STRIPE_{SITE_ID}_*" in stripe_html
+    assert "Set the environment variables below" not in stripe_html
     woo_html = "".join(to_xml(p) for p in ui.woocommerce_guide() if p is not None)
     assert "FASTSHOP_WOOCOMMERCE_{SITE_ID}_CONSUMER_KEY" in woo_html
 

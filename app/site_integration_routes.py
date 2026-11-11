@@ -432,6 +432,9 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                 history = connectors.recent_plans(db, site)
                 return shell("Integrations",
                     Div(A("← Back to site", href=f"/admin/sites/{site.id}"), cls="e-actions"),
+                    Div(H2("Payments"), P("Connect Stripe from the store admin, manage test and live keys, and check Stripe Tax."),
+                        A("Manage Stripe payments", href=f"/admin/sites/{site.id}/commerce/payments", cls="e-button"),
+                        cls="e-card"),
                     P("Live payments: " + ("approved by operator" if live_approved else "not approved"),
                       cls="g-state g-state-live" if live_approved else "g-state"),
                     P("Migrations are sandbox-first: preview provider data before any FastShop write. "
