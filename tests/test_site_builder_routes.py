@@ -52,6 +52,45 @@ def test_builder_preview_and_classical_share_draft(editor, monkeypatch):
         assert len(list(db.scalars(select(SiteBuilderTurn).where(SiteBuilderTurn.site_id == site.id)))) == 1
 
 
+def test_chat_can_update_shell_and_publish_to_storefront(editor, monkeypatch):
+    import app.site_builder_routes as routes
+    from tests.site_shell_fixtures import register_shelltest
+
+    register_shelltest(monkeypatch, with_renderer=True)
+    client, site, page, token = editor
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        saved.settings_json = saved.settings_json | {"theme_pack": "shelltest"}
+        saved.published_settings_json = saved.published_settings_json | {"theme_pack": "shelltest"}
+        db.commit()
+        site.version = saved.version
+    response = {"answer": "Updated the footer and cookie banner copy.", "operations": [{
+        "op": "update_shell", "values": {
+            "shelltest.footer.newsletter_title": "Letters from the garden",
+            "shelltest.consent.heading": "Choose your privacy settings",
+        },
+    }]}
+    monkeypatch.setattr(routes, "respond", lambda *args: (response, "fixture"))
+    base = f"/admin/sites/{site.id}/build"
+    result = client.post(base + "/message", data=message_form(site, page, token))
+    assert result.status_code == 200, result.text
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        assert saved.settings_json["shelltest"]["footer"]["newsletter_title"] == "Letters from the garden"
+        assert saved.settings_json["shelltest"]["consent"]["heading"] == "Choose your privacy settings"
+        assert saved.published_settings_json.get("shelltest", {}).get("consent", {}).get("heading") != "Choose your privacy settings"
+        version = saved.version
+    published = client.post(f"/admin/sites/{site.id}/editor/api/publish",
+        json={"version": page.version, "site_version": version}, headers={"x-csrf-token": token})
+    assert published.status_code == 200, published.text
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        assert saved.published_settings_json["shelltest"]["footer"]["newsletter_title"] == "Letters from the garden"
+    storefront = client.get(f"/sites/{site.slug}/").text
+    assert "Letters from the garden" in storefront
+    assert "Choose your privacy settings" in storefront
+
+
 def test_builder_failure_and_secrets_do_not_modify_draft(editor, monkeypatch):
     import app.site_builder_routes as routes
     def unavailable(*args):

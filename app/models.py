@@ -775,6 +775,7 @@ class SiteStripeLiveCredential(TimestampMixin, Base):
     )
     secret_key_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
     webhook_secret_ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    publishable_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     key_prefix: Mapped[str] = mapped_column(String(16))
     key_last_four: Mapped[str] = mapped_column(String(4))
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
@@ -835,6 +836,21 @@ class CustomerChallenge(TimestampMixin, Base):
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     client_hash: Mapped[str] = mapped_column(String(64), index=True)
     consent_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class CustomerLoginCodeChallenge(TimestampMixin, Base):
+    __tablename__ = "customer_login_code_challenges"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    email_hash: Mapped[str] = mapped_column(String(64), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64))
+    code_cipher: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    client_hash: Mapped[str] = mapped_column(String(64), index=True)
 
 
 class MarketingConsent(TimestampMixin, Base):

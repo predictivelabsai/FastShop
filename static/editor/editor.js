@@ -1255,6 +1255,11 @@ window.addEventListener("message", (e) => {
     if (d.key === "d") action("duplicate");
   }
   if (d.type === "ready") send({ type: "context", block_id: selected });
+  if (
+    d.type === "shell" &&
+    state?.shell_schema?.fields?.some((field) => field.group === d.group)
+  )
+    openShell(d.group);
   if (d.type === "select") select(d.block_id);
   if (d.type === "inline") {
     const n = locate(d.block_id),

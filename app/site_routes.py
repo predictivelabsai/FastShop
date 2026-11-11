@@ -34,6 +34,7 @@ from starlette.responses import RedirectResponse, Response
 
 from app import content, signup_services, site_ui
 from app import site_builder_services as builder
+from app.account_copy import DEFAULT_ACCOUNT_COPY
 from app.admin_ui import empty_state
 from app.checkout_copy import DEFAULT_CHECKOUT_COPY
 from app.config import settings
@@ -467,12 +468,26 @@ def register_site_routes(rt):
                                 ("offer", "First-order banner"), ("logo", "Logo URL"), ("logo_light", "Light logo URL"),
                                 ("science_date", "Research figures checked as of")]],
                             Label("Footer disclaimer", Textarea(config.get("footer", ""), name="footer", rows=4)),
+                            H3("Policies"),
+                            P("Add policy content for the standard policy pages. HTML is sanitised before publication."),
+                            *[Label(label, Textarea((config.get("policies") or {}).get(key, ""),
+                                name="policy_" + key, rows=10))
+                              for key, label in (("privacy", "Privacy policy"), ("terms", "Terms and conditions"),
+                                                 ("refunds", "Returns and refunds"), ("shipping", "Shipping policy"))],
+                            Label("Empty policy message", Input(name="policy_empty_message",
+                                value=(config.get("policies") or {}).get("empty_message", "This policy has not been added yet."),
+                                maxlength=500)),
                             H3("Checkout"),
                             P("Edit the labels shown to customers during checkout. Leave a field blank to use its default."),
                             *[Label(label, Input(name="checkout_copy_" + key,
                                 value=(config.get("checkout_copy") or {}).get(key, default), maxlength=500))
                               for key, default in DEFAULT_CHECKOUT_COPY.items()
                               for label in [key.replace("_", " ").capitalize()]],
+                            H3("Customer login"),
+                            P("Edit the labels shown on customer sign-in pages. Leave a field blank to use its default."),
+                            *[Label(key.replace("_", " ").capitalize(), Input(name="account_copy_" + key,
+                                value=(config.get("account_copy") or {}).get(key, default), maxlength=500))
+                              for key, default in DEFAULT_ACCOUNT_COPY.items()],
                             H3("Analytics"), Label("GA4 measurement ID (optional)", Input(name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""), placeholder="G-ABC1234567", maxlength=22)),
                             P("Disabled when empty. Published public pages load Google Analytics only after analytics consent. Account and checkout pages are excluded; no Meta pixel is installed. Publish shared settings to apply changes."),
                             H3("Checkout payment methods"),
@@ -513,9 +528,19 @@ def register_site_routes(rt):
                 config["payment_methods"] = ["card"] + (["paypal"] if form.get("offer_paypal") == "on" else [])
                 for key in ("name", "tagline", "email", "company", "address", "announcement", "offer", "logo", "logo_light", "science_date", "footer"):
                     config[key] = str(form.get(key, ""))[:2000]
+                from app.site_widgets import sanitise_html
+                config["policies"] = {key: sanitise_html(str(form.get("policy_" + key, ""))[:100000])
+                                      for key in ("privacy", "terms", "refunds", "shipping")}
+                config["policies"]["empty_message"] = (
+                    str(form.get("policy_empty_message", "This policy has not been added yet."))[:500].strip()
+                    or "This policy has not been added yet."
+                )
                 config["checkout_copy"] = {**(config.get("checkout_copy") or {}), **{
                     key: str(form.get("checkout_copy_" + key, "")).strip()[:500] or default
                     for key, default in DEFAULT_CHECKOUT_COPY.items()}}
+                config["account_copy"] = {**(config.get("account_copy") or {}), **{
+                    key: str(form.get("account_copy_" + key, "")).strip()[:500] or default
+                    for key, default in DEFAULT_ACCOUNT_COPY.items()}}
                 for key in ("logo", "logo_light"):
                     if config.get(key):
                         config[key] = content.safe_url(config[key], media=True)
@@ -909,6 +934,37 @@ def register_site_routes(rt):
                         return public_message(request, slug, "Category not found", status_code=404, plain=False)
                     if tag and tag not in {t for p in articles_for(db, site) for t in metadata(p.published_json)["tags"]}:
                         return public_message(request, slug, "Tag not found", status_code=404, plain=False)
+            policy_key = {
+                "/pages/privacy-policy": "privacy", "/pages/terms-and-conditions": "terms",
+                "/pages/returns-and-refunds": "refunds", "/pages/shipping-policy": "shipping",
+            }.get(normalized_path)
+            policy_placeholder = False
+            if page and page.kind == "legal" and page.published_json:
+                blocks = page.published_json.get("blocks", page.published_json.get("sections", []))
+                policy_placeholder = any(
+                    isinstance(block, dict) and str(block.get("body", "")).startswith("PLACEHOLDER")
+                    and str(block.get("body", "")).endswith("before launch.")
+                    for block in blocks
+                )
+            if policy_key and (not page or not page.published_json or policy_placeholder):
+                from types import SimpleNamespace
+
+                from app.site_widgets import sanitise_html
+
+                csrf(session)
+                policies = (site.published_settings_json or {}).get("policies") or {}
+                policy_html = sanitise_html(str(policies.get(policy_key, "")))
+                title = {"privacy": "Privacy policy", "terms": "Terms and conditions",
+                         "refunds": "Returns and refunds", "shipping": "Shipping policy"}[policy_key]
+                document = {"title": title, "sections": []}
+                policy_page = SimpleNamespace(path=normalized_path, kind="page", product_id=None,
+                                              published_json=document, draft_json=document, id="")
+                base = request.scope.get("site_base", f"/sites/{site.slug}") if request else f"/sites/{site.slug}"
+                canonical = request.scope.get("site_canonical", settings.public_url + base) if request else settings.public_url + base
+                return site_ui.storefront(db, site, policy_page, base, session["csrf_token"],
+                    canonical + normalized_path, policy_html=policy_html,
+                    policy_empty_message="" if policy_html else str(policies.get(
+                        "empty_message", "This policy has not been added yet.")))
             if not page:
                 from app.url_redirects import destination
                 target = destination(db, site, normalized_path)

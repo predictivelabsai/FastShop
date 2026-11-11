@@ -27,6 +27,7 @@ from app.services import CommerceError
 
 _SECRET_KEY = re.compile(r"sk_live_[A-Za-z0-9_]{8,}")
 _WEBHOOK_SECRET = re.compile(r"whsec_[A-Za-z0-9_]{8,}")
+_PUBLISHABLE_KEY = re.compile(r"pk_live_[A-Za-z0-9_]{8,}")
 _FORMAT = b"FSL1"
 
 
@@ -37,6 +38,7 @@ class LiveCredentialState:
     accepted: bool
     credential_id: str = ""
     masked_key: str = ""
+    masked_publishable_key: str = ""
     created_by: str = ""
     created_at: datetime | None = None
     verified_at: datetime | None = None
@@ -113,18 +115,23 @@ def state_for(db, site: Site, config: SiteCommerceSettings | None = None) -> Liv
         accepted,
         credential.id,
         f"{credential.key_prefix}****{credential.key_last_four}",
+        (f"pk_live_...{credential.publishable_key[-4:]}" if credential.publishable_key else ""),
         credential.created_by,
         credential.created_at,
         credential.verified_at,
     )
 
 
-def store(db, site_id: str, user_id: str, secret_key: str, webhook_secret: str) -> SiteStripeLiveCredential:
+def store(db, site_id: str, user_id: str, secret_key: str, webhook_secret: str,
+          publishable_key: str = "") -> SiteStripeLiveCredential:
     site = require_operator(db, site_id, user_id)
     secret_key = str(secret_key or "").strip()
     webhook_secret = str(webhook_secret or "").strip()
+    publishable_key = str(publishable_key or "").strip()
     if not _SECRET_KEY.fullmatch(secret_key) or not _WEBHOOK_SECRET.fullmatch(webhook_secret):
         raise CommerceError("Enter a Stripe live secret key and webhook signing secret.")
+    if publishable_key and not _PUBLISHABLE_KEY.fullmatch(publishable_key):
+        raise CommerceError("Enter a Stripe live publishable key.")
     config = db.scalar(select(SiteCommerceSettings).where(
         SiteCommerceSettings.site_id == site.id,
         SiteCommerceSettings.tenant_id == site.tenant_id,
@@ -143,6 +150,8 @@ def store(db, site_id: str, user_id: str, secret_key: str, webhook_secret: str) 
         credential = existing
         credential.secret_key_ciphertext = encrypted_key
         credential.webhook_secret_ciphertext = encrypted_webhook
+        if publishable_key:
+            credential.publishable_key = publishable_key
         credential.key_prefix = "sk_live_"
         credential.key_last_four = secret_key[-4:]
         credential.created_by = user_id
@@ -156,6 +165,7 @@ def store(db, site_id: str, user_id: str, secret_key: str, webhook_secret: str) 
             site_id=site.id,
             secret_key_ciphertext=encrypted_key,
             webhook_secret_ciphertext=encrypted_webhook,
+            publishable_key=publishable_key or None,
             key_prefix="sk_live_",
             key_last_four=secret_key[-4:],
             created_by=user_id,

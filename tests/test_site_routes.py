@@ -84,7 +84,10 @@ def test_contact_persists_before_delivery_and_rate_limits(monkeypatch):
         assert message.status == "failed"
 
 
-def test_new_site_is_private_and_neutral():
+def test_new_site_is_private_and_neutral(monkeypatch):
+    import app.plans as plans
+
+    monkeypatch.setattr(plans, "ensure_sites", lambda *args, **kwargs: None)
     from uuid import uuid4
     client, token = signed_in()
     slug = "test-" + uuid4().hex[:12]

@@ -36,7 +36,7 @@ from app import checkout_payments, commerce, customer_services, subscriptions
 from app import checkout_services as checkout
 from app.checkout_copy import DEFAULT_CHECKOUT_COPY
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway, credentials, make_gateway
+from app.integrations.stripe_commerce import StripeGateway, make_gateway
 from app.models import CheckoutAttempt, CommerceQuote, Product, Site, SiteCart, SubscriptionCycle
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
@@ -492,10 +492,8 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 if attempt.state not in checkout.ACTIVE:
                     raise CommerceError("This checkout is already closed.")
                 site_id, customer_id = site.id, attempt.customer_id
-                _, _, publishable_key = credentials(site)
-                # Inline card fields need a matching publishable key. Live keys are not stored
-                # for browser use yet, so live mode keeps the hosted Stripe page.
-                hosted_only = site._payment_mode != "sandbox" or not publishable_key
+                publishable_key = checkout_payments.publishable_for(db, site)
+                hosted_only = not publishable_key
                 fallback = base(site, request) + "/checkout/" + attempt.id + "/pay"
             if hosted_only:
                 return JSONResponse({"fallback_url": fallback})
