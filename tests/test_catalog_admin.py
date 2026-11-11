@@ -150,6 +150,15 @@ def test_sanitiser_removes_executable_markup_preserves_formatting(db):
     assert p.description_html == '<p>Hello <b>bold</b></p><a>bad</a><a href="https://example.com">good</a>'
 
 
+def test_product_and_collection_description_round_trip_rich_html(db):
+    dirty = '<h2>Returns</h2><p style="color:red">Read the <em>details</em>.</p>' \
+            '<ol><li>Keep your receipt</li></ol><img src=x onerror="x()">'
+    p = product(db, description_html=dirty)
+    assert p.description_html == '<h2>Returns</h2><p>Read the <em>details</em>.</p><ol><li>Keep your receipt</li></ol>'
+    collection = catalog.save_collection(db, site(), {"title": "Returns", "description": dirty})
+    assert collection.description == p.description_html
+
+
 def test_duplicate_keeps_prices_but_new_sku_and_no_stock(db):
     p = product(db, variants=[{'price_minor': 2200, 'sku': 'original', 'quantities': {'a': 5}}])
     copy = catalog.duplicate_product(db, site(), p.id)

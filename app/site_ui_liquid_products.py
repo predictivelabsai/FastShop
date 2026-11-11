@@ -225,6 +225,13 @@ def catalogue(db, site, path):
     )
 
 
+def _rich(value, *, key="", preview=False, **attrs):
+    from app.site_widgets import rich_content
+    if preview and key:
+        attrs.update(data_field=key, data_field_type="richtext")
+    return rich_content(value, **attrs)
+
+
 def quality(b):
     return Div(
         P(text(b, "quality-title"), cls="tablet-quality-title"),
@@ -295,10 +302,11 @@ def flavor_options(b, variants, *, included=False):
     )
 
 
-def facts(b, mode):
+def facts(b, mode, *, preview=False):
     ingredients = (
         [
-            P(s["body"], data_ingredient=s["value"], hidden=mode == "tablet" and i != 0, cls="mt-3")
+            _rich(s["body"], key=f"items.{i}.body", preview=preview,
+                  data_ingredient=s["value"], hidden=mode == "tablet" and i != 0, cls="mt-3")
             for i, s in enumerate(rows(b, "ingredient"))
         ]
         if mode == "tablet"
@@ -327,8 +335,9 @@ def facts(b, mode):
             ),
             Tbody(
                 *[
-                    Tr(Th(r["label"], scope="row"), Td(r["value"]), Td(r.get("body", "")))
-                    for r in rows(b, "fact")
+                    Tr(Th(r["label"], scope="row"), Td(r["value"]),
+                       Td(_rich(r.get("body", ""), key=f"items.{i}.body", preview=preview)))
+                    for i, r in enumerate(rows(b, "fact"))
                 ]
             ),
             cls="mt-4",
@@ -365,7 +374,7 @@ def stepper(minimum=1, value=1, hidden=False, field="quantity"):
     )
 
 
-def purchase(db, site, b, base, csrf, enabled):
+def purchase(db, site, b, base, csrf, enabled, *, preview=False):
     mode = b["layout"]
     variants = catalogue(db, site, b["url"])
     first = variants[0] if variants else (None, 0)
@@ -589,7 +598,7 @@ def purchase(db, site, b, base, csrf, enabled):
                 )
                 if mode == "bottle"
                 else [
-                    disclosure("Ingredients & Supplement Facts", facts(b, mode)),
+                    disclosure("Ingredients & Supplement Facts", facts(b, mode, preview=preview)),
                     disclosure("What's in the box", ", ".join(s["body"] for s in rows(b, "box"))),
                 ]
             ),
@@ -616,7 +625,8 @@ def purchase(db, site, b, base, csrf, enabled):
             cls="product-title-row mt-3",
         ),
         summary,
-        P(b.get("body", ""), cls="mt-6 leading-relaxed text-muted-foreground"),
+        _rich(b.get("body", ""), key="body", preview=preview,
+              cls="mt-6 leading-relaxed text-muted-foreground"),
         form,
         Div(
             Div(
@@ -689,12 +699,12 @@ def fizz(index):
     )
 
 
-def render_product_block(db, site, b, base, csrf, enabled):
+def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
     kind = b["type"].removeprefix("liquid_product_")
     if not b["type"].startswith("liquid_product_"):
         return None
     if kind == "purchase":
-        return purchase(db, site, b, base, csrf, enabled)
+        return purchase(db, site, b, base, csrf, enabled, preview=preview)
     title = H2(
         name(b.get("heading", "")) if kind in {"technology", "day"} else b.get("heading", ""),
         cls="font-display text-5xl",
@@ -717,8 +727,8 @@ def render_product_block(db, site, b, base, csrf, enabled):
                         else None,
                         H3(s["heading"], cls="font-display text-3xl" + (" mt-6" if bottle else "")),
                         None if bottle else fizz(i),
-                        P(
-                            s["body"],
+                        _rich(
+                            s["body"], key=f"items.{i}.body", preview=preview,
                             cls="mt-3 text-sm leading-relaxed text-muted-foreground"
                             if bottle
                             else "mt-4 text-sm leading-relaxed",
@@ -732,8 +742,8 @@ def render_product_block(db, site, b, base, csrf, enabled):
             ),
             None
             if bottle
-            else P(
-                b.get("body", ""),
+            else _rich(
+                b.get("body", ""), key="body", preview=preview,
                 cls="tablet-steps-chemistry text-center text-sm text-muted-foreground",
             ),
             None
@@ -755,17 +765,20 @@ def render_product_block(db, site, b, base, csrf, enabled):
                 ),
                 Div(
                     *[
-                        disclosure(s["heading"], s["body"], exclusive=True, technology=True)
-                        for s in b.get("items", [])
+                        disclosure(s["heading"], _rich(s["body"], key=f"items.{i}.body", preview=preview), exclusive=True, technology=True)
+                        for i, s in enumerate(b.get("items", []))
                     ],
                     cls="bottle-detail-list",
                 ),
                 cls="bottle-technology mt-12",
             ),
-            Div(icon("shield"), P(b.get("body", "")), cls="bottle-lab-strip mt-8"),
+            Div(icon("shield"), _rich(b.get("body", ""), key="body", preview=preview), cls="bottle-lab-strip mt-8"),
         ]
     elif kind == "day":
         source = one(b, "day-source")
+        source_index = next(
+            (i for i, item in enumerate(b.get("items", [])) if item is source), 0
+        )
         body = [
             title,
             Ol(
@@ -780,7 +793,8 @@ def render_product_block(db, site, b, base, csrf, enabled):
                             Div(
                                 P(s["value"], cls="font-display text-5xl"),
                                 P(source.get("label", ""), cls="mt-2 text-sm leading-relaxed"),
-                                P(source.get("body", ""), cls="mt-2 text-xs leading-relaxed"),
+                                _rich(source.get("body", ""), key=f"items.{source_index}.body",
+                                      preview=preview, cls="mt-2 text-xs leading-relaxed"),
                                 cls="bottle-day-overlay",
                             )
                             if s.get("value")
@@ -788,12 +802,10 @@ def render_product_block(db, site, b, base, csrf, enabled):
                             cls="metal-photo-frame bottle-day-photo",
                         ),
                         H3(s["heading"], cls="mt-5 font-semibold"),
-                        P(
-                            name(s["body"]),
-                            cls="mt-2 text-sm leading-relaxed text-muted-foreground",
-                        ),
+                        _rich(s["body"], key=f"items.{i}.body", preview=preview,
+                              cls="mt-2 text-sm leading-relaxed text-muted-foreground"),
                     )
-                    for s in b.get("items", [])
+                    for i, s in enumerate(b.get("items", []))
                     if s.get("theme") in {"day", "day-stat"}
                 ],
                 cls="bottle-day-track mt-12",
@@ -811,10 +823,8 @@ def render_product_block(db, site, b, base, csrf, enabled):
             ),
             Div(
                 title,
-                P(
-                    name(b.get("body", "")),
-                    cls="mt-6 max-w-md leading-relaxed text-muted-foreground",
-                ),
+                _rich(b.get("body", ""), key="body", preview=preview,
+                      cls="mt-6 max-w-md leading-relaxed text-muted-foreground"),
                 A(
                     name(b["button"]),
                     href=base + b.get("link", ""),
@@ -847,7 +857,7 @@ def render_product_block(db, site, b, base, csrf, enabled):
                                 s["heading"],
                                 cls="font-display text-3xl",
                             ),
-                            P(s["body"], cls="mt-2 text-sm leading-relaxed text-muted-foreground"),
+                            _rich(s["body"], key=f"items.{i}.body", preview=preview, cls="mt-2 text-sm leading-relaxed text-muted-foreground"),
                             Button(
                                 "Select",
                                 type="button",
@@ -861,11 +871,11 @@ def render_product_block(db, site, b, base, csrf, enabled):
                         ),
                         cls="metal-card tablet-flavor-card flavor-tint-" + s["value"],
                     )
-                    for s in rows(b, "flavor")
+                    for i, s in enumerate(rows(b, "flavor"))
                 ],
                 cls="tablet-flavor-grid mt-12",
             ),
-            P(b.get("body", ""), cls="mt-10 text-center text-sm text-muted-foreground")
+            _rich(b.get("body", ""), key="body", preview=preview, cls="mt-10 text-center text-sm text-muted-foreground")
             if b.get("body")
             else None,
         ]
@@ -897,9 +907,9 @@ def render_product_block(db, site, b, base, csrf, enabled):
                         Div(
                             Span(icon(s["theme"], benefit=True), cls="tablet-benefit-icon"),
                             H3(s["heading"], cls="mt-3 font-display text-2xl"),
-                            P(s["body"], cls="mt-2 text-sm leading-relaxed text-muted-foreground"),
-                            P(
-                                b.get("body", ""),
+                            _rich(s["body"], key=f"items.{b.get('items', []).index(s) if s in b.get('items', []) else 0}.body", preview=preview, cls="mt-2 text-sm leading-relaxed text-muted-foreground"),
+                            _rich(
+                                b.get("body", ""), key="body", preview=preview,
                                 cls="mt-3 text-xs leading-relaxed text-muted-foreground benefit-disclaimer",
                             )
                             if "*" in s["heading"] or "*" in s["body"]
@@ -918,8 +928,8 @@ def render_product_block(db, site, b, base, csrf, enabled):
                     ],
                     cls="tablet-benefit-map mt-12",
                 ),
-                P(
-                    b.get("body", ""),
+                _rich(
+                    b.get("body", ""), key="body", preview=preview,
                     cls="product-disclaimer mt-12 text-center text-xs leading-relaxed text-muted-foreground",
                 ),
                 cls="tablet-benefits",
@@ -932,7 +942,7 @@ def render_product_block(db, site, b, base, csrf, enabled):
                 ),
                 Div(
                     H2(research.get("heading", ""), cls="font-display text-5xl"),
-                    P(research.get("body", ""), cls="mt-6 leading-relaxed text-muted-foreground"),
+                    _rich(research.get("body", ""), key=f"items.{b.get('items', []).index(research) if research in b.get('items', []) else 0}.body", preview=preview, cls="mt-6 leading-relaxed text-muted-foreground"),
                     A(
                         text(b, "research-cta", "label"),
                         href=base + research.get("url", ""),
@@ -947,8 +957,8 @@ def render_product_block(db, site, b, base, csrf, enabled):
         body = [
             Div(
                 title,
-                P(
-                    b.get("body", "") + " ",
+                Div(
+                    _rich(b.get("body", ""), key="body", preview=preview),
                     A(
                         b.get("eyebrow", ""),
                         href="mailto:" + b.get("eyebrow", ""),
@@ -962,7 +972,7 @@ def render_product_block(db, site, b, base, csrf, enabled):
                     Details(
                         Summary(s["heading"], Span("+", cls="disclosure-plus")),
                         Div(
-                            P(s["body"]),
+                            _rich(s["body"], key=f"items.{i}.body", preview=preview),
                             A(
                                 s.get("label", ""),
                                 href=base + s["url"],
@@ -1016,10 +1026,8 @@ def render_product_block(db, site, b, base, csrf, enabled):
         body = Div(
             Div(
                 title,
-                P(
-                    name(b.get("body", "")),
-                    cls="mt-6 max-w-sm leading-relaxed text-muted-foreground",
-                ),
+                _rich(b.get("body", ""), key="body", preview=preview,
+                      cls="mt-6 max-w-sm leading-relaxed text-muted-foreground"),
             ),
             Article(
                 A(
@@ -1045,7 +1053,7 @@ def render_product_block(db, site, b, base, csrf, enabled):
                             cls="metal-product-title",
                         ),
                         P(b.get("eyebrow", ""), cls="mt-1 text-xs italic text-muted-foreground"),
-                        P(product.get("body", ""), cls="metal-product-blurb text-muted-foreground"),
+                        _rich(product.get("body", ""), key=f"items.{b.get('items', []).index(product) if product in b.get('items', []) else 0}.body", preview=preview, cls="metal-product-blurb text-muted-foreground"),
                         cls="metal-product-top",
                     ),
                     form,

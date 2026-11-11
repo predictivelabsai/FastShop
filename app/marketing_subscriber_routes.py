@@ -35,6 +35,7 @@ from app import marketing_subscribers as subscribers
 from app.db import SessionLocal
 from app.models import MarketingSubscriber, Site
 from app.services import CommerceError
+from app.site_widgets import rich_content
 
 PAGE_SIZE = 25
 
@@ -90,7 +91,8 @@ def register_marketing_subscriber_routes(rt, actor, csrf, check_csrf, shell, err
                     H1(footer["newsletterUnsubscribeTitle"]), P(footer["newsletterUnsubscribed"], role="status")))
             root = request.scope.get("site_base", "/sites/" + site.slug)
             return public_response(public_page(site, request, footer["newsletterUnsubscribeTitle"],
-                H1(footer["newsletterUnsubscribeTitle"]), P(footer["newsletterUnsubscribeInstruction"]),
+                H1(footer["newsletterUnsubscribeTitle"]),
+                rich_content(footer["newsletterUnsubscribeInstruction"]),
                 Form(csrf(session), Input(type="hidden", name="token", value=token),
                      Button(footer["newsletterUnsubscribeCta"], cls="e-button"),
                      method="post", cls="e-form", action=root + "/unsubscribe?" + urlencode({"token": token}))))

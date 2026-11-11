@@ -21,7 +21,8 @@ def generic_site(browser):
 def test_generic_policy_renders_sanitised_content_and_empty_message(browser):
     client, db, site = generic_site(browser)
     site.published_settings_json = site.published_settings_json | {
-        "policies": {"privacy": "<h2>Privacy details</h2><p>Stored policy.</p><script>alert(1)</script>"}
+        "policies": {"privacy": "<h2>Privacy details</h2><p>Stored policy.</p>"
+                     "<ul><li>Clear choices</li></ul><script>alert(1)</script>"}
     }
     db.commit()
 
@@ -29,6 +30,8 @@ def test_generic_policy_renders_sanitised_content_and_empty_message(browser):
     assert response.status_code == 200
     assert "Privacy policy" in response.text
     assert "<h2>Privacy details</h2><p>Stored policy.</p>" in response.text
+    assert "<ul><li>Clear choices</li></ul>" in response.text
+    assert 'class="h-container h-policy-content"' in response.text
     assert "<script>alert(1)</script>" not in response.text
     assert "This policy has not been added yet." not in response.text
 

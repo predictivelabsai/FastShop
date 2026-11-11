@@ -314,10 +314,14 @@ def pack_definitions(definition):
 
 def render_pack_widget(block, base="", preview=False):
     """Return a new pack section; the registry applies shared styling and hooks."""
+    from app.site_widgets import rich_content
+
     kind = block["type"]
     uid = "fs-pack-" + re.sub(r"[^a-zA-Z0-9_-]", "", str(block.get("id", "widget")))
 
     def field(key, field_kind="text"):
+        if field_kind == "text" and key.rsplit(".", 1)[-1] in {"body", "description", "text", "quote", "bio", "disclaimer"}:
+            field_kind = "richtext"
         return {"data_field": key, "data_field_type": field_kind} if preview else {}
 
     def image(value, alt, key="image", cls=""):
@@ -360,7 +364,7 @@ def render_pack_widget(block, base="", preview=False):
                 if entry.get("eyebrow")
                 else None,
                 heading(entry.get("heading", ""), prefix + "heading"),
-                P(entry.get("body", ""), **field(prefix + "body")),
+                rich_content(entry.get("body", ""), **field(prefix + "body")),
                 Div(
                     link(
                         entry.get("button", ""),
@@ -538,7 +542,7 @@ def render_pack_widget(block, base="", preview=False):
                     Span(NotStr(svg), cls="fs-pack-icon"),
                     Div(
                         heading(item.get("heading", ""), f"items.{i}.heading", "h3"),
-                        P(item.get("body", ""), **field(f"items.{i}.body")),
+                        rich_content(item.get("body", ""), **field(f"items.{i}.body")),
                         link("Learn more", item.get("link", ""), "fs-pack-text-link"),
                     ),
                     cls="fs-pack-icon-entry",
@@ -573,7 +577,7 @@ def render_pack_widget(block, base="", preview=False):
             details.append(
                 Li(
                     heading(item.get("heading", ""), f"items.{i}.heading", "h3"),
-                    P(item.get("body", ""), **field(f"items.{i}.body")),
+                    rich_content(item.get("body", ""), **field(f"items.{i}.body")),
                     link("Learn more", item.get("link", ""), "fs-pack-text-link"),
                     Button(
                         "Close detail",

@@ -18,3 +18,18 @@
   border: 0;
   background: #fff;
 }
+
+.h-policy-content,
+.fs-rich-content { line-height: 1.75; }
+.h-policy-content :is(h2, h3, h4),
+.fs-rich-content :is(h2, h3, h4) { margin: 1.8em 0 .55em; line-height: 1.2; }
+.h-policy-content :is(p, ul, ol, blockquote),
+.fs-rich-content :is(p, ul, ol, blockquote) { margin: .9em 0; }
+.h-policy-content :is(ul, ol),
+.fs-rich-content :is(ul, ol) { padding-inline-start: 1.5em; }
+.h-policy-content blockquote,
+.fs-rich-content blockquote { margin-inline: 0; padding: .15em 0 .15em 1em; border-inline-start: 1px solid var(--h-accent, #648873); color: inherit; }
+.h-policy-content a,
+.fs-rich-content a { color: var(--h-accent, #236449); text-decoration: underline; text-underline-offset: .15em; }
+.h-policy-content hr,
+.fs-rich-content hr { margin: 1.8em 0; border: 0; border-top: 1px solid currentColor; opacity: .25; }

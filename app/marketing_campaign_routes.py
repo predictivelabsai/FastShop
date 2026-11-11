@@ -20,7 +20,6 @@ from fasthtml.common import (
     Table,
     Tbody,
     Td,
-    Textarea,
     Th,
     Thead,
     Tr,
@@ -32,6 +31,7 @@ from app import content, marketing_email
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
 from app.models import MarketingCampaign, MarketingCampaignDelivery, User
+from app.rich_text_ui import rich_text_editor
 from app.services import CommerceError
 
 
@@ -56,10 +56,10 @@ def register_marketing_campaign_routes(rt, actor, csrf, check_csrf, shell, error
                     value=campaign.subject if campaign else "")),
                 Label("Preheader", Input(name="preheader", maxlength=250,
                     value=campaign.preheader if campaign else "")),
-                Label("Email body", Textarea(
+                rich_text_editor(
                     campaign.body_html if campaign else "<p>Write your message here.</p>",
-                    name="body_html", rows=14, maxlength=20000, required=True,
-                )),
+                    name="body_html", label="Email body", editor_id="campaign-body",
+                ),
                 P(Small("Allowed formatting: paragraphs, headings, lists, emphasis, quotations and safe links.")),
                 Button("Save campaign" if campaign and campaign.status == "scheduled" else "Save draft",
                        cls="a-button"),

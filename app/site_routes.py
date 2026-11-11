@@ -20,11 +20,9 @@ from fasthtml.common import (
     Iframe,
     Input,
     Label,
-    Link,
     NotStr,
     Option,
     P,
-    Script,
     Select,
     Small,
     Span,
@@ -54,6 +52,8 @@ from app.models import (
     User,
     new_id,
 )
+from app.rich_text import sanitise_rich_text
+from app.rich_text_ui import rich_text_editor
 from app.services import CommerceError
 from app.site_blocks import (
     add_block,
@@ -477,15 +477,17 @@ def register_site_routes(rt):
                                 ("company", "Company"), ("address", "Company address"), ("announcement", "Announcement"),
                                 ("offer", "First-order banner"), ("logo", "Logo URL"), ("logo_light", "Light logo URL"),
                                 ("science_date", "Research figures checked as of")]],
-                            Label("Footer disclaimer", Textarea(config.get("footer", ""), name="footer", rows=4)),
+                            rich_text_editor(config.get("footer", ""), name="footer",
+                                             label="Footer disclaimer", editor_id="footer-disclaimer"),
                             H3("Policies"),
-                            *[Div(Label(label),
-                                Div(*[Button(command, type="button", data_rich_command=command, aria_label=command.title())
-                                      for command in ("bold", "italic", "formatBlock:h2", "formatBlock:h3", "insertUnorderedList", "insertOrderedList", "createLink")],
-                                    cls="e-rich-toolbar"),
-                                Div(NotStr((config.get("policies") or {}).get(key, "")), contenteditable="true", data_rich_editor=key, role="textbox", aria_multiline="true", cls="e-rich-editor"),
-                                Input(type="hidden", name="policy_" + key, value=(config.get("policies") or {}).get(key, "")), cls="e-rich-field")
-                              for key, label in (("privacy", "Privacy policy"), ("terms", "Terms and conditions"), ("refunds", "Returns and refunds"), ("shipping", "Shipping policy"))],
+                            *[rich_text_editor(
+                                (config.get("policies") or {}).get(key, ""),
+                                name="policy_" + key,
+                                label=label,
+                                editor_id="policy-" + key,
+                                placeholder="Add the policy text here.",
+                            ) for key, label in (("privacy", "Privacy policy"), ("terms", "Terms and conditions"),
+                                                  ("refunds", "Returns and refunds"), ("shipping", "Shipping policy"))],
                             Label("Empty policy message", Input(name="policy_empty_message", value=(config.get("policies") or {}).get("empty_message", "This policy has not been added yet."), maxlength=500)),
                             H3("Checkout"),
                             P("Edit the labels shown to customers during checkout. Leave a field blank to use its default."),
@@ -503,10 +505,11 @@ def register_site_routes(rt):
                             *[Label(key.replace("_", " ").capitalize(), Input(name="portal_copy_" + key,
                                 value=(config.get("portal_copy") or {}).get(key, default), maxlength=500))
                               for key, default in DEFAULT_PORTAL_COPY.items()],
-                            Script(src="/static/site-rich-editor.js", defer=True),
-                            Link(rel="stylesheet", href="/static/site-rich-editor.css"),
                             H3("Cookie consent banner"),
-                            *[Label(label, Input(name="consent_" + key, value=(config.get("liquid_consent") or {}).get(key, default), maxlength=1000))
+                            *[rich_text_editor((config.get("liquid_consent") or {}).get(key, default),
+                                               name="consent_body", label=label,
+                                               editor_id="cookie-consent-body") if key == "body" else
+                              Label(label, Input(name="consent_" + key, value=(config.get("liquid_consent") or {}).get(key, default), maxlength=1000))
                               for key, label, default in (("heading", "Heading", "Your privacy, your choice."), ("body", "Message", "Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."), ("accept", "Accept button", "Accept all"), ("decline", "Decline button", "Decline"), ("save", "Save button", "Save preferences"), ("categories_label", "Categories label", "Preferences"), ("essential", "Essential category", "Essential (always on)"), ("preferences", "Preferences category", "Preferences: remembers things like products you viewed on this device"), ("analytics", "Analytics category", "Analytics"), ("marketing", "Marketing category", "Marketing"), ("privacy_label", "Policy link label", "Privacy policy"), ("privacy_href", "Policy link URL", "/pages/privacy-policy"))],
                             H3("Tracking and pixels"), A("Edit tracking settings", href=f"/admin/sites/{site.id}/marketing/tracking"),
                             H3("Checkout payment methods"),
@@ -548,12 +551,12 @@ def register_site_routes(rt):
                 config = copy.deepcopy(site.settings_json)
                 config["payment_methods"] = ["card"] + (["paypal"] if form.get("offer_paypal") == "on" else [])
                 for key in ("name", "tagline", "email", "company", "address", "announcement", "offer", "logo", "logo_light", "science_date", "footer"):
-                    config[key] = str(form.get(key, ""))[:2000]
+                    raw_value = str(form.get(key, ""))[:2000]
+                    config[key] = sanitise_rich_text(raw_value) if key == "footer" else raw_value
                 # A published brand name is also the store's name in lists, emails and the assistant.
                 if form.get("action") == "publish" and config["name"].strip():
                     site.name = config["name"].strip()[:160]
-                from app.site_widgets import sanitise_html
-                config["policies"] = {key: sanitise_html(str(form.get("policy_" + key, ""))[:100000])
+                config["policies"] = {key: sanitise_rich_text(str(form.get("policy_" + key, ""))[:100000])
                                       for key in ("privacy", "terms", "refunds", "shipping")}
                 config["policies"]["empty_message"] = str(form.get("policy_empty_message", "This policy has not been added yet."))[:500].strip() or "This policy has not been added yet."
                 config["checkout_copy"] = {**(config.get("checkout_copy") or {}), **{
@@ -567,7 +570,8 @@ def register_site_routes(rt):
                     for key, default in DEFAULT_PORTAL_COPY.items()}}
                 # Merge so banner fields edited in the visual editor are kept.
                 config["liquid_consent"] = {**(config.get("liquid_consent") or {}),
-                                            **{key: str(form.get("consent_" + key, ""))[:1000].strip()
+                                            **{key: (sanitise_rich_text(str(form.get("consent_body", ""))[:5000])
+                                                     if key == "body" else str(form.get("consent_" + key, ""))[:1000].strip())
                                                for key in ("heading", "body", "accept", "decline", "save", "categories_label", "essential", "preferences", "analytics", "marketing", "privacy_label", "privacy_href")}}
                 config["liquid_consent"]["privacy_href"] = content.safe_url(config["liquid_consent"]["privacy_href"])
                 for key in ("logo", "logo_light"):
@@ -700,7 +704,12 @@ def register_site_routes(rt):
         for key, label in [("eyebrow", "Eyebrow"), ("heading", "Heading"), ("body", "Text"), ("image", "Image URL"),
                            ("poster", "Poster URL"), ("alt", "Alt text"), ("video", "Video URL"), ("mobile_video", "Mobile video URL"), ("link", "Link"), ("button", "Button label")]:
             value = section.get(key, "")
-            fields.append(Label(label, Textarea(value, name=f"section_{index}_{key}", rows=5 if key == "body" else 2) if key in {"body", "heading"} else Input(name=f"section_{index}_{key}", value=value)))
+            fields.append(
+                rich_text_editor(value, name=f"section_{index}_{key}", label=label,
+                                 editor_id=f"section-{index}-{key}")
+                if key == "body" else
+                Label(label, Input(name=f"section_{index}_{key}", value=value))
+            )
         if section["type"] == "embed":
             fields.append(Label("Embed URL (HTTPS)", Input(
                 name=f"section_{index}_url",
@@ -718,7 +727,14 @@ def register_site_routes(rt):
         if section["type"].startswith("liquid_"):
             entry_fields += ("label", "value")
         for j, item in enumerate(section.get("items", [])):
-            fields.append(Div(H3(f"Entry {j + 1}"), *[Label(key.title(), Textarea(str(item.get(key, "")), name=f"section_{index}_item_{j}_{key}", rows=3 if key == "body" else 1)) for key in entry_fields], media_picker(f"section_{index}_item_{j}_image", "entry image", library, f"section_{index}_item_{j}_alt"), Label(Input(type="checkbox", name=f"section_{index}_item_{j}_remove"), " Remove entry"), cls="e-entry"))
+            fields.append(Div(H3(f"Entry {j + 1}"), *[
+                rich_text_editor(str(item.get(key, "")), name=f"section_{index}_item_{j}_{key}",
+                                 label=key.title(), editor_id=f"section-{index}-item-{j}-{key}")
+                if key == "body" and not (section["type"].startswith("liquid_product_")
+                                           and item.get("theme") in {"bundle", "box"}) else
+                Label(key.title(), Input(str(item.get(key, "")), name=f"section_{index}_item_{j}_{key}"))
+                for key in entry_fields
+            ], media_picker(f"section_{index}_item_{j}_image", "entry image", library, f"section_{index}_item_{j}_alt"), Label(Input(type="checkbox", name=f"section_{index}_item_{j}_remove"), " Remove entry"), cls="e-entry"))
         if section["type"] in {"faq", "team", "research", "references"}:
             fields.append(Label(Input(type="checkbox", name=f"section_{index}_add_item"), " Add a new entry on save"))
         if section["type"] == "product":
@@ -821,7 +837,12 @@ def register_site_routes(rt):
                     for key in ("eyebrow", "heading", "body", "image", "poster", "alt", "video", "mobile_video", "link", "button", "url"):
                         if f"section_{i}_{key}" not in form:
                             continue
-                        values[key] = merge_localized(section.get(key, ""), str(form.get(f"section_{i}_{key}", ""))[:30000], locale)
+                        submitted = str(form.get(f"section_{i}_{key}", ""))[:30000]
+                        values[key] = merge_localized(
+                            section.get(key, ""),
+                            sanitise_rich_text(submitted) if key == "body" else submitted,
+                            locale,
+                        )
                     values["hidden"] = form.get(f"section_{i}_hidden") == "on"
                     if "items" in section:
                         items = []
@@ -835,7 +856,12 @@ def register_site_routes(rt):
                             for key in entry_fields:
                                 field = f"section_{i}_item_{j}_{key}"
                                 if field in form:
-                                    item[key] = merge_localized(original.get(key, ""), str(form[field])[:5000], locale)
+                                    submitted = str(form[field])[:30000]
+                                    item[key] = merge_localized(
+                                        original.get(key, ""),
+                                        sanitise_rich_text(submitted) if key == "body" else submitted,
+                                        locale,
+                                    )
                             items.append(item)
                         values["items"] = items
                     if section["type"] in {"faq", "team", "research", "references"} and form.get(f"section_{i}_add_item") == "on":

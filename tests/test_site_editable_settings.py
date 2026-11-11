@@ -26,7 +26,7 @@ def liquid_header_footer_cases():
             # Success copy is rendered by the public newsletter confirmation route.
             continue
         kind = field.get("type", "text")
-        if kind in {"text", "textarea"}:
+        if kind in {"text", "textarea", "richtext"}:
             value = expected = "Edited " + field["id"]
         elif kind in {"url", "image"}:
             value = expected = "/edited-shell-field"
@@ -65,7 +65,7 @@ def test_defaults_fill_absent_paths_only_and_unknown_packs_have_no_fields():
     assert shell_fields({}) == []
     schemas = block_schema_registry()
     hero = {field["id"]: field for field in schemas["liquid_hero"]["fields"]}
-    assert hero["disclaimer"]["type"] == "textarea"
+    assert hero["disclaimer"]["type"] == "richtext"
     assert hero["disclaimer"]["default"] == FDA
     assert schemas["liquid_reviews"]["defaults"]["sample_note"] == "Sample reviews"
 
@@ -80,7 +80,7 @@ def test_apply_validates_declared_paths_and_keeps_unrelated_settings():
     assert saved["design"] == {"accent": "#123456"}
     assert saved["liquid_shell"]["offer"]["title"] == "Old"
     assert saved["liquid_shell"]["footer"]["payments"] == ["Visa", "PayPal"]
-    for bad in ({"footer": "x" * 2001},
+    for bad in ({"footer": "x" * 12001},
                 {"liquid_shell": {"offer": {"privacyHref": "javascript:alert(1)"}}},
                 {"liquid_shell": {"footer": {"payments": "Bitcoin"}}},
                 {"liquid_shell": {"footer": {"links": "not a list"}}}):
@@ -89,6 +89,26 @@ def test_apply_validates_declared_paths_and_keeps_unrelated_settings():
     published = publish_shell(saved, {"design": {"accent": "#000000"}}, fields)
     assert published["footer"] == "New disclaimer"
     assert published["design"] == {"accent": "#000000"}
+
+
+def test_shell_rich_text_fields_round_trip_through_shared_sanitiser():
+    fields = shell_fields(LIQUID)
+    rich_ids = {field["id"] for field in fields if field.get("type") == "richtext"}
+    assert {"footer", "liquid_shell.offer.body", "liquid_shell.footer.newsletterBody",
+            "liquid_shell.footer.newsletterUnsubscribeInstruction", "liquid_consent.body"} <= rich_ids
+    dirty = '<h3>Read this</h3><p style="color:red" onclick="x()">Safe <script>x()</script></p><ol><li>One</li></ol>'
+    saved = apply_shell(LIQUID, {
+        "footer": dirty,
+        "liquid_shell": {"offer": {"body": dirty}, "footer": {"newsletterBody": dirty,
+            "newsletterUnsubscribeInstruction": dirty}},
+        "liquid_consent": {"body": dirty},
+    }, fields)
+    expected = '<h3>Read this</h3><p>Safe </p><ol><li>One</li></ol>'
+    assert saved["footer"] == expected
+    assert saved["liquid_shell"]["offer"]["body"] == expected
+    assert saved["liquid_shell"]["footer"]["newsletterBody"] == expected
+    assert saved["liquid_shell"]["footer"]["newsletterUnsubscribeInstruction"] == expected
+    assert saved["liquid_consent"]["body"] == expected
 
 
 def test_portal_labels_load_from_liquid_shell_fields():

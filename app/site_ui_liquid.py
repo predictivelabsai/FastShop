@@ -129,7 +129,16 @@ def icon(kind, *, benefit=False):
 
 
 def _field_attrs(preview, name, kind="text"):
+    if kind == "text" and name.rsplit(".", 1)[-1] in {
+        "body", "description", "text", "quote", "bio", "disclaimer"
+    }:
+        kind = "richtext"
     return {"data-field": name, "data-field-type": kind} if preview else {}
+
+
+def _rich(value, **attrs):
+    from app.site_widgets import rich_content
+    return rich_content(value, **attrs)
 
 
 def _mark_nested_images(node, block, preview):
@@ -304,7 +313,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
         content_block = render_editorial(b, base)
     if content_block is not None:
         return content_block
-    product_block = render_product_block(db, site, b, base, csrf, enabled)
+    product_block = render_product_block(db, site, b, base, csrf, enabled, preview=preview)
     if product_block is not None:
         return product_block
     kind, heading = b["type"], b.get("heading", "")
@@ -327,21 +336,21 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
             Div(
                 H1(heading, cls="metal-hero-title font-display"),
                 Div(cls="hero-rule"),
-                P(
+                _rich(
                     b.get("body", "").removesuffix("*"),
-                    Sup("*") if b.get("body", "").endswith("*") else None,
                     cls="hero-subheadline",
                     data_field="body" if preview else None,
-                    data_field_type="text" if preview else None,
+                    data_field_type="richtext" if preview else None,
                 ),
+                Sup("*") if b.get("body", "").endswith("*") else None,
                 A(
                     b.get("button", "Shop"),
                     href=url(base, b.get("link", "/#products")),
                     cls="metal-cta bg-metal-sheen",
                 ),
-                P(b.get("disclaimer", config.get("footer", "")), cls="liquid-hero-disclaimer",
+                _rich(b.get("disclaimer", config.get("footer", "")), cls="liquid-hero-disclaimer",
                   data_field="disclaimer" if preview else None,
-                  data_field_type="text" if preview else None)
+                  data_field_type="richtext" if preview else None)
                 if "*" in b.get("body", "") and b.get("disclaimer", config.get("footer", "")) else None,
                 cls="metal-container hero-copy",
             ),
@@ -373,13 +382,15 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                             ),
                             Div(cls="stat-rule"),
                             Dd(s["label"], cls="stat-label"),
-                            Dd(s.get("body", ""), cls="metal-stat-note"),
+                            _rich(s.get("body", ""), cls="metal-stat-note",
+                                  **_field_attrs(preview, f"items.{i}.body")),
                         )
-                        for s in items
+                        for i, s in enumerate(items)
                     ],
                     cls="liquid-stats-grid",
                 ),
-                P(b.get("body", ""), cls="science-source"),
+                _rich(b.get("body", ""), cls="science-source",
+                      **_field_attrs(preview, "body")),
                 cls="metal-container metal-section",
             ),
             id=b["id"],
@@ -389,7 +400,9 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
         cards = []
         specs = [s for s in items if s.get("theme") == "spec"]
         flavors = [s for s in items if s.get("theme") == "flavor"]
-        for item in (s for s in items if s.get("theme") == "product"):
+        for index, item in enumerate(items):
+            if item.get("theme") != "product":
+                continue
             is_fizz = item["url"].rstrip("/").endswith("/hydrogen-tablets")
             cards.append(
                 Article(
@@ -409,7 +422,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                                 cls="metal-product-title",
                             ),
                             P(item["label"], cls="product-subtitle"),
-                            P(item["body"], cls="metal-product-blurb text-muted-foreground"),
+                            _rich(item["body"], cls="metal-product-blurb text-muted-foreground",
+                                  **_field_attrs(preview, f"items.{index}.body")),
                             cls="metal-product-top",
                         ),
                         add_form(
@@ -460,9 +474,10 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                             icon(s["theme"], benefit=True),
                             H3(s["heading"], cls="font-display",
                                **_field_attrs(preview, f"items.{i}.heading")),
-                            P(s["body"], cls="text-muted-foreground",
+                            _rich(s["body"], cls="text-muted-foreground",
                               **_field_attrs(preview, f"items.{i}.body")),
-                            P(b.get("body", ""), cls="liquid-card-disclaimer")
+                            _rich(b.get("body", ""), cls="liquid-card-disclaimer",
+                                 **_field_attrs(preview, "body"))
                             if "*" in s["heading"] or "*" in s["body"] else None,
                             cls="metal-card metal-benefit-card",
                         )
@@ -470,7 +485,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     ],
                     cls="liquid-benefits-grid",
                 ),
-                P(b.get("body", ""), cls="metal-benefits-disclaimer text-muted-foreground"),
+                _rich(b.get("body", ""), cls="metal-benefits-disclaimer text-muted-foreground",
+                     **_field_attrs(preview, "body")),
                 P(A(b["button"], href=url(base, b["link"]),
                     **_field_attrs(preview, "button")), cls="faq-more",
                   **_field_attrs(preview, "link"))
@@ -507,8 +523,7 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                                     **_field_attrs(preview, f"items.{i}.value"),
                                 ),
                                 H3(s["heading"], cls="review-headline"),
-                                Blockquote("“" + s["body"] + "”",
-                                           **_field_attrs(preview, f"items.{i}.body")),
+                                Blockquote(_rich(s["body"], **_field_attrs(preview, f"items.{i}.body"))),
                                 Figcaption(
                                     P(s["label"]),
                                     P(s.get("theme", ""), cls="review-location"),
@@ -571,7 +586,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
         return Section(
             Div(
                 H2(heading, cls="font-display text-5xl"),
-                P(b.get("body", ""), cls="learn-intro text-muted-foreground"),
+                _rich(b.get("body", ""), cls="learn-intro text-muted-foreground",
+                     **_field_attrs(preview, "body")),
                 Div(
                     *[
                         A(
@@ -588,14 +604,15 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                             Div(
                                 P(s["label"], cls="metal-tag"),
                                 H3(s["heading"], cls="font-display"),
-                                P(s.get("body", ""), cls="metal-article-summary"),
+                                _rich(s.get("body", ""), cls="metal-article-summary",
+                                     **_field_attrs(preview, f"items.{i}.body")),
                                 Span(b.get("read_more", "Read more →"), cls="metal-learn-more"),
                                 cls="metal-article-body",
                             ),
                             href=url(base, s["url"]),
                             cls="metal-card metal-article",
                         )
-                        for s in items
+                        for i, s in enumerate(items)
                     ],
                     cls="liquid-articles-grid",
                 ),
@@ -615,14 +632,15 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     cls="shop-breadcrumb",
                 ),
                 H1(heading, cls="font-display text-6xl"),
-                P(b.get("body", ""), cls="shop-intro text-muted-foreground"),
+                _rich(b.get("body", ""), cls="shop-intro text-muted-foreground",
+                     **_field_attrs(preview, "body")),
                 cls="metal-container",
             ),
             cls="shop-heading liquid-ruled",
         )
     if kind == "liquid_catalog":
         cards = []
-        for s in items:
+        for i, s in enumerate(items):
             is_fizz = s["url"].rstrip("/").endswith("/hydrogen-tablets")
             is_range = s["url"].rstrip("/").endswith("/taste-the-range")
             media = photo(s["image"], s["alt"], width=1024, height=1024)
@@ -653,7 +671,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                             A(product_name(s["heading"]), href=url(base, s["url"])),
                             cls="shop-product-name",
                         ),
-                        P(s["body"], cls="shop-description text-muted-foreground"),
+                        _rich(s["body"], cls="shop-description text-muted-foreground",
+                             **_field_attrs(preview, f"items.{i}.body")),
                         Div(
                             Del(
                                 catalog_price(db, site, "/products/hydrogen-tablets", quantity=4),
@@ -712,7 +731,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     *[
                         A(
                             H3(s["heading"], cls="font-display"),
-                            P(s["body"], cls="text-muted-foreground"),
+                            _rich(s["body"], cls="text-muted-foreground",
+                                 **_field_attrs(preview, f"items.{i}.body")),
                             Span(
                                 product_name(s["label"]),
                                 Span("→", aria_hidden="true"),
@@ -758,7 +778,7 @@ def newsletter(shell, base, csrf, identity, enabled, *, preview=False, footer=Fa
     form = Form(
         Input(type="hidden", name="csrf_token", value=csrf),
         Input(type="hidden", name="newsletter_source", value="footer" if footer else "offer"),
-        P(offer["body"], **_field_attrs(preview, "liquid_shell.offer.body")) if not footer else None,
+        _rich(offer["body"], **_field_attrs(preview, "liquid_shell.offer.body")) if not footer else None,
         Div(
             Label(offer.get("newsletterEmailLabel" if footer else "emailLabel", "Email address"),
                   fr=identity, cls="sr-only", **_field_attrs(preview, field("emailLabel"))),
@@ -1130,8 +1150,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         A(logo(), href=base + "/"),
                         H2(footer["newsletterTitle"], cls="liquid-footer-title",
                            **_field_attrs(preview, "liquid_shell.footer.newsletterTitle")),
-                        P(footer["newsletterBody"],
-                          **_field_attrs(preview, "liquid_shell.footer.newsletterBody", "textarea")),
+                        _rich(footer["newsletterBody"],
+                              **_field_attrs(preview, "liquid_shell.footer.newsletterBody", "richtext")),
                         newsletter(shell, base, csrf, "footer-email", enabled,
                                   preview=preview, footer=True,
                                   message=(footer.get("newsletterThanks", "") if newsletter_result == "success"
@@ -1186,7 +1206,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     cls="liquid-footer-grid",
                 ),
                 Div(
-                    P(resolved["footer"]),
+                    _rich(resolved["footer"], **_field_attrs(preview, "footer", "richtext")),
                         Button(labels["cookies"], type="button", data_cookie_open=""),
                     P(copyright_line),
                     Small("Sandbox · Test purchases only") if enabled and payment_mode != "live" else None,
@@ -1198,7 +1218,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             ),
             Div(
                 H2(consent_copy["heading"]),
-                P(consent_copy["body"]),
+                _rich(consent_copy["body"], **_field_attrs(preview, "liquid_consent.body", "richtext")),
                 Details(
                     Summary(consent_copy["categories"]),
                     Label(Input(type="checkbox", checked=True, disabled=True), " " + consent_copy["essential"]),

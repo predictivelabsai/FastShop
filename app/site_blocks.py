@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import html
 import re
 import uuid
 from dataclasses import dataclass
@@ -170,6 +171,11 @@ def _text(value, key, limit=30000):
             continue
         if key in URL_FIELDS and text:
             safe_url(text, media=key not in {'link', 'url'})
+    if key in {"body", "description", "text", "quote", "bio", "disclaimer"}:
+        from app.rich_text import sanitise_rich_text
+        if isinstance(value, dict):
+            return {locale: sanitise_rich_text(text) for locale, text in value.items()}
+        return sanitise_rich_text(value)
     return copy.deepcopy(value)
 
 
@@ -243,6 +249,10 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
                 theme = item.get('theme')
                 if not isinstance(theme, str) or theme not in LIQUID_PRODUCT_THEMES[result['type']]:
                     raise CommerceError('Choose a supported Liquid product entry.')
+                if theme in {'bundle', 'box'} and 'body' in item:
+                    from app.rich_text import sanitise_rich_text
+                    safe = sanitise_rich_text(item['body'])
+                    item['body'] = html.unescape(re.sub(r'<[^>]*>', '', safe))
                 if not LIQUID_PRODUCT_ITEM_FIELDS.get(theme, set()) <= item.keys():
                     raise CommerceError('Complete the Liquid product entry fields.')
                 if theme == 'bundle' and (

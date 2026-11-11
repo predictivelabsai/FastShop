@@ -34,6 +34,7 @@ from app import site_builder_services as builder
 from app.admin_ui import badge, card, empty_state, page_header
 from app.db import SessionLocal
 from app.models import SiteMedia, new_id
+from app.rich_text_ui import rich_text_editor
 from app.services import CommerceError
 from app.site_blocks import default_locale, resolve_document, resolve_text
 from app.site_blog import is_listed, metadata
@@ -331,26 +332,8 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
                                     ),
                                 ),
                                 Label(Input(type="hidden", name="create_redirect", value="off"), Input(type="checkbox", name="create_redirect", value="on", checked=True), " Create redirect when the path changes"),
-                                Div(
-                                    *[
-                                        Button(
-                                            label,
-                                            type="button",
-                                            data_rich_command=command,
-                                            cls="a-button",
-                                        )
-                                        for command, label in [
-                                            ("bold", "Bold"),
-                                            ("italic", "Italic"),
-                                            ("insertUnorderedList", "List"),
-                                        ]
-                                    ],
-                                    cls="a-actions",
-                                ),
-                                Label(
-                                    "Content",
-                                    Textarea(body, name="body", rows=14, data_rich_source=""),
-                                ),
+                                rich_text_editor(body, name="body", label="Content",
+                                                 editor_id="article-body"),
                                 Label(
                                     "Excerpt",
                                     Textarea(

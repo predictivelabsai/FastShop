@@ -64,6 +64,27 @@ def test_store_action_is_pending_until_confirmed_and_executes_once():
     engine.dispose()
 
 
+def test_store_agent_product_description_is_sanitised_on_confirm():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        user = User(email="rich-agent@example.test", name="Merchant")
+        db.add(user)
+        db.flush()
+        site = content.create_site(db, user.id, "Rich agent", "rich-agent")
+        product = catalog_admin.create_product(db, site, {"name": "Raspberry box"})
+        dirty = '<h3>Ingredients</h3><p onclick="x()">Carefully chosen.</p><script>alert(1)</script>' \
+                '<ul><li>Raspberry</li></ul>'
+        action = _propose_tool(db, site, user, "update_product", {
+            "product_id": product.id, "description": dirty,
+        })
+        assert action.status == "pending" and not product.description_html
+        confirm_action(db, site, user, action.id)
+        assert product.description_html == '<h3>Ingredients</h3><p>Carefully chosen.</p><ul><li>Raspberry</li></ul>'
+        assert "alert(1)" not in product.description_html
+    engine.dispose()
+
+
 def test_store_product_reads_reject_cross_tenant_ids():
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

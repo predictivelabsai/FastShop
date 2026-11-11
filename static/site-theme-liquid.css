@@ -916,3 +916,22 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 .h-site[data-pack="liquid"] .liquid-cart-purchase { display:flex; align-items:center; gap:6px; }
 .h-site[data-pack="liquid"] .liquid-cart-purchase .liquid-cart-update { font-size:11px; padding:4px; }
 .h-site[data-pack="liquid"] .liquid-cart-controls > .text-muted-foreground { font-size:12px; }
+
+.liquid-policy-content,
+.fs-rich-content { line-height: 1.75; }
+.liquid-policy-content :is(h2, h3, h4),
+.fs-rich-content :is(h2, h3, h4) { margin: 1.8em 0 .55em; font-family: var(--display-family, Georgia, serif); line-height: 1.2; }
+.liquid-policy-content :is(p, ul, ol, blockquote),
+.fs-rich-content :is(p, ul, ol, blockquote) { margin: .9em 0; }
+.liquid-policy-content :is(ul, ol),
+.fs-rich-content :is(ul, ol) { padding-inline-start: 1.5em; }
+.h-site[data-pack="liquid"] .liquid-policy-content ul,
+.h-site[data-pack="liquid"] .fs-rich-content ul { list-style: disc; padding-inline-start: 1.5em; }
+.h-site[data-pack="liquid"] .liquid-policy-content ol,
+.h-site[data-pack="liquid"] .fs-rich-content ol { list-style: decimal; padding-inline-start: 1.5em; }
+.liquid-policy-content blockquote,
+.fs-rich-content blockquote { margin-inline: 0; padding: .15em 0 .15em 1em; border-inline-start: 1px solid var(--store-accent, #648873); }
+.liquid-policy-content a,
+.fs-rich-content a { color: var(--store-accent, #236449); text-decoration: underline; text-underline-offset: .15em; }
+.liquid-policy-content hr,
+.fs-rich-content hr { margin: 1.8em 0; border: 0; border-top: 1px solid currentColor; opacity: .25; }
