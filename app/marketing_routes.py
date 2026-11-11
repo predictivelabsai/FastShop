@@ -48,7 +48,14 @@ from app.config import settings
 from app.content_gap_models import UrlRedirect
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
-from app.models import Discount, MarketingSubscriber, SitePage, User
+from app.models import (
+    Discount,
+    MarketingAutomation,
+    MarketingCampaign,
+    MarketingSubscriber,
+    SitePage,
+    User,
+)
 from app.services import CommerceError
 from app.site_blocks import BLOCK_TYPES
 from app.site_generation import MAX_PAGES
@@ -1214,6 +1221,20 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                         MarketingSubscriber.status == "subscribed",
                     )
                 ) or 0
+                campaign_drafts = db.scalar(select(func.count(MarketingCampaign.id)).where(
+                    MarketingCampaign.tenant_id == site.tenant_id,
+                    MarketingCampaign.site_id == site.id,
+                    MarketingCampaign.status == "draft",
+                )) or 0
+                last_sent = db.scalar(select(MarketingCampaign).where(
+                    MarketingCampaign.tenant_id == site.tenant_id,
+                    MarketingCampaign.site_id == site.id,
+                    MarketingCampaign.status == "sent",
+                ).order_by(MarketingCampaign.sent_at.desc()).limit(1))
+                automation = db.scalar(select(MarketingAutomation).where(
+                    MarketingAutomation.tenant_id == site.tenant_id,
+                    MarketingAutomation.site_id == site.id,
+                ))
 
                 base = f"/admin/sites/{site.id}"
                 seo_card = card(
@@ -1278,6 +1299,18 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                     A("Manage subscribers", href=base + "/marketing/subscribers", cls="a-button"),
                     title="Email subscribers",
                 )
+                campaigns_card = card(
+                    P(f"{campaign_drafts} draft campaign" + ("" if campaign_drafts == 1 else "s")),
+                    P("Last sent: " + (last_sent.sent_at.strftime("%d %b %Y %H:%M UTC")
+                                       if last_sent and last_sent.sent_at else "Never")),
+                    A("Manage campaigns", href=base + "/marketing/campaigns", cls="a-button"),
+                    title="Campaigns",
+                )
+                automations_card = card(
+                    P("Abandoned checkout email: " + ("On" if automation and automation.enabled else "Off")),
+                    A("Manage automations", href=base + "/marketing/automations", cls="a-button"),
+                    title="Automations",
+                )
                 return shell(
                     "Marketing",
                     page_header("Marketing"),
@@ -1289,6 +1322,8 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                         tracking_card,
                         discounts_card,
                         subscribers_card,
+                        campaigns_card,
+                        automations_card,
                         cls="a-marketing-grid",
                     ),
                 )

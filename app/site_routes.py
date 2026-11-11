@@ -72,6 +72,8 @@ def register_site_routes(rt):
     from app.site_delete_routes import register_site_delete_routes
     from app.site_index_routes import register_site_index_routes
     register_site_index_routes(rt)
+    from app.marketing_automation_routes import register_marketing_automation_routes
+    from app.marketing_campaign_routes import register_marketing_campaign_routes
     from app.marketing_routes import register_admin_marketing_routes
     from app.marketing_subscriber_routes import register_marketing_subscriber_routes
     from app.site_seo_routes import register_site_seo_routes
@@ -102,6 +104,8 @@ def register_site_routes(rt):
     register_site_seo_routes(rt, actor, csrf, check_csrf, shell, error)
     register_site_tracking_routes(rt, actor, csrf, check_csrf, shell, error)
     register_admin_marketing_routes(rt, actor, shell, error)
+    register_marketing_campaign_routes(rt, actor, csrf, check_csrf, shell, error)
+    register_marketing_automation_routes(rt, actor, csrf, check_csrf, shell, error)
     register_marketing_subscriber_routes(rt, actor, csrf, check_csrf, shell, error)
     register_site_delete_routes(rt, actor, csrf, check_csrf, shell, error)
 

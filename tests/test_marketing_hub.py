@@ -140,6 +140,8 @@ def test_marketing_hub_renders_for_owner(marketing_hub):
         "Tracking and pixels",
         "Discounts",
         "Email subscribers",
+        "Campaigns",
+        "Automations",
     ):
         assert heading in response.text
     assert "Indexing: Off" in response.text
@@ -154,6 +156,11 @@ def test_marketing_hub_renders_for_owner(marketing_hub):
     assert "1 active discount" in response.text
     assert "1 subscribed email subscriber" in response.text
     assert f'href="/admin/sites/{w.site.id}/marketing/subscribers"' in response.text
+    assert "0 draft campaigns" in response.text
+    assert "Last sent: Never" in response.text
+    assert "Abandoned checkout email: Off" in response.text
+    assert f'href="/admin/sites/{w.site.id}/marketing/campaigns"' in response.text
+    assert f'href="/admin/sites/{w.site.id}/marketing/automations"' in response.text
     assert "https://your-store.example/sitemap.xml" in response.text
 
 

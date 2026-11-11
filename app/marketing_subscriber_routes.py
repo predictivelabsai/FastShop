@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+from datetime import UTC
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fasthtml.common import (
     H1,
@@ -95,10 +97,13 @@ def register_marketing_subscriber_routes(rt, actor, csrf, check_csrf, shell, err
     async def post(session, request, slug: str):
         form = await request.form()
         try:
-            check_csrf(session, form)
+            one_click = form.get("List-Unsubscribe") == "One-Click"
+            if not one_click:
+                check_csrf(session, form)
             with SessionLocal() as db:
                 site = db.scalar(select(Site).where(Site.slug == slug, Site.status != "deleted"))
-                subscriber = subscriber_for_token(db, site, form.get("token")) if site else None
+                token = request.query_params.get("token") if one_click else form.get("token")
+                subscriber = subscriber_for_token(db, site, token) if site else None
                 if not site or not subscriber:
                     return Response("Unsubscribe link is invalid.", status_code=404,
                                     headers={"Referrer-Policy": "no-referrer"})
@@ -115,6 +120,23 @@ def register_marketing_subscriber_routes(rt, actor, csrf, check_csrf, shell, err
     def list_url(site_id, params=None):
         query = urlencode({key: value for key, value in (params or {}).items() if value not in ("", None)})
         return f"/admin/sites/{site_id}/marketing/subscribers" + ("?" + query if query else "")
+
+    def consented_at_label(site, value):
+        if not value:
+            return ""
+        moment = value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        timezone_name = ""
+        for settings in (site.published_settings_json or {}, site.settings_json or {}):
+            timezone_name = str(settings.get("timezone") or settings.get("time_zone") or "").strip()
+            if timezone_name:
+                break
+        if timezone_name:
+            try:
+                local = moment.astimezone(ZoneInfo(timezone_name))
+                return local.strftime("%d %b %Y, %H:%M %Z") + f" ({timezone_name})"
+            except ZoneInfoNotFoundError:
+                pass
+        return moment.astimezone(UTC).strftime("%d %b %Y, %H:%M UTC")
 
     def admin_list(site, rows, total, query, status, source, page, csrf_field, notice):
         site_id = site.id
@@ -159,7 +181,7 @@ def register_marketing_subscriber_routes(rt, actor, csrf, check_csrf, shell, err
                     Button("Resubscribe", cls="a-button a-button-secondary"),
                     method="post", action=base + f"/{row.id}/subscribe")
             body_rows.append(Tr(Td(row.email), Td(row.status.title()), Td(row.source.title()),
-                Td(row.consented_at.isoformat() if row.consented_at else ""), Td(action)))
+                Td(consented_at_label(site, row.consented_at)), Td(action)))
         table = Table(Thead(headers), Tbody(*body_rows), cls="a-subscriber-table")
         export = Form(
             csrf_field(),
@@ -177,7 +199,6 @@ def register_marketing_subscriber_routes(rt, actor, csrf, check_csrf, shell, err
         )
         return (
             A("← Marketing", href=f"/admin/sites/{site_id}/marketing"),
-            H1("Email subscribers"),
             P(notice, role="status") if notice else None,
             Div(filters, export, cls="a-subscriber-toolbar"),
             Div(Div(table, cls="a-table-wrap") if rows else P("No subscribers match these filters."), pagination,
