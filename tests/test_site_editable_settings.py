@@ -103,12 +103,17 @@ def test_default_theme_shell_settings_are_editable(workspace):
     assert {"name", "announcement", "footer", "generic_labels.cta",
             "generic_labels.contact_heading", "generic_labels.card_product_alt",
             "generic_labels.research_read", "generic_labels.editorial_image_alt",
-            "generic_labels.shipping_policy",
+            "generic_labels.shipping_policy", "generic_labels.newsletter_title",
+            "generic_labels.newsletter_body", "generic_labels.newsletter_success",
+            "generic_labels.newsletter_error", "generic_labels.newsletter_unsubscribe_title",
+            "generic_labels.newsletter_unsubscribe_instruction",
             "account_copy.heading",
             "account_copy.order_summary"} <= ids
     values = {"footer": "A note for visitors.", "announcement": "A store update.",
               "generic_labels": {"contact_heading": "Contact our team",
-                                 "shipping_policy": "Delivery details"},
+                                 "shipping_policy": "Delivery details",
+                                 "newsletter_title": "Notes from our shop",
+                                 "newsletter_body": "New products each month."},
               "account_copy": {"heading": "Member sign-in", "order_summary": "Purchase details"}}
     saved = w.client.put(w.base + "/shell-settings", json={
         "shell_settings": values, "version": loaded["site_version"],
@@ -120,6 +125,8 @@ def test_default_theme_shell_settings_are_editable(workspace):
         assert site.settings_json["announcement"] == "A store update."
         assert site.settings_json["generic_labels"]["contact_heading"] == "Contact our team"
         assert site.settings_json["generic_labels"]["shipping_policy"] == "Delivery details"
+        assert site.settings_json["generic_labels"]["newsletter_title"] == "Notes from our shop"
+        assert site.settings_json["generic_labels"]["newsletter_body"] == "New products each month."
         assert site.settings_json["account_copy"]["heading"] == "Member sign-in"
         assert site.settings_json["account_copy"]["order_summary"] == "Purchase details"
         assert site.published_settings_json["footer"] != "A note for visitors."
@@ -133,6 +140,8 @@ def test_default_theme_shell_settings_are_editable(workspace):
         assert site.published_settings_json["announcement"] == "A store update."
         assert site.published_settings_json["generic_labels"]["contact_heading"] == "Contact our team"
         assert site.published_settings_json["generic_labels"]["shipping_policy"] == "Delivery details"
+        assert site.published_settings_json["generic_labels"]["newsletter_title"] == "Notes from our shop"
+        assert site.published_settings_json["generic_labels"]["newsletter_body"] == "New products each month."
         assert site.published_settings_json["account_copy"]["heading"] == "Member sign-in"
         assert site.published_settings_json["account_copy"]["order_summary"] == "Purchase details"
 
