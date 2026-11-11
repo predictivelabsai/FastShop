@@ -102,7 +102,7 @@ def test_stale_versions_and_cross_customer_ids_cannot_mutate_contract(contract):
     assert sub.state == "active"
 
 
-def test_flavour_same_product_and_price_only_and_address_is_us_only(contract):
+def test_variant_same_product_and_price_only_and_address_is_us_only(contract):
     r, sub = contract
     new = ProductVariant(tenant_id=r.site.tenant_id, product_id=r.variant.product_id, sku="BERRY", name="Berry")
     r.db.add(new)
@@ -110,7 +110,7 @@ def test_flavour_same_product_and_price_only_and_address_is_us_only(contract):
     listing = VariantChannelListing(variant_id=new.id, channel_id=r.site.channel_id, currency="USD", price_minor=2995)
     r.db.add(listing)
     r.db.flush()
-    change(r, sub, "flavour", {"from_variant_id": r.variant.id, "variant_id": new.id})
+    change(r, sub, "variant", {"from_variant_id": r.variant.id, "variant_id": new.id})
     assert sub.lines_json[0]["variant_id"] == new.id
     assert sub.lines_json[0]["unit_minor"] == 2696
     with pytest.raises(CommerceError, match="US states"):
@@ -120,7 +120,7 @@ def test_flavour_same_product_and_price_only_and_address_is_us_only(contract):
     config = commerce.settings_for(r.db, r.site)
     config.subscription_product_ids_json = []
     with pytest.raises(CommerceError, match="not eligible"):
-        change(r, sub, "flavour", {"from_variant_id": new.id, "variant_id": r.variant.id}, key="ineligible-flavour-01")
+        change(r, sub, "variant", {"from_variant_id": new.id, "variant_id": r.variant.id}, key="ineligible-variant-01")
 
 
 def test_cancel_during_charge_stops_future_cycles_but_does_not_claim_refund(contract):

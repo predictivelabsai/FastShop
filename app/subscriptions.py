@@ -202,7 +202,7 @@ def change(db, site, customer_id, contract_id, action, values, *, version, reque
             if not recipient or len(recipient) > 160:
                 raise CommerceError("Enter the recipient's full name.")
             contract.destination_json, contract.recipient_name = destination, recipient
-        elif action == "flavour":
+        elif action == "variant":
             lines = [dict(line) for line in contract.lines_json]
             old = next((line for line in lines if line["variant_id"] == values.get("from_variant_id")), None)
             if not old:
@@ -213,9 +213,9 @@ def change(db, site, customer_id, contract_id, action, values, *, version, reque
             new = commerce.price_lines(db, site, config, [{"variant_id": values.get("variant_id"),
                 "quantity": old["quantity"], "subscription": True}])[0]
             if new.product_id != old["product_id"] or new.unit_minor != old["unit_minor"]:
-                raise CommerceError("Choose a flavour of the same product and subscription price.")
+                raise CommerceError("Choose a variant of the same product and subscription price.")
             if any(line is not old and line["variant_id"] == new.variant_id for line in lines):
-                raise CommerceError("That flavour is already included in this subscription.")
+                raise CommerceError("That variant is already included in this subscription.")
             old.update(variant_id=new.variant_id, name=new.name)
             contract.lines_json = lines
         else:

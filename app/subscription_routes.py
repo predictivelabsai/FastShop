@@ -24,13 +24,13 @@ from app.db import SessionLocal
 from app.models import (
     ProductVariant,
     Site,
-    SubscriptionContract,
     SubscriptionCycle,
     SubscriptionPaymentSetup,
 )
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
 from app.storefront_ui import commerce_page, public_message
+from app.subscription_portal import render as render_portal
 
 
 def register_subscription_routes(rt, csrf, check_csrf):
@@ -56,17 +56,15 @@ def register_subscription_routes(rt, csrf, check_csrf):
             headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer"})
 
     @rt("/sites/{slug}/account/subscriptions", methods=["GET"])
-    def get(session, request, slug: str):
+    def get(session, request, slug: str, tab: str = "next"):
         try:
             with SessionLocal() as db:
                 site, customer = identity(db, session, slug)
-                rows = db.scalars(select(SubscriptionContract).where(SubscriptionContract.site_id == site.id,
-                    SubscriptionContract.tenant_id == site.tenant_id, SubscriptionContract.customer_id == customer.id)
-                    .order_by(SubscriptionContract.created_at.desc())).all()
-                return screen(site, request, "Your subscriptions", *[Div(H2(A("Tablet delivery", href=base(site, request) + "/account/subscriptions/" + row.id)),
-                    P("Status: " + row.state), P("Next scheduled date: " + row.next_due_at.strftime("%Y-%m-%d") + " UTC") if row.state == "active" else None,
-                    P("Merchandise per delivery: " + money(sum(line["unit_minor"] * line["quantity"] for line in row.lines_json), "USD") + " + applicable shipping and tax"), cls="e-card") for row in rows],
-                    P("No subscriptions yet.") if not rows else None)
+                if tab not in {"next", "subscriptions", "orders", "account"}:
+                    tab = "next"
+                content = render_portal(db, site, customer, request, session, csrf, tab)
+                from fasthtml.common import Link
+                return screen(site, request, "Subscriptions", Link(rel="stylesheet", href="/static/subscription-portal.css"), content)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError:
@@ -89,11 +87,11 @@ def register_subscription_routes(rt, csrf, check_csrf):
                 setups = db.scalars(select(SubscriptionPaymentSetup).where(SubscriptionPaymentSetup.contract_id == contract.id,
                     SubscriptionPaymentSetup.site_id == site.id, SubscriptionPaymentSetup.tenant_id == site.tenant_id,
                     SubscriptionPaymentSetup.customer_id == customer.id, SubscriptionPaymentSetup.state == "pending")).all()
-                flavours = []
+                variant_forms = []
                 for line in contract.lines_json:
                     variants = db.scalars(select(ProductVariant).where(ProductVariant.product_id == line["product_id"],
                         ProductVariant.tenant_id == site.tenant_id, ProductVariant.is_active.is_(True))).all()
-                    flavours.append(form("flavour", "Change flavour", Input(type="hidden", name="from_variant_id", value=line["variant_id"]),
+                    variant_forms.append(form("variant", "Change variant", Input(type="hidden", name="from_variant_id", value=line["variant_id"]),
                         Label(line["name"].replace("\u2014", "·") + " · " + str(line["quantity"]) + " per delivery",
                             Select(*[Option(variant.name, value=variant.id, selected=variant.id == line["variant_id"]) for variant in variants], name="variant_id"))))
                 destination = contract.destination_json
@@ -112,7 +110,7 @@ def register_subscription_routes(rt, csrf, check_csrf):
                         P("Resuming skips missed periods; it does not charge catch-up deliveries."),
                         form("frequency", "Change frequency", Label("Months between deliveries", Input(name="months", type="number", min=1, max=12, value=contract.interval_months, required=True))),
                         P("Changing frequency keeps the next scheduled date and changes the interval after it."), cls="e-card") if contract.state != "cancelled" else None,
-                    Div(H2("Flavours"), *flavours, cls="e-card") if contract.state != "cancelled" else None,
+                    Div(H2("Variants"), *variant_forms, cls="e-card") if contract.state != "cancelled" else None,
                     Div(H2("Delivery address"), form("address", "Update delivery address",
                         Label("Recipient's full name", Input(name="recipient_name", value=contract.recipient_name, required=True, maxlength=160)),
                         *address_fields, Label("State", Select(*[Option(label, value=code, selected=destination.get("state") == code) for code, label in commerce.US_STATES.items()], name="state")),
@@ -146,10 +144,21 @@ def register_subscription_routes(rt, csrf, check_csrf):
                     values = {}
                     if action == "frequency":
                         values = {"months": int(data.get("months", "0"))}
+                    elif action == "reschedule":
+                        values = {"date": str(data.get("date", ""))}
+                    elif action == "quantity":
+                        values = {"variant_id": str(data.get("variant_id", "")),
+                                  "quantity": int(data.get("quantity", "0"))}
+                    elif action in {"swap", "variant"}:
+                        values = {"from_variant_id": str(data.get("from_variant_id", "")),
+                                  "variant_id": str(data.get("variant_id", ""))}
+                    elif action == "add_product":
+                        values = {"variant_id": str(data.get("variant_id", "")),
+                                  "quantity": int(data.get("quantity", "0"))}
+                    elif action == "remove_product":
+                        values = {"variant_id": str(data.get("variant_id", ""))}
                     elif action == "address":
                         values = {key: str(data.get(key, "")) for key in ("line1", "line2", "city", "state", "postal_code", "country", "recipient_name")}
-                    elif action == "flavour":
-                        values = {key: str(data.get(key, "")) for key in ("from_variant_id", "variant_id")}
                     elif action == "cancel" and data.get("confirm_cancel") != "on":
                         raise CommerceError("Confirm that you want to cancel future renewals.")
                     subscriptions.change(db, site, customer.id, contract_id, action, values,

@@ -65,6 +65,7 @@ from app.site_blocks import (
 )
 from app.site_catalog import register_catalog_routes
 from app.storefront_ui import public_message
+from app.subscription_portal_copy import DEFAULT_PORTAL_COPY
 
 
 def register_site_routes(rt):
@@ -490,6 +491,11 @@ def register_site_routes(rt):
                             *[Label(key.replace("_", " ").capitalize(), Input(name="account_copy_" + key,
                                 value=(config.get("account_copy") or {}).get(key, default), maxlength=500))
                               for key, default in DEFAULT_ACCOUNT_COPY.items()],
+                            H3("Customer portal"),
+                            P("Edit the labels shown in the subscription portal. Leave a field blank to use its default."),
+                            *[Label(key.replace("_", " ").capitalize(), Input(name="portal_copy_" + key,
+                                value=(config.get("portal_copy") or {}).get(key, default), maxlength=500))
+                              for key, default in DEFAULT_PORTAL_COPY.items()],
                             H3("Analytics"), Label("GA4 measurement ID (optional)", Input(name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""), placeholder="G-ABC1234567", maxlength=22)),
                             P("Disabled when empty. Published public pages load Google Analytics only after analytics consent. Account and checkout pages are excluded; no Meta pixel is installed. Publish shared settings to apply changes."),
                             H3("Checkout payment methods"),
@@ -543,6 +549,9 @@ def register_site_routes(rt):
                 config["account_copy"] = {**(config.get("account_copy") or {}), **{
                     key: str(form.get("account_copy_" + key, "")).strip()[:500] or default
                     for key, default in DEFAULT_ACCOUNT_COPY.items()}}
+                config["portal_copy"] = {**(config.get("portal_copy") or {}), **{
+                    key: str(form.get("portal_copy_" + key, "")).strip()[:500] or default
+                    for key, default in DEFAULT_PORTAL_COPY.items()}}
                 for key in ("logo", "logo_light"):
                     if config.get(key):
                         config[key] = content.safe_url(config[key], media=True)
