@@ -8,7 +8,7 @@ import calendar
 import hashlib
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import select
 
@@ -145,6 +145,47 @@ def change(db, site, customer_id, contract_id, action, values, *, version, reque
             if contract.state != "active":
                 raise CommerceError("Only an active subscription can skip a delivery.")
             contract.next_due_at = advance_months(contract.next_due_at, contract.interval_months, contract.anchor_day)
+        elif action == "reschedule":
+            try:
+                selected = date.fromisoformat(str(values.get("date", "")))
+            except ValueError as exc:
+                raise CommerceError("Choose a valid delivery date.") from exc
+            today = now.date()
+            if selected <= today or selected > today + timedelta(days=90):
+                raise CommerceError("Choose a date within the next 90 days.")
+            contract.next_due_at = datetime.combine(selected, time.min, UTC)
+        elif action in {"quantity", "swap", "add_product", "remove_product"}:
+            lines = [dict(line) for line in contract.lines_json]
+            config = commerce.settings_for(db, site)
+            if not config:
+                raise CommerceError("Commerce settings are unavailable.")
+            if action == "quantity":
+                old = next((line for line in lines if line["variant_id"] == values.get("variant_id")), None)
+                if not old:
+                    raise CommerceError("Subscription item not found.")
+                old["quantity"] = values.get("quantity")
+            elif action == "remove_product":
+                lines = [line for line in lines if line["variant_id"] != values.get("variant_id")]
+                if len(lines) == len(contract.lines_json):
+                    raise CommerceError("Subscription item not found.")
+                if not lines:
+                    raise CommerceError("A subscription must include at least one product. Cancel it to stop future deliveries.")
+            elif action == "swap":
+                old = next((line for line in lines if line["variant_id"] == values.get("from_variant_id")), None)
+                if not old:
+                    raise CommerceError("Subscription item not found.")
+                lines = [line for line in lines if line is not old]
+                lines.append({"variant_id": str(values.get("variant_id", "")), "quantity": old["quantity"],
+                              "subscription": True})
+            else:
+                lines.append({"variant_id": str(values.get("variant_id", "")),
+                              "quantity": values.get("quantity"), "subscription": True})
+            selections = [{"variant_id": str(line["variant_id"]), "quantity": line["quantity"],
+                           "subscription": True} for line in lines]
+            priced = commerce.price_lines(db, site, config, selections)
+            contract.lines_json = [{"variant_id": line.variant_id, "product_id": line.product_id,
+                "quantity": line.quantity, "unit_minor": line.unit_minor, "name": line.name,
+                "subscription": True} for line in priced]
         elif action == "cancel":
             contract.state = "cancelled"
         elif action == "frequency":
