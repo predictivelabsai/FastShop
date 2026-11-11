@@ -38,15 +38,17 @@ from fasthtml.common import (
     ft,
     to_xml,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from starlette.responses import HTMLResponse, RedirectResponse
 
-from app import auth, plans, signup_services
+from app import auth, content, discounts, plans, signup_services
+from app.admin_ui import card, page_header
 from app.config import settings
+from app.content_gap_models import SitePreferences, UrlRedirect
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
-from app.models import User
+from app.models import Discount, MarketingConsent, ShopCustomer, SitePage, User
 from app.services import CommerceError
 from app.site_blocks import BLOCK_TYPES
 from app.site_generation import MAX_PAGES
@@ -1163,3 +1165,106 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
     @rt("/signup/verified", methods=["GET"])
     def get():
         return verified_page()
+
+
+def register_admin_marketing_routes(rt, actor, shell, error):
+    """Register the tenant-scoped marketing overview in the merchant admin."""
+    @rt("/admin/sites/{site_id}/marketing", methods=["GET"])
+    def get(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session))
+                published_settings = site.published_settings_json or {}
+                home = db.scalar(select(SitePage).where(
+                    SitePage.site_id == site.id,
+                    SitePage.tenant_id == site.tenant_id,
+                    SitePage.path == "/",
+                ))
+                home_document = (home.published_json or {}) if home else {}
+                home_title = home_document.get("seo_title") or home_document.get("title", "")
+                default_description = published_settings.get("seo_default_description", "")
+                indexing_enabled = published_settings.get("seo_indexing", True)
+                sitemap = "https://" + (site.hostname or "your-store.example") + "/sitemap.xml"
+
+                redirect_count = db.scalar(select(func.count()).select_from(UrlRedirect).where(
+                    UrlRedirect.site_id == site.id,
+                    UrlRedirect.tenant_id == site.tenant_id,
+                )) or 0
+                preferences = db.scalar(select(SitePreferences).where(
+                    SitePreferences.site_id == site.id,
+                    SitePreferences.tenant_id == site.tenant_id,
+                ))
+                ga4_id = published_settings.get("ga4_measurement_id", "")
+                analytics_id = preferences.analytics_id if preferences else ""
+                meta_pixel_id = preferences.meta_pixel_id if preferences else ""
+                active_discounts = sum(
+                    discounts.status(rule) == "Active"
+                    for rule in db.scalars(select(Discount).where(
+                        Discount.site_id == site.id,
+                        Discount.tenant_id == site.tenant_id,
+                    ))
+                )
+                subscriber_count = db.scalar(
+                    select(func.count(func.distinct(MarketingConsent.customer_id)))
+                    .select_from(MarketingConsent)
+                    .join(ShopCustomer, ShopCustomer.id == MarketingConsent.customer_id)
+                    .where(
+                        MarketingConsent.tenant_id == site.tenant_id,
+                        MarketingConsent.site_id == site.id,
+                        MarketingConsent.status == "subscribed",
+                        ShopCustomer.tenant_id == site.tenant_id,
+                        ShopCustomer.site_id == site.id,
+                    )
+                ) or 0
+
+                base = f"/admin/sites/{site.id}"
+                seo_card = card(
+                    P("Indexing: " + ("On" if indexing_enabled else "Off")),
+                    P("Home page title: " + ("Set" if home_title else "Not set")),
+                    P("Default description: " + ("Set" if default_description else "Not set")),
+                    P("Sitemap: ", A("Open sitemap", href=sitemap, target="_blank", rel="noopener")),
+                    A("Edit SEO settings", href=base + "/settings/seo", cls="a-button"),
+                    title="Search engine optimisation",
+                )
+                redirects_card = card(
+                    P(f"{redirect_count} URL redirect" + ("" if redirect_count == 1 else "s")),
+                    A("Manage redirects", href=base + "/redirects", cls="a-button"),
+                    title="URL redirects",
+                )
+                tracking_card = card(
+                    P(Strong("GA4: "), ga4_id or "Not set"),
+                    P(Strong("Google Analytics: "), analytics_id or "Not set"),
+                    P(Strong("Meta pixel: "), meta_pixel_id or "Not set"),
+                    P("Tags load only after the relevant visitor consent."),
+                    Div(
+                        A("Edit GA4 settings", href=base + "/settings", cls="a-button"),
+                        A("Edit analytics and pixel settings", href=base + "/preferences", cls="a-button"),
+                        cls="a-marketing-actions",
+                    ),
+                    title="Tracking and pixels",
+                )
+                discounts_card = card(
+                    P(f"{active_discounts} active discount" + ("" if active_discounts == 1 else "s")),
+                    A("Manage discounts", href=base + "/discounts", cls="a-button"),
+                    title="Discounts",
+                )
+                subscribers_card = card(
+                    P(f"{subscriber_count} subscribed customer" + ("" if subscriber_count == 1 else "s")),
+                    A("View customers", href=base + "/customers", cls="a-button"),
+                    title="Email subscribers",
+                )
+                return shell(
+                    "Marketing",
+                    page_header("Marketing"),
+                    P("Review search, tracking, redirects and promotions for this store."),
+                    Div(
+                        seo_card,
+                        redirects_card,
+                        tracking_card,
+                        discounts_card,
+                        subscribers_card,
+                        cls="a-marketing-grid",
+                    ),
+                )
+        except CommerceError as exc:
+            return error(exc)
