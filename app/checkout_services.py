@@ -342,6 +342,9 @@ def _paid_order(db, site, attempt, quote, provider, *, manual=False):
         payload_json={"order_id": order.id, "site_id": site.id, "currency": quote.currency,
             "total_minor": order.total_minor}))
     attempt.order_id, attempt.state = order.id, "paid"
+    from app.marketing_automation import record_recovered_order
+
+    record_recovered_order(db, site, attempt.id, order.id)
     db.flush()
     return link
 

@@ -1017,6 +1017,82 @@ class CommerceMail(TimestampMixin, Base):
     provider_id: Mapped[str] = mapped_column(String(100), default="")
 
 
+class MarketingCampaign(TimestampMixin, Base):
+    __tablename__ = "marketing_campaigns"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'scheduled', 'sending', 'sent')"),
+        Index("ix_marketing_campaign_site_status", "site_id", "status"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    creator_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    subject: Mapped[str] = mapped_column(String(200))
+    preheader: Mapped[str] = mapped_column(String(250), default="")
+    body_html: Mapped[str] = mapped_column(Text, default="")
+    body_text: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    recipient_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+class MarketingCampaignDelivery(TimestampMixin, Base):
+    __tablename__ = "marketing_campaign_deliveries"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "subscriber_id", name="uq_marketing_campaign_subscriber"),
+        CheckConstraint("status IN ('queued', 'sent', 'failed', 'cancelled')"),
+        Index("ix_marketing_campaign_delivery_status", "campaign_id", "status"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    campaign_id: Mapped[str] = mapped_column(ForeignKey("marketing_campaigns.id", ondelete="CASCADE"), index=True)
+    subscriber_id: Mapped[str] = mapped_column(ForeignKey("marketing_subscribers.id"), index=True)
+    message_id: Mapped[str | None] = mapped_column(ForeignKey("commerce_mail.id"), unique=True, nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="queued", index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MarketingAutomation(TimestampMixin, Base):
+    __tablename__ = "marketing_automations"
+    __table_args__ = (
+        UniqueConstraint("site_id", name="uq_marketing_automation_site"),
+        CheckConstraint("delay_hours >= 1 AND delay_hours <= 72"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), index=True)
+    delay_hours: Mapped[int] = mapped_column(Integer, default=4, server_default="4")
+    subject: Mapped[str] = mapped_column(String(200), default="Your basket is waiting")
+    body_html: Mapped[str] = mapped_column(Text, default="")
+    body_text: Mapped[str] = mapped_column(Text, default="")
+    include_recovery_link: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+
+
+class MarketingAbandonedEmail(TimestampMixin, Base):
+    __tablename__ = "marketing_abandoned_emails"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", name="uq_marketing_abandoned_attempt"),
+        CheckConstraint("status IN ('queued', 'sent', 'failed', 'cancelled')"),
+        Index("ix_marketing_abandoned_site_status", "site_id", "status"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    automation_id: Mapped[str] = mapped_column(ForeignKey("marketing_automations.id", ondelete="CASCADE"), index=True)
+    attempt_id: Mapped[str] = mapped_column(ForeignKey("checkout_attempts.id", ondelete="CASCADE"), index=True)
+    subscriber_id: Mapped[str] = mapped_column(ForeignKey("marketing_subscribers.id"), index=True)
+    message_id: Mapped[str | None] = mapped_column(ForeignKey("commerce_mail.id"), unique=True, nullable=True)
+    recovered_order_id: Mapped[str | None] = mapped_column(ForeignKey("orders.id"), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(24), default="queued", index=True)
+    recovery_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    recovered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class SignupAttempt(TimestampMixin, Base):
     """Short-lived HMAC identifiers used only for public-account rate limits."""
 
@@ -1202,6 +1278,7 @@ class SiteCart(TimestampMixin, Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     request_key: Mapped[str] = mapped_column(String(64), default=new_id)
     checkout_id: Mapped[str | None] = mapped_column(ForeignKey("checkout_attempts.id"), nullable=True)
+    recovery_email_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
 
 
 class SubscriptionContract(TimestampMixin, Base):

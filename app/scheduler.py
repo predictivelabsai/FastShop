@@ -55,6 +55,20 @@ def run_due_jobs(*, renewal_limit: int = 50, notice_days_ahead: int = 3,
     except Exception:  # noqa: BLE001
         logger.exception("notice queueing failed")
         result["notices"] = "error"
+    try:
+        from app.marketing_email import process_due_campaigns
+
+        result["campaigns"] = process_due_campaigns()
+    except Exception:  # noqa: BLE001
+        logger.exception("marketing campaign queueing failed")
+        result["campaigns"] = "error"
+    try:
+        from app.marketing_automation import queue_due_abandoned
+
+        result["abandoned_emails"] = queue_due_abandoned()
+    except Exception:  # noqa: BLE001
+        logger.exception("abandoned checkout email queueing failed")
+        result["abandoned_emails"] = "error"
     return result
 
 
