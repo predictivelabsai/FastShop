@@ -232,6 +232,10 @@ def render(db, site, customer, request, session, csrf, tab="next"):
             P(copy["marketing"] + ": " + (copy["marketing_on"] if consent and consent.status == "subscribed" else copy["marketing_off"])),
             Form(csrf(session), Button(copy["unsubscribe"], cls="portal-button"), method="post",
                  action=root + "/account/unsubscribe") if consent and consent.status == "subscribed" else None,
+            Form(csrf(session), Input(type="email", name="email", value=customer.email, required=True),
+                 Input(type="hidden", name="marketing_consent", value="on"),
+                 Button(copy["subscribe_marketing"], cls="portal-button"), method="post",
+                 action=root + "/newsletter") if not consent or consent.status != "subscribed" else None,
             Form(csrf(session), Button(copy["sign_out"], cls="portal-button"), method="post",
                  action=root + "/account/logout"), cls="portal-card")])
     first_name = (customer.name or "").strip().split(" ")[0] or customer.email

@@ -55,6 +55,7 @@ DEFAULT_PORTAL_COPY = {
     "marketing_on": "Subscribed",
     "marketing_off": "Not subscribed",
     "unsubscribe": "Unsubscribe from marketing",
+    "subscribe_marketing": "Subscribe to email marketing",
     "confirm_cancel": "Confirm cancellation",
     "save_account": "Save preferences",
     "account_saved": "Account preferences saved",

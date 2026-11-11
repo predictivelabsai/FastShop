@@ -94,6 +94,15 @@ def test_customer_portal_tabs_copy_recommendations_and_csrf(customer_session):
     endpoint = path + "/" + sub.id + "/skip"
     assert client.post(endpoint, data={"version": sub.version,
         "request_key": "missing-csrf-portal-1234"}).status_code == 400
+    account = client.get(path + "?tab=account")
+    assert "Subscribe to email marketing" in account.text
+    newsletter = base + "/newsletter"
+    r.site.status = "preview"
+    r.db.commit()
+    form = {"email": r.customer.email, "marketing_consent": "on"}
+    assert client.post(newsletter, data=form | {"csrf_token": "wrong"}).status_code == 400
+    response = client.post(newsletter, data=form | {"csrf_token": csrf(account)})
+    assert response.status_code == 200, response.text
 
 
 def test_controls_remain_available_when_store_disabled(customer_session, monkeypatch):
