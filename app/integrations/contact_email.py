@@ -5,9 +5,15 @@ import os
 import httpx
 
 
-def deliver(submission, site_config):
-    token = os.getenv("POSTMARK_SERVER_TOKEN", "") or os.getenv("POSTMARK_API_TOKEN", "")
-    sender = os.getenv("FASTSHOP_CONTACT_FROM", "") or os.getenv("FROM_EMAIL", "")
+def deliver(submission, site_config, *, site=None, db=None):
+    if site is not None:
+        from app.site_integrations import _from_address, mail_settings
+
+        config = mail_settings(site, db)
+        token, sender = config["token"], _from_address(config)
+    else:
+        token = os.getenv("POSTMARK_SERVER_TOKEN", "") or os.getenv("POSTMARK_API_TOKEN", "")
+        sender = os.getenv("FASTSHOP_CONTACT_FROM", "") or os.getenv("FROM_EMAIL", "")
     recipient = site_config.get("email", "")
     if not token or not sender or not recipient:
         return "awaiting_configuration"

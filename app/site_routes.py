@@ -898,7 +898,7 @@ def register_site_routes(rt):
                 entry = SiteContact(tenant_id=site.tenant_id, site_id=site.id, name=name, email=email, message=message, client_hash=client_hash)
                 db.add(entry)
                 db.commit()
-                entry.status = deliver(entry, site.published_settings_json)
+                entry.status = deliver(entry, site.published_settings_json, site=site, db=db)
                 entry.attempts += 1
                 db.commit()
                 return public(session, slug, "/pages/contact", request=request, message="Thank you. Your message is saved in our inbox." + (" Email delivery is pending setup." if entry.status == "awaiting_configuration" else ""))
