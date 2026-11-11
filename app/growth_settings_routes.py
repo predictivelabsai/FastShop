@@ -30,6 +30,13 @@ from app.growth_settings_models import NotificationTemplate, ShippingRate, Shipp
 from app.models import CommerceMail, Membership, SitePage, User, new_id
 from app.services import CommerceError, money
 
+POLICY_FIELDS = (
+    ("privacy", "Privacy policy", ()),
+    ("terms", "Terms and conditions", ()),
+    ("refunds", "Returns and refunds", ("refund",)),
+    ("shipping", "Shipping policy", ("shipping_policy",)),
+)
+
 
 def register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error):
     def back(site, section, message="Settings saved"):
@@ -401,11 +408,14 @@ def register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error):
                 pages = list(db.scalars(select(SitePage).where(SitePage.site_id == site.id,
                     SitePage.tenant_id == site.tenant_id, SitePage.kind == "legal")))
                 from app.rich_text_ui import rich_text_editor
+                saved_policies = policies or {}
                 return shell("Policies", card(form(session, site, "policies", *[
-                    rich_text_editor(policies.get(key, ""), name=key,
-                                     label=key.replace("_", " ").title(),
-                                     editor_id="checkout-policy-" + key)
-                    for key in ("refund", "privacy", "terms", "shipping_policy")]), title="Store policies"),
+                    rich_text_editor(
+                        saved_policies.get(key, next((saved_policies[alias] for alias in aliases
+                                                      if alias in saved_policies), "")),
+                        name=key, label=label, editor_id="checkout-policy-" + key,
+                    )
+                    for key, label, aliases in POLICY_FIELDS]), title="Store policies"),
                     card(*[A(page.title, href=f"/admin/sites/{site.id}/editor?page={page.id}", cls="e-button") for page in pages], title="Legal pages"))
         except CommerceError as exc:
             return error(exc)
@@ -418,11 +428,35 @@ def register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
                 from app.rich_text import sanitise_rich_text
-                policies = {key: sanitise_rich_text(str(values.get(key, ""))[:50000])
-                            for key in ("refund", "privacy", "terms", "shipping_policy")}
-                if any(len(value) > 50000 for value in policies.values()):
-                    raise CommerceError("Each policy must contain fewer than 50,000 characters.")
-                site.settings_json = {**(site.settings_json or {}), "policies": policies}
+                policies = {}
+                for key, label, aliases in POLICY_FIELDS:
+                    raw = str(values.get(key, next(
+                        (values[alias] for alias in aliases if alias in values), ""
+                    )))
+                    if len(raw) > 50000:
+                        raise CommerceError(f"{label} must contain no more than 50,000 characters.")
+                    cleaned = sanitise_rich_text(raw)
+                    if raw.strip() and not cleaned.strip():
+                        raise CommerceError(
+                            f"The {label.lower()} could not be saved because the pasted content "
+                            "contains no supported text. Use paragraphs, headings, lists, or links "
+                            "and try again."
+                        )
+                    policies[key] = cleaned
+
+                legacy_keys = {alias for _, _, aliases in POLICY_FIELDS for alias in aliases}
+                draft = dict((site.settings_json or {}).get("policies") or {})
+                draft = {key: value for key, value in draft.items() if key not in legacy_keys}
+                draft.update(policies)
+                site.settings_json = {**(site.settings_json or {}), "policies": draft}
+
+                published_settings = dict(site.published_settings_json or {})
+                published = dict(published_settings.get("policies") or {})
+                published = {key: value for key, value in published.items()
+                             if key not in legacy_keys}
+                published.update(policies)
+                published_settings["policies"] = published
+                site.published_settings_json = published_settings
                 db.commit()
                 return back(site, "policies")
         except CommerceError as exc:
