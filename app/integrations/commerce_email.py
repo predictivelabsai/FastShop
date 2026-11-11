@@ -16,6 +16,7 @@ from app.models import (
     CustomerOffer,
     DraftOrder,
     MarketingConsent,
+    MarketingSubscriber,
     Membership,
     Order,
     PaymentTransaction,
@@ -300,7 +301,15 @@ def _render_message(db, row, site, customer=None, user=None):
             MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.customer_id == customer.id))
         if not offer or not consent or consent.status != "subscribed" or customers.utc(offer.expires_at) <= datetime.now(UTC):
             return None
-        url = customers.customer_base(site) + f"/unsubscribe/{customer.id}#token=" + customers.unsubscribe_token(site, customer)
+        subscriber = db.scalar(select(MarketingSubscriber).where(
+            MarketingSubscriber.site_id == site.id,
+            MarketingSubscriber.tenant_id == site.tenant_id,
+            MarketingSubscriber.email == customer.email,
+        ))
+        if subscriber:
+            url = customers.customer_base(site) + "/unsubscribe?token=" + subscriber.unsubscribe_token
+        else:
+            url = customers.customer_base(site) + f"/unsubscribe/{customer.id}#token=" + customers.unsubscribe_token(site, customer)
         return "Your first-order code — " + site.name, (
             f"Your 10% first-order merchandise code is {offer.code}. It expires {offer.expires_at:%Y-%m-%d}. "
             "It is tied to this email address and can be used once. On an eligible subscription it applies after the subscription saving, to the first delivery only.\n\n"

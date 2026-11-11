@@ -1,6 +1,7 @@
 """Tenant-scoped merchant marketing overview and navigation."""
 
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from fasthtml.common import fast_app, to_xml
@@ -17,6 +18,7 @@ from app.models import (
     Base,
     Discount,
     MarketingConsent,
+    MarketingSubscriber,
     ShopCustomer,
     SitePage,
     User,
@@ -74,6 +76,12 @@ def marketing_hub(monkeypatch):
                              customer_id=own_customer.id, status="subscribed"),
             MarketingConsent(tenant_id=other_site.tenant_id, site_id=other_site.id,
                              customer_id=other_customer.id, status="subscribed"),
+            MarketingSubscriber(tenant_id=site.tenant_id, site_id=site.id,
+                email=own_customer.email, status="subscribed", source="account",
+                consent_evidence="I agree to receive marketing emails.", unsubscribe_token=uuid4().hex),
+            MarketingSubscriber(tenant_id=other_site.tenant_id, site_id=other_site.id,
+                email=other_customer.email, status="subscribed", source="account",
+                consent_evidence="I agree to receive marketing emails.", unsubscribe_token=uuid4().hex),
         ])
         db.commit()
 
@@ -144,7 +152,8 @@ def test_marketing_hub_renders_for_owner(marketing_hub):
     assert "TikTok pixel:" in response.text
     assert f'href="/admin/sites/{w.site.id}/marketing/tracking"' in response.text
     assert "1 active discount" in response.text
-    assert "1 subscribed customer" in response.text
+    assert "1 subscribed email subscriber" in response.text
+    assert f'href="/admin/sites/{w.site.id}/marketing/subscribers"' in response.text
     assert "https://your-store.example/sitemap.xml" in response.text
 
 
@@ -168,8 +177,8 @@ def test_marketing_hub_counts_are_tenant_scoped(marketing_hub):
     assert "2 URL redirects" not in response.text
     assert "1 active discount" in response.text
     assert "2 active discounts" not in response.text
-    assert "1 subscribed customer" in response.text
-    assert "2 subscribed customers" not in response.text
+    assert "1 subscribed email subscriber" in response.text
+    assert "2 subscribed email subscribers" not in response.text
 
 
 def test_seo_settings_header_links_back_to_marketing_hub(marketing_hub):

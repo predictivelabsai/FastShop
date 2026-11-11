@@ -14,6 +14,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
+from app.marketing_subscribers import unsubscribe_email, upsert_subscriber
 from app.models import (
     CommerceMail,
     CustomerChallenge,
@@ -117,11 +118,13 @@ def queue_order_mail(db, site, link, *, shipment=None):
     return queue_mail(db, site, customer, kind, key, reference=reference)
 
 
-def request_email_challenge(db, site, email, purpose, client_address, *, consent=False):
+def request_email_challenge(db, site, email, purpose, client_address, *, consent=False, source="account"):
     if purpose not in {"login", "login_code", "newsletter"}:
         raise CommerceError("Unknown email verification request.")
     if purpose == "newsletter" and not consent:
         raise CommerceError("Tick the marketing consent box to request the offer.")
+    if purpose == "newsletter" and source not in {"footer", "account"}:
+        raise CommerceError("Choose a valid newsletter signup source.")
     email = normalized_email(email)
     now = datetime.now(UTC)
     client_hash = hmac.new(settings.session_secret.encode(), f"{site.id}:{client_address}".encode(), hashlib.sha256).hexdigest()
@@ -148,12 +151,16 @@ def request_email_challenge(db, site, email, purpose, client_address, *, consent
     challenge = CustomerChallenge(id=new_id(), tenant_id=site.tenant_id, site_id=site.id,
         customer_id=customer.id, purpose=purpose, client_hash=client_hash,
         expires_at=now + timedelta(minutes=10 if purpose == "login_code" else (20 if purpose == "login" else 60)),
-        consent_json={"version": CONSENT_VERSION, "text": consent_text(site), "source": "first-order-offer",
+        consent_json={"version": CONSENT_VERSION, "text": consent_text(site), "source": source,
                       "requested_at": now.isoformat()} if purpose == "newsletter" else {})
     challenge.token_hash = hashlib.sha256(challenge_token(challenge).encode()).hexdigest()
     db.add(challenge)
     db.flush()
-    return queue_mail(db, site, customer, purpose, "challenge:" + challenge.id, challenge=challenge)
+    mail = queue_mail(db, site, customer, purpose, "challenge:" + challenge.id, challenge=challenge)
+    if purpose == "newsletter":
+        upsert_subscriber(db, site, email, source=source, status="pending",
+                          evidence=consent_text(site), consented_at=now)
+    return mail
 
 
 def _challenge_key():
@@ -277,6 +284,10 @@ def consume_challenge(db, site, challenge_id, token):
         raise CommerceError("This verification link has already been used.")
     customer.verified_at = customer.verified_at or now
     if challenge.purpose == "newsletter":
+        source = str(challenge.consent_json.get("source", "account"))
+        if source not in {"footer", "account"}:
+            source = "account"
+        evidence = str(challenge.consent_json.get("text") or consent_text(site))
         record = db.scalar(select(MarketingConsent).where(MarketingConsent.site_id == site.id,
             MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.customer_id == customer.id))
         if not record:
@@ -284,6 +295,8 @@ def consume_challenge(db, site, challenge_id, token):
             db.add(record)
         record.status, record.confirmed_at, record.unsubscribed_at = "subscribed", now, None
         record.consent_json = {**challenge.consent_json, "confirmed_at": now.isoformat(), "challenge_id": challenge.id}
+        upsert_subscriber(db, site, customer.email, source=source, status="subscribed",
+                          evidence=evidence, consented_at=now)
         offer = db.scalar(select(CustomerOffer).where(CustomerOffer.site_id == site.id,
             CustomerOffer.tenant_id == site.tenant_id, CustomerOffer.customer_id == customer.id))
         already_paid = db.scalar(select(SiteOrder.id).join(Order, Order.id == SiteOrder.order_id).where(
@@ -309,6 +322,9 @@ def unsubscribe(db, site, customer):
         MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.customer_id == customer.id))
     if record:
         record.status, record.unsubscribed_at = "unsubscribed", now
+    customer.email_marketing_consent = False
+    customer.email_consent_at = now
+    unsubscribe_email(db, site, customer.email)
     # An older confirmation email must not reverse a later withdrawal.
     db.execute(update(CustomerChallenge).where(CustomerChallenge.site_id == site.id,
         CustomerChallenge.tenant_id == site.tenant_id, CustomerChallenge.customer_id == customer.id,

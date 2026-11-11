@@ -5,7 +5,7 @@ import copy
 import secrets
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 
 from app.models import (
     AgentAction,
@@ -14,6 +14,7 @@ from app.models import (
     Collection,
     Discount,
     DiscountCode,
+    MarketingSubscriber,
     Membership,
     Order,
     Product,
@@ -137,6 +138,16 @@ def register_tools(db, site, user_id, conversation_id):
         return {"customers": [{"id": c.id, "name": c.name, "email": c.email,
             "phone": c.phone, "tags": c.tags_json, "note": c.note[:1000]} for c in rows]}
 
+    def marketing_subscriber_counts(_a):
+        grouped = db.execute(select(MarketingSubscriber.status, func.count()).where(
+            MarketingSubscriber.tenant_id == site.tenant_id,
+            MarketingSubscriber.site_id == site.id,
+        ).group_by(MarketingSubscriber.status))
+        result = {status: 0 for status in ("pending", "subscribed", "unsubscribed")}
+        result.update({status: count for status, count in grouped})
+        result["total"] = sum(result.values())
+        return result
+
     def get_customer(a):
         c = customer(a["customer_id"])
         return {"id": c.id, "name": c.name, "email": c.email, "phone": c.phone,
@@ -243,6 +254,7 @@ def register_tools(db, site, user_id, conversation_id):
         read("list_products", "Search store products", {"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, [], list_products),
         read("get_product", "Read product variants, prices and stock", {"product_id": {"type": "string"}}, ["product_id"], get_product),
         read("list_customers", "Search customers", {"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, [], list_customers),
+        read("marketing_subscriber_counts", "Read subscriber totals by status without listing email addresses", {}, [], marketing_subscriber_counts),
         read("get_customer", "Read customer profile without payment details", {"customer_id": {"type": "string"}}, ["customer_id"], get_customer),
         read("list_orders", "List recent store orders", {"status": {"type": "string"}, "query": {"type": "string"}, "date_from": {"type": "string"}, "date_to": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, [], list_orders),
         read("get_order", "Read an order with safe shipping summary", {"order_id": {"type": "string"}}, ["order_id"], get_order),

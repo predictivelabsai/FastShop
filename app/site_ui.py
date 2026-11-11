@@ -324,7 +324,9 @@ def has_published_recently_viewed(db, site):
                              {"recently_viewed"}) for doc in documents)
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag="", policy_html=None, policy_empty_message=None):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="",
+               newsletter_result="", blog_listing=False, blog_category="", blog_tag="",
+               policy_html=None, policy_empty_message=None):
     from app.site_theme import pack_renderer
     config = site.settings_json if preview else site.published_settings_json
     if renderer := pack_renderer(config or {}, "storefront"):
@@ -415,6 +417,30 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         return Div(blog_filters, rendered) if blog_listing and section["type"] == "articles" else rendered
     def brand(light=False):
         return image(config.get("logo_light" if light else "logo"), config.get("name", site.name), eager=True) or Span(config.get("name", site.name))
+    newsletter_status = (
+        label(config, "newsletter_success") if newsletter_result == "success"
+        else label(config, "newsletter_error") if newsletter_result == "error" else ""
+    )
+    newsletter_active = site.status == "published" and not preview
+    newsletter_block = Div(
+        H2(label(config, "newsletter_title")),
+        P(label(config, "newsletter_body")),
+        P(newsletter_status, role="status", aria_live="polite") if newsletter_status else None,
+        Form(
+            Input(type="hidden", name="csrf_token", value=csrf),
+            Input(type="hidden", name="newsletter_source", value="footer"),
+            Label(label(config, "newsletter_email"), Input(
+                name="email", type="email", required=True, maxlength=320,
+                autocomplete="email", placeholder=label(config, "email_placeholder"),
+            )),
+            Label(Input(type="checkbox", name="marketing_consent", required=True),
+                  " " + consent_text(site)),
+            Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
+            Button(label(config, "newsletter_submit"), type="submit", cls="h-button"),
+            method="post", action=base + "/newsletter", cls="h-newsletter-form",
+        ) if newsletter_active else P(label(config, "newsletter_preview"), cls="h-newsletter-preview"),
+        cls="h-footer-newsletter h-container",
+    )
     return (
         Title(seo["title"]), Meta(name="viewport", content="width=device-width, initial-scale=1"),
         Meta(name="description", content=seo["description"]),
@@ -433,6 +459,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml") if not preferences or not preferences.favicon_id else None, Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
         Script(src=static_asset("site-snippets.js"), defer=True) if has_gated_snippets else None,
         Link(rel="stylesheet", href=static_asset("site-theme.css")),
+        Link(rel="stylesheet", href=static_asset("site-newsletter.css")),
         Link(rel="stylesheet", href=static_asset("site-blog.css")) if blog_listing else None,
         Style(NotStr(WIDGET_CSS)) if needs_widget_css(document["blocks"]) else None,
         Link(rel="stylesheet", href=static_asset("widgets-pack1.css")) if needs_pack1_css(document["blocks"]) else None,
@@ -474,8 +501,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 Div(H3(label(config, "footer_help")), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", label(config, "terms")), ("privacy-policy", label(config, "privacy_policy")), ("faq", label(config, "faq")), ("returns-and-refunds", label(config, "returns")), ("shipping-policy", label(config, "shipping_policy"))]]),
                 Div(H3(config.get("company", site.name)), P(config.get("address", "")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
+                newsletter_block,
                 P(config.get("footer", ""), cls="h-disclaimer"), Div(Span(label(config, "copyright") + config.get("company", site.name)), payment_methods(), Button(label(config, "cookies"), type="button", data_cookie_open=""), cls="h-footer-bottom"),
-                cls="h-footer", data_builder_shell="footer" if preview else None),
+                cls="h-footer", id="footer", data_builder_shell="footer" if preview else None),
             *foot_snippets,
             Div(H2("Your privacy, your choice."), P("Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."),
                 Details(Summary("Preferences"), Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"), Label(Input(type="checkbox", id="consent-preferences"), " Preferences: remembers things like products you viewed on this device"), Label(Input(type="checkbox", id="consent-analytics"), " Analytics"), Label(Input(type="checkbox", id="consent-marketing"), " Marketing")),

@@ -37,6 +37,7 @@ from app import checkout_services as checkout
 from app.checkout_copy import DEFAULT_CHECKOUT_COPY
 from app.db import SessionLocal
 from app.integrations.stripe_commerce import StripeGateway, make_gateway
+from app.marketing_subscribers import upsert_subscriber
 from app.models import (
     CheckoutAttempt,
     CommerceQuote,
@@ -421,6 +422,11 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     gift_card_code=gift_card_code,
                     subscription_consent=form.get("subscription_consent") == "on",
                     shipping_rate_id=form.get("shipping_rate_id") or None)
+                if form.get("marketing_consent") == "on":
+                    checkout_copy = {**DEFAULT_CHECKOUT_COPY,
+                                     **(site.published_settings_json or {}).get("checkout_copy", {})}
+                    upsert_subscriber(db, site, customer.email, source="checkout", status="subscribed",
+                        evidence=checkout_copy["newsletter_label"])
                 cart.checkout_id = attempt.id
                 db.commit()
                 return RedirectResponse(base(site, request) + "/checkout/" + attempt.id, status_code=303)

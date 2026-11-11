@@ -73,6 +73,7 @@ def register_site_routes(rt):
     from app.site_index_routes import register_site_index_routes
     register_site_index_routes(rt)
     from app.marketing_routes import register_admin_marketing_routes
+    from app.marketing_subscriber_routes import register_marketing_subscriber_routes
     from app.site_seo_routes import register_site_seo_routes
     from app.site_tracking_routes import register_site_tracking_routes
 
@@ -101,6 +102,7 @@ def register_site_routes(rt):
     register_site_seo_routes(rt, actor, csrf, check_csrf, shell, error)
     register_site_tracking_routes(rt, actor, csrf, check_csrf, shell, error)
     register_admin_marketing_routes(rt, actor, shell, error)
+    register_marketing_subscriber_routes(rt, actor, csrf, check_csrf, shell, error)
     register_site_delete_routes(rt, actor, csrf, check_csrf, shell, error)
 
     def verification_banner(db, user_id, session):
@@ -1042,4 +1044,7 @@ def register_site_routes(rt):
             canonical_base = request.scope.get("site_canonical", settings.public_url + base) if request else settings.public_url + base
             with content.catalogue_view(db, site, page):
                 return site_ui.storefront(db, site, page, base, session["csrf_token"], canonical_base + normalized_path,
-                    message=message, blog_listing=page.kind == "blog", blog_category=category, blog_tag=tag)
+                    message=message,
+                    newsletter_result=(request.query_params.get("newsletter", "")
+                                      if request and normalized_path == "/" else ""),
+                    blog_listing=page.kind == "blog", blog_category=category, blog_tag=tag)

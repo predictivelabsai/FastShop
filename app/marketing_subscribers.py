@@ -8,9 +8,9 @@ import re
 import secrets
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
-from app.models import MarketingConsent, MarketingSubscriber, ShopCustomer
+from app.models import CustomerChallenge, MarketingConsent, MarketingSubscriber, ShopCustomer
 from app.services import CommerceError
 
 STATUSES = {"pending", "subscribed", "unsubscribed"}
@@ -79,6 +79,21 @@ def _sync_customer(db, site, subscriber, status):
         consent.unsubscribed_at = now
 
 
+def _cancel_pending_challenges(db, site, email, now):
+    customer_ids = select(ShopCustomer.id).where(
+        ShopCustomer.tenant_id == site.tenant_id,
+        ShopCustomer.site_id == site.id,
+        ShopCustomer.email == email,
+    )
+    db.execute(update(CustomerChallenge).where(
+        CustomerChallenge.tenant_id == site.tenant_id,
+        CustomerChallenge.site_id == site.id,
+        CustomerChallenge.customer_id.in_(customer_ids),
+        CustomerChallenge.purpose == "newsletter",
+        CustomerChallenge.consumed_at.is_(None),
+    ).values(consumed_at=now))
+
+
 def upsert_subscriber(db, site, email, *, source, status, evidence, consented_at=None):
     """Record explicit consent without creating duplicate rows for repeat signups."""
     email = normalized_email(email)
@@ -89,6 +104,7 @@ def upsert_subscriber(db, site, email, *, source, status, evidence, consented_at
     now = consented_at or datetime.now(UTC)
     row = _row(db, site, email, lock=True)
     created = row is None
+    sync = created
     if created:
         row = MarketingSubscriber(
             tenant_id=site.tenant_id,
@@ -105,6 +121,7 @@ def upsert_subscriber(db, site, email, *, source, status, evidence, consented_at
     elif status == "unsubscribed":
         if row.status != "unsubscribed":
             row.status = "unsubscribed"
+            sync = True
             db.flush()
     elif status == "subscribed":
         if row.status != "subscribed":
@@ -112,6 +129,7 @@ def upsert_subscriber(db, site, email, *, source, status, evidence, consented_at
             row.source = source
             row.consented_at = now
             row.consent_evidence = str(evidence).strip()[:4000]
+            sync = True
             db.flush()
     elif row.status != "subscribed":
         row.status = "pending"
@@ -119,7 +137,7 @@ def upsert_subscriber(db, site, email, *, source, status, evidence, consented_at
         row.consented_at = now
         row.consent_evidence = str(evidence).strip()[:4000]
         db.flush()
-    if row.status in {"subscribed", "unsubscribed"}:
+    if sync and row.status in {"subscribed", "unsubscribed"}:
         _sync_customer(db, site, row, row.status)
     return row, created
 
@@ -135,6 +153,7 @@ def set_status(db, site, subscriber_id, status, *, consent=False):
     if not row:
         raise CommerceError("Subscriber not found.")
     now = datetime.now(UTC)
+    changed = False
     if status == "subscribed":
         if not consent:
             raise CommerceError("Confirm that you have consent before resubscribing this email.")
@@ -143,13 +162,31 @@ def set_status(db, site, subscriber_id, status, *, consent=False):
         row.consented_at = now
         row.consent_evidence = "I have consent (merchant resubscription)."
     else:
+        changed = row.status != "unsubscribed"
         row.status = "unsubscribed"
-    _sync_customer(db, site, row, status)
+        if changed:
+            _cancel_pending_challenges(db, site, row.email, now)
+    if status == "subscribed" or changed:
+        _sync_customer(db, site, row, status)
     db.flush()
     return row
 
 
-def subscribers_for(db, site, *, query="", status="", source=""):
+def unsubscribe_email(db, site, email):
+    email = normalized_email(email)
+    row = _row(db, site, email, lock=True)
+    if row:
+        now = datetime.now(UTC)
+        changed = row.status != "unsubscribed"
+        row.status = "unsubscribed"
+        if changed:
+            _cancel_pending_challenges(db, site, email, now)
+            _sync_customer(db, site, row, "unsubscribed")
+        db.flush()
+    return row
+
+
+def _subscriber_statement(site, *, query="", status="", source=""):
     stmt = select(MarketingSubscriber).where(
         MarketingSubscriber.tenant_id == site.tenant_id,
         MarketingSubscriber.site_id == site.id,
@@ -165,8 +202,22 @@ def subscribers_for(db, site, *, query="", status="", source=""):
         if source not in SOURCES:
             raise CommerceError("Choose a valid subscriber source.")
         stmt = stmt.where(MarketingSubscriber.source == source)
+    return stmt
+
+
+def subscribers_for(db, site, *, query="", status="", source=""):
+    stmt = _subscriber_statement(site, query=query, status=status, source=source)
     return list(db.scalars(stmt.order_by(
         MarketingSubscriber.created_at.desc(), MarketingSubscriber.id.desc())))
+
+
+def subscribers_page(db, site, *, query="", status="", source="", page=1, page_size=25):
+    stmt = _subscriber_statement(site, query=query, status=status, source=source)
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    rows = list(db.scalars(stmt.order_by(
+        MarketingSubscriber.created_at.desc(), MarketingSubscriber.id.desc())
+        .offset((page - 1) * page_size).limit(page_size)))
+    return rows, total
 
 
 def export_csv(db, site, *, query="", status="", source=""):

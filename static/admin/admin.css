@@ -122,6 +122,16 @@
 .a-marketing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; margin-block: 20px; }
 .a-marketing-grid > .a-card { margin: 0; }
 .a-marketing-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.a-subscriber-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-block: 18px; }
+.a-subscriber-filters { display: flex; flex: 1 1 620px; flex-wrap: wrap; align-items: end; gap: 10px; }
+.a-subscriber-filters label { display: grid; gap: 4px; min-width: 150px; margin: 0; }
+.a-subscriber-list { min-width: 0; }
+.a-subscriber-list .a-table-wrap { margin-bottom: 12px; }
+.a-subscriber-list td form { display: flex; align-items: center; gap: 8px; margin: 0; }
+.a-subscriber-list td label { margin: 0; font-size: 11px; }
+.a-subscriber-pagination { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 12px; }
+.a-subscriber-pagination p { margin: 0 auto 0 0; color: var(--a-muted); }
+.a-subscriber-pagination a[aria-disabled="true"] { pointer-events: none; opacity: .55; }
 .a-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 550; line-height: 1.6; white-space: nowrap; background: #e9e9eb; color: #49494d; }
 .a-badge-success { background: #c7f0d9; color: #065e45; }
 .a-badge-info { background: #e0edff; color: #174b91; }
@@ -238,6 +248,10 @@
   .a-header h1 { font-size: 23px; }
   .a-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .a-marketing-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .a-subscriber-toolbar, .a-subscriber-filters { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .a-subscriber-filters label, .a-subscriber-filters button, .a-subscriber-toolbar > .a-button { width: 100%; }
+  .a-subscriber-pagination { justify-content: space-between; }
+  .a-subscriber-pagination p { flex: 1 0 100%; }
   .a-card, .a-shell .e-card { padding: 20px; margin-bottom: 16px; }
   .a-settings { grid-template-columns: minmax(0, 1fr); }
   .a-settings-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
