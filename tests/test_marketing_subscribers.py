@@ -259,6 +259,21 @@ def test_unsubscribe_token_works_on_hostname_and_rejects_bad_tokens(customer_sit
     host = "unsubscribe-" + uuid4().hex[:10] + ".example.test"
     with SessionLocal() as db:
         site = db.get(Site, site.id)
+        settings = site.published_settings_json or {}
+        site.published_settings_json = {
+            **settings,
+            "theme_pack": "liquid",
+            "liquid_shell": {
+                **settings.get("liquid_shell", {}),
+                "footer": {
+                    **settings.get("liquid_shell", {}).get("footer", {}),
+                    "newsletterUnsubscribeTitle": "Manage water notes",
+                    "newsletterUnsubscribeInstruction": "Confirm to stop water notes.",
+                    "newsletterUnsubscribeCta": "Stop my notes",
+                    "newsletterUnsubscribed": "Water notes have stopped.",
+                },
+            },
+        }
         site.hostname = host
         subscriber, _ = marketing_subscribers.upsert_subscriber(
             db, site, "reader-to-unsubscribe@example.test", source="footer", status="subscribed",
@@ -270,11 +285,14 @@ def test_unsubscribe_token_works_on_hostname_and_rejects_bad_tokens(customer_sit
     bad = client.get("/unsubscribe?token=invalid", headers={"host": host})
     assert bad.status_code == 404
     page = client.get("/unsubscribe?token=" + token, headers={"host": host})
-    assert page.status_code == 200 and "Confirm below" in page.text
+    assert page.status_code == 200
+    assert "Manage water notes" in page.text
+    assert "Confirm to stop water notes." in page.text
+    assert "Stop my notes" in page.text
     response = client.post("/unsubscribe?token=" + token, headers={"host": host}, data={
         "csrf_token": csrf(page), "token": token,
     })
-    assert response.status_code == 200 and "You will no longer receive" in response.text
+    assert response.status_code == 200 and "Water notes have stopped." in response.text
     with SessionLocal() as db:
         subscriber = db.scalar(select(MarketingSubscriber).where(
             MarketingSubscriber.site_id == site.id,

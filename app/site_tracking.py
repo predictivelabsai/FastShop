@@ -197,4 +197,3 @@ def tracking_nodes(db, site, event=None, *, preview=False):
         Script(NotStr(serialized), type="application/json", id="fastshop-tracking-config"),
         Script(src=static_asset("store-tracking.js"), defer=True, data_site=site.id),
     ]
-

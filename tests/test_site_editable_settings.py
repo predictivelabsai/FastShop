@@ -335,10 +335,17 @@ def test_liquid_header_and_footer_fields_publish_and_render(workspace, field_id,
     with w.sessions() as db:
         site = db.get(Site, w.site.id)
         assert _get(site.published_settings_json, field_id) == value
-        from app.site_ui_liquid import storefront
-        page = db.get(SitePage, w.page.id)
-        html = to_xml(storefront(db, site, page, "/sites/" + site.slug, "csrf", ""))
-    assert expected in html
+        # Unsubscribe copy renders on its own public page, covered by the subscriber route test.
+        if not field_id.startswith("liquid_shell.footer.newsletterUnsubscribe"):
+            from app.site_ui_liquid import storefront
+
+            page = db.get(SitePage, w.page.id)
+            render_options = {"newsletter_result": "error"} if field_id.endswith("newsletterError") else {}
+            html = to_xml(storefront(
+                db, site, page, "/sites/" + site.slug, "csrf", "", **render_options,
+            ))
+    if not field_id.startswith("liquid_shell.footer.newsletterUnsubscribe"):
+        assert expected in html
 
 
 def test_generic_label_fields_are_exposed_in_store_editor_panels(workspace):  # noqa: F811

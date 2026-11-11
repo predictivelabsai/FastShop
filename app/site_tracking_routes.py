@@ -95,4 +95,3 @@ def register_site_tracking_routes(rt, actor, csrf, check_csrf, shell, error):
             )
         except CommerceError as exc:
             return error(exc)
-
