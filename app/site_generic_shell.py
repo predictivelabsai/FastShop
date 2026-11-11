@@ -44,7 +44,7 @@ DEFAULTS = {
     "card_price_confirm": "Price to be confirmed",
     "price_unit": " / item",
     "one_time_price_suffix": " · one-time price",
-    "checkout_currency_prefix": "USD · ",
+    "checkout_status_prefix": "Checkout: ",
     "live_checkout": "Live checkout",
     "sandbox_checkout": "Sandbox checkout",
     "split_video_alt": "Placeholder motion study",
