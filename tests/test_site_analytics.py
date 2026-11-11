@@ -23,3 +23,12 @@ def test_analytics_is_disabled_for_preview_unconfigured_and_invalid_sites():
     assert measurement_id(site) == ""
     site.published_settings_json = {}
     assert measurement_id(site) == ""
+
+
+def test_analytics_compatibility_reads_the_unified_tracking_settings_first():
+    site = SimpleNamespace(status="published", published_settings_json={
+        "ga4_measurement_id": "G-OLD1234567",
+        "tracking": {"ga4_measurement_id": "G-NEW1234567"},
+    })
+
+    assert measurement_id(site) == "G-NEW1234567"

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import json
 from functools import partial
 
 from fasthtml.common import (
@@ -333,24 +332,20 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         editor=editor, message=message)
     from app.commerce import payments_enabled, settings_for
     from app.customer_services import consent_text
-    from app.site_analytics import measurement_id
     from app.site_theme import theme_style
-    analytics_id = measurement_id(site, preview=preview)
     commerce_config = settings_for(db, site)
     customer_services_enabled = bool(commerce_config and payments_enabled(db, site, commerce_config))
     if customer_services_enabled:
         from app.commerce import payment_mode
         site._payment_mode = payment_mode(db, site, commerce_config)
-    ga4_item = None
-    if analytics_id and page.kind == "product" and page.product_id:
-        ga4_product = catalog_product(db, site, page.product_id)
-        if ga4_product:
-            ga4_listing = db.scalar(select(VariantChannelListing).join(ProductVariant).where(
-                ProductVariant.product_id == ga4_product.id, ProductVariant.tenant_id == site.tenant_id,
-                VariantChannelListing.channel_id == site.channel_id).order_by(ProductVariant.sort_order))
-            ga4_item = {"item_id": ga4_product.slug, "item_name": ga4_product.name,
-                        "currency": ga4_listing.currency if ga4_listing else "USD",
-                        "price": round(ga4_listing.price_minor / 100, 2) if ga4_listing else 0}
+    from app.site_tracking import product_item, tracking_nodes
+
+    product = product_item(db, site, page) if not preview else None
+    tracking_event = ({"name": "view_item", "currency": product["item"]["currency"],
+                       "value": product["item"]["price"], "items": [product["item"]],
+                       "variants": product["variants"]}
+                      if product else {})
+    provider_nodes = tracking_nodes(db, site, tracking_event, preview=preview)
     record_recent_product = bool(not preview and site.status == "published" and
         page.kind == "product" and page.product_id and has_published_recently_viewed(db, site))
     image = partial(owned_image, db, site)
@@ -434,10 +429,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         *structured_data,
         *head_snippets,
         *head_nodes(db, site, preferences, preview=preview),
+        *provider_nodes,
         Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml") if not preferences or not preferences.favicon_id else None, Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
-        Script(src=static_asset("site-analytics.js"), defer=True) if analytics_id else None,
         Script(src=static_asset("site-snippets.js"), defer=True) if has_gated_snippets else None,
-        Script(NotStr(json.dumps(ga4_item)), type="application/json", id="h-ga4-item") if ga4_item else None,
         Link(rel="stylesheet", href=static_asset("site-theme.css")),
         Link(rel="stylesheet", href=static_asset("site-blog.css")) if blog_listing else None,
         Style(NotStr(WIDGET_CSS)) if needs_widget_css(document["blocks"]) else None,
@@ -500,7 +494,6 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 A(label(config, "privacy"), href=url(base, "/pages/privacy-policy")), id="h-offer-panel", cls="h-offer-panel", hidden=True),
             Div(id="h-toast", role="status", cls="h-toast", hidden=True),
             cls="h-site " + ("h-home" if home else "h-inner"), data_site=site.id,
-            data_ga4=analytics_id, data_analytics_path=base or "/",
             style=theme_style(config), data_themed="true" if theme_style(config) else "false",
             data_builder_page=page.id if preview else "",
         ),

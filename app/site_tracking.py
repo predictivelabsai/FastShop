@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import re
+from decimal import Decimal
 
+from fasthtml.common import NotStr, Script
 from sqlalchemy import select
 
 from app.content_gap_models import SitePreferences
@@ -99,3 +102,96 @@ def tracking_ids(db, site, config=None):
         if not cleaned["google_ads_conversion_id"]:
             cleaned["google_ads_purchase_label"] = ""
         return cleaned
+_ZERO_DECIMAL_CURRENCIES = frozenset(
+    "BIF CLP DJF GNF JPY KMF KRW MGA PYG RWF UGX VND VUV XAF XOF XPF".split()
+)
+_THREE_DECIMAL_CURRENCIES = frozenset("BHD IQD JOD KWD LYD OMR TND".split())
+
+
+def major_units(minor, currency):
+    currency = str(currency or "USD").upper()
+    precision = 0 if currency in _ZERO_DECIMAL_CURRENCIES else 3 if currency in _THREE_DECIMAL_CURRENCIES else 2
+    return float(Decimal(int(minor)).scaleb(-precision))
+
+
+def product_item(db, site, page):
+    if getattr(page, "kind", "") != "product" or not getattr(page, "product_id", None):
+        return None
+    from app.models import Product, ProductVariant, VariantChannelListing
+
+    product = db.scalar(select(Product).where(
+        Product.id == page.product_id,
+        Product.tenant_id == site.tenant_id,
+        Product.is_published.is_(True),
+        Product.status == "active",
+    ))
+    variants = list(db.scalars(select(ProductVariant).where(
+        ProductVariant.product_id == page.product_id,
+        ProductVariant.tenant_id == site.tenant_id,
+        ProductVariant.is_active.is_(True),
+    ).order_by(ProductVariant.sort_order)))
+    listings = {
+        listing.variant_id: listing
+        for listing in db.scalars(select(VariantChannelListing).where(
+            VariantChannelListing.variant_id.in_([variant.id for variant in variants]),
+            VariantChannelListing.channel_id == site.channel_id,
+        ))
+    } if variants else {}
+    available = [(variant, listings[variant.id]) for variant in variants if variant.id in listings]
+    if not product or not available:
+        return None
+
+    def item(variant, listing):
+        return {
+            "item_id": product.slug,
+            "item_name": product.name,
+            "item_variant": variant.name,
+            "price": major_units(listing.price_minor, listing.currency),
+            "currency": listing.currency.upper(),
+        }
+
+    selected_variant, selected_listing = available[0]
+    return {
+        "item": item(selected_variant, selected_listing),
+        "variants": {variant.id: item(variant, listing) for variant, listing in available},
+    }
+
+
+def event_items(lines, currency):
+    items = []
+    for line in lines or []:
+        line = line if isinstance(line, dict) else vars(line)
+        quantity = max(1, int(line.get("quantity", 1)))
+        amount_minor = line.get("amount_minor")
+        unit_minor = line.get("unit_minor", line.get("price_minor", 0))
+        price = (major_units(amount_minor, currency) / quantity
+                 if amount_minor is not None else major_units(unit_minor, currency))
+        item = {
+            "item_id": str(line.get("product_id") or line.get("variant_id") or ""),
+            "item_name": str(line.get("name") or line.get("product_name") or "")[:300],
+            "price": price,
+            "quantity": quantity,
+        }
+        variant = str(line.get("variant_name") or "")[:160]
+        if variant:
+            item["item_variant"] = variant
+        items.append(item)
+    return items
+
+
+def tracking_nodes(db, site, event=None, *, preview=False):
+    """Render JSON event data and the local tracker only on published storefront pages."""
+    if preview or site.status != "published":
+        return []
+    providers = tracking_ids(db, site, site.published_settings_json or {})
+    if not any(providers.values()):
+        return []
+    payload = {"site_id": site.id, "providers": providers, "event": event or {}}
+    serialized = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+    serialized = serialized.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
+    from app.ui import static_asset
+
+    return [
+        Script(NotStr(serialized), type="application/json", id="fastshop-tracking-config"),
+        Script(src=static_asset("store-tracking.js"), defer=True, data_site=site.id),
+    ]

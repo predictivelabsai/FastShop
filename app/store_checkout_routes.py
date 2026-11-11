@@ -37,7 +37,15 @@ from app import checkout_services as checkout
 from app.checkout_copy import DEFAULT_CHECKOUT_COPY
 from app.db import SessionLocal
 from app.integrations.stripe_commerce import StripeGateway, make_gateway
-from app.models import CheckoutAttempt, CommerceQuote, Product, Site, SiteCart, SubscriptionCycle
+from app.models import (
+    CheckoutAttempt,
+    CommerceQuote,
+    Order,
+    Product,
+    Site,
+    SiteCart,
+    SubscriptionCycle,
+)
 from app.platform_ui import platform_page
 from app.services import CommerceError, money
 from app.site_theme import theme_style
@@ -257,6 +265,14 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 recurring_lines = [line for line in lines if line.subscription]
                 count = sum(line.quantity for line in lines)
                 total = sum(line.amount_minor for line in lines)
+                from app.site_tracking import event_items, major_units, tracking_nodes
+
+                tracking = tracking_nodes(db, site, {
+                    "name": "begin_checkout",
+                    "currency": "USD",
+                    "value": major_units(total, "USD"),
+                    "items": event_items(lines, "USD"),
+                })
                 copy = {**DEFAULT_CHECKOUT_COPY, **(site.published_settings_json or {}).get("checkout_copy", {})}
                 policies = (site.published_settings_json or {}).get("policies") or {}
                 policy_paths = (("privacy", copy["privacy_policy_link"], "/pages/privacy-policy"),
@@ -299,6 +315,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                     Link(rel="stylesheet", href=static_asset("fonts.css")),
                     Link(rel="stylesheet", href=static_asset("checkout.css")),
                     Script(src=static_asset("checkout.js"), defer=True),
+                    *tracking,
                     Div(
                     Header(A(Img(src=logo, alt=site.name, cls="checkout-logo") if logo else Span(site.name, cls="checkout-store-name"),
                              href=root + "/", aria_label=site.name + " home"),
@@ -515,11 +532,29 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                 attempt, cart = allowed_attempt(db, site, session, attempt_id)
                 quote = db.scalar(select(CommerceQuote).where(CommerceQuote.id == attempt.quote_id,
                     CommerceQuote.site_id == site.id, CommerceQuote.tenant_id == site.tenant_id))
+                from app.site_tracking import event_items, major_units, tracking_nodes
+
+                purchase_event = {}
+                if attempt.state == "paid" and attempt.order_id:
+                    order = db.scalar(select(Order).where(
+                        Order.id == attempt.order_id,
+                        Order.tenant_id == site.tenant_id,
+                    ))
+                    if order and order.payment_status == "paid":
+                        purchase_event = {
+                            "name": "purchase",
+                            "currency": order.currency.upper(),
+                            "value": major_units(order.total_minor, order.currency),
+                            "transaction_id": order.id,
+                            "items": event_items(quote.snapshot_json.get("lines", []), order.currency),
+                        }
+                tracking = tracking_nodes(db, site, purchase_event)
                 root = base(site, request)
                 action = root + "/checkout/" + attempt.id
                 states = {"prepared": "Review your order", "creating": "Payment setup pending", "open": "Payment pending",
                     "paid": "Payment confirmed", "expired": "Checkout closed"}
                 return screen(site, request, states[attempt.state],
+                    *tracking,
                     Div(H2("Monthly subscription"), P("Recurring merchandise: " + money(sum(
                         line["unit_minor"] * line["quantity"] for line in quote.snapshot_json["lines"] if line["subscription"]), quote.currency)
                         + " per month, plus shipping and destination tax. Only subscription items renew; the first-order offer does not repeat."),
