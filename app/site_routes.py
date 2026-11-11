@@ -1039,8 +1039,6 @@ def register_site_routes(rt):
                     "/pages/returns-and-refunds": "refunds", "/pages/shipping-policy": "shipping",
                 }.get(normalized_path)
                 if policy_key:
-                    from fasthtml.common import H1
-
                     from app.site_widgets import sanitise_html
                     from app.storefront_ui import liquid_page
                     csrf(session)
@@ -1053,7 +1051,7 @@ def register_site_routes(rt):
                         from fasthtml.common import Div, P
 
                         policy_body = Div(NotStr(policy_html), cls="liquid-policy-content") if policy_html else P(body, cls="liquid-policy-empty")
-                        return liquid_page(site, request, title, H1(title), policy_body)
+                        return liquid_page(site, request, title, policy_body)
                     from types import SimpleNamespace
 
                     document = {"title": title, "sections": []}

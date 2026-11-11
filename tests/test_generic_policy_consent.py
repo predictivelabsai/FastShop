@@ -1,8 +1,17 @@
 """Generic storefront policy pages and shared cookie consent copy."""
 
+import pytest
+
 from app.models import SitePage
 from tests.test_liquid_storefront import browser  # noqa: F401
 from tests.test_site_seed_liquid import liquid  # noqa: F401
+
+POLICY_PAGES = (
+    ("privacy-policy", "privacy", "Privacy policy"),
+    ("terms-and-conditions", "terms", "Terms and conditions"),
+    ("returns-and-refunds", "refunds", "Returns and refunds"),
+    ("shipping-policy", "shipping", "Shipping policy"),
+)
 
 
 def generic_site(browser):
@@ -16,6 +25,37 @@ def generic_site(browser):
         SitePage.path == "/pages/privacy-policy"))
     db.commit()
     return client, db, site
+
+
+@pytest.mark.parametrize("theme_pack", [None, "liquid"], ids=["generic", "liquid"])
+@pytest.mark.parametrize("slug,policy_key,title", POLICY_PAGES)
+def test_policy_pages_render_exactly_one_editable_title_in_both_themes(
+    browser, theme_pack, slug, policy_key, title
+):
+    client, db, site = browser
+    settings = dict(site.published_settings_json)
+    if theme_pack is None:
+        settings.pop("theme_pack", None)
+    else:
+        settings["theme_pack"] = theme_pack
+    settings["policies"] = {
+        **(settings.get("policies") or {}),
+        policy_key: "<h2>Merchant policy details</h2><p>Editable policy text.</p>",
+    }
+    db.execute(SitePage.__table__.delete().where(
+        SitePage.site_id == site.id,
+        SitePage.tenant_id == site.tenant_id,
+        SitePage.path.in_(["/pages/" + page_slug for page_slug, _, _ in POLICY_PAGES]),
+    ))
+    site.published_settings_json = settings
+    db.commit()
+
+    response = client.get(f"/sites/{site.slug}/pages/{slug}")
+
+    assert response.status_code == 200
+    assert response.text.count("<h1") == 1
+    assert f">{title}</h1>" in response.text
+    assert "<h2>Merchant policy details</h2><p>Editable policy text.</p>" in response.text
 
 
 def test_generic_policy_renders_sanitised_content_and_empty_message(browser):

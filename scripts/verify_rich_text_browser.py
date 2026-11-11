@@ -134,6 +134,7 @@ def exercise_visual_inspector(page, base, site_id, page_id, device):
 def exercise_storefront(page, base, site_id, device):
     response = page.goto(base + "/sites/h24you-liquid/pages/privacy-policy")
     assert response and response.status == 200
+    expect(page.locator("h1")).to_have_count(1)
     expect(page.get_by_role("heading", name="Privacy at a glance")).to_be_visible()
     expect(page.locator(".liquid-policy-content ul li")).to_have_count(2)
     page.locator("#h-cookie").evaluate("element => { element.hidden = true; }")
