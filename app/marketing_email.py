@@ -6,7 +6,7 @@ import html
 import re
 from datetime import UTC, datetime
 from html.parser import HTMLParser
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode
 
 from sqlalchemy import func, select
 
@@ -20,87 +20,10 @@ from app.models import (
     MarketingSubscriber,
     Site,
 )
+from app.rich_text import BLOCK_TAGS, DROP_CONTENT_TAGS, sanitise_rich_text
 from app.services import CommerceError
 
-ALLOWED_TAGS = {"a", "b", "blockquote", "br", "em", "h2", "h3", "hr", "i", "li", "ol", "p", "strong", "u", "ul"}
-VOID_TAGS = {"br", "hr"}
-BLOCK_TAGS = {"blockquote", "h2", "h3", "hr", "li", "ol", "p", "ul"}
-DROP_CONTENT_TAGS = {"iframe", "object", "script", "style", "template"}
 CAMPAIGN_BATCH_SIZE = 50
-
-
-def _safe_href(value: str) -> str:
-    href = str(value or "").strip()
-    if not href or any(char in href for char in "\r\n\x00"):
-        return ""
-    parsed = urlsplit(href)
-    if parsed.scheme.lower() in {"http", "https", "mailto"}:
-        return href
-    if not parsed.scheme and not href.startswith("//") and (href.startswith("/") or href.startswith("#")):
-        return href
-    return ""
-
-
-class _Sanitizer(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.parts: list[str] = []
-        self.stack: list[str] = []
-        self.dropped: list[str] = []
-
-    def handle_starttag(self, tag, attrs):
-        if self.dropped:
-            if tag in DROP_CONTENT_TAGS:
-                self.dropped.append(tag)
-            return
-        if tag in DROP_CONTENT_TAGS:
-            self.dropped.append(tag)
-            return
-        if tag not in ALLOWED_TAGS:
-            return
-        if tag in BLOCK_TAGS:
-            self.parts.append("\n")
-        rendered_attrs = ""
-        if tag == "a":
-            values = dict(attrs)
-            href = _safe_href(values.get("href", ""))
-            if href:
-                rendered_attrs += ' href="' + html.escape(href, quote=True) + '"'
-            title = str(values.get("title") or "").strip()[:200]
-            if title:
-                rendered_attrs += ' title="' + html.escape(title, quote=True) + '"'
-        self.parts.append("<" + tag + rendered_attrs + ">")
-        if tag not in VOID_TAGS:
-            self.stack.append(tag)
-
-    def handle_startendtag(self, tag, attrs):
-        self.handle_starttag(tag, attrs)
-        if tag not in VOID_TAGS:
-            self.handle_endtag(tag)
-
-    def handle_endtag(self, tag):
-        if self.dropped:
-            if tag == self.dropped[-1]:
-                self.dropped.pop()
-            return
-        if tag not in self.stack:
-            return
-        while self.stack:
-            current = self.stack.pop()
-            self.parts.append("</" + current + ">")
-            if current == tag:
-                break
-        if tag in BLOCK_TAGS:
-            self.parts.append("\n")
-
-    def handle_data(self, data):
-        if not self.dropped:
-            self.parts.append(html.escape(data, quote=False))
-
-    def finish(self) -> str:
-        while self.stack:
-            self.parts.append("</" + self.stack.pop() + ">")
-        return "".join(self.parts).strip()
 
 
 class _TextExtractor(HTMLParser):
@@ -134,14 +57,11 @@ class _TextExtractor(HTMLParser):
 
 
 def sanitize_email_html(value: str) -> str:
-    """Keep a small formatting vocabulary and safe link destinations only."""
+    """Keep email's size limit and use the shared rich-text allow-list."""
     raw = str(value or "")
     if len(raw) > 20_000:
         raise CommerceError("Email body must be no longer than 20,000 characters.")
-    parser = _Sanitizer()
-    parser.feed(raw)
-    parser.close()
-    return parser.finish()
+    return sanitise_rich_text(raw)
 
 
 def plain_text_from_html(value: str) -> str:

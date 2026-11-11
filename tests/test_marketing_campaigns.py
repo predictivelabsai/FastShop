@@ -130,8 +130,9 @@ def test_campaign_body_sanitiser_and_text_part():
     )
 
     assert "onclick" not in cleaned and "<script" not in cleaned and "alert(1)" not in cleaned
-    assert "style=" not in cleaned and "javascript:" not in cleaned and "target=" not in cleaned
+    assert "style=" not in cleaned and "javascript:" not in cleaned
     assert 'href="https://example.test/news"' in cleaned
+    assert 'target="_blank" rel="noopener noreferrer"' in cleaned
     assert "Hello world link safe" in marketing_email.plain_text_from_html(cleaned)
 
 
