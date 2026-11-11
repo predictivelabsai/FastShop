@@ -196,7 +196,7 @@ def main():
                     if consent.is_visible():
                         consent.click()
                     if key == "footer-success":
-                        newsletter = page.locator("#footer .h-footer-newsletter")
+                        newsletter = page.locator("#footer.h-footer-newsletter")
                         newsletter.scroll_into_view_if_needed()
                         expect(newsletter.get_by_text("Thanks for signing up.")).to_be_visible()
                         newsletter.screenshot(path=str(OUTPUT / f"{key}-{device}.png"))

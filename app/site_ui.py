@@ -439,7 +439,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             Button(label(config, "newsletter_submit"), type="submit", cls="h-button"),
             method="post", action=base + "/newsletter", cls="h-newsletter-form",
         ) if newsletter_active else P(label(config, "newsletter_preview"), cls="h-newsletter-preview"),
-        cls="h-footer-newsletter h-container",
+        cls="h-footer-newsletter h-container", id="footer",
     )
     return (
         Title(seo["title"]), Meta(name="viewport", content="width=device-width, initial-scale=1"),
@@ -503,7 +503,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
                 newsletter_block,
                 P(config.get("footer", ""), cls="h-disclaimer"), Div(Span(label(config, "copyright") + config.get("company", site.name)), payment_methods(), Button(label(config, "cookies"), type="button", data_cookie_open=""), cls="h-footer-bottom"),
-                cls="h-footer", id="footer", data_builder_shell="footer" if preview else None),
+                cls="h-footer", data_builder_shell="footer" if preview else None),
             *foot_snippets,
             Div(H2("Your privacy, your choice."), P("Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."),
                 Details(Summary("Preferences"), Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"), Label(Input(type="checkbox", id="consent-preferences"), " Preferences: remembers things like products you viewed on this device"), Label(Input(type="checkbox", id="consent-analytics"), " Analytics"), Label(Input(type="checkbox", id="consent-marketing"), " Marketing")),
