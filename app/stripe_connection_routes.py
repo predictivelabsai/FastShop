@@ -106,7 +106,8 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                                   role="alert", cls="payment-error") if failure else None
                 return shell("Payments", A("← Site settings", href=f"/admin/sites/{site.id}/settings"),
                     P(site.name + " · Stripe connection settings", cls="payment-intro"),
-                    P("Live payments on" if live_on else "Test mode is active",
+                    P("Live payments" if live_on else
+                      "Checkout off" if not config or config.mode == "disabled" else "Test mode",
                       cls="g-state g-state-live" if live_on else "g-state"),
                     A("Manage live payment mode on the Go-live page →",
                       href=f"/admin/sites/{site.id}/golive#live-payments", cls="e-button"),

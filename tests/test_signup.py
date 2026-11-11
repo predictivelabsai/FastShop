@@ -30,6 +30,7 @@ from app.models import (
     User,
 )
 from app.services import CommerceError
+from app.site_context import SiteHostMiddleware
 
 
 def csrf(response):
@@ -331,7 +332,6 @@ def test_verification_token_is_single_use(signup_workspace):
         verification = db.get(SignupEmailVerification, verification_id)
         assert verification.consumed_at is not None
         assert db.get(User, verification.user_id).email_verified_at is not None
-
     page = signup_workspace.client.get(path)
     reused = signup_workspace.client.post(
         path,
@@ -341,6 +341,38 @@ def test_verification_token_is_single_use(signup_workspace):
     assert reused.status_code == 303
     assert reused.headers["location"].endswith("?status=invalid")
 
+
+def test_verification_actions_work_on_a_bound_custom_host(signup_workspace, monkeypatch):
+    from app import site_context
+
+    monkeypatch.setattr(site_context, "SessionLocal", signup_workspace.sessions)
+    client = TestClient(SiteHostMiddleware(signup_workspace.client.app),
+                        base_url="https://custom-shop.example.test")
+    signup_response = signup(client)
+    assert signup_response.status_code == 303
+    with signup_workspace.sessions() as db:
+        site = db.scalar(select(Site))
+        site.hostname = "custom-shop.example.test"
+        verification = db.scalar(select(SignupEmailVerification))
+        verification_id = verification.id
+        tenant_id = verification.tenant_id
+        db.commit()
+
+    verification_path = f"/signup/verify/{tenant_id}/{verification_id}"
+    verification_page = client.get(verification_path)
+    assert verification_page.status_code == 200
+    csrf_token = csrf(verification_page)
+    resend = client.post("/admin/account/verification/resend",
+                         data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert resend.status_code == 303
+    assert "/admin/sites/" in resend.headers["location"]
+    legacy = client.post("/account/verification/resend", data={"csrf_token": csrf_token},
+                         headers={"host": "platform.example.test"}, follow_redirects=False)
+    assert legacy.status_code == 303
+
+    # Verification emails use the platform's shared /signup endpoint. It remains
+    # routable when the browser follows that link while carrying the store Host.
+    assert client.get(verification_path).status_code == 200
 
 def test_rate_limit_is_independent_per_client_and_email(signup_workspace):
     with signup_workspace.sessions() as db:

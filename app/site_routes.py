@@ -69,6 +69,11 @@ from app.subscription_portal_copy import DEFAULT_PORTAL_COPY
 
 
 def register_site_routes(rt):
+    from app.site_delete_routes import register_site_delete_routes
+    from app.site_index_routes import register_site_index_routes
+    register_site_index_routes(rt)
+    from app.site_seo_routes import register_site_seo_routes
+
     def actor(session):
         with SessionLocal() as db:
             user = db.get(User, session.get("user_id", ""))
@@ -91,6 +96,9 @@ def register_site_routes(rt):
     def error(exc):
         return Response(str(exc), status_code=400, media_type="text/plain")
 
+    register_site_seo_routes(rt, actor, csrf, check_csrf, shell, error)
+    register_site_delete_routes(rt, actor, csrf, check_csrf, shell, error)
+
     def verification_banner(db, user_id, session):
         user = db.get(User, user_id)
         if not user or not user.password_hash or user.email_verified_at:
@@ -105,13 +113,12 @@ def register_site_routes(rt):
                 csrf(session),
                 Button("Resend verification email", cls="e-button"),
                 method="post",
-                action="/account/verification/resend",
+                action="/admin/account/verification/resend",
             ),
             cls="e-card e-verification-banner",
         )
 
-    @rt("/account/verification/resend", methods=["POST"])
-    async def post(session, request):
+    async def resend_verification(session, request):
         form = await request.form()
         try:
             check_csrf(session, form)
@@ -146,6 +153,14 @@ def register_site_routes(rt):
             )
         except CommerceError:
             return RedirectResponse("/login?next=/admin/sites", status_code=303)
+
+    @rt("/admin/account/verification/resend", methods=["POST"])
+    async def post(session, request):
+        return await resend_verification(session, request)
+
+    @rt("/account/verification/resend", methods=["POST"])
+    async def post(session, request):
+        return await resend_verification(session, request)
 
     from app.admin_gap_routes import register_admin_gap_routes
     register_admin_gap_routes(rt, actor, csrf, check_csrf, shell, error)
@@ -230,7 +245,8 @@ def register_site_routes(rt):
                 ).where(
                     Membership.user_id == user_id,
                     Membership.role.in_(["admin", "merchant", "editor"]),
-                )))
+                    Site.status != "deleted",
+                ).order_by(Site.name, Site.id)))
                 sites = [row[0] for row in site_rows]
                 roles = {row[0].id: row[1] for row in site_rows}
                 onboarding_by_site = {
@@ -461,13 +477,18 @@ def register_site_routes(rt):
             user_id = actor(session)
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, user_id)
+                can_delete = db.scalar(select(Membership.id).where(
+                    Membership.tenant_id == site.tenant_id,
+                    Membership.user_id == user_id,
+                    Membership.role.in_(("admin", "merchant")),
+                )) is not None
                 config = site.settings_json
                 return shell("General",
                     verification_banner(db, user_id, session),
                     A("← Settings", href=f"/admin/sites/{site.id}/settings"),
                     Div(
                         Div(H2("Brand and shared content"), Form(csrf(session), Input(type="hidden", name="version", value=site.version),
-                            *[Label(label, Input(name=key, value=config.get(key, ""))) for key, label in [
+                            *[Label(label, Input(name=key, value=config.get(key) or (site.name if key == "name" else ""))) for key, label in [
                                 ("name", "Brand name"), ("tagline", "Tagline"), ("email", "Contact email"),
                                 ("company", "Company"), ("address", "Company address"), ("announcement", "Announcement"),
                                 ("offer", "First-order banner"), ("logo", "Logo URL"), ("logo_light", "Light logo URL"),
@@ -514,7 +535,11 @@ def register_site_routes(rt):
                             P("An approved statement must include an asterisk (*) and compliant wording; it renders beside the FDA footer disclaimer.", cls="e-note"),
                             Button("Save draft settings", name="action", value="draft", cls="e-button"),
                             Button("Publish shared settings", name="action", value="publish", cls="e-button"),
-                            method="post", action=f"/admin/sites/{site.id}/settings", cls="e-form", data_dirty_guard=""), cls="e-card"), cls="a-general-settings"),
+                            method="post", action=f"/admin/sites/{site.id}/settings", cls="e-form", data_dirty_guard=""), cls="e-card"),
+                        Div(H2("Danger zone"), P("Delete this store and release its hostname."),
+                            A("Delete this store", href=f"/admin/sites/{site.id}/settings/delete",
+                              cls="e-button danger"), cls="e-card danger-zone") if can_delete else None,
+                        cls="a-general-settings"),
                     )
         except CommerceError as exc:
             return error(exc)
@@ -538,6 +563,9 @@ def register_site_routes(rt):
                 config["payment_methods"] = ["card"] + (["paypal"] if form.get("offer_paypal") == "on" else [])
                 for key in ("name", "tagline", "email", "company", "address", "announcement", "offer", "logo", "logo_light", "science_date", "footer"):
                     config[key] = str(form.get(key, ""))[:2000]
+                # A published brand name is also the store's name in lists, emails and the assistant.
+                if form.get("action") == "publish" and config["name"].strip():
+                    site.name = config["name"].strip()[:160]
                 from app.site_widgets import sanitise_html
                 config["policies"] = {key: sanitise_html(str(form.get("policy_" + key, ""))[:100000])
                                       for key in ("privacy", "terms", "refunds", "shipping")}

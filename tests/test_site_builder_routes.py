@@ -9,7 +9,17 @@ from app import content
 from app.config import settings
 from app.db import SessionLocal
 from app.main import app
-from app.models import Site, SiteBuilderTurn, SiteChangeSet, User
+from app.models import (
+    Category,
+    Product,
+    ProductType,
+    ProductVariant,
+    Site,
+    SiteBuilderTurn,
+    SiteChangeSet,
+    User,
+    VariantChannelListing,
+)
 from app.services import CommerceError
 from app.site_theme import PRESETS
 
@@ -162,7 +172,20 @@ def test_classical_settings_save_is_reversible_from_builder(editor):
     response = client.post(base + "/build/undo", data={"csrf_token": token, "version": version, "change_id": change_id})
     assert response.status_code == 200
     with SessionLocal() as db:
-        assert db.get(Site, site.id).settings_json == site.settings_json
+        restored = db.get(Site, site.id)
+        assert restored.settings_json == site.settings_json and restored.name == site.name
+
+
+def test_published_brand_name_renames_the_store(editor):
+    client, site, page, token = editor
+    base = f"/admin/sites/{site.id}"
+    with SessionLocal() as db:
+        version = db.get(Site, site.id).version
+    assert f'value="{site.name}"' in client.get(base + "/settings/general").text
+    assert client.post(base + "/settings", data={"csrf_token": token, "version": version,
+        "name": "Renamed store", "action": "publish"}).status_code == 200
+    with SessionLocal() as db:
+        assert db.get(Site, site.id).name == "Renamed store"
 
 
 def test_cancel_route_is_csrf_protected_and_late_response_cannot_write(editor):
@@ -217,6 +240,66 @@ def test_merchant_proposal_requires_csrf_and_explicit_confirmation(editor, monke
     blocked = client.post(f"/admin/sites/{site.id}/golive/commerce", data={"csrf_token": token,
         "version": site_version, "config_version": config_version, "enabled": "1"})
     assert blocked.status_code == 200
-    assert "Sandbox commerce blocked" in blocked.text and "Merchant details are reviewed" in blocked.text
+    assert "Test mode is unavailable until these technical prerequisites pass" in blocked.text
+    assert "At least one published product has a site-channel price" in blocked.text
     with SessionLocal() as db:
         assert commerce.settings_for(db, db.get(Site, site.id)).mode == "disabled"
+
+
+def test_golive_review_warnings_keep_test_mode_button_enabled(editor):
+    from app import commerce, site_golive
+
+    client, site, _, _ = editor
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        commerce.settings_for(db, saved, create=True)
+        category = Category(tenant_id=saved.tenant_id, slug="review", name="Review")
+        kind = ProductType(tenant_id=saved.tenant_id, slug="physical", name="Physical")
+        db.add_all([category, kind])
+        db.flush()
+        product = Product(
+            tenant_id=saved.tenant_id,
+            category_id=category.id,
+            product_type_id=kind.id,
+            slug="priced-review-product",
+            name="Priced review product",
+            is_published=True,
+        )
+        db.add(product)
+        db.flush()
+        variant = ProductVariant(
+            tenant_id=saved.tenant_id,
+            product_id=product.id,
+            sku="REVIEW-1",
+            name="Standard",
+            is_active=True,
+        )
+        db.add(variant)
+        db.flush()
+        db.add(VariantChannelListing(
+            variant_id=variant.id,
+            channel_id=saved.channel_id,
+            currency="USD",
+            price_minor=2500,
+        ))
+        product_page = content.create_page(
+            db,
+            saved,
+            "Priced review product",
+            "/products/priced-review-product",
+            "product",
+            {"title": "Priced review product", "sections": [{"type": "product"}]},
+        )
+        product_page.product_id = product.id
+        product_page.published_json = product_page.draft_json
+        db.commit()
+        report = site_golive.assess(db, saved, commerce_requested=True)
+        assert not report.blocking_failures_for("commerce"), [
+            (check.key, check.explanation) for check in report.blocking_failures_for("commerce")
+        ]
+
+    response = client.get(f"/admin/sites/{site.id}/golive")
+    assert response.status_code == 200
+    assert 'class="g-result g-warning">Review</small>' in response.text
+    button = re.search(r'<button\b([^>]*)>Test mode</button>', response.text)
+    assert button is not None and "disabled" not in button.group(1)

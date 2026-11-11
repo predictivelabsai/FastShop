@@ -132,6 +132,24 @@ def _registry(db, site, user, page_id, selection, checkpoint, conversation_id=No
             raise CommerceError("Choose supported brand text fields under 2,001 characters.")
         return update_settings(values, "Brand text")
 
+    def update_seo_settings(values):
+        from app.site_seo import validate, validate_site_image
+        allowed = {"seo_title_format", "seo_default_description", "seo_social_title",
+                   "seo_social_image", "seo_indexing", "seo_robots_override",
+                   "seo_google_verification", "seo_bing_verification"}
+        if not isinstance(values, dict) or set(values) - allowed:
+            raise CommerceError("Choose supported SEO settings.")
+        config = copy.deepcopy(site.settings_json)
+        config.update(values)
+        if "seo_social_image" in values:
+            config["seo_social_image"] = validate_site_image(db, site, config["seo_social_image"])
+        site.settings_json = validate(config)
+        content.validate_media_ownership(db, site, {"seo_social_image": site.settings_json.get("seo_social_image", "")})
+        site.version += 1
+        db.flush()
+        builder.record_change(db, site, user, before, "agent", "SEO settings")
+        return {"updated": sorted(values)}
+
     def create_page(a):
         path = content.page_path(a["path"])
         title = a["title"].strip()
@@ -234,6 +252,8 @@ def _registry(db, site, user, page_id, selection, checkpoint, conversation_id=No
              lambda a: mutate(lambda: save_shell(a["values"]))),
         spec("update_brand", "Update draft brand text", {"values": fields["fields"]}, ["values"],
              lambda a: mutate(lambda: update_brand_values(a["values"]))),
+        spec("update_seo_settings", "Update draft SEO settings", {"values": fields["fields"]}, ["values"],
+             lambda a: mutate(lambda: update_seo_settings(a["values"]))),
         spec("update_navigation", "Replace draft header navigation", {"items": {"type": "array", "items": {"type": "object"}}},
              ["items"], lambda a: mutate(lambda: update_navigation(a["items"]))),
         spec("create_page", "Create a draft page", {"title": {"type": "string"}, "path": {"type": "string"},

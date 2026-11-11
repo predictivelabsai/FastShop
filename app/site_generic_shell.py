@@ -81,6 +81,7 @@ DEFAULTS = {
     "privacy_policy": "Privacy policy",
     "faq": "FAQ",
     "returns": "Returns",
+    "shipping_policy": "Shipping policy",
     "copyright": "© ",
     "cookies": "Cookie preferences",
     "offer_close": "Close",
@@ -92,7 +93,7 @@ DEFAULTS = {
 }
 
 _HEADER = "cta video_toggle contact_heading contact_name contact_email contact_message contact_honeypot contact_consent contact_send privacy skip menu shop all_products account bag bag_empty cart_aria offer_eyebrow offer_body offer_preview offer_close offer_confirm offer_email offer_submit offer_preview_body email_placeholder".split()
-_FOOTER = "footer_explore footer_help terms privacy_policy faq returns copyright cookies".split()
+_FOOTER = "footer_explore footer_help terms privacy_policy faq returns shipping_policy copyright cookies".split()
 GROUPS = {
     "header": _HEADER,
     "footer": _FOOTER,

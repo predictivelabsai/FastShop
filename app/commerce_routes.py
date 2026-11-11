@@ -27,8 +27,8 @@ from starlette.responses import RedirectResponse
 
 from app import commerce, content, site_builder_services
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway, credentials, make_gateway
-from app.models import Product, ProductVariant, SiteCommerceSettings
+from app.integrations.stripe_commerce import StripeGateway, make_gateway
+from app.models import Product, ProductVariant, SiteCommerceSettings, SiteStripeConnection
 from app.services import CommerceError, money
 
 
@@ -60,20 +60,32 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                 config = commerce.settings_for(db, site, create=True)
                 products = list(db.scalars(select(Product).where(Product.tenant_id == site.tenant_id).order_by(Product.name)))
                 variants = list(db.scalars(select(ProductVariant).where(ProductVariant.tenant_id == site.tenant_id).order_by(ProductVariant.sku)))
-                key, webhook, _ = credentials(site, db=db, mode="test")
+                connections = list(db.scalars(select(SiteStripeConnection).where(
+                    SiteStripeConnection.site_id == site.id,
+                    SiteStripeConnection.tenant_id == site.tenant_id,
+                )))
+                connected_modes = {connection.mode for connection in connections}
+                selected_mode = "live" if config.mode == "live" else "test"
+                connection_mode = next(
+                    (mode for mode in (selected_mode, "live", "test") if mode in connected_modes),
+                    None,
+                )
+                stripe_status = (
+                    f"Connected in {connection_mode} mode" if connection_mode else "Not connected"
+                )
                 return shell("US commerce", A("← Site settings", href=f"/admin/sites/{site.id}"),
                     P(f"{site.name} · USD · EU fulfilment → United States"),
                     Div(H2("Payment settings"),
                         P("Shipping rates are merchant settings, not carrier quotes. Sales tax is calculated by Stripe Tax from the full delivery address, product classifications and configured registrations."),
-                        Ul(Li("Stripe test key: " + ("configured" if key.startswith(("sk_test_", "rk_test_")) else "required")),
-                           Li("Webhook signing secret: " + ("configured" if webhook else "required")),
+                        Ul(Li(stripe_status), Li(A("Manage in Payments", href=f"/admin/sites/{site.id}/commerce/payments")),
                            Li("Shipping fee: " + (money(config.shipping_minor, "USD") if config.shipping_minor is not None else "not configured")),
                            Li("Test mode uses Stripe test cards. Live mode charges real cards through the verified live connection."), cls="e-readiness"), cls="e-note"),
                     Div(Div(Form(csrf(session), Input(type="hidden", name="version", value=config.version),
                         Input(type="hidden", name="site_version", value=site.version),
                         Input(type="hidden", name="mode", value=config.mode),
                         H2("Market and shipping"),
-                        P("Checkout status: " + ({"sandbox": "Test mode enabled", "live": "Live payments on"}.get(config.mode, "Read-only storefront")), cls="g-state"),
+                        P("Checkout status: " + ({"disabled": "Checkout off", "sandbox": "Test mode",
+                            "live": "Live payments"}.get(config.mode, "Checkout off")), cls="g-state"),
                         P("Choose test or live payment mode from the go-live checklist. Readiness findings are advisory."),
                         A("Open go-live checklist", href=f"/admin/sites/{site.id}/golive#commerce"),
                         H3("Actual EU fulfilment origin"), P("Confirm the warehouse address. The company address is not automatically used as the shipping origin."),

@@ -431,7 +431,8 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                     Div(H2("Payments"), P("Connect Stripe from the store admin, manage test and live keys, and check Stripe Tax."),
                         A("Manage Stripe payments", href=f"/admin/sites/{site.id}/commerce/payments", cls="e-button"),
                         cls="e-card"),
-                    P("Live payments on" if live_approved else "Live payments off, test mode",
+                    P("Live payments" if live_approved else
+                      "Test mode" if commerce_config and commerce_config.mode == "sandbox" else "Checkout off",
                       cls="g-state g-state-live" if live_approved else "g-state"),
                     P("Migrations are sandbox-first: preview provider data before any FastShop write. "
                       "Connection details are controlled by the operator and are never entered here.",

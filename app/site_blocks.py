@@ -164,9 +164,15 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
     if 'items' in result and not (result['type'] in WIDGETS and WIDGETS[result['type']].item_schema):
         if not isinstance(result['items'], list) or len(result['items']) > 200:
             raise CommerceError('Block entries must be a list of up to 200 objects.')
-        for item in result['items']:
-            if not isinstance(item, dict) or set(item) - ITEM_FIELDS:
-                raise CommerceError('Choose supported block entry fields.')
+        for index, item in enumerate(result['items']):
+            if not isinstance(item, dict):
+                raise CommerceError(f'Block item {index + 1} must be an object.')
+            unsupported = set(item) - ITEM_FIELDS
+            if unsupported:
+                field = sorted(unsupported)[0]
+                raise CommerceError(
+                    f'Block item {index + 1}: "{field}" is not a supported field.'
+                )
             if not set(BLOCK_TYPES[result['type']].required_item_fields) <= item.keys():
                 raise CommerceError('Block entry is missing required fields.')
             for key, value in item.items():

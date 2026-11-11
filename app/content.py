@@ -75,7 +75,7 @@ def validate_document(document: dict) -> dict:
 def owned_site(db: Session, site_id: str, user_id: str, *, publish: bool = False) -> Site:
     site = db.scalar(
         select(Site).join(Membership, Membership.tenant_id == Site.tenant_id).where(
-            Site.id == site_id, Membership.user_id == user_id,
+            Site.id == site_id, Site.status != "deleted", Membership.user_id == user_id,
             Membership.role.in_(["admin", "merchant"] if publish else ["admin", "merchant", "editor"]),
         )
     )

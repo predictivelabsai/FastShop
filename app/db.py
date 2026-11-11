@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
-from app.models import Base
+from app.models import Base, CommerceMail
 
 IS_POSTGRES = settings.database_url.startswith("postgresql+")
 if IS_POSTGRES and not settings.db_schema.replace("_", "").isalnum():
@@ -25,6 +25,34 @@ engine = create_engine(
     ),
 )
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def _remember_queued_mail(session: Session, _flush_context) -> None:
+    queued = session.info.setdefault("commerce_mail_after_commit", set())
+    # after_flush still lists pre-flush "new" rows, and their generated ids now exist.
+    queued.update(row.id for row in session.new if isinstance(row, CommerceMail) and row.id)
+
+
+def _dispatch_committed_mail(session: Session) -> None:
+    message_ids = session.info.pop("commerce_mail_after_commit", set())
+    if not message_ids:
+        return
+    from app.integrations.commerce_email import dispatch_mail
+    for message_id in message_ids:
+        try:
+            dispatch_mail(message_id)
+        except Exception:  # noqa: BLE001 - the scheduled worker retries committed rows
+            import logging
+            logging.getLogger("fastshop.mail").exception("immediate mail dispatch failed")
+
+
+def _forget_rolled_back_mail(session: Session) -> None:
+    session.info.pop("commerce_mail_after_commit", None)
+
+
+event.listen(SessionLocal, "after_flush", _remember_queued_mail)
+event.listen(SessionLocal, "after_commit", _dispatch_committed_mail)
+event.listen(SessionLocal, "after_rollback", _forget_rolled_back_mail)
 
 
 def prepare_schema() -> None:

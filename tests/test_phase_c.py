@@ -33,6 +33,22 @@ def test_scheduler_disabled_by_default(monkeypatch):
     assert scheduler.start_scheduler() is False
 
 
+def test_mail_worker_is_disabled_outside_production_unless_enabled(monkeypatch):
+    monkeypatch.delenv("FASTSHOP_ENABLE_MAIL_WORKER", raising=False)
+    monkeypatch.setattr("app.config.settings", SimpleNamespace(is_production=False))
+    assert scheduler.mail_worker_enabled() is False
+    monkeypatch.setenv("FASTSHOP_ENABLE_MAIL_WORKER", "1")
+    assert scheduler.mail_worker_enabled() is True
+
+
+def test_mail_job_logs_failure_and_returns(monkeypatch):
+    def boom(**_kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr("app.integrations.commerce_email.process_due_mail", boom)
+    assert scheduler.run_mail_job() == {"error": "error"}
+
+
 def test_scheduler_tick_survives_job_errors(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("provider down")
