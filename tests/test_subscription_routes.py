@@ -72,6 +72,23 @@ def test_customer_portal_tabs_copy_recommendations_and_csrf(customer_session):
     for tab in ("subscriptions", "orders", "account"):
         assert f"?tab={tab}" in client.get(path + "?tab=" + tab).text
 
+    alternate = ProductVariant(tenant_id=r.site.tenant_id, product_id=r.variant.product_id,
+        sku="PORTAL-ALT-VARIANT", name="Alternate option")
+    r.db.add(alternate)
+    r.db.flush()
+    r.db.add(VariantChannelListing(variant_id=alternate.id, channel_id=r.site.channel_id,
+        currency="USD", price_minor=3200))
+    r.db.commit()
+    page = client.get(path)
+    assert "Alternate option" in page.text
+    assert "Recommended for you" not in page.text
+    add_variant = path + "/" + sub.id + "/add_product"
+    response = client.post(add_variant, data=fields(page) | {
+        "variant_id": alternate.id, "quantity": "1"}, follow_redirects=False)
+    assert response.status_code == 303
+    r.db.refresh(sub)
+    assert any(line["variant_id"] == alternate.id for line in sub.lines_json)
+
     source = r.variant.product
     recommended = Product(tenant_id=r.site.tenant_id, product_type_id=source.product_type_id,
         category_id=source.category_id, name="Extra eligible", slug="extra-eligible",
