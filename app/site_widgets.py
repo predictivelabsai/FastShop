@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import html
 import re
 from dataclasses import dataclass
-from html.parser import HTMLParser
 
 from fasthtml.common import (
     A,
@@ -32,6 +30,7 @@ from fasthtml.common import (
 )
 from sqlalchemy import select
 
+from app.rich_text import sanitise_rich_text
 from app.services import CommerceError
 
 
@@ -183,62 +182,8 @@ STYLE_FIELDS = {
 }
 
 
-class _RichText(HTMLParser):
-    tags = {
-        "p",
-        "br",
-        "strong",
-        "em",
-        "u",
-        "s",
-        "a",
-        "ul",
-        "ol",
-        "li",
-        "h2",
-        "h3",
-        "h4",
-        "blockquote",
-    }
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.output = []
-        self.suppressed = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag in {"script", "style", "iframe", "object", "svg", "math"}:
-            self.suppressed += 1
-        if self.suppressed or tag not in self.tags:
-            return
-        attributes = ""
-        if tag == "a":
-            from app.content import safe_url
-
-            href = dict(attrs).get("href", "")
-            try:
-                href = safe_url(href)
-            except CommerceError:
-                href = ""
-            attributes = ' href="' + html.escape(href, quote=True) + '" rel="noopener noreferrer"'
-        self.output.append("<" + tag + attributes + ">")
-
-    def handle_endtag(self, tag):
-        if tag in {"script", "style", "iframe", "object", "svg", "math"}:
-            self.suppressed = max(0, self.suppressed - 1)
-            return
-        if not self.suppressed and tag in self.tags and tag != "br":
-            self.output.append("</" + tag + ">")
-
-    def handle_data(self, data):
-        if not self.suppressed:
-            self.output.append(html.escape(data))
-
-
 def sanitise_html(value):
-    parser = _RichText()
-    parser.feed(value)
-    return "".join(parser.output)
+    return sanitise_rich_text(value)
 
 
 def validate_style(style):
