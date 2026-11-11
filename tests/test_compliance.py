@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 
 from app import compliance, content
 from app.models import Base, User
-from app.services import CommerceError
 from app.site_placeholders import placeholder_inventory
 from scripts.demo_site import seed_demo_site
 
@@ -48,8 +47,7 @@ def test_nested_localised_richtext_cannot_bypass_publication_checks():
     assert "detox" in compliance.scan_document({"blocks": [
         {"type": "heading", "heading": "A <detox> promise"},
     ]})["banned"]
-    with pytest.raises(CommerceError, match="cannot be published"):
-        compliance.assert_document_compliant(document)
+    assert "clinically proven" in compliance.assert_document_compliant(document)
 
 
 def test_research_sections_allow_disease_names_but_not_banned_words():
@@ -64,15 +62,13 @@ def test_research_sections_allow_disease_names_but_not_banned_words():
     assert "clinically proven" in findings["banned"]
 
 
-def test_assert_claim_requires_asterisk_and_compliant_wording():
-    with pytest.raises(CommerceError):
-        compliance.assert_claim_compliant("Supports cellular health")  # no asterisk
-    with pytest.raises(CommerceError):
-        compliance.assert_claim_compliant("Proven to work.*")  # banned word
-    compliance.assert_claim_compliant("Supports cellular health.*")  # ok
+def test_claim_copy_advisory_never_requires_asterisk_or_blocks_wording():
+    assert compliance.assert_claim_compliant("Supports cellular health") is None
+    assert "revolutionary" in compliance.assert_claim_compliant("Revolutionary results.*")
+    assert compliance.assert_claim_compliant("Supports cellular health.*") is None
 
 
-def test_save_page_blocks_noncompliant_publish_but_allows_draft(db):
+def test_save_page_publishes_noncompliant_copy_with_warning(db):
     owner = User(email="owner@example.test", name="Owner")
     db.add(owner)
     db.flush()
@@ -80,10 +76,11 @@ def test_save_page_blocks_noncompliant_publish_but_allows_draft(db):
     page = content.create_page(db, site, "Promo", "/pages/promo", "content",
                                {"title": "Promo", "sections": [{"type": "text", "body": "A miracle detox."}]})
     db.flush()
-    # Draft save is allowed; publish is blocked.
+    # Draft save and publication both succeed; findings remain available to warn.
     content.save_page(db, site, page.id, owner.id, page.draft_json, page.version, action="draft")
-    with pytest.raises(CommerceError):
-        content.save_page(db, site, page.id, owner.id, page.draft_json, page.version, action="publish")
+    saved = content.save_page(db, site, page.id, owner.id, page.draft_json, page.version, action="publish")
+    assert saved.published_json
+    assert "miracle" in compliance.warning_message(compliance.scan_document(saved.published_json))
 
 
 def test_seed_content_is_publishable(db):

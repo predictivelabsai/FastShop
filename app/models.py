@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import (
     JSON,
@@ -28,6 +28,16 @@ from app.site_block_storage import BlockDocumentJSON
 
 def new_id() -> str:
     return uuid.uuid4().hex
+
+
+_last_message_time = datetime.min.replace(tzinfo=UTC)
+
+
+def message_time() -> datetime:
+    # PostgreSQL now() is fixed per transaction, so rows from one agent turn would tie.
+    global _last_message_time
+    _last_message_time = max(datetime.now(UTC), _last_message_time + timedelta(microseconds=1))
+    return _last_message_time
 
 
 class Base(DeclarativeBase):
@@ -379,6 +389,7 @@ class Order(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320))
     status: Mapped[str] = mapped_column(String(30), default="unfulfilled")
     payment_status: Mapped[str] = mapped_column(String(30), default="pending")
+    commerce_mode: Mapped[str] = mapped_column(String(12), default="sandbox", server_default="sandbox")
     currency: Mapped[str] = mapped_column(String(3))
     subtotal_minor: Mapped[int] = mapped_column(Integer)
     discount_minor: Mapped[int] = mapped_column(Integer, default=0)
@@ -657,6 +668,48 @@ class SiteBuilderTurn(TimestampMixin, Base):
     provider: Mapped[str] = mapped_column(String(24), default="guided")
     context_json: Mapped[dict] = mapped_column(JSON, default=dict)
     response_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class AgentConversation(TimestampMixin, Base):
+    __tablename__ = "agent_conversations"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(240), default="New conversation")
+
+
+class AgentMessage(TimestampMixin, Base):
+    __tablename__ = "agent_messages"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=message_time, server_default=func.now())
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("agent_conversations.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(24))
+    content: Mapped[str] = mapped_column(Text, default="")
+    tool_calls_json: Mapped[list] = mapped_column(JSON, default=list)
+    events_json: Mapped[list] = mapped_column(JSON, default=list)
+    checkpoint_revision_id: Mapped[str | None] = mapped_column(ForeignKey("site_revisions.id"), nullable=True)
+
+
+class AgentAction(TimestampMixin, Base):
+    __tablename__ = "agent_actions"
+    __table_args__ = (UniqueConstraint("idempotency_key"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("agent_conversations.id", ondelete="CASCADE"), index=True)
+    message_id: Mapped[str | None] = mapped_column(ForeignKey("agent_messages.id", ondelete="SET NULL"), nullable=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(48))
+    payload_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    summary: Mapped[str] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    result_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    idempotency_key: Mapped[str] = mapped_column(String(64))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class SiteChangeSet(TimestampMixin, Base):

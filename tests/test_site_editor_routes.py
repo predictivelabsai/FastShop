@@ -12,7 +12,7 @@ from starlette.responses import Response
 from starlette.testclient import TestClient
 
 from app import content, site_editor_routes
-from app.models import Base, Membership, SitePage, User
+from app.models import AgentConversation, AgentMessage, Base, Membership, SitePage, User
 from app.services import CommerceError
 
 
@@ -74,6 +74,103 @@ def test_load_requires_active_actor_membership_and_scoped_page(workspace):
     assert w.client.get(w.base).status_code == 401
 
 
+def test_agent_stream_requires_csrf_and_scopes_membership(workspace, monkeypatch):
+    from app import site_editor_routes
+
+    w = workspace
+    monkeypatch.setattr(site_editor_routes, "settings", SimpleNamespace(xai_api_key="", environment="test"))
+    path = f"/admin/sites/{w.site.id}/editor/agent"
+    body = {"message": "Update the hero", "page_id": w.page.id}
+    assert w.client.post(path, json=body).status_code == 403
+    denied = w.client.post(f"/admin/sites/{w.other.id}/editor/agent", json=body,
+                           headers=w.headers)
+    assert denied.status_code == 403
+    result = w.client.post(path, json=body, headers=w.headers)
+    assert result.status_code == 200
+    assert result.headers["content-type"].startswith("text/event-stream")
+    events = [json.loads(line[6:]) for line in result.text.splitlines() if line.startswith("data: ")]
+    assert [event["type"] for event in events] == ["assistant_text", "done"]
+
+
+def test_agent_history_is_tenant_scoped(workspace):
+    w = workspace
+    path = f"/admin/sites/{w.site.id}/editor/agent/history"
+    result = w.client.get(path)
+    assert result.status_code == 200
+    assert result.json() == {"conversation_id": None, "messages": []}
+    assert w.client.get(f"/admin/sites/{w.other.id}/editor/agent/history").status_code == 403
+
+
+def test_agent_history_rebuilds_steps_from_saved_tool_calls(workspace):
+    w = workspace
+    with w.sessions() as db:
+        conversation = AgentConversation(tenant_id=w.site.tenant_id, site_id=w.site.id,
+                                        user_id=w.owner.id, title="Edit the page")
+        db.add(conversation)
+        db.flush()
+        db.add_all([
+            AgentMessage(tenant_id=w.site.tenant_id, site_id=w.site.id,
+                         conversation_id=conversation.id, role="assistant", content="Updated",
+                         tool_calls_json=[{"name": "update_block", "label": "Updated hero"},
+                                          {"name": "update_theme", "label": "Updated colours"}]),
+            AgentMessage(tenant_id=w.site.tenant_id, site_id=w.site.id,
+                         conversation_id=conversation.id, role="tool", content='{"ok": true}',
+                         tool_calls_json=[{"function": {"name": "update_block"}}]),
+            AgentMessage(tenant_id=w.site.tenant_id, site_id=w.site.id,
+                         conversation_id=conversation.id, role="tool", content='{"error": "Rejected"}',
+                         tool_calls_json=[{"function": {"name": "update_theme"}}]),
+        ])
+        db.commit()
+    result = w.client.get(f"/admin/sites/{w.site.id}/editor/agent/history")
+    assistant = next(message for message in result.json()["messages"]
+                     if message["role"] == "assistant")
+    events = assistant["events"]
+    assert [(event["label"], event["status"]) for event in events] == [
+        ("Updated hero", "done"), ("Updated colours", "error")]
+
+
+def test_agent_stream_forwards_run_turn_event_order(workspace, monkeypatch):
+    from app import site_editor_routes, store_agent
+
+    w = workspace
+    monkeypatch.setattr(site_editor_routes, "settings", SimpleNamespace(xai_api_key="configured", environment="test"))
+    observed = {}
+    def run_turn(db, site, user, message, *, page_id, selection=None,
+                 conversation_id=None, transport=None):
+        observed.update(conversation_id=conversation_id)
+        return iter([
+        {"type": "conversation", "conversation_id": "conversation-1"},
+        {"type": "tool_called", "name": "update_block", "label": "Updating block..."},
+        {"type": "tool_result", "name": "update_block", "summary": "Updated"},
+        {"type": "assistant_text", "text": "Done"},
+        {"type": "done"},
+    ])
+    monkeypatch.setattr(store_agent, "run_turn", run_turn)
+    path = f"/admin/sites/{w.site.id}/editor/agent"
+    result = w.client.post(path, json={"message": "Update it", "page_id": w.page.id,
+                                       "conversation_id": "conversation-1"},
+                           headers=w.headers)
+    assert result.status_code == 200
+    events = [json.loads(line[6:]) for line in result.text.splitlines() if line.startswith("data: ")]
+    assert [event["type"] for event in events] == ["conversation", "tool_called", "tool_result", "assistant_text", "done"]
+    assert observed["conversation_id"] == "conversation-1"
+
+
+def test_agent_restore_checks_csrf_and_uses_owned_site(workspace, monkeypatch):
+    from app import store_agent
+
+    w = workspace
+    observed = {}
+    def restore(db, site, user, message_id):
+        observed.update(site=site.id, user=user, message=message_id)
+    monkeypatch.setattr(store_agent, "restore_checkpoint", restore)
+    path = f"/admin/sites/{w.site.id}/editor/agent/restore"
+    assert w.client.post(path, json={"message_id":"msg-1"}).status_code == 403
+    result = w.client.post(path, json={"message_id":"msg-1"}, headers=w.headers)
+    assert result.status_code == 200
+    assert observed == {"site": w.site.id, "user": w.owner.id, "message": "msg-1"}
+
+
 def test_unsaved_render_does_not_write_and_rejects_foreign_media(workspace):
     w = workspace
     loaded = load(w)
@@ -113,15 +210,15 @@ def test_csrf_draft_conflict_revisions_and_restore(workspace):
                          "version": version + 1}, headers=w.headers).status_code == 422
 
 
-def test_publish_compliance_and_editor_role(workspace):
+def test_publish_copy_warning_and_editor_role(workspace):
     w = workspace
     values = load(w)
     document = values["document"]
     document["blocks"] = [{"id": "bad-copy", "type": "text", "heading": "A miracle cure", "body": "Content"}]
-    rejected = w.client.post(w.base + "/publish", json={"document": document,
+    published = w.client.post(w.base + "/publish", json={"document": document,
         "version": values["version"]}, headers=w.headers)
-    assert rejected.status_code == 422 and rejected.json()["errors"]
-    assert "cannot be published" in rejected.text
+    assert published.status_code == 200, published.text
+    assert "miracle" in published.json()["warnings"][0]
     with w.sessions() as db:
         member = db.scalar(select(Membership).where(Membership.user_id == w.owner.id,
                                                      Membership.tenant_id == w.site.tenant_id))
@@ -131,7 +228,7 @@ def test_publish_compliance_and_editor_role(workspace):
     assert w.client.post(w.base + "/publish", json={"version": values["version"]},
                          headers=w.headers).status_code == 403
     assert w.client.put(w.base + "/draft", json={"document": document,
-        "version": values["version"]}, headers=w.headers).status_code == 200
+        "version": published.json()["version"]}, headers=w.headers).status_code == 200
 
 
 def test_theme_validation_versions_and_media_scope(workspace):

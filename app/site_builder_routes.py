@@ -271,6 +271,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
     async def post(session, request, site_id: str):
         form = await request.form()
         turn_id = None
+        notice = ""
         try:
             check_csrf(session, form)
             user_id = actor(session)
@@ -289,11 +290,35 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     {"role": "assistant", "content": row.response_json.get("answer", "") + " " + row.response_json.get("question", "")})]
                 db.commit()
             if fresh:
-                response, provider = await run_in_threadpool(respond, prompt, context, history)
-                with SessionLocal() as db:
-                    builder.finish_turn(db, site_id, user_id, turn_id, response, provider)
-                    db.commit()
-            return redirect(site_id, context["page_id"])
+                if settings.xai_api_key:
+                    from app.store_agent import run_turn
+                    def run_agent():
+                        with SessionLocal() as agent_db:
+                            agent_site = content.owned_site(agent_db, site_id, user_id)
+                            events = list(run_turn(agent_db, agent_site, user_id, prompt,
+                                page_id=context["page_id"], selection=context.get("section_id")))
+                            from app.compliance import warning_for_values
+                            warning = warning_for_values([
+                                page.draft_json for page in content.site_pages(agent_db, agent_site)
+                            ])
+                            return events, warning
+                    events, notice = await run_in_threadpool(run_agent)
+                    failure = next((event for event in events if event["type"] == "error"), None)
+                    if failure:
+                        raise CommerceError(failure["message"])
+                    response = {"answer": next((event["text"] for event in events if event["type"] == "assistant_text"), "Done."), "question": "", "operations": []}
+                    if notice:
+                        response["warnings"] = [notice]
+                    with SessionLocal() as db:
+                        builder.finish_turn(db, site_id, user_id, turn_id, response, "agent")
+                        db.commit()
+                else:
+                    response, provider = await run_in_threadpool(respond, prompt, context, history)
+                    with SessionLocal() as db:
+                        completed = builder.finish_turn(db, site_id, user_id, turn_id, response, provider)
+                        notice = " ".join(completed.response_json.get("warnings", []))
+                        db.commit()
+            return redirect(site_id, context["page_id"], notice)
         except (CommerceError, ValueError, TypeError) as exc:
             if turn_id:
                 with SessionLocal() as db:
@@ -319,12 +344,14 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
         try:
             check_csrf(session, form)
             with SessionLocal() as db:
-                count, status = builder.decide_refinement(db, site_id, actor(session),
+                count, status, warnings = builder.decide_refinement(db, site_id, actor(session),
                     str(form.get("turn_id", "")), str(form.get("decision", "")),
                     str(form.get("op_id", "")), int(form.get("version", 0)))
                 db.commit()
             action = "accepted" if str(form.get("decision")) == "accept" else "rejected"
             notice = f"{count} block edit{'s' if count != 1 else ''} {action}. Preview {status}."
+            if warnings:
+                notice += " " + " ".join(warnings)
             return redirect(site_id, str(form.get("page_id", "")), notice)
         except (CommerceError, ValueError) as exc:
             return error(exc)

@@ -182,6 +182,8 @@ def register_site_routes(rt):
     register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.order_management_routes import register_order_management_routes
     register_order_management_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.store_agent_ops import register_routes as register_store_agent_ops_routes
+    register_store_agent_ops_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.order_admin_routes import register_order_admin_routes
     register_order_admin_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.draft_order_routes import register_draft_order_routes
@@ -582,8 +584,6 @@ def register_site_routes(rt):
                     claims.append({"key": new_id(), "text": new_text, "approved": approved,
                                    "reviewed_by": user_id, "reviewed_at": datetime.now(UTC).isoformat()})
                 config["claims"] = claims
-                if any(c.get("approved") for c in claims) and not config.get("footer", "").strip():
-                    raise CommerceError("Add the FDA disclaimer to the footer before approving a benefit statement.")
                 from app.site_samples import invalidate_reviews
                 config = invalidate_reviews(config, site.settings_json, config)
                 site.settings_json = config

@@ -24,7 +24,7 @@ from fasthtml.common import (
 from sqlalchemy import func, or_, select
 from starlette.responses import JSONResponse
 
-from app import content, order_management, site_golive
+from app import content, order_management, site_golive, store_agent_admin
 from app.admin_ui import badge, card, empty_state, index_table
 from app.db import SessionLocal
 from app.models import (
@@ -116,6 +116,38 @@ def sales_sparkline(values):
 
 
 def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
+    @rt("/admin/sites/{site_id}/assistant", methods=["GET"])
+    def assistant(session, site_id: str):
+        try:
+            user_id = actor(session)
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, user_id, publish=True)
+                page = store_agent_admin.home_page(db, site)
+                csrf(session)
+                return shell("Assistant", *store_agent_admin.page(site, page, session["csrf_token"]))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/assistant/conversations", methods=["GET"])
+    def assistant_conversations(session, site_id: str):
+        try:
+            user_id = actor(session)
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, user_id, publish=True)
+                return store_agent_admin.conversations(db, site, user_id)
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/assistant/history", methods=["GET"])
+    def assistant_history(session, site_id: str, conversation_id: str = ""):
+        try:
+            user_id = actor(session)
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, user_id, publish=True)
+                return store_agent_admin.history(db, site, user_id, conversation_id)
+        except CommerceError as exc:
+            return error(exc)
+
     @rt("/admin/sites/{site_id}/search", methods=["GET"])
     def get(session, site_id: str, q: str = "", format: str = "html"):
         try:

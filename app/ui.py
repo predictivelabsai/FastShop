@@ -586,7 +586,7 @@ def stripe_guide(base="/admin/integrations"):
             Li("Open your store admin and choose Settings → Payments."),
             Li("Select Test mode and enter the Stripe secret and publishable keys."),
             Li("Save and verify. FastShop registers the webhook when your site has a public HTTPS URL."),
-            Li("Connect Live mode separately. Live payments still require platform operator acceptance."),
+            Li("Connect and verify Live mode separately, then turn on live payments from the Go-live page."),
             Li("Register your store domain in Stripe to enable Apple Pay and Google Pay."))),
         panel("Operator fallback", P("Operators can still supply FASTSHOP_STRIPE_{SITE_ID}_* variables, or global STRIPE_* values for FASTSHOP_STRIPE_PRIMARY_SITE, when no admin connection exists.")),
         panel("Notes", Div(P("Stripe automatic tax is enabled at checkout by default, subject to Stripe account tax settings."),
@@ -644,6 +644,7 @@ def paypal_guide(session: Session, *, site_id=None, tenant_ids=None,
                   cls="button primary"), cls="page-head"),
             panel("Connection status", table),
             panel("Operator fallback", P("Environment variables are used only when a store has no admin connection.")),
+            panel("Notes", P("Choose test or live payment mode from the Go-live page after saving and verifying the matching Stripe connection.")),
         )
     return _guide(
         "Payments", "PayPal setup",

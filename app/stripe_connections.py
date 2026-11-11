@@ -193,6 +193,10 @@ def save(db, site: Site, user_id: str, mode: str, secret: str, publishable: str,
     site.settings_json = settings_json
     if mode == "live":
         _live_mirror(db, site, user_id, connection, secret, webhook_secret, publishable)
+        credential = live_credentials.credential_for(db, site)
+        if credential:
+            credential.verified_at = connection.verified_at
+            credential.verified_by = user_id
     db.flush()
     if old_endpoint and old_endpoint != endpoint_id:
         try:

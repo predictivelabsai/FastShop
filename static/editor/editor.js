@@ -16,6 +16,9 @@ const base = `/admin/sites/${encodeURIComponent(boot.site_id)}/editor/api`,
   frame = $("#editor-canvas");
 let previewBlock = null,
   needsFullPreview = true;
+import { readAgentStream, renderAction, renderMessages, wireRestore } from "../agent-chat.js";
+
+let agentMessages = [], agentConversation = null, agentAbort = null, agentPendingActions = [];
 let state,
   selected = null,
   mode = "sections",
@@ -179,7 +182,8 @@ const widgetIcons = {
   "embed": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"M2 8h20 m-13 3-3 3 3 3 m6-6 3 3-3 3\"/>"
 };
 function blockIcon(type) {
-  const path = widgetIcons[spec(type).icon] || widgetIcons.columns;
+  const icon = spec(type).icon;
+  const path = widgetIcons[icon] || widgetIcons.columns;
   return `<svg class="block-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
 }
 const get = (o, p) => p.split(".").reduce((v, k) => v?.[k], o);
@@ -481,7 +485,7 @@ function row(b, depth = 0) {
 function renderTree() {
   if (mode !== "sections") return;
   $("#left-content").innerHTML =
-    `<div class="tree-group-label">Header</div>${shellRow("header", "Store header")}<div class="tree-group-label">Template</div><div role="tree" aria-label="Page sections">${state.document.blocks.map((b) => row(b)).join("")}</div><button class="add-section" id="add-section">+ Add section</button><div class="tree-group-label">Footer</div>${shellRow("footer", "Store footer")}${shellRow("consent", "Cookie banner")}`;
+    `<div class="tree-group-label">Header</div>${shellRow("header", "Store header")}<div class="tree-group-label">Template</div><div role="tree" aria-label="Page sections">${state.document.blocks.map((b) => row(b)).join("")}</div><button class="add-section" id="add-section">+ Add section</button><div class="tree-group-label">Store labels</div>${shellRow("store labels", "Store labels")}<div class="tree-group-label">Footer</div>${shellRow("footer", "Store footer")}`;
   $$("[data-shell]").forEach((b) => (b.onclick = () => openShell(b.dataset.shell)));
   $("#add-section").onclick = () => openPicker();
   $$("[data-add-child]").forEach(
@@ -588,6 +592,7 @@ function renderLeft() {
     widgets: "Widgets",
     theme: "Theme settings",
     history: "History",
+    assistant: "Assistant",
   };
   $("#left-title").textContent = names[mode];
   $$("[data-mode]").forEach((b) =>
@@ -604,6 +609,7 @@ function renderLeft() {
     wireWidgets();
   }
   if (mode === "theme") renderTheme();
+  if (mode === "assistant") renderAgentPanel();
   if (mode === "history") {
     $("#left-content").innerHTML =
       `<p class="field-help" style="padding:12px 16px">Changes in this session. Saved revisions include earlier drafts.</p>${history
@@ -621,6 +627,66 @@ function renderLeft() {
         }),
     );
   }
+}
+function renderAgentPanel() {
+  const context = locate(selected)?.block;
+  const bottom = !document.querySelector(".agent-messages") || (() => { const el = $(".agent-messages"); return el.scrollHeight - el.scrollTop - el.clientHeight < 48; })();
+  $("#left-content").innerHTML = `<section class="agent-panel"><header><span>Draft assistant</span><button id="agent-new">New chat</button></header><div class="agent-messages agent-chat-shared" aria-live="polite" aria-relevant="additions text"></div>${context ? `<div class="agent-context"><span>Editing: ${esc(label(context))}</span><button type="button" id="agent-clear-context" aria-label="Clear selected block">×</button></div>` : ""}<form id="agent-form"><div class="agent-composer"><textarea id="agent-input" rows="1" maxlength="4000" aria-label="Message the assistant" placeholder="Describe a change…"></textarea><button id="agent-send" type="submit" aria-label="${agentAbort ? "Stop assistant response" : "Send message"}" title="${agentAbort ? "Stop" : "Send"}">${agentAbort ? "■" : "↑"}</button></div><div class="agent-compose-hint">Enter to send · Shift+Enter for a new line</div></form></section>`;
+  const messageBox = $(".agent-messages");
+  renderMessages(messageBox, agentMessages);
+  if (!agentMessages.length) {
+    messageBox.innerHTML = `<div class="agent-empty"><strong>What would you like to change?</strong><div class="agent-suggestions"><button>Make the hero headline bolder</button><button>Add a FAQ section</button><button>Change the accent colour</button><button>Make the page easier to scan</button></div></div>`;
+  }
+  for (const action of agentPendingActions) renderAction(messageBox, action, async (id, decision) => {
+    const response = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/agent/actions/${id}/${decision}`, {method:"POST", headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token}, body:JSON.stringify({csrf_token:boot.csrf_token})});
+    const result = response.ok ? await response.json() : {};
+    if(response.ok){agentPendingActions=agentPendingActions.filter(action=>action.id!==id);if(decision==="confirm")await load();}
+    return {ok:response.ok,message:result.summary || result.error || "Action could not be completed."};
+  });
+  wireRestore(messageBox, async messageId => {
+    const response = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/restore`, {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token},body:JSON.stringify({message_id:messageId})});
+    if (response.ok) { await load(); mode="assistant"; renderLeft(); }
+    else toast("Could not restore this change.",true);
+    return response.ok;
+  });
+  $("#agent-new").onclick = () => { agentConversation = null; agentMessages = []; agentPendingActions = []; renderAgentPanel(); $("#agent-input").focus(); };
+  $$(".agent-suggestions button").forEach((b) => b.onclick = () => { $("#agent-input").value = b.textContent; sendAgentMessage(); });
+  $("#agent-form").onsubmit = (e) => { e.preventDefault(); agentAbort ? agentAbort.abort() : sendAgentMessage(); };
+  $("#agent-clear-context")?.addEventListener("click", () => { selected = null; renderAgentPanel(); });
+  $("#agent-input").oninput = (e) => { e.target.style.height = "auto"; e.target.style.height = `${Math.min(e.target.scrollHeight, 192)}px`; };
+  $("#agent-input").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#agent-form").requestSubmit(); } };
+  $$('[data-retry-message]').forEach((b) => b.onclick = () => { $("#agent-input").value = b.dataset.retryMessage; sendAgentMessage(); });
+  const box = $(".agent-messages"); if (bottom) box.scrollTop = box.scrollHeight;
+}
+async function loadAgentHistory() {
+  const r = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/history`);
+  if (r.ok) { const data = await r.json(); agentConversation = data.conversation_id; agentMessages = data.messages || []; agentPendingActions = data.actions || []; }
+  if (mode === "assistant") renderAgentPanel();
+}
+async function sendAgentMessage() {
+  const input = $("#agent-input"), message = input.value.trim(); if (!message) return;
+  agentMessages.push({role:"user", content:message}); input.value = "";
+  const answer = {role:"assistant", content:"", events:[]}; agentMessages.push(answer); renderAgentPanel();
+  agentAbort = new AbortController(); $("#agent-send").textContent = "Stop";
+  try {
+    const r = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent`, {method:"POST", headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token}, credentials:"same-origin", signal:agentAbort.signal, body:JSON.stringify({message,page_id:boot.page_id,selection:selected ? {block_id:selected} : null,conversation_id:agentConversation})});
+    answer.running=true;
+    await readAgentStream(r, ev => {
+      if(ev.type==="conversation")agentConversation=ev.conversation_id||ev.id;
+      if(ev.type==="assistant_text")answer.content+=ev.text||"";
+      if(ev.type==="tool_called")answer.events.push({...ev,status:"running"});
+      if(ev.type==="tool_result"){
+        const step=[...answer.events].reverse().find((item)=>item.name===ev.name&&item.status==="running");
+        if(step){let result={};try{result=JSON.parse(ev.summary||"{}");}catch{}step.status=result.error?"error":"done";}
+        clearTimeout(window.agentRefreshTimer);window.agentRefreshTimer=setTimeout(()=>load(),300);
+      }
+      if(ev.type==="action_pending")agentPendingActions.push({id:ev.id,kind:ev.kind,summary:ev.summary});
+      if(ev.type==="done")answer.running=false;
+      if(ev.type==="error"){answer.running=false;answer.error="I couldn’t complete that change. Please try again.";answer.retry=message;}
+      renderAgentPanel();
+    });
+  } catch(e) { answer.running=false; if(e.name!=="AbortError"){answer.error=e.message === "The assistant could not start." ? "I couldn’t start that change." : "I couldn’t connect just now.";answer.retry=message;} }
+  finally { agentAbort=null; try { const r=await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/history`); if(r.ok){const data=await r.json();agentConversation=data.conversation_id;if(data.messages?.length)agentMessages=data.messages;agentPendingActions=data.actions||[];} } catch {} if(mode==="assistant") renderAgentPanel(); }
 }
 function openPicker(parent = null) {
   $("#picker-search").value = "";
@@ -738,7 +804,7 @@ function openShell(group) {
   send({ type: "select", block_id: null });
 }
 function renderShell() {
-  const names = { header: "Store header", footer: "Store footer", consent: "Cookie banner" };
+  const names = { header: "Store header", footer: "Store footer", "store labels": "Store labels" };
   const obj = state.shell_settings;
   // Lets the shared field wiring find the shell schema; never serialised.
   Object.defineProperty(obj, "type", { value: "__shell", enumerable: false, configurable: true });
@@ -749,7 +815,7 @@ function renderShell() {
     `<div class="settings-fields">${state.shell_schema.fields
       .filter((f) => f.group === shellGroup)
       .map((f) => fieldHTML(f, obj))
-      .join("")}<button id="save-shell">Save header and footer</button></div>`;
+      .join("")}<button id="save-shell">Save store settings</button></div>`;
   wireFields(obj, (path, v) => {
     set(obj, path, v);
     shellDirty = themeDirty = true;
@@ -759,7 +825,7 @@ function renderShell() {
     try {
       await saveTheme();
       status(dirty || themeDirty ? "Unsaved changes" : "Saved");
-      toast("Header and footer saved");
+      toast("Store settings saved");
       needsFullPreview = true;
       preview();
     } catch (e) {
@@ -1255,12 +1321,8 @@ window.addEventListener("message", (e) => {
     if (d.key === "d") action("duplicate");
   }
   if (d.type === "ready") send({ type: "context", block_id: selected });
-  if (
-    d.type === "shell" &&
-    state?.shell_schema?.fields?.some((field) => field.group === d.group)
-  )
-    openShell(d.group);
   if (d.type === "select") select(d.block_id);
+  if (d.type === "shell") openShell(d.group);
   if (d.type === "inline") {
     const n = locate(d.block_id),
       f = n && findField(d.field, spec(n.block.type).fields || []);
@@ -1293,7 +1355,7 @@ $$("[data-mode]").forEach(
       );
       if (window.matchMedia("(max-width: 760px)").matches) select(null);
       mode = b.dataset.mode;
-      if (state) renderLeft();
+      if (state) { renderLeft(); if (mode === "assistant") loadAgentHistory(); }
     }),
 );
 $("#mobile-preview").onclick = () => {
@@ -1509,6 +1571,7 @@ window.addEventListener("keydown", (e) => {
     save();
     return;
   }
+  if (mod && e.key.toLowerCase() === "i") { e.preventDefault(); $("[data-mode=assistant]").click(); return; }
   if (editing || $("dialog[open]")) return;
   if (mod && e.key.toLowerCase() === "z") {
     e.preventDefault();

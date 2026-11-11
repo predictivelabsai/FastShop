@@ -353,13 +353,15 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     return public_message(request, slug, "Order not found", status_code=404, plain=False)
                 link, order = row
                 events = customers.tracking_for(db, site, link.id)
+                copy = account_copy(site)
                 return private_response(screen(db, site, request, order.number,
-                    Div(H2("Order summary"), P("Payment: " + order.payment_status),
-                        P("Sales tax: " + money(order.tax_minor, order.currency)), P("Total: " + money(order.total_minor, order.currency)),
+                    Div(H2(copy["order_summary"]), P(copy["payment_label"] + ": " + order.payment_status),
+                        P(copy["sales_tax_label"] + ": " + money(order.tax_minor, order.currency)),
+                        P(copy["total_label"] + ": " + money(order.total_minor, order.currency)),
                         *[P(f"{line.product_name} · {line.variant_name} × {line.quantity}") for line in order.lines], cls="e-card"),
-                    Div(H2("Delivery tracking"), P("No shipment updates yet.") if not events else None,
+                    Div(H2(copy["delivery_tracking"]), P(copy["no_shipment_updates"]) if not events else None,
                         Ul(*[Li(P(event.status.replace("_", " ").title()), P(event.carrier + " " + event.tracking_number),
-                            P(event.note), A("Track with carrier ↗", href=event.tracking_url, target="_blank", rel="noopener noreferrer") if event.tracking_url else None,
+                            P(event.note), A(copy["track_carrier"], href=event.tracking_url, target="_blank", rel="noopener noreferrer") if event.tracking_url else None,
                             Small(str(event.created_at))) for event in events]), cls="e-card")))
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)

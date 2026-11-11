@@ -25,7 +25,7 @@ def editor_page(site, page, csrf_token):
 </header>
 <div id="editor-error" role="alert" hidden></div>
 <div class="editor-layout">
-<nav class="editor-rail" aria-label="Editor tools"><button id="mobile-preview" class="mobile-preview" title="Preview page" aria-label="Preview page">▱</button><button data-mode="sections" class="active" title="Sections" aria-label="Sections">☷</button><button data-mode="widgets" title="Widgets" aria-label="Widgets">⊞</button><button data-mode="theme" title="Theme settings" aria-label="Theme settings">◐</button><button data-mode="history" title="History" aria-label="History">↶</button><a href="/admin/sites/SITE/pages/PAGE" title="Classic editor" aria-label="Classic editor">⌘</a></nav>
+<nav class="editor-rail" aria-label="Editor tools"><button id="mobile-preview" class="mobile-preview" title="Preview page" aria-label="Preview page">▱</button><button data-mode="sections" class="active" title="Sections" aria-label="Sections">☷</button><button data-mode="widgets" title="Widgets" aria-label="Widgets">⊞</button><button data-mode="theme" title="Theme settings" aria-label="Theme settings">◐</button><button data-mode="history" title="History" aria-label="History">↶</button><button data-mode="assistant" title="Assistant (Ctrl+I)" aria-label="Assistant">✦</button><a href="/admin/sites/SITE/pages/PAGE" title="Classic editor" aria-label="Classic editor">⌘</a></nav>
 <aside class="editor-left" aria-label="Sections and widgets"><div class="panel-heading"><h1 id="left-title">Sections</h1><span class="subtle" id="theme-name">Store theme</span></div><div id="left-content"></div></aside>
 <main class="editor-stage" aria-label="Page preview"><div class="canvas-caption"><span id="canvas-page-title">Live preview</span><span id="canvas-device">Desktop</span></div><div class="canvas-well"><iframe id="editor-canvas" title="Storefront page canvas" sandbox="allow-scripts allow-same-origin"></iframe></div><div class="canvas-footer"><span>Click to select · Double-click text to edit</span><span id="node-count"></span></div></main>
 <aside class="editor-right" aria-label="Block settings"><div id="selection-header" class="panel-heading"><h2>Page settings</h2><span class="subtle">Select a section to start</span></div><div class="settings-tabs" role="tablist"><button data-tab="Content" role="tab" aria-selected="true">Content</button><button data-tab="Style" role="tab" aria-selected="false">Style</button><button data-tab="Advanced" role="tab" aria-selected="false">Advanced</button></div><div id="settings-content"></div></aside>
@@ -40,6 +40,7 @@ def editor_page(site, page, csrf_token):
     return (Link(rel="icon", href=static_asset("favicon.svg")), Title(f"Theme editor · {title}"), Meta(name="viewport", content="width=device-width, initial-scale=1"),
             Link(rel="stylesheet", href="/static/admin/admin.css"),
             Link(rel="stylesheet", href="/static/editor/editor.css"),
+            Link(rel="stylesheet", href="/static/agent-chat.css"),
             Link(rel="stylesheet", href="/static/editor/dynamic-sources.css"), NotStr(markup),
             Script(NotStr(f"window.FASTSHOP_EDITOR={config};")),
             Script(src="/static/editor/editor.js", type="module"))

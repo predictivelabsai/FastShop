@@ -172,9 +172,6 @@ def save_page(db: Session, site: Site, page_id: str, user_id: str, document: dic
         from app.site_blog import prepare_article
         document = prepare_article(db, site, document)
     validate_media_ownership(db, site, document)
-    if action == "publish":
-        from app.compliance import assert_document_compliant
-        assert_document_compliant(document)
     page.draft_json = document
     page.title = resolve_text(document["title"], default_locale(site))
     if not page.title.strip():

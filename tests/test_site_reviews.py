@@ -77,7 +77,7 @@ def test_footer_uses_payment_and_social_icons(site_db):
 
 def test_reviews_section_shows_approved_reviews_over_sample(site_db):
     db, site, _ = site_db
-    assert "SAMPLE SECTION" in _render(db, site, "/")  # no reviews yet
+    assert "Sample section. No customer reviews are shown." in _render(db, site, "/")  # no reviews yet
     _add_review(db, site, approved=True)
     html = _render(db, site, "/")
-    assert "Part of my morning" in html and "SAMPLE SECTION" not in html
+    assert "Part of my morning" in html and "Sample section. No customer reviews are shown." not in html

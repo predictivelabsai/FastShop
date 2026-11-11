@@ -226,7 +226,7 @@ def test_theme_settings_save_uses_snapshot_version_without_live_changes(space):
         assert (db.get(Site, w.site.id).settings_json.get("design") or {}).get("accent") != "#1765b3"
 
 
-def test_theme_library_routes_roles_rename_delete_and_atomic_rejection(space):
+def test_theme_library_routes_roles_rename_delete_and_advisory_publish(space):
     w = space
     assert "Current theme" in w.client.get(w.base + "/themes").text
     path = w.base + f"/themes/{w.theme.id}"
@@ -240,10 +240,9 @@ def test_theme_library_routes_roles_rename_delete_and_atomic_rejection(space):
         bad["blocks"] = [{"id": "bad", "type": "text", "heading": "A miracle cure", "body": "Bad"}]
         theme_library.edit(db, site, w.owner.id, theme.id, theme.snapshot_json["pages"][0]["id"], bad, theme.version)
         before = site.version
-        with pytest.raises(CommerceError):
-            theme_library.publish(db, site, w.owner.id, theme.id, theme.version)
-        assert site.version == before
-        assert len(theme_library.themes_for(db, site)) == 1
+        theme_library.publish(db, site, w.owner.id, theme.id, theme.version)
+        assert site.version > before
+        assert len(theme_library.themes_for(db, site)) == 2
         db.rollback()
         membership = db.scalar(select(Membership).where(Membership.tenant_id == w.site.tenant_id))
         membership.role = "editor"

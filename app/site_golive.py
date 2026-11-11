@@ -13,6 +13,7 @@ from sqlalchemy import func, select, update
 from app import compliance, content, site_menus, site_snippets
 from app.config import settings
 from app.models import (
+    CheckoutAttempt,
     Membership,
     Product,
     ProductVariant,
@@ -169,26 +170,20 @@ def _menu_check(db, site: Site, published_pages: dict[str, SitePage]) -> tuple[b
 
 
 def _compliance_check(db, site: Site) -> tuple[bool, str]:
-    problems = []
     advice = []
     for page in content.site_pages(db, site):
         findings = compliance.scan_document(page.draft_json)
-        blocked = findings["banned"] + findings["diseases"]
-        if blocked:
-            problems.append(f"{page.path}: {', '.join(blocked)}")
-        if findings["hype"]:
-            advice.extend(term for term in findings["hype"] if term not in advice)
+        flagged = findings["banned"] + findings["diseases"] + findings["hype"]
+        advice.extend(f"{page.path}: {term}" for term in flagged if f"{page.path}: {term}" not in advice)
     for claim in site.settings_json.get("claims", []):
         if not claim.get("approved"):
             continue
         findings = compliance.scan_text(str(claim.get("text", "")))
-        blocked = findings["banned"] + findings["diseases"]
-        if blocked:
-            problems.append(f"approved benefit statement: {', '.join(blocked)}")
-    if problems:
-        return False, "Resolve compliance findings in draft content: " + "; ".join(problems) + "."
-    suffix = f" Advisory wording found ({', '.join(advice)}); it does not block publication." if advice else ""
-    return True, "Draft pages and approved benefit statements have no blocking claim findings." + suffix
+        flagged = findings["banned"] + findings["diseases"] + findings["hype"]
+        advice.extend(f"approved benefit statement: {term}" for term in flagged
+                      if f"approved benefit statement: {term}" not in advice)
+    suffix = f" Copy advisory: review flagged wording ({', '.join(advice)})." if advice else ""
+    return True, "Copy checks are advisory and do not block publication." + suffix
 
 
 def _snippet_check(db, site: Site, published_pages: dict[str, SitePage]) -> tuple[bool, str]:
@@ -498,6 +493,9 @@ def publish_site(
     _audit(db, site, user_id, action="publish", decision="overridden" if overridden else "approved",
            reason=reason, before=before, report=report, overridden=overridden)
     message = "Site published with a development operator override." if overridden else "Site published after readiness review."
+    compliance_check = next((check for check in report.checks if check.key == "compliance"), None)
+    if compliance_check and "Copy advisory:" in compliance_check.explanation:
+        message += " " + compliance_check.explanation
     return TransitionDecision(True, overridden, message, report)
 
 
@@ -581,6 +579,66 @@ def set_sandbox_commerce(
            reason="Merchant requested sandbox checkout after all readiness checks passed.",
            before=before, report=report)
     return TransitionDecision(True, False, "Sandbox commerce enabled. Live payments remain unavailable.", report)
+
+
+def switch_live_payments(db, site_id: str, user_id: str, version: int,
+                         config_version: int | None, enabled: bool) -> TransitionDecision:
+    """Let a site merchant select live mode after Stripe's technical verification."""
+    site = _lock_site(db, site_id, user_id, version)
+    config = db.scalar(select(SiteCommerceSettings).where(
+        SiteCommerceSettings.site_id == site.id,
+        SiteCommerceSettings.tenant_id == site.tenant_id,
+    ).with_for_update().execution_options(populate_existing=True))
+    if not config:
+        raise CommerceError("Save commerce settings before switching payment mode.")
+    if config_version is not None and config.version != config_version:
+        raise CommerceError("Commerce settings changed. Reload and try again.")
+    before = _state(site, config.mode)
+    in_flight = db.scalar(select(CheckoutAttempt.id).where(
+        CheckoutAttempt.site_id == site.id,
+        CheckoutAttempt.tenant_id == site.tenant_id,
+        CheckoutAttempt.state.in_(("creating", "open")),
+        CheckoutAttempt.expires_at > datetime.now(UTC),
+    ).limit(1))
+    if in_flight and (enabled and config.mode != "live" or not enabled and config.mode == "live"):
+        raise CommerceError("A checkout is already in progress. Finish or let it expire before changing payment mode.")
+    if enabled:
+        if site.status != "published" or not site.hostname:
+            raise CommerceError("Publish the site and bind its custom domain before switching on live payments. This is required for secure live checkout.")
+        from app import live_credentials, stripe_connections
+        connection = stripe_connections.connection_for(db, site, "live")
+        credential = live_credentials.credential_for(db, site)
+        connection_keys = stripe_connections.decrypted(db, site, connection) if connection else ("", "", "")
+        if (not connection or not connection.verified_at or not connection.account_id
+                or not credential or not credential.verified_at
+                or not connection_keys[0].startswith(("sk_live_", "rk_live_"))
+                or not connection_keys[2].startswith("pk_live_")
+                or credential.id != connection.id and config.live_credential_id not in {None, credential.id}):
+            raise CommerceError("Connect and verify a live Stripe secret and publishable key, with a webhook endpoint or signing secret, before switching on live payments.")
+        if not (connection.webhook_endpoint_id or connection_keys[1]):
+            raise CommerceError("Configure a live Stripe webhook endpoint or signing secret before switching on live payments.")
+        if config.mode == "live":
+            return TransitionDecision(False, False, "Live payments are already on.")
+        config.mode = "live"
+        config.live_credential_id = credential.id
+        config.live_accepted_at = None
+        config.live_accepted_by = None
+        action, message = "merchant-live-enable", "Live payments are on. Readiness checks remain advisory."
+    else:
+        if config.mode != "live":
+            return TransitionDecision(False, False, "Payments are already in test mode.")
+        config.mode = "sandbox"
+        config.live_credential_id = None
+        config.live_accepted_at = None
+        config.live_accepted_by = None
+        action, message = "merchant-live-disable", "Payments are back in test mode."
+    config.version += 1
+    site.version += 1
+    report = assess(db, site, commerce_requested=True)
+    db.flush()
+    _audit(db, site, user_id, action=action, decision="enabled" if enabled else "disabled",
+           reason="Merchant changed the payment mode.", before=before, report=report)
+    return TransitionDecision(True, False, message, report)
 
 
 def audit_trail(db, site: Site, limit: int = 50) -> list[SiteChangeSet]:

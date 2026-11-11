@@ -57,6 +57,7 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                 records = {mode: stripe_connections.connection_for(db, site, mode)
                            for mode in ("test", "live")}
                 selected = "live" if config and config.mode == "live" else "test"
+                live_on = selected == "live"
                 tax = stripe_connections.tax_status(db, site, selected)
                 db.commit()
                 cards = []
@@ -64,6 +65,12 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                     mode_name = "Live mode" if mode == "live" else "Test mode"
                     account = (record.account_name or record.account_id) if record else ""
                     verified = bool(record and record.verified_at)
+                    live_note = None
+                    if mode == "live":
+                        live_note = ("Live payments are on." if live_on else
+                                     "Verify this live connection, then turn on live payments from the Go-live page."
+                                     if verified else
+                                     "Live payments require a saved and verified live connection.")
                     card_actions = []
                     if record:
                         card_actions.extend([
@@ -81,8 +88,7 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                                                 cls="payment-pill connected" if record else "payment-pill"),
                             cls="payment-card-heading"),
                         P(account, cls="payment-account") if record else P("Link your Stripe account to accept payments."),
-                        P("Live charges stay blocked until this connection is reviewed and accepted.",
-                          cls="payment-live-note") if mode == "live" else None,
+                        P(live_note, cls="payment-live-note") if live_note else None,
                         Div(P("Webhook", Span("Endpoint registered" if record and record.webhook_endpoint_id
                                                else "Secret added manually" if record else "Not configured")),
                             P("Verification", Span("Verified" if verified else "Not verified")),
@@ -100,6 +106,10 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                                   role="alert", cls="payment-error") if failure else None
                 return shell("Payments", A("← Site settings", href=f"/admin/sites/{site.id}/settings"),
                     P(site.name + " · Stripe connection settings", cls="payment-intro"),
+                    P("Live payments on" if live_on else "Test mode is active",
+                      cls="g-state g-state-live" if live_on else "g-state"),
+                    A("Manage live payment mode on the Go-live page →",
+                      href=f"/admin/sites/{site.id}/golive#live-payments", cls="e-button"),
                     Div(H2("Connections"), Div(*cards, cls="payment-status-grid"), cls="payment-connections"),
                     Div(H2("Connect Stripe", id="connect-stripe"),
                         P("Stripe Tax: on by default."),

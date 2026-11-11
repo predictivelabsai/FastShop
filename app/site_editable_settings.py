@@ -37,7 +37,10 @@ def register_shell(pack: str, provider) -> None:
 def shell_fields(config: dict | None) -> list[dict]:
     pack = str((config or {}).get("theme_pack", ""))
     if not pack:
-        return copy.deepcopy(_DEFAULT_FIELDS)
+        if "generic" not in _PROVIDERS:
+            importlib.import_module("app.site_generic_shell")
+        generic = _PROVIDERS.get("generic")
+        return copy.deepcopy(_DEFAULT_FIELDS + (generic() if generic else []))
     if pack.isidentifier() and pack not in _PROVIDERS:
         # Convention: a pack's shell module is app/site_<pack>_shell.py and registers itself.
         try:
@@ -107,7 +110,7 @@ def _clean(field, value):
         return rows
     if not isinstance(value, str) or len(value) > limit:
         raise CommerceError(f"{field['label']}: use text up to {limit} characters.")
-    if kind == "url":
+    if kind in {"url", "image"}:
         return _url(value)
     if kind not in TEXT_TYPES:
         raise CommerceError("Unsupported editable setting type.")

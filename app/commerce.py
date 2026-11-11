@@ -224,6 +224,7 @@ def quote_order(db, site, config, selections, destination, gateway, *, first_ord
         existing_order_discount=first_order_discount)
     discounted_subtotal = sum(line.amount_minor for line in lines)
     snapshot = {"lines": [asdict(line) for line in lines], "destination": destination, "origin": origin,
+        "payment_mode": payment_mode(db, site, config),
         "settings_version": config.version, "shipping_minor": shipping, "first_order_discount": first_order_discount,
         "discounts": applied, "shipping_rate_id": shipping_rate_id}
     fingerprint = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()

@@ -1,5 +1,6 @@
 """Theme-pack shell settings are merchant-editable through the visual editor."""
 import pytest
+from fastcore.xml import to_xml
 
 from app import site_editable_settings
 from app.models import Site
@@ -99,8 +100,14 @@ def test_default_theme_shell_settings_are_editable(workspace):
     w = workspace
     loaded = load(w)
     ids = {field["id"] for field in loaded["shell_schema"]["fields"]}
-    assert {"name", "announcement", "footer"} <= ids
-    values = {"footer": "A note for visitors.", "announcement": "A store update."}
+    assert {"name", "announcement", "footer", "generic_labels.cta",
+            "generic_labels.contact_heading", "generic_labels.card_product_alt",
+            "generic_labels.research_read", "generic_labels.editorial_image_alt",
+            "account_copy.heading",
+            "account_copy.order_summary"} <= ids
+    values = {"footer": "A note for visitors.", "announcement": "A store update.",
+              "generic_labels": {"contact_heading": "Contact our team"},
+              "account_copy": {"heading": "Member sign-in", "order_summary": "Purchase details"}}
     saved = w.client.put(w.base + "/shell-settings", json={
         "shell_settings": values, "version": loaded["site_version"],
     }, headers=w.headers)
@@ -109,6 +116,9 @@ def test_default_theme_shell_settings_are_editable(workspace):
         site = db.get(Site, w.site.id)
         assert site.settings_json["footer"] == "A note for visitors."
         assert site.settings_json["announcement"] == "A store update."
+        assert site.settings_json["generic_labels"]["contact_heading"] == "Contact our team"
+        assert site.settings_json["account_copy"]["heading"] == "Member sign-in"
+        assert site.settings_json["account_copy"]["order_summary"] == "Purchase details"
         assert site.published_settings_json["footer"] != "A note for visitors."
     published = w.client.post(w.base + "/publish", json={
         "version": loaded["version"], "site_version": saved.json()["version"],
@@ -118,3 +128,36 @@ def test_default_theme_shell_settings_are_editable(workspace):
         site = db.get(Site, w.site.id)
         assert site.published_settings_json["footer"] == "A note for visitors."
         assert site.published_settings_json["announcement"] == "A store update."
+        assert site.published_settings_json["generic_labels"]["contact_heading"] == "Contact our team"
+        assert site.published_settings_json["account_copy"]["heading"] == "Member sign-in"
+        assert site.published_settings_json["account_copy"]["order_summary"] == "Purchase details"
+
+
+def test_generic_shell_labels_use_defaults_and_merchant_values():
+    from app.site_ui import label
+
+    assert label({}, "cta") == "Explore"
+    assert label({"generic_labels": {"cta": "Browse items"}}, "cta") == "Browse items"
+
+
+def test_generic_research_copy_renders_merchant_values(workspace):
+    from app.content import site_pages
+    from app.site_ui import render_section
+
+    with workspace.sessions() as db:
+        site = db.get(Site, workspace.site.id)
+        page = site_pages(db, site)[0]
+        config = {"generic_labels": {
+            "research_all": "Every topic", "research_exercise": "Movement",
+            "research_reviews": "Reviews", "research_meta": "Overviews",
+            "research_source": "Reference", "research_study": "Untitled reference",
+            "research_read": "Open reference",
+        }}
+        section = {"id": "research-copy", "type": "research", "heading": "References",
+                   "items": [{"theme": "Reference", "heading": "Example study",
+                              "body": "A neutral summary.", "url": "https://example.test/source"}]}
+        markup = to_xml(render_section(db, site, page, config, section, "", "csrf", preview=True))
+
+    assert "Every topic" in markup and "Movement" in markup
+    assert "Overviews" in markup and "Open reference" in markup
+    assert "Example study" in markup and "A neutral summary." in markup

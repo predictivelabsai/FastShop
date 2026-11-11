@@ -4,18 +4,33 @@ from __future__ import annotations
 import copy
 import inspect
 import json
+import os
+import queue
 import re
+import threading
+import time
 from html import escape
 from types import SimpleNamespace
 
+import anyio
 from fasthtml.common import NotStr, to_xml
 from sqlalchemy import select, update
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 from app import content, site_ui, theme_library
+from app.config import settings
 from app.db import SessionLocal
-from app.models import Membership, SiteMedia, SitePage, SiteRevision, new_id
+from app.models import (
+    AgentAction,
+    AgentConversation,
+    AgentMessage,
+    Membership,
+    SiteMedia,
+    SitePage,
+    SiteRevision,
+    new_id,
+)
 from app.services import CommerceError
 from app.site_blocks import (
     default_locale,
@@ -81,11 +96,11 @@ def validate_editor_document(document):
 
 
 def shell_payload(site, theme=""):
-    """Header, footer and consent fields the active theme pack declares (live theme only)."""
+    """Editable shell fields declared by the active storefront settings."""
     from app.site_editable_settings import shell_fields, shell_values
 
     fields = [] if theme else shell_fields(site.settings_json)
-    return {"shell_schema": {"type": "__shell", "label": "Header and footer", "fields": fields},
+    return {"shell_schema": {"type": "__shell", "label": "Store settings", "fields": fields},
             "shell_settings": shell_values(site.settings_json, fields)}
 
 
@@ -322,8 +337,13 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                         validate_editor_document(document), _version(values.get("version")))
                     if action == "publish":
                         theme_library.publish(db, site, user_id, theme_id, saved.version)
+                    from app.compliance import warning_for_values
+                    theme_documents = [page.get("document") for page in
+                                       saved.snapshot_json.get("pages", [])]
+                    warning = warning_for_values(theme_documents)
                     result = {"version": saved.version, "site_version": saved.version,
-                        "document": document, "published": action == "publish"}
+                        "document": document, "published": action == "publish",
+                        "warnings": [warning] if warning else []}
                     db.commit()
                     return response(result)
                 selected = page_for(db, site, page_id)
@@ -356,8 +376,11 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     site.version += 1
                     if site.status == "draft":
                         site.status = "preview"
+                from app.compliance import warning_for_values
+                warning = warning_for_values(selected.draft_json)
                 result = {"version": selected.version, "site_version": site.version,
-                          "document": selected.draft_json, "published": action == "publish"}
+                          "document": selected.draft_json, "published": action == "publish",
+                          "warnings": [warning] if warning else []}
                 db.commit()
                 return response(result)
         except (CommerceError, ValueError, TypeError) as exc:
@@ -458,11 +481,163 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     if "Draft changed" in str(exc):
                         raise EditorError(str(exc), 409, conflict=True, version=site.version) from exc
                     raise
-                result = {**shell_payload(site), "version": site.version}
+                from app.compliance import warning_for_values
+                warning = warning_for_values(values.get("shell_settings"))
+                result = {**shell_payload(site), "version": site.version,
+                          "warnings": [warning] if warning else []}
                 db.commit()
                 return response(result)
         except (CommerceError, ValueError, TypeError) as exc:
             return failure(exc)
+
+    @rt("/admin/sites/{site_id}/editor/agent/history", methods=["GET"])
+    def agent_history(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site, user_id = access(db, session, site_id)
+                conversation = db.scalar(select(AgentConversation).where(
+                    AgentConversation.tenant_id == site.tenant_id,
+                    AgentConversation.site_id == site.id,
+                    AgentConversation.user_id == user_id,
+                ).order_by(AgentConversation.created_at.desc()).limit(1))
+                if not conversation:
+                    return response({"conversation_id": None, "messages": []})
+                messages = db.scalars(select(AgentMessage).where(
+                    AgentMessage.tenant_id == site.tenant_id,
+                    AgentMessage.site_id == site.id,
+                    AgentMessage.conversation_id == conversation.id,
+                ).order_by(AgentMessage.created_at, AgentMessage.id).limit(100))
+                rows = list(messages)
+                results = {}
+                for row in rows:
+                    if row.role != "tool":
+                        continue
+                    for call in row.tool_calls_json or []:
+                        name = call.get("function", {}).get("name")
+                        if name:
+                            try:
+                                result = json.loads(row.content or "{}")
+                            except (TypeError, ValueError):
+                                result = {}
+                            results.setdefault(name, []).append(bool(result.get("error")))
+                def message_events(message):
+                    if message.role != "assistant":
+                        return []
+                    events = list(message.events_json or [])
+                    if events:
+                        return events
+                    for call in message.tool_calls_json or []:
+                        name = call.get("name")
+                        if not name:
+                            continue
+                        statuses = results.get(name, [])
+                        failed = statuses.pop(0) if statuses else False
+                        events.append({"name": name, "label": call.get("label", name),
+                                       "status": "error" if failed else "done"})
+                    return events
+                actions = db.scalars(select(AgentAction).where(
+                    AgentAction.tenant_id == site.tenant_id, AgentAction.site_id == site.id,
+                    AgentAction.conversation_id == conversation.id, AgentAction.status == "pending"
+                ).order_by(AgentAction.created_at))
+                return response({"conversation_id": conversation.id, "actions": [
+                    {"id": action.id, "kind": action.kind, "summary": action.summary}
+                    for action in actions
+                ], "messages": [
+                    {"id": m.id, "role": m.role, "content": m.content,
+                     "events": message_events(m),
+                     "has_checkpoint": bool(m.checkpoint_revision_id)} for m in rows
+                ]})
+        except CommerceError as exc:
+            return failure(exc)
+
+    @rt("/admin/sites/{site_id}/editor/agent/restore", methods=["POST"])
+    async def agent_restore(request):
+        session = request.session
+        try:
+            values = await payload(session, request)
+            with SessionLocal() as db:
+                site, user_id = access(db, session, request.path_params["site_id"])
+                from app.store_agent import restore_checkpoint
+                restore_checkpoint(db, site, user_id, str(values.get("message_id", "")))
+                db.commit()
+                return response({"restored": True})
+        except (CommerceError, ValueError, TypeError) as exc:
+            return failure(exc)
+
+    async def agent_stream(request):
+        session = request.session
+        try:
+            values = await payload(session, request)
+            message = str(values.get("message", "")).strip()
+            if not message or len(message) > 4000:
+                raise EditorError("Write a message up to 4,000 characters.")
+            with SessionLocal() as db:
+                site, user_id = access(db, session, request.path_params["site_id"])
+                page = page_for(db, site, str(values.get("page_id", "")))
+                blocks = (page.draft_json or {}).get("blocks", [{}])
+                fallback_block_id = next(
+                    (block.get("id") for block in blocks if block.get("type") == "hero"),
+                    blocks[0].get("id"),
+                )
+            if not settings.xai_api_key and not (
+                settings.environment.lower() != "production"
+                and os.getenv("FASTSHOP_AGENT_FAKE") == "1"
+            ):
+                async def unconfigured():
+                    for event in ({"type": "assistant_text", "text": "The AI provider is not configured. Add an xAI API key to enable the editor assistant."}, {"type": "done"}):
+                        yield "data: " + json.dumps(event) + "\n\n"
+                return StreamingResponse(unconfigured(), media_type="text/event-stream")
+            from app import store_agent
+            params = inspect.signature(store_agent.run_turn).parameters
+            conversation_id = str(values.get("conversation_id") or "") or None
+            kwargs = {"page_id": page.id, "selection": values.get("selection")}
+            if "conversation_id" in params:
+                kwargs["conversation_id"] = conversation_id
+            transport = None
+            if settings.environment.lower() != "production" and os.getenv("FASTSHOP_AGENT_FAKE") == "1":
+                class ScriptedTransport:
+                    def __init__(self):
+                        self.sent = False
+                    def complete(self, messages, tools):
+                        if self.sent:
+                            delay = float(os.getenv("FASTSHOP_AGENT_FAKE_DELAY", "0"))
+                            if delay:
+                                time.sleep(delay)
+                            return {"content": "I updated the selected block for your preview."}
+                        self.sent = True
+                        block_id = (values.get("selection") or {}).get("block_id") or fallback_block_id
+                        return {"tool_calls": [{"id": "fake-editor-update", "type": "function",
+                            "function": {"name": "update_block", "arguments": json.dumps({
+                                "page_id": page.id, "block_id": block_id,
+                                "fields": {"heading": "Assistant preview update"}})}}]}
+                transport = ScriptedTransport()
+            if "transport" in params:
+                kwargs["transport"] = transport
+            events: queue.Queue = queue.Queue()
+            def produce():
+                try:
+                    with SessionLocal() as db:
+                        site_row = content.owned_site(db, request.path_params["site_id"], user_id)
+                        for event in store_agent.run_turn(db, site_row, user_id, message, **kwargs):
+                            events.put(event)
+                except Exception as exc:
+                    events.put({"type": "error", "message": str(exc)})
+                finally:
+                    events.put(None)
+            threading.Thread(target=produce, daemon=True).start()
+            async def stream():
+                while True:
+                    item = await anyio.to_thread.run_sync(events.get)
+                    if item is None:
+                        break
+                    yield "data: " + json.dumps(item, ensure_ascii=True) + "\n\n"
+            return StreamingResponse(stream(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+        except (CommerceError, ValueError, TypeError) as exc:
+            return failure(exc)
+
+    rt.__self__.router.routes.append(Route(
+        "/admin/sites/{site_id}/editor/agent", endpoint=agent_stream, methods=["POST"]))
 
     @rt("/admin/sites/{site_id}/editor/api/resources", methods=["GET"])
     def resources(session, site_id: str, q: str = ""):

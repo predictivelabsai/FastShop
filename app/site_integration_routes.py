@@ -203,7 +203,7 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                 Form(csrf_field, Button("Disconnect", cls="e-button danger"), method="post",
                      action=path + "/disconnect", cls="e-form") if connected else None,
                 cls="e-actions"),
-            P("Choosing live credentials does not enable live payments. Live payment approval remains controlled by Commerce settings and the platform operator.")
+            P("PayPal live mode is available when live payments are on from the Go-live page.")
             if is_paypal else P("Transactional order mail, customer login codes and contact messages use this connection first."),
         )
 
@@ -249,9 +249,9 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                             try:
                                 payment_mode = commerce.payment_mode(db, site)
                             except CommerceError as exc:
-                                raise CommerceError("Live credentials require operator-approved live payments in Commerce settings.") from exc
+                                raise CommerceError("Switch on live payments from the Go-live page before using live PayPal credentials.") from exc
                             if payment_mode != "live":
-                                raise CommerceError("Live credentials require operator-approved live payments in Commerce settings.")
+                                raise CommerceError("Switch on live payments from the Go-live page before using live PayPal credentials.")
                         if not site_integrations.verify_paypal(client_id, secret, mode):
                             raise CommerceError("PayPal could not verify these credentials. Check the environment and try again.")
                         site_integrations.save(db, site, "paypal",
@@ -363,11 +363,7 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                     SiteCommerceSettings.site_id == site.id,
                     SiteCommerceSettings.tenant_id == site.tenant_id,
                 ))
-                live_approved = bool(
-                    commerce_config and commerce_config.mode == "live"
-                    and commerce_config.live_accepted_at and commerce_config.live_accepted_by
-                    and commerce_config.live_credential_id
-                )
+                live_approved = bool(commerce_config and commerce_config.mode == "live")
                 rows = []
                 for connector in connectors.listed_connectors():
                     state = connector.credential_state(site)
@@ -435,7 +431,7 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                     Div(H2("Payments"), P("Connect Stripe from the store admin, manage test and live keys, and check Stripe Tax."),
                         A("Manage Stripe payments", href=f"/admin/sites/{site.id}/commerce/payments", cls="e-button"),
                         cls="e-card"),
-                    P("Live payments: " + ("approved by operator" if live_approved else "not approved"),
+                    P("Live payments on" if live_approved else "Live payments off, test mode",
                       cls="g-state g-state-live" if live_approved else "g-state"),
                     P("Migrations are sandbox-first: preview provider data before any FastShop write. "
                       "Connection details are controlled by the operator and are never entered here.",
