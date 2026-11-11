@@ -139,8 +139,10 @@ def test_marketing_hub_renders_for_owner(marketing_hub):
     assert "Default description: Set" in response.text
     assert "1 URL redirect" in response.text
     assert "G-ABC1234567" in response.text
-    assert "G-OLD1234567" in response.text
     assert "123456789" in response.text
+    assert "Google Analytics:" not in response.text
+    assert "TikTok pixel:" in response.text
+    assert f'href="/admin/sites/{w.site.id}/marketing/tracking"' in response.text
     assert "1 active discount" in response.text
     assert "1 subscribed customer" in response.text
     assert "https://your-store.example/sitemap.xml" in response.text

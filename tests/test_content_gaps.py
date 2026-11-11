@@ -167,8 +167,11 @@ def test_preferences_hash_metadata_and_consent(workspace):
         assert doc == {"title": "New homepage", "description": "Description"}
         w.site.status = "published"
         html = str(to_xml(Div(*store_preferences.head_nodes(db, w.site, row))))
-        assert "store-preferences.js" in html and 'data-analytics="G-ABC1234567"' in html
+        assert "store-preferences.js" not in html
+        assert "G-ABC1234567" not in html and "123456789" not in html
         assert "googletagmanager.com" not in html
+        store_preferences.save_preferences(db, w.site, {"homepage_title": "Still saved"})
+        assert row.analytics_id == "G-ABC1234567" and row.meta_pixel_id == "123456789"
         assert store_preferences.get_preferences(db, w.other) is None
         for key, value in [("analytics_id", "<script>"), ("meta_pixel_id", "evil"), ("favicon_id", "foreign")]:
             with pytest.raises(CommerceError):

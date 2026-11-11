@@ -6,7 +6,7 @@ import hmac
 import re
 import secrets
 
-from fasthtml.common import Link, Meta, Script
+from fasthtml.common import Link, Meta
 from sqlalchemy import select
 
 from app.auth import hash_admin_password, verify_admin_password
@@ -28,11 +28,11 @@ def save_preferences(db, site, data):
     title, description = str(data.get("homepage_title", "")).strip(), str(data.get("meta_description", "")).strip()
     if len(title) > 240 or len(description) > 500:
         raise CommerceError("Use a title under 241 characters and description under 501 characters.")
-    analytics = str(data.get("analytics_id", "")).strip()
-    pixel = str(data.get("meta_pixel_id", "")).strip()
-    if analytics and not re.fullmatch(r"G-[A-Z0-9]{6,20}", analytics):
+    analytics = str(data.get("analytics_id", row.analytics_id if row else "")).strip()
+    pixel = str(data.get("meta_pixel_id", row.meta_pixel_id if row else "")).strip()
+    if "analytics_id" in data and analytics and not re.fullmatch(r"G-[A-Z0-9]{6,20}", analytics):
         raise CommerceError("Use a Google Analytics measurement ID such as G-ABC1234567.")
-    if pixel and not re.fullmatch(r"\d{5,30}", pixel):
+    if "meta_pixel_id" in data and pixel and not re.fullmatch(r"\d{5,30}", pixel):
         raise CommerceError("Use a numeric Meta pixel ID.")
     media = {}
     for field in ("social_image_id", "favicon_id"):
@@ -101,10 +101,6 @@ def head_nodes(db, site, preferences, *, preview=False):
             owned_media(db, site, preferences.social_image_id))))
     if preferences.favicon_id:
         nodes.append(Link(rel="icon", href=media_url(owned_media(db, site, preferences.favicon_id))))
-    if not preview and site.status == "published" and (preferences.analytics_id or preferences.meta_pixel_id):
-        nodes.append(Script(src="/static/store-preferences.js", defer=True,
-                            data_site=site.id, data_analytics=preferences.analytics_id,
-                            data_pixel=preferences.meta_pixel_id))
     return nodes
 
 def storefront_gate(scope):

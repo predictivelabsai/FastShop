@@ -45,7 +45,7 @@ from starlette.responses import HTMLResponse, RedirectResponse
 from app import auth, content, discounts, plans, signup_services
 from app.admin_ui import card, page_header
 from app.config import settings
-from app.content_gap_models import SitePreferences, UrlRedirect
+from app.content_gap_models import UrlRedirect
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
 from app.models import Discount, MarketingConsent, ShopCustomer, SitePage, User
@@ -1197,13 +1197,9 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                     UrlRedirect.site_id == site.id,
                     UrlRedirect.tenant_id == site.tenant_id,
                 )) or 0
-                preferences = db.scalar(select(SitePreferences).where(
-                    SitePreferences.site_id == site.id,
-                    SitePreferences.tenant_id == site.tenant_id,
-                ))
-                ga4_id = published_settings.get("ga4_measurement_id", "")
-                analytics_id = preferences.analytics_id if preferences else ""
-                meta_pixel_id = preferences.meta_pixel_id if preferences else ""
+                from app.site_tracking import tracking_ids
+
+                tracking = tracking_ids(db, site, published_settings)
                 active_discounts = sum(
                     discounts.status(rule) == "Active"
                     for rule in db.scalars(select(Discount).where(
@@ -1262,13 +1258,17 @@ def register_admin_marketing_routes(rt, actor, shell, error):
                     title="URL redirects",
                 )
                 tracking_card = card(
-                    P(Strong("GA4: "), ga4_id or "Not set"),
-                    P(Strong("Google Analytics: "), analytics_id or "Not set"),
-                    P(Strong("Meta pixel: "), meta_pixel_id or "Not set"),
+                    P(Strong("GA4: "), tracking["ga4_measurement_id"] or "Not set"),
+                    P(Strong("Google Ads: "), (
+                        tracking["google_ads_conversion_id"]
+                        + (" / " + tracking["google_ads_purchase_label"]
+                           if tracking["google_ads_purchase_label"] else "")
+                    ) or "Not set"),
+                    P(Strong("Meta pixel: "), tracking["meta_pixel_id"] or "Not set"),
+                    P(Strong("TikTok pixel: "), tracking["tiktok_pixel_id"] or "Not set"),
                     P("Tags load only after the relevant visitor consent."),
                     Div(
-                        A("Edit GA4 settings", href=base + "/settings", cls="a-button"),
-                        A("Edit analytics and pixel settings", href=base + "/preferences", cls="a-button"),
+                        A("Edit tracking settings", href=base + "/marketing/tracking", cls="a-button"),
                         cls="a-marketing-actions",
                     ),
                     title="Tracking and pixels",

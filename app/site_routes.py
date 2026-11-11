@@ -74,6 +74,7 @@ def register_site_routes(rt):
     register_site_index_routes(rt)
     from app.marketing_routes import register_admin_marketing_routes
     from app.site_seo_routes import register_site_seo_routes
+    from app.site_tracking_routes import register_site_tracking_routes
 
     def actor(session):
         with SessionLocal() as db:
@@ -98,6 +99,7 @@ def register_site_routes(rt):
         return Response(str(exc), status_code=400, media_type="text/plain")
 
     register_site_seo_routes(rt, actor, csrf, check_csrf, shell, error)
+    register_site_tracking_routes(rt, actor, csrf, check_csrf, shell, error)
     register_admin_marketing_routes(rt, actor, shell, error)
     register_site_delete_routes(rt, actor, csrf, check_csrf, shell, error)
 
@@ -521,8 +523,9 @@ def register_site_routes(rt):
                             *[Label(key.replace("_", " ").capitalize(), Input(name="portal_copy_" + key,
                                 value=(config.get("portal_copy") or {}).get(key, default), maxlength=500))
                               for key, default in DEFAULT_PORTAL_COPY.items()],
-                            H3("Analytics"), Label("GA4 measurement ID (optional)", Input(name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""), placeholder="G-ABC1234567", maxlength=22)),
-                            P("Disabled when empty. Published public pages load Google Analytics only after analytics consent. Account and checkout pages are excluded; no Meta pixel is installed. Publish shared settings to apply changes."),
+                            H3("Tracking and pixels"),
+                            P("Tracking tags load only after the relevant visitor consent."),
+                            A("Edit tracking settings", href=f"/admin/sites/{site.id}/marketing/tracking"),
                             H3("Checkout payment methods"),
                             Label(Input(type="checkbox", name="offer_paypal", checked="paypal" in config.get("payment_methods", ["card"])), " Offer PayPal at one-time checkout (requires PayPal enabled on your Stripe account)"),
                             P("Card is always available. Apple Pay and Google Pay appear automatically once your store domain is registered with Stripe. Subscriptions stay card-only so renewals can charge the saved card.", cls="e-note"),
@@ -560,8 +563,6 @@ def register_site_routes(rt):
                 site = builder.lock_site(db, site.id, user_id, site.version)
                 before = builder.snapshot(db, site)
                 config = copy.deepcopy(site.settings_json)
-                from app.site_analytics import validate_measurement_id
-                config["ga4_measurement_id"] = validate_measurement_id(form.get("ga4_measurement_id", config.get("ga4_measurement_id", "")))
                 config["payment_methods"] = ["card"] + (["paypal"] if form.get("offer_paypal") == "on" else [])
                 for key in ("name", "tagline", "email", "company", "address", "announcement", "offer", "logo", "logo_light", "science_date", "footer"):
                     config[key] = str(form.get(key, ""))[:2000]
