@@ -7,6 +7,7 @@ from app import checkout_payments, checkout_services, commerce, subscriptions
 from app.models import (
     CommerceQuote,
     CustomerOffer,
+    Product,
     ProductVariant,
     SubscriptionContract,
     SubscriptionCycle,
@@ -101,7 +102,7 @@ def test_stale_versions_and_cross_customer_ids_cannot_mutate_contract(contract):
     assert sub.state == "active"
 
 
-def test_flavour_same_product_and_price_only_and_address_is_us_only(contract):
+def test_variant_same_product_and_price_only_and_address_is_us_only(contract):
     r, sub = contract
     new = ProductVariant(tenant_id=r.site.tenant_id, product_id=r.variant.product_id, sku="BERRY", name="Berry")
     r.db.add(new)
@@ -109,7 +110,7 @@ def test_flavour_same_product_and_price_only_and_address_is_us_only(contract):
     listing = VariantChannelListing(variant_id=new.id, channel_id=r.site.channel_id, currency="USD", price_minor=2995)
     r.db.add(listing)
     r.db.flush()
-    change(r, sub, "flavour", {"from_variant_id": r.variant.id, "variant_id": new.id})
+    change(r, sub, "variant", {"from_variant_id": r.variant.id, "variant_id": new.id})
     assert sub.lines_json[0]["variant_id"] == new.id
     assert sub.lines_json[0]["unit_minor"] == 2696
     with pytest.raises(CommerceError, match="US states"):
@@ -119,7 +120,7 @@ def test_flavour_same_product_and_price_only_and_address_is_us_only(contract):
     config = commerce.settings_for(r.db, r.site)
     config.subscription_product_ids_json = []
     with pytest.raises(CommerceError, match="not eligible"):
-        change(r, sub, "flavour", {"from_variant_id": new.id, "variant_id": r.variant.id}, key="ineligible-flavour-01")
+        change(r, sub, "variant", {"from_variant_id": new.id, "variant_id": r.variant.id}, key="ineligible-variant-01")
 
 
 def test_cancel_during_charge_stops_future_cycles_but_does_not_claim_refund(contract):
@@ -147,3 +148,116 @@ def test_wrong_customer_or_unsaved_payment_cannot_authorize_subscription(ready):
         "created": int(datetime.now(UTC).timestamp())}
     with pytest.raises(CommerceError, match="could not be verified"):
         subscriptions.saved_payment(r.gateway, {"payment_intent": "pi_fixture", "customer": "cus_expected"}, quote)
+
+
+def extra_eligible_product(r):
+    source = r.variant.product
+    suffix = str(len(commerce.settings_for(r.db, r.site).subscription_product_ids_json) + 1)
+    product = Product(tenant_id=r.site.tenant_id, product_type_id=source.product_type_id,
+        category_id=source.category_id, name="Second subscription product", slug="second-subscription-product-" + suffix,
+        is_published=True, status="active")
+    r.db.add(product)
+    r.db.flush()
+    variant = ProductVariant(tenant_id=r.site.tenant_id, product_id=product.id,
+        sku="SECOND-SUB-" + suffix, name="Second option")
+    r.db.add(variant)
+    r.db.flush()
+    r.db.add(VariantChannelListing(variant_id=variant.id, channel_id=r.site.channel_id,
+        currency="USD", price_minor=4200))
+    config = commerce.settings_for(r.db, r.site)
+    config.subscription_product_ids_json = [*config.subscription_product_ids_json, product.id]
+    config.product_tax_codes_json = {**config.product_tax_codes_json, product.id: "txcd_00000000"}
+    r.db.flush()
+    return variant
+
+
+def test_subscription_item_commands_reprice_and_are_idempotent(contract):
+    r, sub = contract
+    variant = extra_eligible_product(r)
+    start_version = sub.version
+    key = "quantity-command-1234"
+    change(r, sub, "quantity", {"variant_id": r.variant.id, "quantity": 3}, key=key,
+           version=start_version)
+    changed_version = sub.version
+    assert sub.lines_json[0]["quantity"] == 3
+    assert sub.lines_json[0]["unit_minor"] == 2696
+    change(r, sub, "quantity", {"variant_id": r.variant.id, "quantity": 3}, key=key,
+           version=start_version)
+    assert sub.version == changed_version
+    with pytest.raises(CommerceError, match="Reload"):
+        change(r, sub, "quantity", {"variant_id": r.variant.id, "quantity": 2},
+               key="stale-quantity-1234", version=start_version)
+    change(r, sub, "add_product", {"variant_id": variant.id, "quantity": 1},
+           key="add-product-command-1234")
+    assert {line["product_id"] for line in sub.lines_json} == {r.variant.product_id, variant.product_id}
+    replacement = extra_eligible_product(r)
+    change(r, sub, "swap", {"from_variant_id": variant.id, "variant_id": replacement.id},
+           key="swap-product-command-1234")
+    assert {line["variant_id"] for line in sub.lines_json} == {r.variant.id, replacement.id}
+
+
+def test_reschedule_is_versioned_idempotent_and_bounded(contract):
+    r, sub = contract
+    version = sub.version
+    target = (datetime.now(UTC).date() + timedelta(days=20)).isoformat()
+    change(r, sub, "reschedule", {"date": target}, key="reschedule-command-1234", version=version)
+    due = sub.next_due_at
+    change(r, sub, "reschedule", {"date": target}, key="reschedule-command-1234", version=version)
+    assert subscriptions.checkout.utc(sub.next_due_at) == subscriptions.checkout.utc(due)
+    assert sub.version == version + 1
+    with pytest.raises(CommerceError, match="within the next 90 days"):
+        change(r, sub, "reschedule", {"date": (datetime.now(UTC).date() + timedelta(days=91)).isoformat()},
+               key="reschedule-too-far-1234")
+
+
+def test_new_item_command_rejects_another_customers_contract(contract):
+    r, sub = contract
+    with pytest.raises(CommerceError, match="not found"):
+        subscriptions.change(r.db, r.site, "another-customer", sub.id, "add_product",
+            {"variant_id": r.variant.id, "quantity": 1}, version=sub.version,
+            request_key="foreign-add-product-1234")
+
+
+def test_remove_product_rejects_last_item_and_prices_surviving_lines(contract):
+    r, sub = contract
+    variant = extra_eligible_product(r)
+    change(r, sub, "add_product", {"variant_id": variant.id, "quantity": 1},
+           key="add-for-remove-1234")
+    change(r, sub, "remove_product", {"variant_id": variant.id},
+           key="remove-product-command-1234")
+    assert len(sub.lines_json) == 1 and sub.lines_json[0]["unit_minor"] == 2696
+    with pytest.raises(CommerceError, match="at least one product"):
+        change(r, sub, "remove_product", {"variant_id": r.variant.id},
+               key="remove-last-item-1234")
+
+
+@pytest.mark.parametrize("action,values", [
+    ("reschedule", {"date": (datetime.now(UTC).date() + timedelta(days=8)).isoformat()}),
+    ("quantity", {"variant_id": "fixture-variant", "quantity": 3}),
+    ("swap", {"from_variant_id": "fixture-variant", "variant_id": "fixture-variant-2"}),
+    ("add_product", {"variant_id": "fixture-variant-2", "quantity": 1}),
+    ("remove_product", {"variant_id": "fixture-variant"}),
+])
+def test_new_actions_reject_processing_cycles(contract, action, values):
+    r, sub = contract
+    cycle = SubscriptionCycle(tenant_id=r.site.tenant_id, site_id=r.site.id,
+        contract_id=sub.id, due_at=sub.next_due_at, state="processing")
+    r.db.add(cycle)
+    r.db.flush()
+    if action in {"swap", "add_product"}:
+        variant = extra_eligible_product(r)
+        values = {**values, "variant_id": variant.id,
+                  **({"from_variant_id": sub.lines_json[0]["variant_id"]} if action == "swap" else {})}
+    elif action in {"quantity", "remove_product"}:
+        values = {**values, "variant_id": sub.lines_json[0]["variant_id"]}
+    with pytest.raises(CommerceError, match="already processing"):
+        change(r, sub, action, values, key="processing-lock-" + action + "-123")
+
+
+def test_add_product_rejects_catalogue_items_without_subscription_eligibility(contract):
+    r, sub = contract
+    config = commerce.settings_for(r.db, r.site)
+    config.subscription_product_ids_json = []
+    with pytest.raises(CommerceError, match="not eligible"):
+        change(r, sub, "add_product", {"variant_id": r.variant.id, "quantity": 1},
+               key="ineligible-add-product-123")

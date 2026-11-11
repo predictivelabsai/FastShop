@@ -23,7 +23,7 @@ def setup_handoff(r):
     response = {"id": "cs_test_payment", "livemode": False, "mode": "payment",
         "client_reference_id": attempt.id, "metadata": {"site_id": r.site.id, "quote_id": quote.id},
         "currency": "usd", "amount_total": quote.total_minor, "status": "open",
-        "payment_status": "unpaid", "automatic_tax": {"status": "complete"},
+        "payment_status": "unpaid", "automatic_tax": {"enabled": True, "status": "complete"},
         "total_details": {"amount_tax": quote.tax_minor, "amount_shipping": quote.shipping_minor},
         "url": "https://checkout.stripe.com/c/pay/cs_test_payment"}
     return attempt, quote, sessions, response
@@ -130,7 +130,7 @@ def test_hosted_wallet_prerequisites_reach_stripe_without_changing_tax_destinati
     attempt = checkout_services.prepare(r.db, r.site, r.customer.id, r.selections, DESTINATION,
         r.gateway, request_key="wallet-wire-fixture-01", recipient_name="Wallet Fixture", subscription_consent=recurring)
     quote = r.db.get(CommerceQuote, attempt.quote_id)
-    command = payment_command(r.site, attempt, quote, r.customer)
+    command = payment_command(r.site, attempt, quote, r.customer, automatic_tax_active=True)
     monkeypatch.setenv(f"FASTSHOP_STRIPE_{r.site.id.upper()}_SECRET_KEY", "sk_test_fixture")
     requests = []
 
@@ -157,6 +157,65 @@ def test_hosted_wallet_prerequisites_reach_stripe_without_changing_tax_destinati
     gateway = StripeGateway(r.site, transport=httpx.MockTransport(reply))
     gateway.create_checkout(attempt.id, command)
     assert [path for path, _ in requests] == ["/v1/customers", "/v1/checkout/sessions"]
+
+
+def test_checkout_retries_once_without_tax_when_stripe_rejects_automatic_tax(ready):
+    r = ready
+    attempt, quote, sessions, response = setup_handoff(r)
+    response["amount_total"] = quote.subtotal_minor - quote.discount_minor + quote.shipping_minor
+    response["automatic_tax"] = {"enabled": False, "status": None}
+    response["total_details"]["amount_tax"] = 0
+    r.site.settings_json = {"stripe_tax_status": {"test": {
+        "status": "active", "checked_at": datetime.now(UTC).isoformat()}}}
+    requests = []
+
+    def reply(request):
+        requests.append(request)
+        if request.url.path == "/v1/customers":
+            return httpx.Response(200, json={"id": "cus_fixture", "livemode": False})
+        payload = parse_qs(request.content.decode())
+        if payload.get("automatic_tax[enabled]") == ["true"]:
+            return httpx.Response(400, json={"error": {"code": "taxes_not_active", "param": "automatic_tax"}})
+        return httpx.Response(200, json=response)
+
+    gateway = StripeGateway.for_connection("sk_test_connection_fixture_1234",
+        transport=httpx.MockTransport(reply))
+
+    handoff(r.site.id, r.customer.id, attempt.id, sessions=sessions,
+        gateway_factory=lambda site: gateway)
+    session_calls = [request for request in requests if request.url.path == "/v1/checkout/sessions"]
+    assert len(session_calls) == 2
+    assert [parse_qs(request.content.decode())["automatic_tax[enabled]"] for request in session_calls] == [["true"], ["false"]]
+    assert [request.headers["idempotency-key"] for request in session_calls] == [
+        "fastshop-checkout-" + attempt.id, "fastshop-checkout-" + attempt.id + "-no-tax"]
+    with sessions() as db:
+        saved_attempt = db.get(CheckoutAttempt, attempt.id)
+        saved_quote = db.get(CommerceQuote, quote.id)
+        assert saved_attempt.provider_payload_json["tax_fallback"] is True
+        assert saved_quote.tax_minor == 0
+    r.db.refresh(r.site)
+    assert r.site.settings_json["stripe_tax_warning"]["attempt_id"] == attempt.id
+
+
+def test_pending_tax_status_creates_checkout_without_automatic_tax(ready):
+    r = ready
+    attempt, quote, sessions, response = setup_handoff(r)
+    r.site.settings_json = {"stripe_tax_status": {"test": {
+        "status": "pending", "missing_fields": ["head_office.address.city"],
+        "checked_at": datetime.now(UTC).isoformat()}}}
+    quote.tax_minor = 0
+    quote.total_minor = quote.subtotal_minor - quote.discount_minor + quote.shipping_minor
+    r.db.commit()
+    response.update(amount_total=quote.total_minor, automatic_tax={"enabled": False, "status": None})
+    response["total_details"].update(amount_tax=0)
+    captured = []
+    class Gateway:
+        def create_checkout(self, attempt_id, command):
+            captured.append(command)
+            return response
+    assert handoff(r.site.id, r.customer.id, attempt.id, sessions=sessions,
+        gateway_factory=lambda site: Gateway()) == response["url"]
+    assert captured[0]["session"]["automatic_tax"] == {"enabled": False}
 
 
 def test_cancel_mismatched_tax_session_releases_only_after_provider_expiration(ready):

@@ -150,7 +150,7 @@ def test_session_endpoint_returns_client_secret_but_not_secret_key(storefront, m
             "client_reference_id": attempt.id, "metadata": {"site_id": r.site.id,
             "quote_id": saved_quote.id, "checkout_id": attempt.id}, "currency": "usd",
             "amount_total": saved_quote.total_minor, "status": "open", "payment_status": "unpaid",
-            "client_secret": "cs_test_embedded_secret_fixture", "automatic_tax": {"status": "complete"},
+            "client_secret": "cs_test_embedded_secret_fixture", "automatic_tax": {"enabled": True, "status": "complete"},
             "total_details": {"amount_tax": saved_quote.tax_minor, "amount_shipping": saved_quote.shipping_minor}}
     prefix = "FASTSHOP_STRIPE_" + r.site.id.upper() + "_"
     monkeypatch.setenv(prefix + "SECRET_KEY", "sk_test_fake_fixture")
@@ -175,7 +175,7 @@ def test_custom_session_matches_quote_requires_return_url(storefront):
     result = {"livemode": False, "mode": "payment", "ui_mode": "custom", "return_url": "https://store.test/return",
         "client_reference_id": attempt.id, "metadata": {"site_id": r.site.id, "quote_id": quote.id},
         "currency": "usd", "amount_total": quote.total_minor,
-        "automatic_tax": {"status": "complete"},
+        "automatic_tax": {"enabled": True, "status": "complete"},
         "total_details": {"amount_tax": quote.tax_minor, "amount_shipping": quote.shipping_minor}}
     assert matches_quote(result, attempt, quote)
     result.pop("return_url")

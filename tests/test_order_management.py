@@ -207,7 +207,7 @@ def test_refund_is_bounded_exact_and_idempotent_through_mocked_transport(monkeyp
         key = f"FASTSHOP_STRIPE_{w.site.id.upper()}_SECRET_KEY"
         monkeypatch.setenv(key, "sk_test_order_fixture")
         transport = httpx.MockTransport(respond)
-        factory = lambda site: StripeGateway(site, transport=transport)  # noqa: E731
+        factory = lambda site, db=None: StripeGateway(site, transport=transport, db=db)  # noqa: E731
         command = checkout_payments.refund(
             w.site.id,
             w.merchant.id,
@@ -271,7 +271,8 @@ def test_refund_mismatch_is_reserved_and_guard_fails_closed(monkeypatch):
                 "livemode": False,
             })
 
-        factory = lambda site: StripeGateway(site, transport=httpx.MockTransport(respond))  # noqa: E731
+        factory = lambda site, db=None: StripeGateway(  # noqa: E731
+        site, transport=httpx.MockTransport(respond), db=db)
         with pytest.raises(CommerceError, match="does not exactly match"):
             checkout_payments.refund(
                 w.site.id,

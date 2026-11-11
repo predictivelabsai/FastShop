@@ -7,7 +7,7 @@ from starlette.testclient import TestClient
 
 from app import commerce, customer_routes, customer_services, subscription_routes
 from app.main import app
-from app.models import CustomerChallenge
+from app.models import CustomerChallenge, Product, ProductVariant, VariantChannelListing
 from tests.test_checkout_services import ready  # noqa: F401
 from tests.test_customer_routes import csrf
 from tests.test_subscriptions import contract  # noqa: F401
@@ -54,6 +54,72 @@ def test_customer_can_skip_pause_resume_and_cancel_own_subscription(customer_ses
     assert "Status: active" in page.text
     page = client.post(path + "/cancel", data=fields(page) | {"confirm_cancel": "on"})
     assert "Status: cancelled" in page.text and "Update payment method" not in page.text
+
+
+def test_customer_portal_tabs_copy_recommendations_and_csrf(customer_session):
+    r, sub, client, base = customer_session
+    path = base + "/account/subscriptions"
+    r.site.published_settings_json = {**(r.site.published_settings_json or {}),
+        "portal_copy": {"next_order": "Coming up", "welcome": "Hello, {name}"}}
+    r.db.commit()
+    page = client.get(path)
+    assert page.status_code == 200
+    for label in ("Coming up", "Subscriptions", "Order history", "Account", "Hello, Subscriber"):
+        assert label in page.text
+    assert "Recommended for you" not in page.text
+    assert "Upcoming orders" not in page.text and "Send now" not in page.text
+    assert "subscription-portal.css" in page.text
+    for tab in ("subscriptions", "orders", "account"):
+        assert f"?tab={tab}" in client.get(path + "?tab=" + tab).text
+
+    alternate = ProductVariant(tenant_id=r.site.tenant_id, product_id=r.variant.product_id,
+        sku="PORTAL-ALT-VARIANT", name="Alternate option")
+    r.db.add(alternate)
+    r.db.flush()
+    r.db.add(VariantChannelListing(variant_id=alternate.id, channel_id=r.site.channel_id,
+        currency="USD", price_minor=3200))
+    r.db.commit()
+    page = client.get(path)
+    assert "Alternate option" in page.text
+    assert "Recommended for you" not in page.text
+    add_variant = path + "/" + sub.id + "/add_product"
+    response = client.post(add_variant, data=fields(page) | {
+        "variant_id": alternate.id, "quantity": "1"}, follow_redirects=False)
+    assert response.status_code == 303
+    r.db.refresh(sub)
+    assert any(line["variant_id"] == alternate.id for line in sub.lines_json)
+
+    source = r.variant.product
+    recommended = Product(tenant_id=r.site.tenant_id, product_type_id=source.product_type_id,
+        category_id=source.category_id, name="Extra eligible", slug="extra-eligible",
+        is_published=True, status="active")
+    r.db.add(recommended)
+    r.db.flush()
+    variant = ProductVariant(tenant_id=r.site.tenant_id, product_id=recommended.id,
+        sku="EXTRA-ELIGIBLE", name="Extra option")
+    r.db.add(variant)
+    r.db.flush()
+    r.db.add(VariantChannelListing(variant_id=variant.id, channel_id=r.site.channel_id,
+        currency="USD", price_minor=3200))
+    config = commerce.settings_for(r.db, r.site)
+    config.subscription_product_ids_json = [*config.subscription_product_ids_json, recommended.id]
+    config.product_tax_codes_json = {**config.product_tax_codes_json, recommended.id: "txcd_00000000"}
+    r.db.commit()
+    page = client.get(path)
+    assert "Recommended for you" in page.text and "Extra eligible" in page.text
+
+    endpoint = path + "/" + sub.id + "/skip"
+    assert client.post(endpoint, data={"version": sub.version,
+        "request_key": "missing-csrf-portal-1234"}).status_code == 400
+    account = client.get(path + "?tab=account")
+    assert "Subscribe to email marketing" in account.text
+    newsletter = base + "/newsletter"
+    r.site.status = "preview"
+    r.db.commit()
+    form = {"email": r.customer.email, "marketing_consent": "on"}
+    assert client.post(newsletter, data=form | {"csrf_token": "wrong"}).status_code == 400
+    response = client.post(newsletter, data=form | {"csrf_token": csrf(account)})
+    assert response.status_code == 200, response.text
 
 
 def test_controls_remain_available_when_store_disabled(customer_session, monkeypatch):

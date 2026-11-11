@@ -202,6 +202,7 @@ def nav_section(path):
         "build": "Online Store", "samples": "Online Store", "editor": "Online Store",
         "preferences": "Online Store", "settings": "Settings", "commerce": "Settings",
         "golive": "Settings", "live-credentials": "Settings", "billing": "Settings",
+        "payments": "Settings",
         "users": "Settings", "policies": "Settings", "notifications": "Settings",
         "search": "Home", "activity": "Settings",
     }.get(key, "Online Store")
@@ -225,6 +226,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         ("Analytics", base + "/analytics", []),
         ("Marketing/Integrations", base + "/integrations", []),
         ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Themes", base + "/themes"), ("Preferences", base + "/preferences")]),
+        ("Settings", base + "/settings", [("Store settings", base + "/settings"), ("Payments", base + "/commerce/payments"), ("Commerce", base + "/commerce"), ("Go-live checklist", base + "/golive")]),
     ]
     navigation = []
     for label, href, subs in groups if site else []:

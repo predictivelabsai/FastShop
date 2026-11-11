@@ -1,4 +1,5 @@
 import re
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
@@ -67,7 +68,7 @@ def test_draft_preview_requires_real_site_membership():
 
 def test_contact_persists_before_delivery_and_rate_limits(monkeypatch):
     import app.site_routes as routes
-    monkeypatch.setattr(routes, "deliver", lambda entry, config: "failed")
+    monkeypatch.setattr(routes, "deliver", lambda entry, config, **_kwargs: "failed")
     client = TestClient(app)
     page = client.get("/sites/northstar/pages/contact")
     token = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
@@ -177,6 +178,50 @@ def test_commerce_settings_keep_fastshop_brand_and_require_csrf():
     assert "changed" in response.text
 
 
+def test_stripe_payments_page_requires_membership_and_csrf():
+    from uuid import uuid4
+
+    site, _ = sample_store()
+    with SessionLocal() as db:
+        stored = db.get(Site, site.id)
+        stored.settings_json = {"stripe_tax_status": {"test": {
+            "status": "active", "missing_fields": [], "checked_at": datetime.now(UTC).isoformat()}}}
+        db.commit()
+    client, token = signed_in()
+    path = f"/admin/sites/{site.id}/commerce/payments"
+    page = client.get(path)
+    assert page.status_code == 200 and "Connect Stripe" in page.text
+    assert 'class="payment-status-grid"' in page.text
+    assert "Not connected" in page.text and "Step 1" in page.text
+    assert 'href="https://dashboard.stripe.com/test/apikeys"' in page.text
+    assert "Stripe Tax: on by default" in page.text
+    assert "Stripe Tax: active" in page.text
+    assert "advanced" in page.text and "manual fallback" in page.text
+    invalid_keys = client.post(path + "/connect", data={
+        "csrf_token": token,
+        "mode": "test",
+        "secret_key": "sk_live_wrong_mode_12345678",
+        "publishable_key": "pk_live_wrong_mode_12345678",
+        "webhook_secret": "whsec_browser_manual_1234",
+    }, follow_redirects=True)
+    assert invalid_keys.status_code == 200
+    assert 'role="alert"' in invalid_keys.text
+    assert "valid Stripe test secret or restricted key" in invalid_keys.text
+    rejected = client.post(path + "/connect", data={"csrf_token": "wrong", "mode": "test"},
+                           follow_redirects=False)
+    assert rejected.status_code == 303 and "session+expired" in rejected.headers["location"]
+
+    with SessionLocal() as db:
+        owner = User(email="stripe-other-owner-" + uuid4().hex[:8] + "@example.test", name="Other owner")
+        db.add(owner)
+        db.flush()
+        other_site = content.create_site(db, owner.id, "Other Stripe site", "stripe-other-" + uuid4().hex[:8])
+        other_id = other_site.id
+        db.commit()
+    denied = client.get(f"/admin/sites/{other_id}/commerce/payments")
+    assert denied.status_code == 400
+
+
 def test_golive_actions_use_csrf_prg_and_record_blocked_review():
     from uuid import uuid4
 
@@ -184,11 +229,15 @@ def test_golive_actions_use_csrf_prg_and_record_blocked_review():
     with SessionLocal() as db:
         owner = db.scalar(select(User).where(User.email == settings.admin_email))
         site = content.create_site(db, owner.id, "Go-live route", "golive-route-" + uuid4().hex[:8])
+        site.settings_json = {"stripe_tax_status": {"test": {
+            "status": "pending", "missing_fields": ["head_office.address.city"],
+            "checked_at": datetime.now(UTC).isoformat()}}}
         db.commit()
         site_id, version = site.id, site.version
     page = client.get(f"/admin/sites/{site_id}/golive")
     assert page.status_code == 200
     assert "Go-live review" in page.text and "Publish site" in page.text
+    assert "Missing fields: head_office.address.city" in page.text
 
     form = {
         "csrf_token": token,

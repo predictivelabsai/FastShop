@@ -1,6 +1,7 @@
 """Durable hosted payment handoff; explicit commits surround provider network calls."""
 
 import re
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
@@ -10,7 +11,12 @@ from app import checkout_services as checkout
 from app import commerce, live_credentials
 from app.config import settings
 from app.db import SessionLocal
-from app.integrations.stripe_commerce import StripeGateway, credentials, make_gateway
+from app.integrations.stripe_commerce import (
+    StripeGateway,
+    StripeTaxError,
+    credentials,
+    make_gateway,
+)
 from app.models import CommerceQuote, ShopCustomer, Site, SubscriptionCycle
 from app.services import CommerceError
 
@@ -26,12 +32,11 @@ def publishable_for(db, site):
     mode = commerce.payment_mode(db, site)
     if mode == "live":
         live_credentials.live_secrets(db, site)
-        credential = live_credentials.credential_for(db, site)
-        key = credential.publishable_key if credential else ""
+        _, _, key = credentials(site, db=db, mode="live")
         if key and not key.startswith("pk_live_"):
             raise CommerceError("The live Stripe publishable key does not match live payments.")
         return key or None
-    _, _, key = credentials(site)
+    _, _, key = credentials(site, db=db)
     if key and not key.startswith("pk_test_"):
         raise CommerceError("The Stripe publishable key does not match sandbox payments.")
     return key or None
@@ -47,7 +52,7 @@ def payment_methods_for(site, recurring: bool) -> list[str]:
     return methods
 
 
-def payment_command(site, attempt, quote, customer, *, custom=False):
+def payment_command(site, attempt, quote, customer, *, custom=False, automatic_tax_active=False):
     local_tax = quote.snapshot_json.get("local_tax")
     recovery = bool(quote.snapshot_json.get("recovery_cycle_id"))
     if quote.snapshot_json.get("renewal_contract_id") and not recovery:
@@ -86,7 +91,7 @@ def payment_command(site, attempt, quote, customer, *, custom=False):
             "product_data": {"name": "Sandbox order balance after gift card"}}}]
     metadata = {"site_id": site.id, "checkout_id": attempt.id, "quote_id": quote.id}
     session = {"mode": "payment", "payment_method_types": payment_methods_for(site, recurring), "currency": "usd",
-            "automatic_tax": {"enabled": not bool(local_tax) and not bool(gift_tender)}, "line_items": lines,
+            "automatic_tax": {"enabled": bool(automatic_tax_active) and not bool(local_tax) and not bool(gift_tender)}, "line_items": lines,
             "customer_update": {"address": "never", "shipping": "never", "name": "never"},
             "client_reference_id": attempt.id, "metadata": metadata,
             "payment_intent_data": {"metadata": metadata, **({"setup_future_usage": "off_session"} if recurring else {})},
@@ -128,7 +133,9 @@ def matches_quote(result, attempt, quote, *, live_mode=False):
     tax_matches = (details.get("amount_tax") == 0
         and automatic_tax.get("enabled") is False
         and automatic_tax.get("status") in (None, "")) if local_tax else (
-        details.get("amount_tax") == quote.tax_minor and automatic_tax.get("status") == "complete")
+        details.get("amount_tax") == quote.tax_minor and (
+            automatic_tax.get("status") == "complete" if automatic_tax.get("enabled") else
+            automatic_tax.get("status") in (None, "") and quote.tax_minor == 0))
     custom = result.get("ui_mode") == "custom"
     return (result.get("livemode") is live_mode and result.get("mode") == "payment" and
         (custom or result.get("ui_mode") in (None, "hosted")) and
@@ -175,7 +182,10 @@ def handoff(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_
         if not attempt.provider_payload_json:
             if attempt.state != "prepared":
                 raise CommerceError("The provider command requires merchant reconciliation.")
-            attempt.provider_payload_json = payment_command(site, attempt, quote, customer)
+            from app.stripe_connections import cached_tax_status
+            tax = cached_tax_status(site, "live" if mode == "live" else "test")
+            attempt.provider_payload_json = payment_command(site, attempt, quote, customer,
+                automatic_tax_active=tax.get("status") == "active")
             attempt.provider_started_at = datetime.now(UTC)
             checkout.begin_provider(db, site, attempt.id)
         # Stripe may discard idempotency keys after 24h. Never issue an unknown
@@ -185,7 +195,45 @@ def handoff(site_id, customer_id, attempt_id, *, sessions=SessionLocal, gateway_
         command, session_id = attempt.provider_payload_json, attempt.stripe_session_id
         db.commit()
         # No database locks held across payment creation. The command is already durable.
-        result = gateway.checkout_status(session_id) if session_id else gateway.create_checkout(attempt.id, command)
+        if session_id:
+            result = gateway.checkout_status(session_id)
+        else:
+            try:
+                result = (gateway.create_checkout(attempt.id, command,
+                    tax_fallback=command.get("tax_fallback") is True)
+                    if isinstance(gateway, StripeGateway) else gateway.create_checkout(attempt.id, command))
+            except StripeTaxError:
+                if not command.get("session", {}).get("automatic_tax", {}).get("enabled"):
+                    raise
+                command = deepcopy(command)
+                command["session"]["automatic_tax"] = {"enabled": False}
+                command["tax_fallback"] = True
+                attempt.provider_payload_json = command
+                quote.tax_minor = 0
+                quote.total_minor = quote.subtotal_minor - quote.discount_minor + quote.shipping_minor
+                snapshot = dict(quote.snapshot_json or {})
+                snapshot["tax_breakdown"] = []
+                snapshot["stripe_tax_disabled"] = True
+                quote.snapshot_json = snapshot
+                command["session"]["line_items"] = [
+                    line for line in command["session"]["line_items"]
+                    if line["price_data"]["product_data"]["name"] != "Sandbox sales tax"
+                ]
+                settings_json = dict(site.settings_json or {})
+                tax_mode = "live" if mode == "live" else "test"
+                tax_cache = dict(settings_json.get("stripe_tax_status", {}))
+                tax_cache[tax_mode] = {"status": "unknown", "missing_fields": [],
+                    "checked_at": datetime.now(UTC).isoformat()}
+                settings_json["stripe_tax_status"] = tax_cache
+                settings_json["stripe_tax_warning"] = {
+                    "attempt_id": attempt.id, "recorded_at": datetime.now(UTC).isoformat(),
+                }
+                site.settings_json = settings_json
+                db.commit()
+                if isinstance(gateway, StripeGateway):
+                    result = gateway.create_checkout(attempt.id, command, tax_fallback=True)
+                else:
+                    result = gateway.create_checkout(attempt.id, command)
         result_id = result.get("id", "")
         session_prefix = "cs_live_" if mode == "live" else "cs_test_"
         if not isinstance(result_id, str) or not re.fullmatch(session_prefix + r"[A-Za-z0-9]+", result_id):
@@ -240,7 +288,10 @@ def embedded_session(site_id, customer_id, attempt_id, *, sessions=SessionLocal,
         if not attempt.provider_payload_json:
             if attempt.state != "prepared":
                 raise CommerceError("The provider command requires merchant reconciliation.")
-            attempt.provider_payload_json = payment_command(site, attempt, quote, customer, custom=True)
+            from app.stripe_connections import cached_tax_status
+            tax = cached_tax_status(site, "live" if mode == "live" else "test")
+            attempt.provider_payload_json = payment_command(site, attempt, quote, customer, custom=True,
+                automatic_tax_active=tax.get("status") == "active")
             attempt.provider_started_at = datetime.now(UTC)
             checkout.begin_provider(db, site, attempt.id)
         elif attempt.provider_payload_json.get("session", {}).get("ui_mode") != "custom":
@@ -249,7 +300,44 @@ def embedded_session(site_id, customer_id, attempt_id, *, sessions=SessionLocal,
             raise CommerceError("This payment attempt needs merchant reconciliation before retrying.")
         command, session_id = attempt.provider_payload_json, attempt.stripe_session_id
         db.commit()
-        result = gateway.checkout_status(session_id) if session_id else gateway.create_checkout(attempt.id, command)
+        if session_id:
+            result = gateway.checkout_status(session_id)
+        else:
+            try:
+                result = (gateway.create_checkout(attempt.id, command,
+                    tax_fallback=command.get("tax_fallback") is True)
+                    if isinstance(gateway, StripeGateway) else gateway.create_checkout(attempt.id, command))
+            except StripeTaxError:
+                if not command.get("session", {}).get("automatic_tax", {}).get("enabled"):
+                    raise
+                command = deepcopy(command)
+                command["session"]["automatic_tax"] = {"enabled": False}
+                command["tax_fallback"] = True
+                attempt.provider_payload_json = command
+                quote.tax_minor = 0
+                quote.total_minor = quote.subtotal_minor - quote.discount_minor + quote.shipping_minor
+                snapshot = dict(quote.snapshot_json or {})
+                snapshot["tax_breakdown"] = []
+                snapshot["stripe_tax_disabled"] = True
+                quote.snapshot_json = snapshot
+                command["session"]["line_items"] = [
+                    line for line in command["session"]["line_items"]
+                    if line["price_data"]["product_data"]["name"] != "Sandbox sales tax"
+                ]
+                settings_json = dict(site.settings_json or {})
+                tax_mode = "live" if mode == "live" else "test"
+                tax_cache = dict(settings_json.get("stripe_tax_status", {}))
+                tax_cache[tax_mode] = {"status": "unknown", "missing_fields": [],
+                    "checked_at": datetime.now(UTC).isoformat()}
+                settings_json["stripe_tax_status"] = tax_cache
+                settings_json["stripe_tax_warning"] = {
+                    "attempt_id": attempt.id, "recorded_at": datetime.now(UTC).isoformat(),
+                }
+                site.settings_json = settings_json
+                db.commit()
+                result = (gateway.create_checkout(attempt.id, command, tax_fallback=True)
+                          if isinstance(gateway, StripeGateway) else
+                          gateway.create_checkout(attempt.id, command))
         result_id = result.get("id", "")
         prefix = "cs_live_" if mode == "live" else "cs_test_"
         metadata = result.get("metadata") or {}

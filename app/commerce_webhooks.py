@@ -8,7 +8,7 @@ from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
 from app import checkout_services as checkout
-from app import commerce, live_credentials
+from app import commerce
 from app.db import SessionLocal
 from app.integrations.stripe_commerce import (
     StripeGateway,
@@ -33,8 +33,7 @@ def signature_secret(db, site, config=None) -> tuple[str, str]:
         SiteCommerceSettings.tenant_id == site.tenant_id,
     ))
     mode = commerce.payment_mode(db, site, config)
-    secret = (live_credentials.live_secrets(db, site, config)[1]
-              if mode == "live" else credentials(site)[1])
+    secret = credentials(site, db=db, mode=mode if mode in {"live", "sandbox"} else None)[1]
     if not secret:
         raise CommerceError("Webhook signing is not configured for this site.")
     return mode, secret
