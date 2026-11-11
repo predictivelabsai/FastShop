@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
+import httpx
 from fasthtml.common import (
     H2,
     H3,
@@ -15,7 +16,9 @@ from fasthtml.common import (
     Input,
     Label,
     Li,
+    Option,
     P,
+    Select,
     Small,
     Span,
     Summary,
@@ -32,7 +35,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
-from app import connectors, content
+from app import connectors, content, ui
 from app.admin_ui import empty_state
 from app.db import SessionLocal
 from app.models import SiteCommerceSettings
@@ -119,6 +122,237 @@ def _plan_view(plan, csrf):
 
 
 def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
+    from app.models import Membership, User
+
+    def managed_site(db, site_id, user_id):
+        site = content.owned_site(db, site_id, user_id)
+        role = db.scalar(select(Membership.role).where(
+            Membership.tenant_id == site.tenant_id, Membership.user_id == user_id,
+        ))
+        if role not in {"admin", "merchant"}:
+            raise CommerceError("A store admin or merchant membership is required.")
+        return site
+
+    @rt("/admin/sites/{site_id}/settings/integrations", methods=["GET"])
+    def get(session, site_id: str):
+        try:
+            user_id = actor(session)
+            with SessionLocal() as db:
+                site = managed_site(db, site_id, user_id)
+                base = f"/admin/sites/{site.id}/settings/integrations"
+                return shell("Integrations", *ui.integrations_hub(db, base=base, in_store=True))
+        except CommerceError as exc:
+            return error(exc)
+
+    def integration_page(site, provider, credential, notice="", csrf_field=None):
+        is_paypal = provider == "paypal"
+        title = "PayPal" if is_paypal else "Email"
+        path = f"/admin/sites/{site.id}/settings/integrations/{provider}"
+        connected = bool(credential and credential.status == "connected")
+        status = "Connected" if connected else "Not connected"
+        details = []
+        if credential:
+            hints = credential.masked_hints_json or {}
+            if is_paypal:
+                details.append(P("Client ID: " + hints.get("client_id", "Connected")))
+                details.append(P("Mode: " + credential.mode.title()))
+            else:
+                details.append(P("Sender: " + hints.get("sender", "")))
+                details.append(P("Sender name: " + hints.get("sender_name", "")))
+                details.append(P("Sender signature or domain: "
+                                 + hints.get("sender_confirmation", "unverified")))
+            if credential.verified_at:
+                details.append(P("Last verified: " + credential.verified_at.strftime("%Y-%m-%d %H:%M UTC")))
+        if is_paypal:
+            fields = [
+                Label("Client ID", Input(name="client_id", autocomplete="off", required=True)),
+                Label("Client secret", Input(name="secret", type="password", autocomplete="new-password",
+                    required=True)),
+                Label("Environment", Select(Option("Sandbox", value="sandbox",
+                    selected=not credential or credential.mode != "live"),
+                    Option("Live", value="live", selected=bool(credential and credential.mode == "live")),
+                    name="mode")),
+            ]
+        else:
+            fields = [
+                Label("Postmark server token", Input(name="token", type="password",
+                    autocomplete="new-password", required=True)),
+                Label("Postmark account token (optional, for sender checks)", Input(
+                    name="account_token", type="password", autocomplete="new-password")),
+                Label("Sender address", Input(name="sender", type="email", required=True,
+                    value=(credential.masked_hints_json.get("sender", "") if credential else ""))),
+                Label("Sender name", Input(name="sender_name", autocomplete="organization-title",
+                    value=(credential.masked_hints_json.get("sender_name", "") if credential else ""))),
+            ]
+        return shell("Settings · Integrations · " + title,
+            Div(A("← Integrations", href=f"/admin/sites/{site.id}/settings/integrations"), cls="e-actions"),
+            P(notice, role="status", cls="e-note") if notice else None,
+            Div(H2(title), P("Connection status: " + status, role="status"), *details,
+                cls="e-card i-connection-status"),
+            Div(H2("Connection details"),
+                P("Credentials are encrypted when stored and never shown again. Replace a connection by saving new details."),
+                Form(csrf_field, *fields, Button("Verify and save connection", cls="e-button"),
+                     method="post", action=path + "/save", cls="e-form i-connection-form"),
+                P("Operator environment variables remain a fallback when no store connection is saved."),
+                cls="e-card i-connection-form-card"),
+            Div(Form(csrf_field, Button("Test connection", cls="e-button secondary"), method="post",
+                     action=path + "/test", cls="e-form") if connected else None,
+                Form(csrf_field, Button("Send test email to my address", cls="e-button secondary"),
+                     method="post", action=path + "/send-test", cls="e-form")
+                if connected and not is_paypal else None,
+                Form(csrf_field, Button("Disconnect", cls="e-button danger"), method="post",
+                     action=path + "/disconnect", cls="e-form") if connected else None,
+                cls="e-actions"),
+            P("Choosing live credentials does not enable live payments. Live payment approval remains controlled by Commerce settings and the platform operator.")
+            if is_paypal else P("Transactional order mail, customer login codes and contact messages use this connection first."),
+        )
+
+    def connection_redirect(site_id, provider, notice):
+        return RedirectResponse(
+            f"/admin/sites/{site_id}/settings/integrations/{provider}?"
+            + urlencode({"notice": str(notice)[:250]}), status_code=303,
+        )
+
+    def register_provider(provider):
+        @rt(f"/admin/sites/{{site_id}}/settings/integrations/{provider}", methods=["GET"])
+        def get(session, site_id: str, notice: str = ""):
+            try:
+                user_id = actor(session)
+                with SessionLocal() as db:
+                    site = managed_site(db, site_id, user_id)
+                    from app.site_integrations import credential_row
+
+                    credential = credential_row(db, site, provider)
+                    return integration_page(site, provider, credential, notice, csrf(session))
+            except CommerceError as exc:
+                return error(exc)
+
+        @rt(f"/admin/sites/{{site_id}}/settings/integrations/{provider}/save", methods=["POST"])
+        async def post(session, request, site_id: str):
+            form = await request.form()
+            try:
+                check_csrf(session, form)
+                user_id = actor(session)
+                from app import site_integrations
+
+                with SessionLocal() as db:
+                    site = managed_site(db, site_id, user_id)
+                    if provider == "paypal":
+                        client_id = str(form.get("client_id", "")).strip()
+                        secret = str(form.get("secret", ""))
+                        mode = str(form.get("mode", "sandbox")).strip().lower()
+                        if not client_id or not secret or mode not in {"sandbox", "live"}:
+                            raise CommerceError("Enter a client ID, client secret and valid environment.")
+                        if mode == "live":
+                            from app import commerce
+
+                            try:
+                                payment_mode = commerce.payment_mode(db, site)
+                            except CommerceError as exc:
+                                raise CommerceError("Live credentials require operator-approved live payments in Commerce settings.") from exc
+                            if payment_mode != "live":
+                                raise CommerceError("Live credentials require operator-approved live payments in Commerce settings.")
+                        if not site_integrations.verify_paypal(client_id, secret, mode):
+                            raise CommerceError("PayPal could not verify these credentials. Check the environment and try again.")
+                        site_integrations.save(db, site, "paypal",
+                            {"client_id": client_id, "secret": secret, "mode": mode}, mode,
+                            {"client_id": site_integrations.mask(client_id)})
+                    else:
+                        token = str(form.get("token", "")).strip()
+                        sender = str(form.get("sender", "")).strip()
+                        sender_name = " ".join(str(form.get("sender_name", "")).split())[:160]
+                        if not token or not sender or "\n" in sender or "\r" in sender:
+                            raise CommerceError("Enter a Postmark server token and sender address.")
+                        account_token = str(form.get("account_token", "")).strip()
+                        verified, confirmation = site_integrations.verify_postmark(
+                            token, sender, account_token=account_token)
+                        if not verified:
+                            raise CommerceError("Postmark could not verify the server or account token. Check the credentials and try again.")
+                        site_integrations.save(db, site, "email",
+                            {"token": token, "account_token": account_token,
+                             "sender": sender, "sender_name": sender_name}, "default",
+                            {"sender": sender, "sender_name": sender_name,
+                             "sender_confirmation": confirmation})
+                    db.commit()
+                return connection_redirect(site_id, provider, "Connection verified and saved.")
+            except (CommerceError, ValueError) as exc:
+                return connection_redirect(site_id, provider, exc)
+
+        @rt(f"/admin/sites/{{site_id}}/settings/integrations/{provider}/test", methods=["POST"])
+        async def post(session, request, site_id: str):
+            form = await request.form()
+            try:
+                check_csrf(session, form)
+                user_id = actor(session)
+                from app import site_integrations
+
+                with SessionLocal() as db:
+                    site = managed_site(db, site_id, user_id)
+                    payload = site_integrations.payload_for(site, provider, db)
+                    if not payload:
+                        raise CommerceError("Connect this service before testing it.")
+                    if provider == "paypal":
+                        ok = site_integrations.verify_paypal(payload["client_id"], payload["secret"], payload["mode"])
+                        confirmation = ""
+                    else:
+                        ok, confirmation = site_integrations.verify_postmark(
+                            payload["token"], payload["sender"],
+                            account_token=payload.get("account_token", ""))
+                    if not ok:
+                        raise CommerceError("The connection test failed. Check the provider account and try again.")
+                    from datetime import UTC, datetime
+
+                    credential = site_integrations.credential_row(db, site, provider)
+                    credential.verified_at = datetime.now(UTC)
+                    if provider == "email":
+                        credential.masked_hints_json = {
+                            **(credential.masked_hints_json or {}),
+                            "sender_confirmation": confirmation,
+                        }
+                    db.commit()
+                return connection_redirect(site_id, provider, "Connection test passed.")
+            except (CommerceError, ValueError) as exc:
+                return connection_redirect(site_id, provider, exc)
+
+        @rt(f"/admin/sites/{{site_id}}/settings/integrations/{provider}/disconnect", methods=["POST"])
+        async def post(session, request, site_id: str):
+            form = await request.form()
+            try:
+                check_csrf(session, form)
+                user_id = actor(session)
+                from app.site_integrations import disconnect
+
+                with SessionLocal() as db:
+                    site = managed_site(db, site_id, user_id)
+                    disconnect(db, site, provider)
+                    db.commit()
+                return connection_redirect(site_id, provider, "Connection disconnected.")
+            except CommerceError as exc:
+                return connection_redirect(site_id, provider, exc)
+
+    register_provider("paypal")
+    register_provider("email")
+
+    @rt("/admin/sites/{site_id}/settings/integrations/email/send-test", methods=["POST"])
+    async def post(session, request, site_id: str):
+        form = await request.form()
+        try:
+            check_csrf(session, form)
+            user_id = actor(session)
+            from app.site_integrations import send_test_email
+
+            with SessionLocal() as db:
+                site = managed_site(db, site_id, user_id)
+                user = db.get(User, user_id)
+                if not user or not user.email:
+                    raise CommerceError("Your account does not have an email address for the test.")
+                if not send_test_email(site, user.email, db):
+                    raise CommerceError("Postmark did not accept the test email.")
+                db.commit()
+            return connection_redirect(site_id, "email", "Test email sent to your signed-in address.")
+        except (CommerceError, ValueError, httpx.HTTPError) as exc:
+            return connection_redirect(site_id, "email", exc)
+
     @rt("/admin/sites/{site_id}/integrations", methods=["GET"])
     def get(session, site_id: str, notice: str = "", plan: str = ""):
         try:

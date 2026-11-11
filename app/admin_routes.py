@@ -272,7 +272,7 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                     ("Taxes and duties", "/settings/taxes", "Tax configuration and previews"),
                     ("Notifications", "/settings/notifications", "Customer email and delivery status"),
                     ("Domains", "/settings/domains", "Domain and go-live checks"),
-                    ("Integrations", "/integrations", "Connect services to your store"),
+                    ("Integrations", "/settings/integrations", "Connect services to your store"),
                     ("Policies", "/settings/policies", "Store and customer policies"),
                 ]
                 return shell("Settings", Div(
