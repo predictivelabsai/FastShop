@@ -808,6 +808,15 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     from app.store_preferences import metadata as preference_metadata
     document = resolve_dynamic_document(db, site, page, document)
     preferences = preference_metadata(db, site, page, document)
+    from app.site_tracking import product_item, tracking_nodes
+
+    product = product_item(db, site, page) if not preview and content is None else None
+    tracking_event = ({"name": "view_item", "currency": product["item"]["currency"],
+                       "value": product["item"]["price"], "items": [product["item"]],
+                       "variants": product["variants"]}
+                      if product else {})
+    provider_nodes = tracking_nodes(db, site, tracking_event,
+                                    preview=preview or content is not None)
     from app.site_editable_settings import shell_fields, shell_values
     from app.site_liquid_shell import PAYMENT_MARKS
 
@@ -953,6 +962,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(seo["title"]),
         *head_nodes(db, site, preferences, preview=preview or content is not None),
+        *provider_nodes,
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
         Meta(name="description", content=seo["description"]),
         Meta(
@@ -985,9 +995,6 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Link(rel="stylesheet", href=static_asset("widgets-pack4.css")) if needs_pack4_css(document["blocks"]) else None,
         Script(src=static_asset("widgets-pack4.js"), defer=True)
         if needs_pack4_js(document["blocks"]) or record_recent_product else None,
-        Script(src=static_asset("store-preferences.js"), defer=True, data_site=site.id)
-        if getattr(page, "id", "") and not preview and preferences
-        and (preferences.analytics_id or preferences.meta_pixel_id) else None,
         Script(src=static_asset("customer.js"), defer=True) if content is not None else None,
         Link(rel="stylesheet", href=static_asset("site-theme-liquid-products.css")),
         Script(src=static_asset("site-liquid-products.js"), defer=True),

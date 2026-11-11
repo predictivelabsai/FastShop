@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import re
 import secrets
 
 from fasthtml.common import Link, Meta
@@ -30,10 +29,15 @@ def save_preferences(db, site, data):
         raise CommerceError("Use a title under 241 characters and description under 501 characters.")
     analytics = str(data.get("analytics_id", row.analytics_id if row else "")).strip()
     pixel = str(data.get("meta_pixel_id", row.meta_pixel_id if row else "")).strip()
-    if "analytics_id" in data and analytics and not re.fullmatch(r"G-[A-Z0-9]{6,20}", analytics):
-        raise CommerceError("Use a Google Analytics measurement ID such as G-ABC1234567.")
-    if "meta_pixel_id" in data and pixel and not re.fullmatch(r"\d{5,30}", pixel):
-        raise CommerceError("Use a numeric Meta pixel ID.")
+    if "analytics_id" in data or "meta_pixel_id" in data:
+        from app.site_tracking import validate_tracking_ids
+
+        validated = validate_tracking_ids({
+            "ga4_measurement_id": analytics if "analytics_id" in data else "",
+            "meta_pixel_id": pixel if "meta_pixel_id" in data else "",
+        })
+        analytics = validated["ga4_measurement_id"] if "analytics_id" in data else analytics
+        pixel = validated["meta_pixel_id"] if "meta_pixel_id" in data else pixel
     media = {}
     for field in ("social_image_id", "favicon_id"):
         media[field] = str(data.get(field, "")).strip() or None

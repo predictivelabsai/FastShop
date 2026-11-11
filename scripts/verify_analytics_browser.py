@@ -61,9 +61,9 @@ def main():
             page.locator('input[name="email"]').fill(settings.admin_email)
             page.locator('input[name="password"]').fill(settings.admin_password)
             page.get_by_role("button", name="Sign in", exact=True).click()
-            page.goto(settings.public_url + "/admin/sites/" + site_id + "/settings/general")
+            page.goto(settings.public_url + "/admin/sites/" + site_id + "/marketing/tracking")
             page.locator('input[name="ga4_measurement_id"]').fill(measurement)
-            page.get_by_role("button", name="Publish shared settings", exact=True).click()
+            page.get_by_role("button", name="Publish settings", exact=True).click()
             page.wait_for_load_state("networkidle")
             for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
                 page.set_viewport_size({"width": width, "height": height})
@@ -87,12 +87,15 @@ def main():
             assert "fixture-private" not in serialized
             assert len([row for row in commands if row[:2] == ["event", "page_view"]]) == 1
             config = next(row[2] for row in commands if row[0] == "config")
-            assert config["cookie_prefix"] == "fs_" + site_id
-            assert config["cookie_path"] == "/sites/h24you" and config["allow_google_signals"] is False
+            assert config["send_page_view"] is False and config["allow_google_signals"] is False
+            consent_default = next(row[2] for row in commands if row[:2] == ["consent", "default"])
+            consent_update = next(row[2] for row in commands if row[:2] == ["consent", "update"])
+            assert consent_default["analytics_storage"] == "denied"
+            assert consent_update["analytics_storage"] == "granted"
             page.get_by_role("button", name="Cookie preferences", exact=True).click()
             page.locator('[data-consent="custom"]').click()
             assert len(requests) == 1  # Repeated grant does not reload or duplicate page_view.
-            page.evaluate("name => { document.cookie = name + '=fixture; Path=/sites/h24you'; document.cookie = 'unrelated_fixture=keep; Path=/'; }", "fs_" + site_id + "_ga")
+            page.evaluate("document.cookie = 'unrelated_fixture=keep; Path=/';")
             second = context.new_page()
             second.goto(root + "/")
             second.wait_for_function("window.__gaFixtureLoaded === true")
@@ -104,7 +107,7 @@ def main():
             second.close()
             assert len(requests) == 2
             cookies = {row["name"] for row in context.cookies()}
-            assert "fs_" + site_id + "_ga" not in cookies and "unrelated_fixture" in cookies
+            assert "unrelated_fixture" in cookies
             page.get_by_role("button", name="Cookie preferences", exact=True).click()
             page.locator('#h-cookie summary').click()
             for device, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:

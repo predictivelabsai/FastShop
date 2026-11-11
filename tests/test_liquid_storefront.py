@@ -312,4 +312,4 @@ def test_custom_data_leaves_synthetic_cart_and_checkout_pages_intact(browser):
     assert 'data-pack="liquid"' not in checkout.text and 'site-liquid.js' not in checkout.text
     assert "Product-only dynamic value" not in checkout.text
     assert "store-preferences.js" not in checkout.text
-    assert "store-preferences.js" in client.get(base + "/products/h2-4-you-one").text
+    assert "store-tracking.js" in client.get(base + "/products/h2-4-you-one").text

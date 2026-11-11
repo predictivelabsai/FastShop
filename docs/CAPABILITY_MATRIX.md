@@ -1,6 +1,6 @@
 # H24YOU capability and acceptance matrix
 
-Last updated: 2026-09-23. Baseline: local worktree at Alembic head `20260923_0015`,
+Last updated: 2026-11-11. Baseline: local worktree at Alembic head `20260923_0015`,
 full suite **259 passing**. This is a single source of truth for *what state each brief
 capability is in*, so the storefront simulator is not mistaken for an open shop. It does
 not assert production deployment or real-provider acceptance.
@@ -22,7 +22,7 @@ Legend:
 | §4.1 | Transparent-over-hero header + logo swap on scroll | Available | home page only |
 | §4.2 | First-order 10% banner + email capture | Sandbox | capture activates with sandbox commerce; pure-preview shows a disabled placeholder (see Deferred: preview capture) |
 | §4.3 | Footer legal/company/FDA + social & payment icons | Available | icons now rendered (`site_ui.py` `payment_methods`/`social_link`) |
-| §4.4 | Cookie consent (Accept/Decline/Preferences), consent-gated scripts | Available | `site-analytics.js`; GA4 only, no separate marketing loader |
+| §4.4 | Cookie consent (Accept/Decline/Preferences), consent-gated scripts | Available | `store-tracking.js`; GA4, Google Ads, Meta and TikTok load only after matching consent |
 | §5.1 | Hero video (autoplay/muted/loop/inline, poster, mobile source) | Available | placeholder media pending (Merchant input) |
 | §5.1/§7 | Science counters 2,000+/120+/68 + source line + scroll animation | Available | re-check date is a placeholder (Merchant input) |
 | §5.1 | Reviews section | Available | model-backed display + moderation; sample shown until real reviews approved |
