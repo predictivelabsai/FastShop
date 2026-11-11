@@ -106,6 +106,31 @@ def test_customer_login_does_not_grant_merchant_access_and_logout_revokes_sessio
     assert "Send login code" in response.text
 
 
+def test_merchant_account_copy_is_used_on_both_login_screens(customer_site):
+    site, client, base = customer_site
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        commerce.settings_for(db, saved).customer_accounts_enabled = True
+        saved.published_settings_json = saved.published_settings_json | {
+            "account_copy": {
+                "heading": "Customer sign in", "email_label": "Email address",
+                "send_code": "Email me a code", "code_label": "One-time code",
+                "verify_code": "Verify sign in", "sent_message": "A code is on its way.",
+            },
+        }
+        db.commit()
+
+    login = client.get(base + "/account")
+    assert "Customer sign in" in login.text
+    assert "Email address" in login.text and "Email me a code" in login.text
+    result = client.post(base + "/account/login/code", data={
+        "csrf_token": csrf(login), "email": "custom-copy@example.test", "website": "",
+    })
+    assert result.status_code == 200
+    assert "One-time code" in result.text and "Verify sign in" in result.text
+    assert "A code is on its way." in result.text
+
+
 def test_newsletter_requires_consent_and_confirmation_without_logging_customer_in(customer_site):
     site, client, base = customer_site
     page = client.get(base + "/")
