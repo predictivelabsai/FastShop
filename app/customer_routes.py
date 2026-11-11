@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import secrets
+from unicodedata import category
+from urllib.parse import unquote
 
 from fasthtml.common import H2, A, Button, Div, Form, Input, Label, Li, NotStr, P, Small, Ul
 from sqlalchemy import select
@@ -10,7 +12,6 @@ from starlette.responses import RedirectResponse
 
 from app import commerce
 from app import customer_services as customers
-from app.admin_entry import safe_next_path
 from app.customer_accounts import (
     CustomerAccountsUnavailable,
     require_customer_accounts,
@@ -82,7 +83,17 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         return {**DEFAULT_ACCOUNT_COPY, **(site.published_settings_json or {}).get("account_copy", {})}
 
     def safe_local_next(value, fallback):
-        return safe_next_path(str(value or ""), fallback)
+        if not isinstance(value, str):
+            return fallback
+        decoded = value
+        while True:
+            if (not decoded.startswith("/") or decoded.startswith("//")
+                    or "\\" in decoded or any(category(char) == "Cc" for char in decoded)):
+                return fallback
+            expanded = unquote(decoded)
+            if expanded == decoded:
+                return value
+            decoded = expanded
 
     def login_card(site, request, session, *, verify=False, next_path="", email=""):
         root = base(site, request)
