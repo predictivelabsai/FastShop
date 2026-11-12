@@ -22,7 +22,7 @@ def markup(node):
 def test_styled_words_only_replace_case_sensitive_whole_visible_words():
     result = markup(
         Div(
-            "One one Someone Phone Fizz",
+            "One one Someone Phone OnePlus Fizz",
             A("One", href="/One?word=Fizz", title="Fizz"),
             Img(src="/Fizz.png", alt="One Fizz"),
             Input(value="One", placeholder="Fizz"),
@@ -35,7 +35,7 @@ def test_styled_words_only_replace_case_sensitive_whole_visible_words():
 
     assert result.count('class="fs-styled-word"') == 3
     assert '<span data-styled-word="true"' in result
-    assert "one Someone Phone" in result
+    assert "one Someone Phone OnePlus" in result
     assert 'href="/One?word=Fizz"' in result and 'title="Fizz"' in result
     assert 'src="/Fizz.png" alt="One Fizz"' in result
     assert 'value="One" placeholder="Fizz"' in result
