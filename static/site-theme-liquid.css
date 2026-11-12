@@ -1041,10 +1041,10 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 .h-site[data-pack="liquid"] .liquid-mobile-menu :is(a, summary, button):hover {
   color:var(--liquid-header-mobile-menu-link-hover, var(--liquid-header-mobile-menu-link, inherit));
 }
-.h-site[data-pack="liquid"] .metal-top-bars .metal-header > .liquid-header-row {
+.h-site[data-pack="liquid"] .metal-top-bars .metal-header > div.liquid-header-row {
   padding-block:var(--liquid-header-padding-y, var(--liquid-header-padding-y-default));
 }
-.h-site[data-pack="liquid"] .metal-top-bars.is-scrolled .metal-header > .liquid-header-row {
+.h-site[data-pack="liquid"] .metal-top-bars.is-scrolled .metal-header > div.liquid-header-row {
   padding-block:min(var(--liquid-header-padding-y, var(--liquid-header-padding-y-default)), 8px);
 }
 .h-site[data-pack="liquid"] .liquid-header-logo {
