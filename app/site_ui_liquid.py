@@ -467,13 +467,19 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
             cls="liquid-ruled",
         )
     if kind == "liquid_benefits":
+        from app.site_icons import render_icon
+
         return Section(
             Div(
                 H2(heading, cls="font-display text-5xl"),
                 Div(
                     *[
                         Article(
-                            icon(s["theme"], benefit=True),
+                            render_icon(
+                                db, site, s.get("icon", ""),
+                                lambda s=s: icon(s.get("icon") or s["theme"], benefit=True),
+                                css_class="metal-benefit-icon", size=48, stroke_width="1.3",
+                            ),
                             H3(s["heading"], cls="font-display",
                                **_field_attrs(preview, f"items.{i}.heading")),
                             _rich(s["body"], cls="text-muted-foreground",
@@ -753,10 +759,19 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
             cls="liquid-ruled",
         )
     if kind == "liquid_trust":
+        from app.site_icons import render_icon
+
         return Section(
             Ul(
                 *[
-                    Li(icon(("shipping", "box", "returns")[i % 3]), Span(s["label"]))
+                    Li(
+                        render_icon(
+                            db, site, s.get("icon", ""),
+                            lambda i=i, s=s: icon(s.get("icon") or ("shipping", "box", "returns")[i % 3]),
+                            css_class="liquid-icon", size=20, stroke_width="1.3",
+                        ),
+                        Span(s["label"]),
+                    )
                     for i, s in enumerate(items)
                 ],
                 cls="metal-container shop-trust",

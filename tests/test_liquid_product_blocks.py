@@ -61,6 +61,10 @@ def test_liquid_product_editor_only_shows_fields_rendered_for_each_theme():
 
     assert "url" not in top_fields("liquid_product_benefits")
     assert "button" not in top_fields("liquid_product_benefits")
+    for theme in {"cell", "shield", "exercise", "leaf", "water"}:
+        assert "icon" in theme_fields("liquid_product_benefits", theme)
+    assert "icon" not in theme_fields("liquid_product_benefits", "research")
+    assert "icon" not in theme_fields("liquid_product_benefits", "research-cta")
     assert {"theme", "label", "url"} <= theme_fields("liquid_product_benefits", "research-cta")
     assert "url" not in theme_fields("liquid_product_benefits", "research")
     assert "url" not in theme_fields("liquid_product_day", "day")
@@ -72,6 +76,12 @@ def test_liquid_product_editor_only_shows_fields_rendered_for_each_theme():
         for field in schemas["liquid_product_purchase"]["fields"]
         if field["id"] == "items"
     )
+    benefit_items = next(
+        field
+        for field in schemas["liquid_product_benefits"]["fields"]
+        if field["id"] == "items"
+    )
+    assert next(field for field in benefit_items["item_fields"] if field["id"] == "icon")["type"] == "icon"
     range_flavor_fields = {
         field["id"]
         for field in purchase_items["layout_theme_fields"]["range"]["flavor"]

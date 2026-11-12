@@ -62,6 +62,21 @@ def test_schema_completeness_and_copy_isolation():
                     assert item_field["type"] == "select" and item_field["options"]
 
 
+def test_every_icon_choice_uses_the_visual_icon_picker_field():
+    icon_fields = []
+    for schema in editor_schema().values():
+        for field in schema["fields"]:
+            icon_fields.extend(
+                item_field
+                for item_field in field.get("item_fields", field.get("fields", []))
+                if item_field["id"] in {"icon", "separator"}
+            )
+            if field["id"] in {"icon", "separator"}:
+                icon_fields.append(field)
+    assert len(icon_fields) >= 9
+    assert all(field["type"] == "icon" for field in icon_fields)
+
+
 @pytest.mark.parametrize("kind", BLOCK_TYPES)
 def test_every_default_validates_and_renders_in_both_themes(context, kind):
     db, site, page = context

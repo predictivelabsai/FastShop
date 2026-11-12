@@ -64,13 +64,17 @@ def choice(*options, aliases=()):
 
 def legacy_items(editor_fields, *, themes=()):
     # Historical generic entries accepted these fields, even when not shown in the editor.
+    editor_fields = list(editor_fields)
     fields = {key: text("textarea" if key == "body" else "image" if key == "image" else "url" if key == "url" else "text")
               for key in ("heading", "body", "url", "theme", "image", "alt", "label", "value")}
     if themes:
         fields["theme"] = choice(*themes)
+        fields["icon"] = {"kind": "icon"}
+        editor_fields.append("icon")
     defaults = {key: "Your content" if key not in {"url", "image"} else "/" if key == "url" else "" for key in editor_fields}
     if themes:
         defaults["theme"] = sorted(themes)[0]
+        defaults["icon"] = ""
     return {"fields": fields, "editor_fields": editor_fields, "defaults": defaults,
             "min": 0, "max": 200, "themes": themes}
 
@@ -234,6 +238,10 @@ def validate_widget_field(value, key, spec):
     from app.site_blocks import _text
 
     kind = spec.get("kind", "text")
+    if key == "icon" or kind == "icon":
+        from app.site_icons import validate_icon_reference
+
+        return validate_icon_reference(value)
     if kind in {"range", "number", "int"}:
         if type(value) is not int or not spec["min"] <= value <= spec["max"]:
             raise CommerceError(f"{key} must be between {spec['min']} and {spec['max']}.")
@@ -480,7 +488,7 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
     if kind in PACK1_WIDGETS:
         from app.site_widgets_pack1 import render_pack_widget
 
-        return decorate_block(render_pack_widget(block, base, preview), block, preview)
+        return decorate_block(render_pack_widget(db, site, block, base, preview), block, preview)
     if kind in PACK2_WIDGETS:
         from app.site_widgets_pack2 import render_pack_widget
 
@@ -584,15 +592,21 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
             else Div("Choose a video", cls="fs-widget-placeholder")
         ]
     elif kind == "icon_list":
+        from app.site_icons import render_icon
+
         children = [
             Ul(
                 *[
                     Li(
-                        Span(
-                            {"check": "✓ ", "star": "★ ", "arrow": "→ ", "heart": "♥ "}[
-                                item.get("theme", "check")
-                            ],
-                            aria_hidden="true",
+                        render_icon(
+                            db, site, item.get("icon", ""),
+                            lambda item=item: Span(
+                                {"check": "✓ ", "star": "★ ", "arrow": "→ ", "heart": "♥ "}[
+                                    item.get("theme", "check")
+                                ],
+                                aria_hidden="true",
+                            ),
+                            css_class="fs-icon-list-icon", size=18,
                         ),
                         Span(item.get("heading", "")),
                         rich_content(item.get("body", ""), **field(f"items.{index}.body")),

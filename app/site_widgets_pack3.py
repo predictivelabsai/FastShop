@@ -90,6 +90,7 @@ def product_listing(db, site, product):
 
 
 def render_pack_widget(db, site, block, base="", preview=False):
+    from app.site_icons import render_icon
     from app.site_widgets import rich_content
 
     kind, items = block["type"], block.get("items", [])
@@ -152,7 +153,12 @@ def render_pack_widget(db, site, block, base="", preview=False):
             ft_hx("thead", ft_hx("tr", ft_hx("th", "Feature", scope="col"), *[ft_hx("th", block[f"option_{j}"], scope="col", **field(f"option_{j}")) for j in range(1, block.get("options", 2) + 1)])),
             ft_hx("tbody", *rows)), cls="fs-pack3-comparison-scroll", role="region", tabindex="0", aria_label="Comparison table, scroll horizontally to compare options")]
     elif kind == "trust_badges":
-        children = [Div(*[Div(_icon(item["icon"]), Div(heading(item["heading"], f"items.{i}.heading", "h3"), P(item["text"], **field(f"items.{i}.text"))), cls="fs-pack3-trust-item") for i, item in enumerate(items)], cls="fs-pack3-trust", data_layout=block.get("layout", "row"))]
+        children = [Div(*[Div(render_icon(
+            db, site, item.get("icon", ""), lambda item=item: _icon(item.get("icon", "check")),
+            css_class="fs-pack3-icon", size=26,
+        ), Div(heading(item["heading"], f"items.{i}.heading", "h3"),
+               P(item["text"], **field(f"items.{i}.text"))), cls="fs-pack3-trust-item")
+            for i, item in enumerate(items)], cls="fs-pack3-trust", data_layout=block.get("layout", "row"))]
     elif kind == "announcement_bar":
         attrs = {"data_announcement": "", "data_scheme": block.get("scheme", "accent"), "data_interval": str(block.get("interval", 5)), "data_preview": str(preview).lower(), "data_storage_key": f"fastshop:announcement:{site.id}:{block.get('id', '')}"}
         children = [Div(*[Div(A(item["text"], href=href(item["link"]), **field(f"items.{i}.text")) if item.get("link") else Span(item["text"], **field(f"items.{i}.text")), data_announcement_message=str(i)) for i, item in enumerate(items)], cls="fs-pack3-announcements"),
@@ -166,7 +172,11 @@ def render_pack_widget(db, site, block, base="", preview=False):
             Div(ft_hx("code", code.code, data_promo_code="", tabindex="0"), Button("Copy code", type="button", data_copy_code="", hidden=True), Span("", role="status", aria_live="polite", data_copy_status=""), cls="fs-pack3-code") if code else None,
             cls="fs-pack3-promo-copy"), Img(src=block["image"], alt=block.get("image_alt", ""), loading="lazy", **field("image")) if block.get("image") else None]
     elif kind == "steps":
-        children = [heading(block.get("heading")), ft_hx("ol", *[Li(Span(str(i + 1).zfill(2), cls="fs-pack3-step-number", aria_hidden="true"), _icon(item["icon"]) if item.get("icon") else None,
+        children = [heading(block.get("heading")), ft_hx("ol", *[Li(Span(str(i + 1).zfill(2), cls="fs-pack3-step-number", aria_hidden="true"), render_icon(
+            db, site, item.get("icon", ""),
+            lambda item=item: _icon(item["icon"]) if item.get("icon") else None,
+            css_class="fs-pack3-icon", size=26,
+        ) if item.get("icon") else None,
             heading(item["heading"], f"items.{i}.heading", "h3"), rich_content(item["body"], **field(f"items.{i}.body"))) for i, item in enumerate(items)], cls="fs-pack3-steps")]
     elif kind == "star_rating":
         ids = {p.id for p in scoped_products(db, site)}

@@ -17,7 +17,7 @@
 .marquee-viewport{overflow:hidden;max-width:100%}
 .marquee-track{display:flex;flex-wrap:wrap;gap:24px}
 .marquee-items{display:flex;flex-wrap:wrap;gap:24px;align-items:center;list-style:none;padding:0;margin:0}
-.marquee-items svg{flex:none}
+.marquee-items :is(svg,img){flex:none;object-fit:contain}
 .marquee-items[aria-hidden=true]{display:none}
 .widget-marquee[data-enhanced=true] .marquee-track{width:max-content;max-width:none;flex-wrap:nowrap;gap:0;animation:fs-pack4-marquee 30s linear infinite}
 .widget-marquee[data-enhanced=true] .marquee-items{flex:none;flex-wrap:nowrap;padding-right:24px}
@@ -45,7 +45,7 @@
 .flip-card-inner{flex:1}
 .flip-card-front,.flip-card-back{padding:24px;border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:var(--store-radius,6px);background:var(--store-background,#fff)}
 .flip-card-front>img{width:100%;aspect-ratio:4/3;object-fit:cover;margin-bottom:20px}
-.flip-card-front>svg{color:var(--store-accent,inherit);margin-bottom:20px}
+.flip-card-front>:is(svg.flip-card-icon,img.flip-card-icon){color:var(--store-accent,inherit);margin-bottom:20px;object-fit:contain}
 .flip-card-back{margin-top:12px}
 .flip-card[data-enhanced=true] .flip-card-inner{display:grid;transform-style:preserve-3d;transition:transform .45s ease}
 .flip-card[data-enhanced=true] :is(.flip-card-front,.flip-card-back){grid-area:1/1;backface-visibility:hidden;margin:0}
@@ -93,7 +93,7 @@
 /* Catalogue cards are also returned by the visitor's recently viewed fragment. */
 .fs-pack4-sr{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .marquee-item{display:inline-flex;align-items:center;gap:24px;font-size:clamp(1rem,2vw,1.5rem);line-height:1.4}
-.marquee-item>svg{flex:none}
+.marquee-item>:is(svg,img){flex:none;object-fit:contain}
 .video-poster{position:relative;display:block;min-height:220px;border-radius:var(--store-radius,6px);overflow:hidden;background:color-mix(in srgb,currentColor 6%,var(--store-background,#fff))}
 .video-poster>img,.video-poster>.fs-widget-placeholder{width:100%;max-height:560px;object-fit:cover;min-height:260px}
 .video-poster>.video-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}

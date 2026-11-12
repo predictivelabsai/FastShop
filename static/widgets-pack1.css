@@ -91,7 +91,7 @@
 .fs-pack-icon-grid{grid-template-columns:1fr;gap:32px}
 .fs-pack-icon-entry{min-width:0}
 .fs-pack-icon{display:inline-flex;margin-bottom:16px;color:var(--store-accent,currentColor)}
-.fs-pack-icon svg{display:block}
+.fs-pack-icon :is(svg,img){display:block;width:32px;height:32px;object-fit:contain}
 .fs-pack-icon-entry h3{font-size:1.2em}
 .fs-pack-icon-grid[data-icon-position=left] .fs-pack-icon-entry{display:flex;gap:18px}
 .fs-pack-icon-grid[data-icon-position=left] .fs-pack-icon{flex:none;margin:0}

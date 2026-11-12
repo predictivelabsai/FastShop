@@ -38,6 +38,8 @@ let state,
   dragPayload,
   mediaCallback,
   linkCallback,
+  iconCallback,
+  iconLibrary,
   conflictVersion;
 const collapsed = new Set();
 let toastTimer;
@@ -873,6 +875,14 @@ function fieldHTML(f, obj, prefix = "") {
       (f.fixed
         ? ""
         : `<button data-repeat-add="${esc(path)}" ${rows.length >= (f.max ?? 50) ? "disabled" : ""}>+ Add item</button>`);
+  } else if (f.type === "icon") {
+    const selected = String(v || ""),
+      label = selected.startsWith("lucide:")
+        ? selected.slice("lucide:".length).replaceAll("-", " ")
+        : selected
+          ? "Custom icon"
+          : "No icon selected";
+    html = `<div class="icon-field-actions"><button id="${esc(id)}" type="button" class="icon-field-trigger" data-icon="${esc(path)}" aria-haspopup="dialog"><span>${selected ? "Change icon" : "Choose icon"}</span><small>${esc(label)}</small></button>${selected ? `<button type="button" data-icon-clear="${esc(path)}" aria-label="Clear ${esc(f.label || f.id)}">Clear</button>` : ""}</div>`;
   } else if (["image", "video"].includes(f.type))
     html = `${f.type === "image" && obj.type !== "image_hotspots" && v && !v.startsWith("metafield:") ? `<img class="field-media-preview" src="${esc(v)}" alt="Selected image">` : ""}<input ${attrs} value="${esc(v)}" placeholder="Media URL"><button data-media="${esc(path)}">Choose media</button>`;
   else
@@ -1089,6 +1099,24 @@ function wireFields(obj, update, root = "#settings-content") {
           update(b.dataset.media, url);
           renderSettings();
         })),
+  );
+  host.querySelectorAll("[data-icon]").forEach(
+    (b) =>
+      (b.onclick = () =>
+        openIcon(
+          (value) => {
+            update(b.dataset.icon, value);
+            renderSettings();
+          },
+          text(get(obj, b.dataset.icon)),
+        )),
+  );
+  host.querySelectorAll("[data-icon-clear]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        update(b.dataset.iconClear, "");
+        renderSettings();
+      }),
   );
   host.querySelectorAll("[data-link]").forEach(
     (b) =>
@@ -1373,6 +1401,73 @@ async function openMedia(callback) {
     );
   } catch (e) {
     showError(e);
+  }
+}
+function iconChoiceHTML(icon, current) {
+  return `<button type="button" class="icon-choice" data-icon-value="${esc(icon.id)}" aria-pressed="${String(icon.id === current)}" title="${esc(icon.label)}"><span class="icon-choice-glyph" aria-hidden="true">${icon.svg}</span><span>${esc(icon.label)}</span></button>`;
+}
+function customIconChoiceHTML(media, current) {
+  const label = media.title || media.alt || "Custom icon";
+  const glyph = media.svg || `<img src="${esc(media.url)}" alt="">`;
+  return `<button type="button" class="icon-choice" data-icon-value="${esc(media.url)}" aria-pressed="${String(media.url === current)}" title="${esc(label)}"><span class="icon-choice-glyph" aria-hidden="true">${glyph}</span><span>${esc(label)}</span></button>`;
+}
+function wireIconChoices(callback) {
+  const choices = $$("#icon-dialog [data-icon-value]");
+  choices.forEach((button) => {
+    button.onclick = () => {
+      callback(button.dataset.iconValue);
+      $("#icon-dialog").close();
+    };
+    button.onkeydown = (event) => {
+      const keys = ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"];
+      if (!keys.includes(event.key)) return;
+      const grid = button.closest(".icon-grid");
+      const gridChoices = [...grid.querySelectorAll("[data-icon-value]")];
+      const position = gridChoices.indexOf(button);
+      const columns = Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(" ").length);
+      let next = position;
+      if (event.key === "ArrowRight") next += 1;
+      if (event.key === "ArrowLeft") next -= 1;
+      if (event.key === "ArrowDown") next += columns;
+      if (event.key === "ArrowUp") next -= columns;
+      if (event.key === "Home") next = 0;
+      if (event.key === "End") next = gridChoices.length - 1;
+      next = Math.min(gridChoices.length - 1, Math.max(0, next));
+      event.preventDefault();
+      gridChoices[next]?.focus();
+    };
+  });
+}
+async function openIcon(callback, current = "") {
+  iconCallback = callback;
+  $("#icon-search").value = "";
+  $("#icon-grid").innerHTML =
+    `<div class="editor-skeleton" role="status" aria-label="Loading icons"></div>`.repeat(8);
+  $("#custom-icon-grid").innerHTML = "";
+  openDialog("#icon-dialog");
+  try {
+    if (!iconLibrary) iconLibrary = await api("/icons");
+    const draw = () => {
+      const query = $("#icon-search").value.trim().toLowerCase();
+      const matches = (entry) => `${entry.label} ${entry.id}`.toLowerCase().includes(query);
+      const builtins = (iconLibrary.icons || []).filter(matches);
+      const custom = (iconLibrary.custom || []).filter((entry) =>
+        `${entry.title || ""} ${entry.alt || ""}`.toLowerCase().includes(query),
+      );
+      $("#icon-grid").innerHTML = builtins.map((icon) => iconChoiceHTML(icon, current)).join("")
+        || '<p class="subtle">No built-in icons match that search.</p>';
+      $("#custom-icon-grid").innerHTML = custom.map((media) => customIconChoiceHTML(media, current)).join("")
+        || '<p class="subtle">No matching icons in this site’s media library.</p>';
+      $("#custom-icon-section").hidden = !custom.length && Boolean(query);
+      $("#icon-results-summary").textContent = `${builtins.length} built-in icon${builtins.length === 1 ? "" : "s"}${custom.length ? ` and ${custom.length} site media item${custom.length === 1 ? "" : "s"}` : ""}`;
+      wireIconChoices(callback);
+    };
+    $("#icon-search").oninput = draw;
+    draw();
+    $("#icon-search").focus();
+  } catch (e) {
+    showError(e);
+    $("#icon-dialog").close();
   }
 }
 async function openLink(callback, type = "url") {
@@ -1778,6 +1873,44 @@ $("#media-upload").onchange = async (e) => {
   e.target.disabled = false;
   dropzone.removeAttribute("aria-busy");
   dropzone.querySelector("strong").textContent = "Add image";
+};
+const iconUpload = $("#icon-upload"), iconUploadZone = $("#icon-upload-label");
+iconUploadZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  iconUploadZone.classList.add("drag-over");
+});
+iconUploadZone.addEventListener("dragleave", () => iconUploadZone.classList.remove("drag-over"));
+iconUploadZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  iconUploadZone.classList.remove("drag-over");
+  if (!e.dataTransfer.files.length || iconUpload.disabled) return;
+  iconUpload.files = e.dataTransfer.files;
+  iconUpload.dispatchEvent(new Event("change", { bubbles: true }));
+});
+iconUpload.onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const data = new FormData();
+  data.append("file", file);
+  data.append("title", file.name.replace(/\.[^.]+$/, ""));
+  e.target.disabled = true;
+  iconUploadZone.setAttribute("aria-busy", "true");
+  iconUploadZone.querySelector("strong").textContent = "Uploading icon…";
+  try {
+    const result = await api("/icons", "POST", data);
+    iconLibrary ??= { icons: [], custom: [] };
+    iconLibrary.custom = [result.media, ...(iconLibrary.custom || [])];
+    iconCallback?.(result.media.url);
+    toast("Custom icon uploaded");
+    $("#icon-dialog").close();
+  } catch (error) {
+    showError(error);
+  } finally {
+    e.target.value = "";
+    e.target.disabled = false;
+    iconUploadZone.removeAttribute("aria-busy");
+    iconUploadZone.querySelector("strong").textContent = "Upload custom icon";
+  }
 };
 $("#link-apply").onclick = () => {
   linkCallback($("#link-search").value);

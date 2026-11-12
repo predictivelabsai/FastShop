@@ -312,8 +312,9 @@ def pack_definitions(definition):
     }
 
 
-def render_pack_widget(block, base="", preview=False):
+def render_pack_widget(db, site, block, base="", preview=False):
     """Return a new pack section; the registry applies shared styling and hooks."""
+    from app.site_icons import render_icon
     from app.site_widgets import rich_content
 
     kind = block["type"]
@@ -532,14 +533,22 @@ def render_pack_widget(block, base="", preview=False):
     elif kind == "icon_box":
         entries = []
         for i, item in enumerate(block.get("items", [])):
-            svg = (
-                '<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-                + ICON_PATHS.get(item.get("icon", "box"), ICON_PATHS["box"])
-                + "</svg>"
-            )
             entries.append(
                 Div(
-                    Span(NotStr(svg), cls="fs-pack-icon"),
+                    Span(
+                        render_icon(
+                            db, site, item.get("icon", ""),
+                            lambda item=item: NotStr(
+                                '<svg viewBox="0 0 24 24" width="32" height="32" fill="none" '
+                                'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" '
+                                'stroke-linejoin="round" aria-hidden="true">'
+                                + ICON_PATHS.get(item.get("icon", "box"), ICON_PATHS["box"])
+                                + "</svg>"
+                            ),
+                            css_class="fs-pack-icon", size=32, stroke_width="1.6",
+                        ),
+                        cls="fs-pack-icon",
+                    ),
                     Div(
                         heading(item.get("heading", ""), f"items.{i}.heading", "h3"),
                         rich_content(item.get("body", ""), **field(f"items.{i}.body")),

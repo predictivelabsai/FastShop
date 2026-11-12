@@ -12,7 +12,16 @@ from starlette.responses import Response
 from starlette.testclient import TestClient
 
 from app import content, site_editor_routes
-from app.models import AgentConversation, AgentMessage, Base, Membership, Site, SitePage, User
+from app.models import (
+    AgentConversation,
+    AgentMessage,
+    Base,
+    Membership,
+    Site,
+    SiteMedia,
+    SitePage,
+    User,
+)
 from app.services import CommerceError
 
 
@@ -545,10 +554,13 @@ def test_liquid_product_editable_text_and_links_round_trip_for_each_block(worksp
                             if key == "image"
                             else f"/edited/{block['id']}/{item_index}/{key}"
                             if key == "url"
+                            else "lucide:droplet"
+                            if key == "icon"
                             else f"edit_{block['id']}_{item_index}_{key}"
                         )
                         item[key] = value
-                        block_expected.append(value)
+                        if key != "icon":
+                            block_expected.append(value)
             expected[block["id"]] = block_expected
             blocks.append(block)
 
@@ -610,6 +622,81 @@ def test_media_upload_reuses_image_validation_and_site_library(workspace):
     assert media["url"].startswith(f"/site-media/{w.site.id}/")
     assert any(row["id"] == media["id"] for row in w.client.get(w.base + "/media").json()["media"])
 
+
+def test_icon_picker_upload_is_sanitised_and_scoped_to_the_site(workspace):
+    w = workspace
+    editor = w.client.get(f"/admin/sites/{w.site.id}/editor", params={"page": w.page.id})
+    assert editor.status_code == 200
+    for target in ("icon-dialog", "icon-search", "icon-upload", "icon-grid", "custom-icon-grid"):
+        assert f'id="{target}"' in editor.text
+
+    library = w.client.get(w.base + "/icons")
+    assert library.status_code == 200, library.text
+    icons = library.json()["icons"]
+    assert len(icons) >= 300
+    droplet = next(icon for icon in icons if icon["id"] == "lucide:droplet")
+    assert "<svg" in droplet["svg"] and "currentColor" in droplet["svg"]
+
+    unsafe = b'''<svg viewBox="0 0 24 24" onload="alert(1)">
+      <script>alert(1)</script><foreignObject><p>unsafe</p></foreignObject>
+      <path d="M1 1h2" onclick="alert(1)" stroke="url(https://bad.example/icon)"/>
+      <image href="https://bad.example/icon.png"/>
+    </svg>'''
+    assert w.client.post(w.base + "/icons", files={"file": ("unsafe.svg", unsafe, "image/svg+xml")}).status_code == 403
+    uploaded = w.client.post(
+        w.base + "/icons", files={"file": ("unsafe.svg", unsafe, "image/svg+xml")},
+        data={"title": "Safe mark", "alt": "Safe custom icon"}, headers=w.headers,
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    own_icon = uploaded.json()["media"]
+    assert own_icon["content_type"] == "image/svg+xml"
+    assert own_icon["url"].startswith(f"/site-media/{w.site.id}/")
+    assert "<path" in own_icon["svg"] and "currentColor" in own_icon["svg"]
+
+    with w.sessions() as db:
+        stored = db.get(SiteMedia, own_icon["id"])
+        assert stored.tenant_id == w.site.tenant_id and stored.site_id == w.site.id
+        safe = stored.data.decode("utf-8")
+        foreign = SiteMedia(
+            tenant_id=w.other.tenant_id, site_id=w.other.id, title="Other icon", alt="Other icon",
+            storage_key="other-icon.svg", content_type="image/svg+xml", size=6, data=b"<svg/>",
+        )
+        legacy = SiteMedia(
+            tenant_id=w.site.tenant_id, site_id=w.site.id, title="External legacy icon",
+            alt="External legacy icon", storage_key="https://bad.example/icon.svg",
+            public_url="https://bad.example/icon.svg", content_type="image/svg+xml", size=0,
+            data=None,
+        )
+        db.add_all([foreign, legacy])
+        db.commit()
+        foreign_id, legacy_id = foreign.id, legacy.id
+    assert "script" not in safe.lower()
+    assert "foreignobject" not in safe.lower()
+    assert "onload" not in safe.lower()
+    assert "https://bad.example" not in safe.lower()
+    assert "currentColor" in safe
+
+    current_library = w.client.get(w.base + "/icons").json()["custom"]
+    assert own_icon["id"] in {media["id"] for media in current_library}
+    assert foreign_id not in {media["id"] for media in current_library}
+    assert legacy_id not in {media["id"] for media in current_library}
+    assert w.client.get(f"/admin/sites/{w.other.id}/editor/api/icons").status_code == 403
+
+    document = load(w)["document"]
+    document["blocks"] = [{
+        "id": "why", "type": "liquid_benefits",
+        "items": [{
+            "theme": "cell", "heading": "Cellular health", "body": "A benefit.",
+            "icon": f"/site-media/{w.other.id}/{foreign_id}",
+        }],
+    }]
+    rejected = w.client.put(
+        w.base + "/draft", json={"document": document, "version": load(w)["version"]},
+        headers=w.headers,
+    )
+    assert rejected.status_code == 422
+    assert "belonging to this site" in rejected.json()["error"]
+
 def test_render_fragment_and_invalid_json_are_bounded(workspace):
     w = workspace
     document = load(w)["document"]
@@ -654,9 +741,62 @@ def test_live_liquid_benefits_fields_round_trip_through_editor_save(workspace, t
     )
     assert result.status_code == 200, result.text
     saved = result.json()["document"]["blocks"][0]["items"][1]
-    assert saved["theme"] == theme
-    assert "icon" not in saved
+    assert saved["theme"] == "shield"
+    assert saved["icon"] == theme
     assert result.json()["document"]["blocks"][0]["items"][0]["body"] == "Edited benefit text."
+
+
+def test_liquid_benefit_icon_override_renders_and_blank_icon_keeps_legacy_art(workspace):
+    w = workspace
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        liquid_settings = {"theme_pack": "liquid", "default_locale": "en"}
+        site.settings_json = liquid_settings
+        site.published_settings_json = liquid_settings
+        db.commit()
+    loaded = load(w)
+    document = loaded["document"] | {"blocks": [{
+        "id": "why", "type": "liquid_benefits", "heading": "Why drink hydrogen water?",
+        "items": [{
+            "theme": "cell", "icon": "lucide:droplet", "heading": "Cellular health",
+            "body": "A benefit.",
+        }],
+    }]}
+    saved = w.client.put(
+        w.base + "/draft", json={"document": document, "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert saved.status_code == 200, saved.text
+    item = saved.json()["document"]["blocks"][0]["items"][0]
+    assert item["theme"] == "cell"
+    assert item["icon"] == "lucide:droplet"
+
+    selected = w.client.post(
+        w.base + "/render", params={"page": w.page.id},
+        json={"document": saved.json()["document"], "block_id": "why"}, headers=w.headers,
+    )
+    assert selected.status_code == 200, selected.text
+    assert 'd="M12 22a7 7 0 0 0 7-7' in selected.json()["html"]
+    assert 'stroke="currentColor"' in selected.json()["html"]
+
+    legacy_document = json.loads(json.dumps(saved.json()["document"]))
+    legacy_document["blocks"][0]["items"][0].pop("icon")
+    legacy = w.client.post(
+        w.base + "/render", params={"page": w.page.id},
+        json={"document": legacy_document, "block_id": "why"}, headers=w.headers,
+    )
+    assert legacy.status_code == 200, legacy.text
+    assert 'd="M37 14c8 6' in legacy.json()["html"]
+    assert 'd="M12 22a7 7 0 0 0 7-7' not in legacy.json()["html"]
+
+    legacy_choice = json.loads(json.dumps(saved.json()["document"]))
+    legacy_choice["blocks"][0]["items"][0].update(theme="shield", icon="cell")
+    rendered_choice = w.client.post(
+        w.base + "/render", params={"page": w.page.id},
+        json={"document": legacy_choice, "block_id": "why"}, headers=w.headers,
+    )
+    assert rendered_choice.status_code == 200, rendered_choice.text
+    assert 'd="M37 14c8 6' in rendered_choice.json()["html"]
 
 
 def test_unsupported_item_field_error_names_field_and_index(workspace):
@@ -737,6 +877,8 @@ def test_liquid_editor_item_fields_round_trip_through_save(workspace, kind):
             item[key] = "/edited"
         elif key == "image":
             item[key] = "/static/edited.jpg"
+        elif key == "icon":
+            item[key] = "lucide:droplet"
         elif key == "value" and kind == "liquid_reviews":
             item[key] = "4"
         else:

@@ -910,6 +910,8 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                 )
             )
     elif kind == "benefits":
+        from app.site_icons import render_icon
+
         research = one(b, "research")
         research_cta = one(b, "research-cta")
         benefits = [
@@ -923,7 +925,14 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                     Div(image(b["image"], b["alt"]), cls="tablet-benefit-glass"),
                     *[
                         Div(
-                            Span(icon(s["theme"], benefit=True), cls="tablet-benefit-icon"),
+                            Span(
+                                render_icon(
+                                    db, site, s.get("icon", ""),
+                                    lambda s=s: icon(s.get("icon") or s["theme"], benefit=True),
+                                    css_class="metal-benefit-icon", size=48, stroke_width="1.3",
+                                ),
+                                cls="tablet-benefit-icon",
+                            ),
                             H3(s["heading"], cls="mt-3 font-display text-2xl"),
                             _rich(s["body"], key=f"items.{b.get('items', []).index(s) if s in b.get('items', []) else 0}.body", preview=preview, cls="mt-2 text-sm leading-relaxed text-muted-foreground"),
                             _rich(

@@ -29,7 +29,9 @@ def _field(key, default="", *, choices=None):
     kind = "text"
     data = {}
     bare = key.removeprefix("style.")
-    if choices is not None:
+    if bare == "icon":
+        kind = "icon"
+    elif choices is not None:
         kind, data = "select", {"options": _options(choices)}
     elif bare in {"image", "poster", "background_image"}:
         kind = "image"
@@ -71,8 +73,9 @@ def _field(key, default="", *, choices=None):
 def _widget_field(key, default, spec):
     """Translate registry constraints into the established editor schema shape."""
     kind = spec.get("kind", "text")
-    result = _field(key, default, choices=spec.get("options"))
-    result["type"] = kind
+    icon_field = key == "icon" or kind == "icon"
+    result = _field(key, default, choices=None if icon_field else spec.get("options"))
+    result["type"] = "icon" if icon_field else kind
     if key.rsplit(".", 1)[-1] in {"body", "description", "text", "quote", "bio", "disclaimer"}:
         result["type"] = "richtext"
     result["help"] = spec.get("help", "")
@@ -164,11 +167,11 @@ LIQUID_PRODUCT_ITEM_EDITOR_FIELDS = {
         "range-link": {"label", "body", "url"},
     },
     "liquid_product_benefits": {
-        "cell": {"heading", "body", "label", "url"},
-        "shield": {"heading", "body", "label", "url"},
-        "exercise": {"heading", "body", "label", "url"},
-        "leaf": {"heading", "body", "label", "url"},
-        "water": {"heading", "body", "label", "url"},
+        "cell": {"heading", "body", "label", "url", "icon"},
+        "shield": {"heading", "body", "label", "url", "icon"},
+        "exercise": {"heading", "body", "label", "url", "icon"},
+        "leaf": {"heading", "body", "label", "url", "icon"},
+        "water": {"heading", "body", "label", "url", "icon"},
         "research": {"heading", "body", "value", "label", "alt"},
         "research-cta": {"label", "url"},
     },
@@ -389,9 +392,13 @@ def _registry():
                     item_keys = ["heading", "body", "url", "image", "alt", "label", "value"]
                     if themes:
                         item_keys = ["theme"] + item_keys
+                    if kind in {"liquid_benefits", "liquid_trust"}:
+                        item_keys.insert(1 if themes else 0, "icon")
                 required = spec.required_item_fields
                 item_default = {
-                    k: "Your content" if k not in {"url", "image"} else ("/" if k == "url" else "")
+                    k: "Your content" if k not in {"url", "image", "icon"} else (
+                        "/" if k == "url" else ""
+                    )
                     for k in item_keys
                 }
                 if themes:
@@ -400,7 +407,8 @@ def _registry():
                     for editor_fields in product_item_fields.values():
                         for key in editor_fields:
                             item_default.setdefault(
-                                key, "/" if key == "url" else "" if key == "image" else "Your content"
+                                key, "/" if key == "url" else ""
+                                if key in {"image", "icon"} else "Your content"
                             )
                 if kind in {"liquid_reviews"}:
                     item_default["value"] = "5"

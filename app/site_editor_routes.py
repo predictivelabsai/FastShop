@@ -38,7 +38,14 @@ from app.site_blocks import (
     resolve_text,
     validate_block,
 )
-from app.site_media import MAX_IMAGE_BYTES, media_for, media_url, prepare_image_bytes
+from app.site_media import (
+    MAX_IMAGE_BYTES,
+    MAX_SVG_ICON_BYTES,
+    media_for,
+    media_url,
+    prepare_image_bytes,
+    prepare_svg_icon,
+)
 from app.site_styled_words import styled_words_for, validate_styled_words
 from app.site_theme import CHOICES, DEFAULTS, theme_pack, validate_theme
 
@@ -114,6 +121,19 @@ def _media(row, locale):
     return {"id": row.id, "url": media_url(row), "title": row.title,
             "alt": resolve_text(row.localized_alt or row.alt, locale),
             "content_type": row.content_type, "size": row.size}
+
+
+def _icon_media(row, locale):
+    """Return a picker-safe, tenant-scoped icon representation for stored media."""
+    if row.data is None or row.content_type not in {"image/png", "image/svg+xml", "image/webp"}:
+        return None
+    result = _media(row, locale) | {"url": f"/site-media/{row.site_id}/{row.id}"}
+    if row.content_type == "image/svg+xml":
+        try:
+            result["svg"] = prepare_svg_icon(row.data).decode("utf-8")
+        except (CommerceError, UnicodeDecodeError):
+            return None
+    return result
 
 
 def _html(node):
@@ -724,6 +744,61 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 db.add(media)
                 db.flush()
                 result = _media(media, default_locale(site))
+                db.commit()
+                return response({"media": result}, 201)
+        except (CommerceError, ValueError, TypeError) as exc:
+            return failure(exc)
+
+    @rt("/admin/sites/{site_id}/editor/api/icons", methods=["GET"])
+    def icons_get(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site, _ = access(db, session, site_id)
+                from app.site_icons import picker_icons
+
+                custom = []
+                for media in media_for(db, site):
+                    item = _icon_media(media, default_locale(site))
+                    if item is not None:
+                        custom.append(item)
+                return response({"icons": picker_icons(), "custom": custom})
+        except CommerceError as exc:
+            return failure(exc)
+
+    @rt("/admin/sites/{site_id}/editor/api/icons", methods=["POST"])
+    async def icons_post(session, request, site_id: str):
+        try:
+            header_csrf(session, request)
+            with SessionLocal() as db:
+                site, _ = access(db, session, site_id)
+                form = await request.form()
+                upload = form.get("file") or form.get("icon")
+                if not upload or not hasattr(upload, "read"):
+                    raise EditorError("Select an SVG, PNG or WebP icon.")
+                filename = str(getattr(upload, "filename", "")).lower()
+                content_type = str(getattr(upload, "content_type", "")).lower()
+                title = str(form.get("title", "")).strip()[:200] or "Custom icon"
+                alt = str(form.get("alt", "")).strip()[:400] or title
+                if content_type == "image/svg+xml" or filename.endswith(".svg"):
+                    data = prepare_svg_icon(await upload.read(MAX_SVG_ICON_BYTES + 1))
+                    media_type, extension = "image/svg+xml", "svg"
+                else:
+                    if content_type not in {"image/png", "image/webp"} and not filename.endswith(
+                        (".png", ".webp")
+                    ):
+                        raise EditorError("Select an SVG, PNG or WebP icon.")
+                    data = prepare_image_bytes(await upload.read(MAX_IMAGE_BYTES + 1))
+                    media_type, extension = "image/webp", "webp"
+                media = SiteMedia(
+                    tenant_id=site.tenant_id, site_id=site.id, title=title, alt=alt,
+                    storage_key=new_id() + "." + extension, content_type=media_type,
+                    size=len(data), data=data,
+                )
+                db.add(media)
+                db.flush()
+                result = _icon_media(media, default_locale(site))
+                if result is None:
+                    raise EditorError("Could not prepare that icon.")
                 db.commit()
                 return response({"media": result}, 201)
         except (CommerceError, ValueError, TypeError) as exc:

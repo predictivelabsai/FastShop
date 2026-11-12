@@ -114,7 +114,7 @@ def custom_icon_markup(db, site, value: str, *, css_class="", size=24, stroke_wi
     """Render a scoped custom SVG inline, or a scoped raster icon as an image."""
     if not isinstance(value, str) or not _MEDIA_ICON.fullmatch(value):
         return None
-    from app.site_media import media_url, owned_media
+    from app.site_media import owned_media
 
     media = owned_media(db, site, value.rsplit("/", 1)[-1])
     if media.content_type == "image/svg+xml" and media.data:
@@ -122,8 +122,8 @@ def custom_icon_markup(db, site, value: str, *, css_class="", size=24, stroke_wi
                                     stroke_width=stroke_width)
         return NotStr(markup) if markup else None
     if media.content_type in {"image/jpeg", "image/png", "image/webp"}:
-        return Img(src=media_url(media), alt="", aria_hidden="true", cls=css_class,
-                   width=size, height=size)
+        return Img(src=f"/site-media/{site.id}/{media.id}", alt="", aria_hidden="true",
+                   cls=css_class, width=size, height=size)
     return None
 
 

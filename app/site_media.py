@@ -15,6 +15,8 @@ from app.services import CommerceError
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_IMAGE_PIXELS = 25_000_000
 MAX_SVG_ICON_BYTES = 256 * 1024
+MAX_SVG_ICON_DEPTH = 32
+MAX_SVG_ICON_NODES = 512
 
 _SVG_DRAWING_TAGS = {
     "circle",
@@ -96,7 +98,15 @@ def prepare_svg_icon(data: bytes) -> bytes:
     if not _SVG_VIEWBOX.fullmatch(view_box):
         view_box = "0 0 24 24"
 
-    def rebuild(node):
+    nodes = 0
+
+    def rebuild(node, depth=1):
+        nonlocal nodes
+        if depth > MAX_SVG_ICON_DEPTH:
+            raise CommerceError("SVG icons are too deeply nested.")
+        nodes += 1
+        if nodes > MAX_SVG_ICON_NODES:
+            raise CommerceError("SVG icons contain too many elements.")
         tag = _svg_name(node.tag)
         if tag not in _SVG_DRAWING_TAGS:
             return None
@@ -110,7 +120,7 @@ def prepare_svg_icon(data: bytes) -> bytes:
                 attrs[name] = value
         clean = ElementTree.Element(tag, attrs)
         for child in node:
-            nested = rebuild(child)
+            nested = rebuild(child, depth + 1)
             if nested is not None:
                 clean.append(nested)
         return clean

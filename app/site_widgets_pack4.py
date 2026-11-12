@@ -55,6 +55,7 @@ def _icon(name):
 
 
 def render_pack_widget(db, site, block, base="", preview=False):
+    from app.site_icons import render_icon
     from app.site_widgets import rich_content
 
     kind, items = block["type"], block.get("items", [])
@@ -80,7 +81,15 @@ def render_pack_widget(db, site, block, base="", preview=False):
     children, attrs = [], {}
     if kind == "marquee":
         def strip(clone=False):
-            return Div(*[Span(Span(item["text"], **({} if clone else field(f"items.{i}.text"))), _icon(block["separator"]) if block.get("separator") else None, cls="marquee-item") for i, item in enumerate(items)], cls="marquee-items", **({"aria_hidden": "true"} if clone else {}))
+            return Div(*[Span(
+                Span(item["text"], **({} if clone else field(f"items.{i}.text"))),
+                render_icon(
+                    db, site, block.get("separator", ""), lambda: _icon(block["separator"]),
+                    css_class="marquee-icon", size=26,
+                ) if block.get("separator") else None,
+                cls="marquee-item",
+            ) for i, item in enumerate(items)], cls="marquee-items",
+                       **({"aria_hidden": "true"} if clone else {}))
         attrs = {"data_speed": block.get("speed", "medium"), "data_direction": block.get("direction", "left"), "data_marquee": ""}
         children = [Div(Div(strip(), strip(True), cls="marquee-track"), cls="marquee-viewport"), Button("Pause scrolling", type="button", data_marquee_toggle="", aria_pressed="false", hidden=True)]
     elif kind == "collage":
@@ -93,7 +102,10 @@ def render_pack_widget(db, site, block, base="", preview=False):
         cards = []
         for i, item in enumerate(items):
             target = f"{uid}-back-{i}"
-            cards.append(Div(Div(Div(image(item["image"], item["alt"], f"items.{i}.image") if item.get("image") else _icon(item["icon"]) if item.get("icon") else None,
+            cards.append(Div(Div(Div(image(item["image"], item["alt"], f"items.{i}.image") if item.get("image") else render_icon(
+                db, site, item.get("icon", ""), lambda item=item: _icon(item["icon"]),
+                css_class="flip-card-icon", size=26,
+            ) if item.get("icon") else None,
                 heading(item["heading"], f"items.{i}.heading", "h3"), cls="flip-card-front"),
                 Div(rich_content(item["body"], **field(f"items.{i}.body")), button(item.get("button_label"), item.get("link", ""), key=f"items.{i}.button_label"), id=target, cls="flip-card-back"), cls="flip-card-inner"),
                 Button("Show details", type="button", aria_expanded="false", aria_controls=target, data_flip_toggle="", hidden=True), cls="flip-card"))

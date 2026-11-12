@@ -233,6 +233,11 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
         for index, item in enumerate(result['items']):
             if not isinstance(item, dict):
                 raise CommerceError(f'Block item {index + 1} must be an object.')
+            if result['type'] == 'liquid_benefits' and 'theme' not in item and item.get('icon') in {
+                'cell', 'shield', 'exercise', 'leaf', 'molecule', 'water',
+            }:
+                # A short-lived editor shape used icon as the legacy theme key.
+                item['theme'] = item['icon']
             unsupported = set(item) - ITEM_FIELDS
             if unsupported:
                 field = sorted(unsupported)[0]
@@ -243,8 +248,10 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
                 raise CommerceError('Block entry is missing required fields.')
             for key, value in item.items():
                 _text(value, key)
-            if result['type'] == 'liquid_benefits' and 'icon' in item:
-                item['theme'] = item.pop('icon')
+            if 'icon' in item:
+                from app.site_icons import validate_icon_reference
+
+                item['icon'] = validate_icon_reference(item['icon'])
             if result['type'] in LIQUID_PRODUCT_THEMES:
                 theme = item.get('theme')
                 if not isinstance(theme, str) or theme not in LIQUID_PRODUCT_THEMES[result['type']]:
