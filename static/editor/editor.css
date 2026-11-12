@@ -129,18 +129,31 @@ body {
   align-items: center;
   gap: 6px;
 }
-.top-actions #undo,
-.top-actions #redo {
+.top-actions :is(#undo, #redo, .icon-link) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
   font-size: 21px;
   border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--a-ink);
   box-shadow: none;
+  gap: 6px;
   padding: 4px 8px;
   min-width: 30px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
 }
-.icon-link {
-  color: var(--a-ink);
-  padding: 8px;
-  font-size: 21px;
+.top-actions .icon-link svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+.top-actions .icon-link:hover {
+  background: #f0f0f1;
 }
 .editor-shell .publish-button {
   background: #303033;
@@ -324,7 +337,10 @@ body {
   opacity: 1;
   pointer-events: auto;
 }
-.tree-row:focus-visible, .editor-shell button:focus-visible, .editor-shell summary:focus-visible {
+.tree-row:focus-visible,
+.editor-shell button:focus-visible,
+.editor-shell summary:focus-visible,
+.editor-shell .top-actions .icon-link:focus-visible {
   outline: 2px solid #005bd3;
   outline-offset: -2px;
 }
@@ -892,7 +908,7 @@ body {
   .top-actions {
     gap: 4px;
   }
-  .editor-shell .top-actions button {
+  .editor-shell .top-actions :is(button, .icon-link) {
     font-size: 11px;
     padding: 6px 8px;
   }
@@ -904,6 +920,11 @@ body {
   }
   .settings-fields {
     padding: 12px;
+  }
+}
+@media (max-width: 800px) {
+  .editor-shell .top-actions .icon-link {
+    min-height: 44px;
   }
 }
 .mobile-preview {

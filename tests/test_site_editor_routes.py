@@ -63,6 +63,18 @@ def load(w):
     return result.json()
 
 
+def test_editor_seo_action_is_an_accessible_toolbar_icon(workspace):
+    w = workspace
+
+    result = w.client.get(f"/admin/sites/{w.site.id}/editor", params={"page": w.page.id})
+
+    assert result.status_code == 200
+    assert f'href="/admin/sites/{w.site.id}/content/pages/{w.page.id}/seo"' in result.text
+    assert 'id="seo-link"' in result.text
+    assert 'aria-label="Search engine optimisation"' in result.text
+    assert 'stroke-width="1.5"' in result.text
+
+
 def test_load_requires_active_actor_membership_and_scoped_page(workspace):
     w = workspace
     loaded = load(w)
