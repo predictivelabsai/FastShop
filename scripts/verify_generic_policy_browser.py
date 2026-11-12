@@ -8,7 +8,6 @@ from pathlib import Path
 
 import uvicorn
 from playwright.sync_api import expect, sync_playwright
-from sqlalchemy import select
 
 from app.config import settings
 
@@ -18,7 +17,6 @@ def main():
         raise SystemExit("Requires DB_URL empty and an isolated fastshop-* data directory.")
     from app.db import SessionLocal
     from app.main import app
-    from app.models import Site
     from scripts.demo_site import seed_demo_site
 
     with SessionLocal() as db:

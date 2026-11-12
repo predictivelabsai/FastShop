@@ -48,11 +48,12 @@ def main() -> None:
         port = sock.getsockname()[1]
     with tempfile.TemporaryDirectory(prefix="fastshop-tracking-") as data_dir:
         isolate(data_dir, port)
+        from sqlalchemy import select
+
         from app import content
         from app.db import SessionLocal, engine
         from app.main import app
         from app.models import Site, SitePage, User
-        from sqlalchemy import select
 
         with SessionLocal() as db:
             user = db.scalar(select(User).where(User.email == EMAIL))
