@@ -39,24 +39,119 @@ import "/static/admin/rich-text.js";
       `${"--liquid-type-" + role}-letter-spacing`,
     ]),
   ]);
+  const headerFooterProperties = new Map([
+    ["--liquid-header-background", "colour"],
+    ["--liquid-header-text", "colour"],
+    ["--liquid-header-link", "colour"],
+    ["--liquid-header-link-hover", "colour"],
+    ["--liquid-header-border", "colour"],
+    ["--liquid-header-padding-y", "header-length"],
+    ["--liquid-header-logo-size", "logo-length"],
+    ["--liquid-header-sticky", "toggle"],
+    ["--liquid-announcement-background", "colour"],
+    ["--liquid-announcement-text", "colour"],
+    ["--liquid-announcement-title-colour", "colour"],
+    ["--liquid-announcement-request-colour", "colour"],
+    ["--liquid-footer-background", "colour"],
+    ["--liquid-footer-text", "colour"],
+    ["--liquid-footer-link", "colour"],
+    ["--liquid-footer-link-hover", "colour"],
+    ["--liquid-footer-divider", "colour"],
+    ["--liquid-footer-padding-y", "footer-length"],
+    ["--liquid-footer-logo-size", "logo-length"],
+    ["--liquid-footer-column-gap", "footer-length"],
+    ["--liquid-footer-newsletter-background", "colour"],
+    ["--liquid-footer-newsletter-input-background", "colour"],
+    ["--liquid-footer-newsletter-input-text", "colour"],
+    ["--liquid-footer-newsletter-input-border", "colour"],
+    ["--liquid-footer-newsletter-button-background", "colour"],
+    ["--liquid-footer-newsletter-button-text", "colour"],
+    ["--liquid-footer-bottom-background", "colour"],
+    ["--liquid-footer-bottom-legal-text", "colour"],
+    ["--liquid-footer-bottom-legal-link", "colour"],
+    ["--liquid-footer-bottom-disclaimer", "colour"],
+    ["--liquid-footer-bottom-divider", "colour"],
+  ]);
+  const themeProperties = new Set([
+    ...typographyProperties,
+    ...headerFooterProperties.keys(),
+  ]);
+  const trustedHeaderFooterValues = new Map([
+    ["--liquid-header-background", new Set(["var(--background)"])],
+    ["--liquid-header-text", new Set(["var(--foreground)"])],
+    ["--liquid-header-link", new Set(["var(--foreground)"])],
+    ["--liquid-header-link-hover", new Set(["var(--foreground)"])],
+    ["--liquid-header-border", new Set(["var(--border)"])],
+    ["--liquid-header-padding-y", new Set(["var(--liquid-header-padding-y-default)"])],
+    ["--liquid-announcement-background", new Set(["var(--card)"])],
+    ["--liquid-announcement-text", new Set(["var(--foreground)"])],
+    ["--liquid-announcement-title-colour", new Set(["var(--metal-sheen)"])],
+    ["--liquid-announcement-request-colour", new Set(["var(--muted-foreground)"])],
+    ["--liquid-footer-background", new Set(["var(--footer-surface)"])],
+    ["--liquid-footer-text", new Set(["var(--foreground)"])],
+    ["--liquid-footer-link", new Set(["var(--foreground)"])],
+    ["--liquid-footer-link-hover", new Set(["var(--foreground)"])],
+    ["--liquid-footer-divider", new Set(["color-mix(in oklch,var(--foreground) 15%,transparent)"])],
+    ["--liquid-footer-newsletter-background", new Set(["transparent")],
+    ["--liquid-footer-newsletter-input-background", new Set(["transparent")],
+    ["--liquid-footer-newsletter-input-text", new Set(["var(--foreground)"])],
+    ["--liquid-footer-newsletter-input-border", new Set(["var(--border)"])],
+    ["--liquid-footer-newsletter-button-background", new Set(["var(--metal-sheen)"])],
+    ["--liquid-footer-newsletter-button-text", new Set(["var(--primary-foreground)"])],
+    ["--liquid-footer-bottom-background", new Set(["transparent")],
+    ["--liquid-footer-bottom-legal-text", new Set(["var(--foreground)"])],
+    ["--liquid-footer-bottom-legal-link", new Set(["var(--foreground)"])],
+    ["--liquid-footer-bottom-disclaimer", new Set(["var(--foreground)"])],
+    ["--liquid-footer-bottom-divider", new Set(["color-mix(in oklch,var(--foreground) 15%,transparent)"])],
+  ]);
   const send = (data) =>
     parent.postMessage(
       { source: "fastshop-editor", site_id: siteId, page_id: pageId, ...data },
       editorOrigin,
     );
+  function headerFooterColour(value) {
+    if (typeof value !== "string") return false;
+    if (/^#[0-9a-f]{6}$/i.test(value)) return true;
+    const match = value.match(/^rgb\(\s*(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})\s*\)$/i);
+    return Boolean(match && match.slice(1).every((component) => Number(component) <= 255));
+  }
+  function headerFooterLength(value, kind) {
+    if (typeof value !== "string") return false;
+    const match = value.match(/^(0|[1-9]\d*)(?:\.\d+)?(px|rem)$/);
+    if (!match) return false;
+    const number = Number.parseFloat(value);
+    const bounds = {
+      "header-length": match[2] === "px" ? [0, 96] : [0, 6],
+      "footer-length": match[2] === "px" ? [0, 160] : [0, 10],
+      "logo-length": match[2] === "px" ? [32, 360] : [2, 22.5],
+    }[kind];
+    return number >= bounds[0] && number <= bounds[1];
+  }
+  function validHeaderFooterValue(property, value) {
+    if (trustedHeaderFooterValues.get(property)?.has(value)) return true;
+    const kind = headerFooterProperties.get(property);
+    if (kind === "colour") return headerFooterColour(value);
+    if (kind === "toggle") return value === "0" || value === "1";
+    return headerFooterLength(value, kind);
+  }
   function previewTheme(properties) {
     const root = document.querySelector(".h-site[data-pack='liquid']");
     if (!root || !properties || typeof properties !== "object") return;
-    typographyProperties.forEach((property) => root.style.removeProperty(property));
+    themeProperties.forEach((property) => root.style.removeProperty(property));
+    let sticky;
     Object.entries(properties).forEach(([property, value]) => {
       if (
-        typographyProperties.has(property) &&
+        themeProperties.has(property) &&
         typeof value === "string" &&
         value.length <= 160 &&
-        !/[;{}]/.test(value)
+        !/[;{}]/.test(value) &&
+        (typographyProperties.has(property) || validHeaderFooterValue(property, value))
       )
         root.style.setProperty(property, value);
+      if (property === "--liquid-header-sticky" && validHeaderFooterValue(property, value))
+        sticky = value;
     });
+    if (sticky) root.dataset.headerSticky = sticky === "1" ? "true" : "false";
   }
   let selected = null,
     dragPayload = null,

@@ -38,6 +38,7 @@ from app.site_blocks import default_locale, resolve_document
 from app.site_theme import (
     CHOICES,
     PRESETS,
+    header_footer_schema,
     theme_form_values,
     theme_pack,
     typography_schema,
@@ -174,6 +175,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     cls="b-imagery",
                 ) if imagery else None
                 typography_controls = None
+                header_footer_controls = None
                 if liquid:
                     typography = theme["typography"]
                     typography_fields = typography_schema()
@@ -203,12 +205,45 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                         ) for role in typography_fields["roles"]],
                         open=True,
                     )
+                    header_footer = theme["header_footer"]
+                    header_footer_fields = header_footer_schema()
+
+                    def header_footer_input(field, values, prefix):
+                        name = prefix + "." + field["id"]
+                        if field["type"] == "toggle":
+                            control = Input(
+                                name=name, type="checkbox", value="true",
+                                checked=bool(values[field["id"]]),
+                            )
+                        else:
+                            control = Input(
+                                name=name, value=values[field["id"]],
+                                inputmode="decimal" if field["type"] == "text" else "text",
+                                required=True,
+                            )
+                        return Label(
+                            field["label"], control,
+                            Small(field["help"]) if field.get("help") else None,
+                        )
+
+                    header_footer_controls = Details(
+                        Summary("Header and footer"),
+                        P("Choose approved colours and bounded spacing. Changes stay in your draft."),
+                        *[Details(
+                            Summary(section["label"]),
+                            *[header_footer_input(
+                                field, header_footer[section["id"]],
+                                "header_footer." + section["id"],
+                            ) for field in section["fields"]],
+                        ) for section in header_footer_fields["sections"]],
+                    )
                 design = Form(*hidden(), H2("Design settings"),
                     *[Label(k.title(), Input(name=k, type="color", value=theme[k]))
                       for k in ("accent", "background", "surface", "text")],
                     *[Label(k.title(), Select(*[
                         Option(v.title(), value=v, selected=theme[k] == v) for v in values
                     ], name=k)) for k, values in CHOICES.items()], typography_controls,
+                    header_footer_controls,
                     Button("Save design", cls="e-button"), method="post", action=base + "/build/design",
                     cls="e-form")
                 turn_views = [Div(
@@ -294,7 +329,9 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                 site = builder.lock_site(db, site_id, user_id, int(form.get("version", 0)))
                 liquid = theme_pack(site.settings_json or {}) == "liquid"
                 validator = validate_liquid_theme if liquid else validate_theme
-                theme = validator(theme_form_values(form, include_typography=liquid))
+                theme = validator(theme_form_values(
+                    form, include_typography=liquid, include_header_footer=liquid,
+                ))
                 builder.apply_operations(db, site.id, user_id, builder.snapshot(db, site), [{"op": "theme", "values": theme}], "classical")
                 db.commit()
             return redirect(site_id, str(form.get("page_id", "")), "Design saved", "design")

@@ -49,6 +49,7 @@ from app.site_media import (
 from app.site_styled_words import styled_words_for, validate_styled_words
 from app.site_theme import (
     CHOICES,
+    header_footer_schema,
     theme_pack,
     typography_schema,
     validate_liquid_theme,
@@ -81,6 +82,10 @@ def theme_settings(config, design):
 
 def theme_schema(config):
     return typography_schema() if theme_pack(config or {}) == "liquid" else None
+
+
+def header_footer_theme_schema(config):
+    return header_footer_schema() if theme_pack(config or {}) == "liquid" else None
 
 
 def validate_editor_document(document):
@@ -340,6 +345,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     "styled_words": styled_words_for(site.settings_json),
                     **shell_payload(site, theme),
                     "theme_choices": CHOICES, "typography_schema": theme_schema(site.settings_json),
+                    "header_footer_schema": header_footer_theme_schema(site.settings_json),
                     "can_publish": role in {"admin", "merchant"}})
         except CommerceError as exc:
             return failure(exc)
@@ -481,7 +487,9 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     site.settings_json, site.settings_json.get("design", {})),
                     "styled_words": styled_words_for(site.settings_json),
                     "theme_choices": CHOICES,
-                    "typography_schema": theme_schema(site.settings_json), "version": site.version})
+                    "typography_schema": theme_schema(site.settings_json),
+                    "header_footer_schema": header_footer_theme_schema(site.settings_json),
+                    "version": site.version})
         except CommerceError as exc:
             return failure(exc)
 

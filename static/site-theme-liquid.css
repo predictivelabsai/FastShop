@@ -1001,6 +1001,113 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
  .h-site[data-pack="liquid"] :is(.liquid-footer-title + p,.liquid-footer-title + .fs-rich-content,.liquid-footer-grid nav > a,.liquid-footer-grid > div:last-child p) { font-size:var(--liquid-type-footer-body-size-mobile); }
 }
 
+/* Validated Liquid chrome settings. Defaults deliberately resolve to the pre-existing
+   tone variables, transparent newsletter fields and metallic call-to-action gradient. */
+.h-site[data-pack="liquid"] { --liquid-header-padding-y-default:16px; }
+.h-site[data-pack="liquid"] .metal-top-bars {
+  position:sticky;
+  top:0;
+  z-index:calc(45 * var(--liquid-header-sticky, 1));
+  background:var(--liquid-header-background, var(--background));
+  color:var(--liquid-header-text, inherit);
+}
+.h-site[data-pack="liquid"][data-header-sticky="false"] .metal-top-bars {
+  position:static;
+  z-index:auto;
+}
+.h-site[data-pack="liquid"] .metal-header {
+  background:var(--liquid-header-background, var(--background));
+  border-bottom-color:var(--liquid-header-border, var(--border));
+}
+.h-site[data-pack="liquid"] .metal-header :is(a, summary, button) {
+  color:var(--liquid-header-link, inherit);
+}
+.h-site[data-pack="liquid"] .metal-header :is(a, summary, button):hover {
+  color:var(--liquid-header-link-hover, var(--liquid-header-link, inherit));
+}
+.h-site[data-pack="liquid"] .metal-top-bars .metal-header > .liquid-header-row {
+  padding-block:var(--liquid-header-padding-y, var(--liquid-header-padding-y-default));
+}
+.h-site[data-pack="liquid"] .metal-top-bars.is-scrolled .metal-header > .liquid-header-row {
+  padding-block:min(var(--liquid-header-padding-y, var(--liquid-header-padding-y-default)), 8px);
+}
+.h-site[data-pack="liquid"] .liquid-header-logo {
+  width:var(--liquid-header-logo-size, 144px);
+}
+.h-site[data-pack="liquid"] .metal-offer {
+  background:var(--liquid-announcement-background, var(--card));
+  color:var(--liquid-announcement-text, inherit);
+}
+.h-site[data-pack="liquid"] .metal-offer .text-metal-sheen {
+  background:var(--liquid-announcement-title-colour, var(--metal-sheen));
+  background-clip:text;
+  -webkit-background-clip:text;
+  color:transparent;
+}
+.h-site[data-pack="liquid"] .metal-offer-request {
+  color:var(--liquid-announcement-request-colour, var(--muted-foreground));
+}
+.h-site[data-pack="liquid"] .metal-footer {
+  background:var(--liquid-footer-background, var(--footer-surface));
+  color:var(--liquid-footer-text, inherit);
+}
+.h-site[data-pack="liquid"] .metal-footer a {
+  color:var(--liquid-footer-link, inherit);
+}
+.h-site[data-pack="liquid"] .metal-footer a:hover {
+  color:var(--liquid-footer-link-hover, var(--liquid-footer-link, inherit));
+}
+.h-site[data-pack="liquid"] .metal-footer > .liquid-footer-grid {
+  gap:var(--liquid-footer-column-gap, 64px);
+  padding-block:var(--liquid-footer-padding-y, 64px);
+}
+.h-site[data-pack="liquid"] .liquid-footer-logo {
+  width:var(--liquid-footer-logo-size, 144px);
+}
+.h-site[data-pack="liquid"] .liquid-newsletter-block {
+  background:var(--liquid-footer-newsletter-background, transparent);
+}
+.h-site[data-pack="liquid"] .liquid-email-row input {
+  background:var(--liquid-footer-newsletter-input-background, transparent);
+  border-color:var(--liquid-footer-newsletter-input-border, var(--border));
+  color:var(--liquid-footer-newsletter-input-text, inherit);
+}
+.h-site[data-pack="liquid"] .liquid-email-row input::placeholder {
+  color:var(--liquid-footer-newsletter-input-text, inherit);
+}
+.h-site[data-pack="liquid"] .liquid-email-row button {
+  background:var(--liquid-footer-newsletter-button-background, var(--metal-sheen));
+  background-size:220% 100%;
+  color:var(--liquid-footer-newsletter-button-text, var(--primary-foreground));
+}
+.h-site[data-pack="liquid"] .liquid-footer-bottom {
+  background:var(--liquid-footer-bottom-background, transparent);
+  border-top-color:var(--liquid-footer-bottom-divider, color-mix(in oklch,var(--foreground) 15%,transparent));
+  color:var(--liquid-footer-bottom-legal-text, inherit);
+}
+.h-site[data-pack="liquid"] .liquid-footer-legal,
+.h-site[data-pack="liquid"] .liquid-footer-copyright {
+  color:var(--liquid-footer-bottom-legal-text, inherit);
+}
+.h-site[data-pack="liquid"] .liquid-footer-legal :is(a),
+.h-site[data-pack="liquid"] .liquid-footer-legal-link {
+  color:var(--liquid-footer-bottom-legal-link, inherit);
+}
+.h-site[data-pack="liquid"] .liquid-footer-disclaimer {
+  color:var(--liquid-footer-bottom-disclaimer, inherit);
+}
+@media(max-width:1100px) {
+  .h-site[data-pack="liquid"] .metal-footer > .liquid-footer-grid {
+    gap:min(var(--liquid-footer-column-gap, 64px), 32px);
+  }
+}
+@media(max-width:767px) {
+  .h-site[data-pack="liquid"] { --liquid-header-padding-y-default:10px; }
+  .h-site[data-pack="liquid"] .metal-footer > .liquid-footer-grid {
+    gap:min(var(--liquid-footer-column-gap, 64px), 40px);
+  }
+}
+
 .liquid-policy-content,
 .fs-rich-content { line-height: 1.75; }
 .liquid-policy-content :is(h2, h3, h4),

@@ -909,7 +909,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         (s for s in shop_links if s["path"] == "/shop"), {"label": "Shop all", "path": "/shop"}
     )
 
-    def logo():
+    def logo(location="header"):
         from app.site_editable_settings import shell_fields, shell_values
         shell_settings = shell_values({**config, "theme_pack": "liquid"},
                                       shell_fields({"theme_pack": "liquid"}))
@@ -918,7 +918,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             alt=site.name,
             width=1774,
             height=262,
-            cls="liquid-logo",
+            cls="liquid-logo liquid-" + location + "-logo",
         )
 
     def group(g, mobile=False):
@@ -951,7 +951,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             blocks.append(child)
     if content is not None:
         blocks = list(content)
-    from app.site_theme import theme_style
+    from app.site_theme import liquid_header_sticky, theme_style
     from app.site_ui import has_published_recently_viewed
     from app.site_widgets import (
         LIQUID_DESIGN_CSS,
@@ -999,6 +999,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         db, site, page, document, seo["canonical"], seo, preview=preview,
     )
     theme_css = theme_style(config)
+    header_sticky = liquid_header_sticky(config)
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(seo["title"]),
@@ -1081,7 +1082,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 ),
                 Header(
                     Div(
-                        A(logo(), href=base + "/"),
+                        A(logo("header"), href=base + "/"),
                         Nav(
                             Ul(
                                 Li(group(nav["shop"])),
@@ -1122,7 +1123,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             ),
             Div(
                 Div(
-                    logo(),
+                    logo("header"),
                     Button("×", type="button", aria_label=labels["close"], data_liquid_menu_close=""),
                     cls="liquid-mobile-top",
                 ),
@@ -1165,7 +1166,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             Footer(
                 Div(
                     Div(
-                        A(logo(), href=base + "/"),
+                        A(logo("footer"), href=base + "/"),
                         H2(footer["newsletterTitle"], cls="liquid-footer-title",
                            **_field_attrs(preview, "liquid_shell.footer.newsletterTitle")),
                         _rich(footer["newsletterBody"],
@@ -1224,10 +1225,13 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                     cls="liquid-footer-grid",
                 ),
                 Div(
-                    _rich(resolved["footer"], **_field_attrs(preview, "footer", "richtext")),
-                        Button(labels["cookies"], type="button", data_cookie_open=""),
-                    P(copyright_line),
-                    Small("Sandbox · Test purchases only") if enabled and payment_mode != "live" else None,
+                    _rich(resolved["footer"], cls="liquid-footer-legal",
+                          **_field_attrs(preview, "footer", "richtext")),
+                    Button(labels["cookies"], type="button", data_cookie_open="",
+                           cls="liquid-footer-legal-link"),
+                    P(copyright_line, cls="liquid-footer-copyright"),
+                    Small("Sandbox · Test purchases only", cls="liquid-footer-disclaimer")
+                    if enabled and payment_mode != "live" else None,
                     cls="liquid-footer-bottom",
                 ),
                 id="footer",
@@ -1263,6 +1267,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             cls="h-site theme-metal",
             style=theme_css or None, data_themed="true" if config.get("design") else None,
             data_pack="liquid",
+            data_header_sticky=str(header_sticky).lower(),
             data_tone="rose",
             data_site=site.id,
             data_builder_page=page.id if preview else "",

@@ -376,7 +376,7 @@ async function preview(blockId = null) {
     frame.onload = () => {
       if (request === serial) needsFullPreview = false;
       send({ type: "context", block_id: selected, scroll_y: y });
-      previewTypography();
+      previewTheme();
     };
     frame.srcdoc = result.html;
     $("#node-count").textContent = `${walk().length} blocks`;
@@ -904,8 +904,82 @@ function typographyPreviewProperties(theme) {
   }
   return properties;
 }
-function previewTypography() {
-  send({ type: "theme", properties: typographyPreviewProperties(state.theme_settings) });
+const headerFooterPreviewFields = [
+  { section: "header", id: "background", property: "--liquid-header-background", type: "colour", defaultValue: "#13131c", cssDefault: "var(--background)" },
+  { section: "header", id: "text", property: "--liquid-header-text", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "header", id: "link", property: "--liquid-header-link", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "header", id: "link_hover", property: "--liquid-header-link-hover", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "header", id: "border", property: "--liquid-header-border", type: "colour", defaultValue: "#534c5d", cssDefault: "var(--border)" },
+  { section: "header", id: "padding_y", property: "--liquid-header-padding-y", type: "length", px: [0, 96], rem: [0, 6], defaultValue: "16px", cssDefault: "var(--liquid-header-padding-y-default)" },
+  { section: "header", id: "logo_size", property: "--liquid-header-logo-size", type: "length", px: [32, 360], rem: [2, 22.5], defaultValue: "144px", cssDefault: "144px" },
+  { section: "header", id: "sticky", property: "--liquid-header-sticky", type: "toggle", defaultValue: true, cssDefault: "1" },
+  { section: "announcement", id: "background", property: "--liquid-announcement-background", type: "colour", defaultValue: "#241f2b", cssDefault: "var(--card)" },
+  { section: "announcement", id: "text", property: "--liquid-announcement-text", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "footer", id: "background", property: "--liquid-footer-background", type: "colour", defaultValue: "#0a0a13", cssDefault: "var(--footer-surface)" },
+  { section: "footer", id: "text", property: "--liquid-footer-text", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "footer", id: "link", property: "--liquid-footer-link", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "footer", id: "link_hover", property: "--liquid-footer-link-hover", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "footer", id: "divider", property: "--liquid-footer-divider", type: "colour", defaultValue: "#2d2e38", cssDefault: "color-mix(in oklch,var(--foreground) 15%,transparent)" },
+  { section: "footer", id: "padding_y", property: "--liquid-footer-padding-y", type: "length", px: [0, 160], rem: [0, 10], defaultValue: "64px", cssDefault: "64px" },
+  { section: "footer", id: "logo_size", property: "--liquid-footer-logo-size", type: "length", px: [32, 360], rem: [2, 22.5], defaultValue: "144px", cssDefault: "144px" },
+  { section: "footer", id: "column_gap", property: "--liquid-footer-column-gap", type: "length", px: [0, 160], rem: [0, 10], defaultValue: "64px", cssDefault: "64px" },
+  { section: "newsletter", id: "background", property: "--liquid-footer-newsletter-background", type: "colour", defaultValue: "#0a0a13", cssDefault: "transparent" },
+  { section: "newsletter", id: "input_background", property: "--liquid-footer-newsletter-input-background", type: "colour", defaultValue: "#0a0a13", cssDefault: "transparent" },
+  { section: "newsletter", id: "input_text", property: "--liquid-footer-newsletter-input-text", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "newsletter", id: "input_border", property: "--liquid-footer-newsletter-input-border", type: "colour", defaultValue: "#534c5d", cssDefault: "var(--border)" },
+  { section: "newsletter", id: "button_background", property: "--liquid-footer-newsletter-button-background", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--metal-sheen)" },
+  { section: "newsletter", id: "button_text", property: "--liquid-footer-newsletter-button-text", type: "colour", defaultValue: "#0b121d", cssDefault: "var(--primary-foreground)" },
+  { section: "bottom", id: "background", property: "--liquid-footer-bottom-background", type: "colour", defaultValue: "#0a0a13", cssDefault: "transparent" },
+  { section: "bottom", id: "legal_text", property: "--liquid-footer-bottom-legal-text", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "bottom", id: "legal_link", property: "--liquid-footer-bottom-legal-link", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "bottom", id: "disclaimer", property: "--liquid-footer-bottom-disclaimer", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
+  { section: "bottom", id: "divider", property: "--liquid-footer-bottom-divider", type: "colour", defaultValue: "#2d2e38", cssDefault: "color-mix(in oklch,var(--foreground) 15%,transparent)" },
+];
+function headerFooterColour(value) {
+  if (typeof value !== "string") return "";
+  if (/^#[0-9a-f]{6}$/i.test(value)) return value;
+  const match = value.match(/^rgb\(\s*(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})\s*\)$/i);
+  return match && match.slice(1).every((component) => Number(component) <= 255) ? value : "";
+}
+function headerFooterLength(value, px, rem) {
+  if (typeof value !== "string") return "";
+  const match = value.match(/^(0|[1-9]\d*)(?:\.\d+)?(px|rem)$/);
+  if (!match) return "";
+  const number = Number.parseFloat(value),
+    [minimum, maximum] = match[2] === "px" ? px : rem;
+  return number >= minimum && number <= maximum ? value : "";
+}
+function headerFooterPreviewProperties(theme) {
+  const headerFooter = theme?.header_footer;
+  if (!headerFooter || typeof headerFooter !== "object") return {};
+  const properties = {};
+  for (const field of headerFooterPreviewFields) {
+    const value = headerFooter[field.section]?.[field.id];
+    const valid = field.type === "colour"
+      ? headerFooterColour(value)
+      : field.type === "length"
+        ? headerFooterLength(value, field.px, field.rem)
+        : typeof value === "boolean" ? value : null;
+    if (valid === "" || valid === null) continue;
+    properties[field.property] = value === field.defaultValue
+      ? field.cssDefault
+      : field.type === "toggle" ? (value ? "1" : "0") : value;
+  }
+  const announcementText = headerFooterColour(headerFooter.announcement?.text);
+  if (announcementText) {
+    const isDefault = announcementText === "#eff2f7";
+    properties["--liquid-announcement-title-colour"] = isDefault
+      ? "var(--metal-sheen)" : announcementText;
+    properties["--liquid-announcement-request-colour"] = isDefault
+      ? "var(--muted-foreground)" : announcementText;
+  }
+  return properties;
+}
+function themePreviewProperties(theme) {
+  return { ...typographyPreviewProperties(theme), ...headerFooterPreviewProperties(theme) };
+}
+function previewTheme() {
+  send({ type: "theme", properties: themePreviewProperties(state.theme_settings) });
 }
 function fieldHTML(f, obj, prefix = "") {
   if (f.id === "body" && ["bundle", "box"].includes(obj?.theme)) {
@@ -1373,7 +1447,7 @@ function wireStyledWords() {
 }
 function renderTheme() {
   const fields = Object.entries(state.theme_settings)
-    .filter(([id]) => id !== "typography")
+    .filter(([id]) => !["typography", "header_footer"].includes(id))
     .map(([id, v]) => ({
     id,
     label: id.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase()),
@@ -1400,15 +1474,21 @@ function renderTheme() {
       state.theme_settings.typography && state.typography_schema
         ? `<details class="theme-typography" open><summary>Typography</summary><p class="field-help">Choose local fonts and adjust every type role. Changes preview on the canvas before you save.</p>${fontFields.map((field) => fieldHTML(field, typography, "typography.")).join("")}${roleFields}</details>`
         : "";
+  const headerFooter = state.theme_settings.header_footer || {},
+    headerFooterSchema = state.header_footer_schema || { sections: [] },
+    headerFooterPanel =
+      state.theme_settings.header_footer && state.header_footer_schema
+        ? `<details class="theme-header-footer" open><summary>Header and footer</summary><p class="field-help">Style the shared chrome with approved colours and bounded spacing. Changes preview on the canvas before you save.</p>${(headerFooterSchema.sections || []).map((section) => { const values = headerFooter[section.id] || {}; return `<details class="theme-header-footer-section" ${section.id === "header" ? "open" : ""}><summary>${esc(section.label)}</summary>${(section.fields || []).map((field) => fieldHTML(field, values, `header_footer.${section.id}.`)).join("")}</details>`; }).join("")}</details>`
+        : "";
   $("#left-content").innerHTML =
-    `<div class="theme-fields"><p class="field-help">Shared across your storefront.</p>${fields.map((f) => fieldHTML(f, state.theme_settings)).join("")}${typographyPanel}${renderStyledWords()}<button id="save-theme">Save theme settings</button></div>`;
+    `<div class="theme-fields"><p class="field-help">Shared across your storefront.</p>${fields.map((f) => fieldHTML(f, state.theme_settings)).join("")}${typographyPanel}${renderStyledWords()}${headerFooterPanel}<button id="save-theme">Save theme settings</button></div>`;
   wireFields(
     state.theme_settings,
     (p, v) => {
       set(state.theme_settings, p, v);
       themeDirty = designDirty = true;
       status("Unsaved changes");
-      if (p.startsWith("typography.")) previewTypography();
+      if (p.startsWith("typography.") || p.startsWith("header_footer.")) previewTheme();
     },
     "#left-content",
   );
