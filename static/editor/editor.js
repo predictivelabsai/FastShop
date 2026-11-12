@@ -933,7 +933,7 @@ const headerFooterPreviewFields = [
   { section: "bottom", id: "legal_text", property: "--liquid-footer-bottom-legal-text", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
   { section: "bottom", id: "legal_link", property: "--liquid-footer-bottom-legal-link", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
   { section: "bottom", id: "disclaimer", property: "--liquid-footer-bottom-disclaimer", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
-  { section: "bottom", id: "divider", property: "--liquid-footer-bottom-divider", type: "colour", defaultValue: "#2d2e38", cssDefault: "color-mix(in oklch,var(--foreground) 15%,transparent)" },
+  { section: "bottom", id: "divider", property: "--liquid-footer-bottom-divider", type: "colour", defaultValue: "#2d2e38", cssDefault: "var(--liquid-footer-divider)" },
 ];
 function headerFooterColour(value) {
   if (typeof value !== "string") return "";

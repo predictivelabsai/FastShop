@@ -1011,6 +1011,9 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
   background:var(--liquid-header-background, var(--background));
   color:var(--liquid-header-text, inherit);
 }
+.h-site[data-pack="liquid"][data-themed="true"] .metal-top-bars {
+  color:var(--liquid-header-text, var(--foreground));
+}
 .h-site[data-pack="liquid"][data-header-sticky="false"] .metal-top-bars {
   position:static;
   z-index:auto;
@@ -1051,6 +1054,9 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
   background:var(--liquid-footer-background, var(--footer-surface));
   color:var(--liquid-footer-text, inherit);
 }
+.h-site[data-pack="liquid"][data-themed="true"] .metal-footer {
+  color:var(--liquid-footer-text, var(--foreground));
+}
 .h-site[data-pack="liquid"] .metal-footer a {
   color:var(--liquid-footer-link, inherit);
 }
@@ -1082,7 +1088,7 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 }
 .h-site[data-pack="liquid"] .liquid-footer-bottom {
   background:var(--liquid-footer-bottom-background, transparent);
-  border-top-color:var(--liquid-footer-bottom-divider, color-mix(in oklch,var(--foreground) 15%,transparent));
+  border-top-color:var(--liquid-footer-bottom-divider, var(--liquid-footer-divider, color-mix(in oklch,var(--foreground) 15%,transparent)));
   color:var(--liquid-footer-bottom-legal-text, inherit);
 }
 .h-site[data-pack="liquid"] .liquid-footer-legal,

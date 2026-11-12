@@ -102,7 +102,7 @@ import "/static/admin/rich-text.js";
     ["--liquid-footer-bottom-legal-text", new Set(["var(--foreground)"])],
     ["--liquid-footer-bottom-legal-link", new Set(["var(--foreground)"])],
     ["--liquid-footer-bottom-disclaimer", new Set(["var(--foreground)"])],
-    ["--liquid-footer-bottom-divider", new Set(["color-mix(in oklch,var(--foreground) 15%,transparent)"])],
+    ["--liquid-footer-bottom-divider", new Set(["var(--liquid-footer-divider)"])],
   ]);
   const send = (data) =>
     parent.postMessage(

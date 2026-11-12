@@ -189,7 +189,7 @@ HEADER_FOOTER_STYLE_DEFAULTS = {
     ("bottom", "legal_text"): "var(--foreground)",
     ("bottom", "legal_link"): "var(--foreground)",
     ("bottom", "disclaimer"): "var(--foreground)",
-    ("bottom", "divider"): "color-mix(in oklch,var(--foreground) 15%,transparent)",
+    ("bottom", "divider"): "var(--liquid-footer-divider)",
 }
 HEADER_FOOTER_SCHEMA = {
     "sections": [
