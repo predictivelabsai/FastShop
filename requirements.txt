@@ -7,4 +7,5 @@ psycopg[binary]>=3.2,<4
 python-dotenv>=1.1,<2
 python-fasthtml>=0.12,<1
 sqlalchemy>=2.0,<3
+tinycss2>=1.5,<2
 uvicorn>=0.35,<1

@@ -611,6 +611,30 @@ class SiteSnippet(TimestampMixin, Base):
         return validate_snapshot(value) if value is not None else None
 
 
+class SiteDesignOverride(TimestampMixin, Base):
+    __tablename__ = "site_design_overrides"
+    __table_args__ = (UniqueConstraint("site_id"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    draft_css: Mapped[str] = mapped_column(Text, default="")
+    published_css: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    published_version: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SiteDesignOverrideRevision(TimestampMixin, Base):
+    __tablename__ = "site_design_override_revisions"
+    __table_args__ = (UniqueConstraint("site_id", "publication_number"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    publication_number: Mapped[int] = mapped_column(Integer)
+    css: Mapped[str] = mapped_column(Text)
+    note: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
+
 class BlogCategory(TimestampMixin, Base):
     __tablename__ = "blog_categories"
     __table_args__ = (UniqueConstraint("site_id", "slug"),)
