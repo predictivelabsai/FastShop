@@ -114,6 +114,11 @@ def _text(value, key, limit=30000):
             continue
         if key in URL_FIELDS and text:
             safe_url(text, media=key not in {'link', 'url'})
+    if key in {"body", "description", "quote", "bio", "disclaimer"}:
+        from app.rich_text import sanitise_rich_text
+        if isinstance(value, dict):
+            return {locale: sanitise_rich_text(text) for locale, text in value.items()}
+        return sanitise_rich_text(value)
     return copy.deepcopy(value)
 
 
@@ -176,7 +181,7 @@ def validate_block(block: dict, *, _depth=1, _state=None) -> Block:
             if not set(BLOCK_TYPES[result['type']].required_item_fields) <= item.keys():
                 raise CommerceError('Block entry is missing required fields.')
             for key, value in item.items():
-                _text(value, key)
+                item[key] = _text(value, key)
     if 'gallery' in result:
         if not isinstance(result['gallery'], list) or len(result['gallery']) > 12:
             raise CommerceError('A gallery accepts up to twelve image URLs.')

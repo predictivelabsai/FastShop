@@ -52,6 +52,17 @@ def test_bare_legacy_section_list_normalizes():
     assert len(result["blocks"]) == 2
 
 
+def test_long_block_fields_are_sanitised_before_editor_save():
+    normalized = normalize_document({"version": 1, "blocks": [{
+        "id": "policy", "type": "text",
+        "body": '<h2>Returns</h2><p style="color:red" onerror="x()">Read <b>this</b><script>x()</script></p>'
+                '<ul><li>Keep receipt</li></ul><a href="javascript:alert(1)">unsafe</a>',
+    }]})
+    assert normalized["blocks"][0]["body"] == (
+        '<h2>Returns</h2><p>Read <b>this</b></p><ul><li>Keep receipt</li></ul><a>unsafe</a>'
+    )
+
+
 @pytest.mark.parametrize("block", [
     {"id": "bad", "type": "raw_html"},
     {"id": "bad", "type": "hero", "heading": 42},

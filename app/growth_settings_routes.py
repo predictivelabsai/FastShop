@@ -400,8 +400,11 @@ def register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error):
                 policies = (site.settings_json or {}).get("policies", {})
                 pages = list(db.scalars(select(SitePage).where(SitePage.site_id == site.id,
                     SitePage.tenant_id == site.tenant_id, SitePage.kind == "legal")))
+                from app.rich_text_ui import rich_text_editor
                 return shell("Policies", card(form(session, site, "policies", *[
-                    Label(key.replace("_", " ").title(), Textarea(policies.get(key, ""), name=key, rows="7"))
+                    rich_text_editor(policies.get(key, ""), name=key,
+                                     label=key.replace("_", " ").title(),
+                                     editor_id="checkout-policy-" + key)
                     for key in ("refund", "privacy", "terms", "shipping_policy")]), title="Store policies"),
                     card(*[A(page.title, href=f"/admin/sites/{site.id}/editor?page={page.id}", cls="e-button") for page in pages], title="Legal pages"))
         except CommerceError as exc:
@@ -414,7 +417,12 @@ def register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error):
             check_csrf(session, values)
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
-                policies = {key: str(values.get(key, "")).strip() for key in ("refund", "privacy", "terms", "shipping_policy")}
+                from app.rich_text import sanitise_rich_text
+                raw_policies = {key: str(values.get(key, "")).strip()
+                                for key in ("refund", "privacy", "terms", "shipping_policy")}
+                if any(len(value) > 50000 for value in raw_policies.values()):
+                    raise CommerceError("Each policy must contain fewer than 50,000 characters.")
+                policies = {key: sanitise_rich_text(value) for key, value in raw_policies.items()}
                 if any(len(value) > 50000 for value in policies.values()):
                     raise CommerceError("Each policy must contain fewer than 50,000 characters.")
                 site.settings_json = {**(site.settings_json or {}), "policies": policies}

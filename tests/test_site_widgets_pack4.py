@@ -49,6 +49,19 @@ def test_defaults_validate_render_and_round_trip(context, kind):
         assert 'data-field="' in markup
 
 
+def test_marquee_text_remains_plain_text(context):
+    item_fields = next(field for field in editor_schema()['marquee']['fields'] if field['id'] == 'items')['fields']
+    assert next(field for field in item_fields if field['id'] == 'text')['type'] == 'text'
+
+    block = default_block('marquee')
+    block['items'][0]['text'] = '<strong>Short message</strong>'
+    saved = validate_block(block)
+    assert saved['items'][0]['text'] == '<strong>Short message</strong>'
+    markup = render(context, saved)
+    assert '&lt;strong&gt;Short message&lt;/strong&gt;' in markup
+    assert 'data-field="items.0.text" data-field-type="text"' in markup
+
+
 @pytest.mark.parametrize(('kind', 'patch'), [
     ('marquee', {'speed': 'instant'}), ('marquee', {'direction': 'up'}),
     ('marquee', {'separator': '<svg>'}), ('collage', {'layout': 'random'}),

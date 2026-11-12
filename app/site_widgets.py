@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import html
 import re
 from dataclasses import dataclass
-from html.parser import HTMLParser
 
 from fasthtml.common import (
     A,
-    Blockquote,
     Button,
     Details,
     Div,
@@ -32,6 +29,7 @@ from fasthtml.common import (
 )
 from sqlalchemy import select
 
+from app.rich_text import sanitise_rich_text
 from app.services import CommerceError
 
 
@@ -183,62 +181,19 @@ STYLE_FIELDS = {
 }
 
 
-class _RichText(HTMLParser):
-    tags = {
-        "p",
-        "br",
-        "strong",
-        "em",
-        "u",
-        "s",
-        "a",
-        "ul",
-        "ol",
-        "li",
-        "h2",
-        "h3",
-        "h4",
-        "blockquote",
-    }
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.output = []
-        self.suppressed = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag in {"script", "style", "iframe", "object", "svg", "math"}:
-            self.suppressed += 1
-        if self.suppressed or tag not in self.tags:
-            return
-        attributes = ""
-        if tag == "a":
-            from app.content import safe_url
-
-            href = dict(attrs).get("href", "")
-            try:
-                href = safe_url(href)
-            except CommerceError:
-                href = ""
-            attributes = ' href="' + html.escape(href, quote=True) + '" rel="noopener noreferrer"'
-        self.output.append("<" + tag + attributes + ">")
-
-    def handle_endtag(self, tag):
-        if tag in {"script", "style", "iframe", "object", "svg", "math"}:
-            self.suppressed = max(0, self.suppressed - 1)
-            return
-        if not self.suppressed and tag in self.tags and tag != "br":
-            self.output.append("</" + tag + ">")
-
-    def handle_data(self, data):
-        if not self.suppressed:
-            self.output.append(html.escape(data))
-
-
 def sanitise_html(value):
-    parser = _RichText()
-    parser.feed(value)
-    return "".join(parser.output)
+    return sanitise_rich_text(value)
+
+
+def rich_content(value, **attrs):
+    """Render allow-listed rich text in a block container."""
+    classes = [part for part in ("fs-rich-content", attrs.pop("cls", "")) if part]
+    attrs["cls"] = " ".join(classes)
+    safe = sanitise_html(value)
+    if not re.search(r"<(?:p|br|h[2-4]|strong|b|em|i|u|a|ul|ol|li|blockquote|hr)(?:\s|>)", safe):
+        paragraphs = [part.strip() for part in str(value or "").split("\n\n") if part.strip()]
+        safe = "".join("<p>" + sanitise_html(part) + "</p>" for part in paragraphs)
+    return Div(NotStr(safe), **attrs)
 
 
 def validate_style(style):
@@ -307,7 +262,9 @@ def validate_widget_field(value, key, spec):
                     raise CommerceError("Embedded media must use HTTPS.")
             if kind == "colour" and not re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", entry):
                 raise CommerceError("Use a hexadecimal colour.")
-        transform = sanitise_html if kind == "richtext" else spec.get("validate")
+        transform = sanitise_html if kind == "richtext" or key.rsplit(".", 1)[-1] in {
+            "body", "description", "quote", "bio", "disclaimer"
+        } else spec.get("validate")
         if transform:
             value = {locale: transform(entry) for locale, entry in value.items()} if isinstance(value, dict) else transform(value)
     return value
@@ -496,14 +453,20 @@ def _mark_fields(node, block):
             value = block.get(field)
             if isinstance(value, str) and value and _node_text(child).strip() == value.strip():
                 child.attrs["data-field"] = field
-                child.attrs["data-field-type"] = "text"
+                child.attrs["data-field-type"] = (
+                    "richtext" if field in {"body", "description", "quote", "bio", "disclaimer"}
+                    else "text"
+                )
                 break
         if hasattr(child, "attrs") and not child.attrs.get("data-field"):
             field_id = fields_by_text.get(_node_text(child).strip())
             if field_id:
                 child.attrs["data-field"] = field_id
+                suffix = field_id.rsplit(".", 1)[-1]
                 child.attrs["data-field-type"] = (
-                    "image" if field_id.rsplit(".", 1)[-1] == "image" else "text"
+                    "image" if suffix == "image" else
+                    "richtext" if suffix in {"body", "description", "quote", "bio", "disclaimer"}
+                    else "text"
                 )
         if tag == "img" and child.attrs.get("src") == block.get("image"):
             child.attrs["data-field"] = "image"
@@ -532,12 +495,13 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
         return decorate_block(render_pack_widget(db, site, block, base, preview), block, preview)
 
     def field(name):
+        rich = name.rsplit(".", 1)[-1] in {
+            "body", "description", "quote", "bio", "disclaimer"
+        }
         return (
             {
                 "data_field": name,
-                "data_field_type": "richtext"
-                if name == "body" and kind in {"richtext", "html"}
-                else "text",
+                "data_field_type": "richtext" if rich else "text",
             }
             if preview
             else {}
@@ -560,7 +524,7 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
             )
         ]
     elif kind in {"richtext", "html"}:
-        children = [Div(NotStr(sanitise_html(block.get("body", ""))), **field("body"))]
+        children = [rich_content(block.get("body", ""), **field("body"))]
         if kind == "html" and block.get("url"):
             children.append(
                 Iframe(
@@ -631,9 +595,9 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
                             aria_hidden="true",
                         ),
                         Span(item.get("heading", "")),
-                        P(item.get("body", "")),
+                        rich_content(item.get("body", ""), **field(f"items.{index}.body")),
                     )
-                    for item in block.get("items", [])
+                    for index, item in enumerate(block.get("items", []))
                 ]
             )
         ]
@@ -653,7 +617,7 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
     elif kind == "testimonial":
         children = [
             Span("★" * block.get("rating", 5), aria_label=f"{block.get('rating', 5)} out of 5"),
-            Blockquote(block.get("body", ""), **field("body")),
+            rich_content(block.get("body", ""), **field("body")),
             P(block.get("heading", ""), **field("heading")),
         ]
     elif kind in {"product_card", "product_grid"}:
@@ -733,7 +697,7 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
         )
         children = [
             ft_hx("h2", block.get("heading", ""), **field("heading")),
-            P(block.get("body", ""), **field("body")),
+            rich_content(block.get("body", ""), **field("body")),
             Form(
                 Input(type="hidden", name="csrf_token", value=csrf),
                 Label(
@@ -773,8 +737,10 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
         ]
     elif kind == "accordion":
         children = [
-            Details(Summary(i.get("heading", "")), P(i.get("body", "")))
-            for i in block.get("items", [])
+            Details(Summary(i.get("heading", "")), rich_content(
+                i.get("body", ""), **field(f"items.{index}.body")
+            ))
+            for index, i in enumerate(block.get("items", []))
         ]
     classes = "fs-widget fs-widget-" + kind
     if kind in {"container", "image_gallery", "product_grid", "collection_list"}:

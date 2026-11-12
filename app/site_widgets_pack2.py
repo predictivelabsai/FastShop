@@ -60,13 +60,15 @@ def notice_icon(style):
 
 def render_pack_widget(block, base="", preview=False, *, site_id="", now=None):
     """Render a validated block; ``now`` accepts an aware datetime or clock callable."""
-    from app.site_widgets import sanitise_html
+    from app.site_widgets import rich_content, sanitise_html
 
     kind = block["type"]
     uid = "fs-pack2-" + re.sub(r"[^a-zA-Z0-9_-]", "", str(block.get("id", "widget")))
     items = block.get("items", [])
 
     def field(key, field_kind="text"):
+        if field_kind == "text" and key.rsplit(".", 1)[-1] in {"body", "description", "quote", "bio", "disclaimer"}:
+            field_kind = "richtext"
         return {"data_field": key, "data_field_type": field_kind} if preview else {}
 
     def heading(value, key="heading", level="h2"):
@@ -239,7 +241,7 @@ def render_pack_widget(block, base="", preview=False, *, site_id="", now=None):
             else None,
             Div(
                 heading(block.get("heading", "")),
-                P(block.get("body", ""), **field("body")),
+                rich_content(block.get("body", ""), **field("body")),
                 A(
                     block.get("link_label", "Read more"),
                     href=base + href if href.startswith("/") else href,

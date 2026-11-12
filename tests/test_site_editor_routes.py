@@ -210,6 +210,31 @@ def test_csrf_draft_conflict_revisions_and_restore(workspace):
                          "version": version + 1}, headers=w.headers).status_code == 422
 
 
+def test_rich_block_save_round_trips_clean_html_and_renders_structure(workspace):
+    w = workspace
+    loaded = load(w)
+    text_schema = loaded["schema"]["text"]
+    body_field = next(field for field in text_schema["fields"] if field["id"] == "body")
+    assert body_field["type"] == "richtext"
+    dirty = '<h2>Returns</h2><p style="color:red" onerror="x()">Read <strong>this</strong>.' \
+            '</p><ul><li>Keep your receipt</li></ul><script>alert(1)</script>'
+    loaded["document"]["blocks"] = [{
+        "id": "policy", "type": "text", "heading": "Returns and refunds", "body": dirty,
+    }]
+    saved = w.client.put(w.base + "/draft", json={
+        "document": loaded["document"], "version": loaded["version"],
+    }, headers=w.headers)
+    assert saved.status_code == 200, saved.text
+    document = load(w)["document"]
+    assert document["blocks"][0]["body"] == (
+        '<h2>Returns</h2><p>Read <strong>this</strong>.</p><ul><li>Keep your receipt</li></ul>'
+    )
+    rendered = w.client.post(w.base + "/render", json={"document": document}, headers=w.headers)
+    assert rendered.status_code == 200, rendered.text
+    assert '<h2>Returns</h2>' in rendered.json()["html"]
+    assert '<ul><li>Keep your receipt</li></ul>' in rendered.json()["html"]
+
+
 def test_publish_copy_warning_and_editor_role(workspace):
     w = workspace
     values = load(w)

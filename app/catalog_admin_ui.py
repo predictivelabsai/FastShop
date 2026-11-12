@@ -7,6 +7,7 @@ from fastcore.xml import NotStr, to_xml
 from fasthtml.common import A, Button, Div, Form, Input, Label, Link, Script
 
 from app.admin_ui import badge, card, empty_state, modal, page_header, two_column
+from app.rich_text_ui import rich_text_editor
 
 
 def e(value):
@@ -257,40 +258,8 @@ def product_editor(
     def get(name, default=""):
         return getattr(p, name, default) if p else default
 
-    toolbar = NotStr(
-        '<div class="c-toolbar" role="toolbar" aria-label="Description formatting">'
-        '<select data-rich-block aria-label="Paragraph style"><option value="p">Paragraph</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select>'
-        + "".join(
-            f'<button type="button" data-rich-command="{command}" title="{label}">{label}</button>'
-            for command, label in [
-                ("bold", "Bold"),
-                ("italic", "Italic"),
-                ("underline", "Underline"),
-                ("insertUnorderedList", "Bullets"),
-                ("insertOrderedList", "Numbers"),
-                ("createLink", "Link"),
-                ("justifyLeft", "Left"),
-                ("justifyCenter", "Centre"),
-                ("justifyRight", "Right"),
-                ("removeFormat", "Clear"),
-            ]
-        )
-        + '<button type="button" data-rich-source>HTML</button></div>'
-    )
-    rich = Div(
-        toolbar,
-        NotStr(
-            f'<div contenteditable="true" role="textbox" aria-label="Description" class="c-rich" data-rich-editor>{get("description_html")}</div>'
-        ),
-        area(
-            "Description HTML",
-            "description_html",
-            get("description_html"),
-            hidden="",
-            **{"data-rich-text": ""},
-        ),
-        cls="c-rich-wrap",
-    )
+    rich = rich_text_editor(get("description_html"), name="description_html",
+                            label="Description", editor_id="product-description")
     image_data = [
         {"id": i.id, "image_url": i.image_url, "alt": i.alt, "media_id": i.media_id} for i in images
     ]
@@ -657,7 +626,8 @@ def collection_editor(site, collection, products, selected, csrf, count=0, libra
     main = Div(
         card(
             field("Title", "title", get("title"), required=""),
-            area("Description", "description", get("description")),
+            rich_text_editor(get("description"), name="description", label="Description",
+                             editor_id="collection-description"),
         ),
         card(
             choice(

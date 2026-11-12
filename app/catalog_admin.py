@@ -9,8 +9,6 @@ import re
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from functools import wraps
-from html import escape
-from html.parser import HTMLParser
 
 from sqlalchemy import delete, func, or_, select, update
 
@@ -35,6 +33,7 @@ from app.models import (
     Warehouse,
     new_id,
 )
+from app.rich_text import sanitise_rich_text
 from app.services import CommerceError
 
 
@@ -76,48 +75,8 @@ def _bounded(model, field, value):
     return value
 
 
-class _Sanitiser(HTMLParser):
-    tags = {'p', 'br', 'h2', 'h3', 'h4', 'strong', 'b', 'em', 'i', 'u', 'ul',
-            'ol', 'li', 'a', 'blockquote', 'div', 'span'}
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.result = []
-        self.suppressed = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag in {'script', 'style', 'iframe', 'object', 'svg', 'math'}:
-            self.suppressed += 1
-        if self.suppressed or tag not in self.tags:
-            return
-        safe = []
-        for key, value in attrs:
-            if tag == 'a' and key == 'href' and value:
-                if re.match(r'^(https?://|mailto:|/(?!/)|#)', value, re.I):
-                    safe.append(f' href="{escape(value, quote=True)}"')
-            if key == 'style' and value:
-                match = re.fullmatch(r'\s*text-align:\s*(left|right|center|justify);?\s*', value)
-                if match:
-                    safe.append(f' style="text-align: {match[1]}"')
-        self.result.append(f'<{tag}{"".join(safe)}>')
-
-    def handle_endtag(self, tag):
-        if tag in {'script', 'style', 'iframe', 'object', 'svg', 'math'}:
-            self.suppressed = max(0, self.suppressed - 1)
-            return
-        if not self.suppressed and tag in self.tags and tag != 'br':
-            self.result.append(f'</{tag}>')
-
-    def handle_data(self, data):
-        if not self.suppressed:
-            self.result.append(escape(data))
-
-
 def sanitise_html(value):
-    parser = _Sanitiser()
-    parser.feed(str(value or ''))
-    parser.close()
-    return ''.join(parser.result)
+    return sanitise_rich_text(value)
 
 
 sanitize_html = sanitise_html

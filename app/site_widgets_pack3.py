@@ -90,10 +90,13 @@ def product_listing(db, site, product):
 
 
 def render_pack_widget(db, site, block, base="", preview=False):
+    from app.site_widgets import rich_content
+
     kind, items = block["type"], block.get("items", [])
 
     def field(key):
-        return {"data_field": key, "data_field_type": "text"} if preview else {}
+        field_kind = "richtext" if key.rsplit(".", 1)[-1] in {"body", "description", "quote", "bio", "disclaimer"} else "text"
+        return {"data_field": key, "data_field_type": field_kind} if preview else {}
 
     def heading(value, key="heading", level="h2"):
         return ft_hx(level, value, **field(key)) if value else None
@@ -120,7 +123,7 @@ def render_pack_widget(db, site, block, base="", preview=False):
                     href=base + "/products/" + product.slug, cls="fs-pack3-product"))
         path = next((p.path for p in site_pages(db, site) if p.collection_id == collection.id and p.published_json), "")
         children = [Div(Img(src=collection.image_url, alt=collection.title, loading="lazy") if collection.image_url and block.get("show_image", True) else None,
-            ft_hx("h2", collection.title), P(collection.description) if block.get("show_description", True) and collection.description else None,
+            ft_hx("h2", collection.title), rich_content(collection.description) if block.get("show_description", True) and collection.description else None,
             cls="fs-pack3-collection-heading"),
             Div(*cards, cls="fs-pack3-products", data_layout=block.get("layout", "grid"), style=f"--fs-pack3-columns:{block.get('columns', 3)}", tabindex="0" if block.get("layout") == "scroll" else None,
                 role="region" if block.get("layout") == "scroll" else None, aria_label="Collection products" if block.get("layout") == "scroll" else None) if cards else P("Products will appear here when they are available."),
@@ -130,7 +133,7 @@ def render_pack_widget(db, site, block, base="", preview=False):
         for i, item in enumerate(items):
             plans.append(Div(P(item.get("badge", ""), cls="fs-pack3-badge", **field(f"items.{i}.badge")) if item.get("highlighted") and item.get("badge") else None,
                 heading(item["name"], f"items.{i}.name", "h3"), P(item["price"], cls="fs-pack3-price", **field(f"items.{i}.price")),
-                P(item["description"], **field(f"items.{i}.description")),
+                rich_content(item["description"], **field(f"items.{i}.description")),
                 Ul(*[Li(line.strip()) for line in item.get("features", "").splitlines() if line.strip()], **field(f"items.{i}.features")),
                 A(item["button_label"], href=href(item["link"]), cls="fs-widget-button", **field(f"items.{i}.button_label")) if item.get("link") else None,
                 cls="fs-pack3-plan", data_highlighted=str(item.get("highlighted", False)).lower()))
@@ -158,13 +161,13 @@ def render_pack_widget(db, site, block, base="", preview=False):
     elif kind == "promo_banner":
         attrs = {"data_has_image": str(bool(block.get("image"))).lower()}
         code = next((c for c in active_discount_codes(db, site) if c.id == block.get("discount_code")), None) if block.get("discount_code") else None
-        children = [Div(heading(block["heading"]), P(block["body"], **field("body")),
+        children = [Div(heading(block["heading"]), rich_content(block["body"], **field("body")),
             A(block["button_label"], href=href(block["link"]), cls="fs-widget-button", **field("button_label")) if block.get("link") else None,
             Div(ft_hx("code", code.code, data_promo_code="", tabindex="0"), Button("Copy code", type="button", data_copy_code="", hidden=True), Span("", role="status", aria_live="polite", data_copy_status=""), cls="fs-pack3-code") if code else None,
             cls="fs-pack3-promo-copy"), Img(src=block["image"], alt=block.get("image_alt", ""), loading="lazy", **field("image")) if block.get("image") else None]
     elif kind == "steps":
         children = [heading(block.get("heading")), ft_hx("ol", *[Li(Span(str(i + 1).zfill(2), cls="fs-pack3-step-number", aria_hidden="true"), _icon(item["icon"]) if item.get("icon") else None,
-            heading(item["heading"], f"items.{i}.heading", "h3"), P(item["body"], **field(f"items.{i}.body"))) for i, item in enumerate(items)], cls="fs-pack3-steps")]
+            heading(item["heading"], f"items.{i}.heading", "h3"), rich_content(item["body"], **field(f"items.{i}.body"))) for i, item in enumerate(items)], cls="fs-pack3-steps")]
     elif kind == "star_rating":
         ids = {p.id for p in scoped_products(db, site)}
         product_id = block.get("product") if block.get("scope") == "product" else None

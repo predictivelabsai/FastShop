@@ -68,6 +68,16 @@ def test_apply_validates_declared_paths_and_keeps_unrelated_settings():
     assert published["design"] == {"accent": "#000000"}
 
 
+def test_rich_text_settings_use_the_shared_sanitiser():
+    fields = [{"id": "footer_note", "label": "Footer note", "type": "richtext"}]
+
+    saved = apply_shell({}, {
+        "footer_note": '<p onclick="bad()">A safe note</p><script>bad()</script><ul><li>One</li></ul>'
+    }, fields)
+
+    assert saved["footer_note"] == "<p>A safe note</p><ul><li>One</li></ul>"
+
+
 def test_editor_loads_saves_and_publishes_shell(workspace):  # noqa: F811
     w = workspace
     with w.sessions() as db:
@@ -109,11 +119,15 @@ def test_default_theme_shell_settings_are_editable(workspace):
             "generic_labels.newsletter_unsubscribe_instruction",
             "account_copy.heading",
             "account_copy.order_summary"} <= ids
-    values = {"footer": "A note for visitors.", "announcement": "A store update.",
+    fields = {field["id"]: field for field in loaded["shell_schema"]["fields"]}
+    assert fields["footer"]["type"] == "richtext"
+    assert fields["generic_labels.newsletter_unsubscribe_instruction"]["type"] == "richtext"
+    values = {"footer": "<p>A note for visitors.</p><script>bad()</script>", "announcement": "A store update.",
               "generic_labels": {"contact_heading": "Contact our team",
                                  "shipping_policy": "Delivery details",
                                  "newsletter_title": "Notes from our shop",
-                                 "newsletter_body": "New products each month."},
+                                 "newsletter_body": "New products each month.",
+                                 "newsletter_unsubscribe_instruction": "<p>Manage <strong>email</strong> preferences.</p><script>bad()</script>"},
               "account_copy": {"heading": "Member sign-in", "order_summary": "Purchase details"}}
     saved = w.client.put(w.base + "/shell-settings", json={
         "shell_settings": values, "version": loaded["site_version"],
@@ -121,27 +135,29 @@ def test_default_theme_shell_settings_are_editable(workspace):
     assert saved.status_code == 200, saved.text
     with w.sessions() as db:
         site = db.get(Site, w.site.id)
-        assert site.settings_json["footer"] == "A note for visitors."
+        assert site.settings_json["footer"] == "<p>A note for visitors.</p>"
         assert site.settings_json["announcement"] == "A store update."
         assert site.settings_json["generic_labels"]["contact_heading"] == "Contact our team"
         assert site.settings_json["generic_labels"]["shipping_policy"] == "Delivery details"
         assert site.settings_json["generic_labels"]["newsletter_title"] == "Notes from our shop"
         assert site.settings_json["generic_labels"]["newsletter_body"] == "New products each month."
+        assert site.settings_json["generic_labels"]["newsletter_unsubscribe_instruction"] == "<p>Manage <strong>email</strong> preferences.</p>"
         assert site.settings_json["account_copy"]["heading"] == "Member sign-in"
         assert site.settings_json["account_copy"]["order_summary"] == "Purchase details"
-        assert site.published_settings_json["footer"] != "A note for visitors."
+        assert site.published_settings_json["footer"] != "<p>A note for visitors.</p>"
     published = w.client.post(w.base + "/publish", json={
         "version": loaded["version"], "site_version": saved.json()["version"],
     }, headers=w.headers)
     assert published.status_code == 200, published.text
     with w.sessions() as db:
         site = db.get(Site, w.site.id)
-        assert site.published_settings_json["footer"] == "A note for visitors."
+        assert site.published_settings_json["footer"] == "<p>A note for visitors.</p>"
         assert site.published_settings_json["announcement"] == "A store update."
         assert site.published_settings_json["generic_labels"]["contact_heading"] == "Contact our team"
         assert site.published_settings_json["generic_labels"]["shipping_policy"] == "Delivery details"
         assert site.published_settings_json["generic_labels"]["newsletter_title"] == "Notes from our shop"
         assert site.published_settings_json["generic_labels"]["newsletter_body"] == "New products each month."
+        assert site.published_settings_json["generic_labels"]["newsletter_unsubscribe_instruction"] == "<p>Manage <strong>email</strong> preferences.</p>"
         assert site.published_settings_json["account_copy"]["heading"] == "Member sign-in"
         assert site.published_settings_json["account_copy"]["order_summary"] == "Purchase details"
 

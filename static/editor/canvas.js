@@ -1,3 +1,5 @@
+import "/static/admin/rich-text.js";
+
 /* Same-origin editor bridge. Storefront links and purchasing are disabled here. */
 (() => {
   "use strict";
@@ -26,6 +28,7 @@
   style.textContent = `\n [data-preview-consent="true"]:not(.fs-selected){display:none!important}
  .fs-editor-tools[hidden],.fs-rich-tools[hidden]{display:none!important}[data-block-id]{position:relative;min-height:24px;cursor:pointer}[data-block-id]:hover{outline:1px solid #78a9f8;outline-offset:-1px}[data-block-id].fs-selected{outline:2px solid #005bd3!important;outline-offset:-2px}.fs-editor-tools{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:3px;background:#005bd3;color:white;border-radius:5px;padding:4px;box-shadow:0 2px 8px #0003;font:11px/1.4 system-ui,sans-serif}.fs-editor-tools button{font:12px/1.4 system-ui,sans-serif;padding:4px 6px;background:none;color:white;border:0;border-radius:3px;cursor:pointer}.fs-editor-tools button:hover{background:#ffffff35}.fs-editor-tools span{padding:0 5px}.fs-drop-before{box-shadow:inset 0 4px #005bd3!important}.fs-drop-after{box-shadow:inset 0 -4px #005bd3!important}.fs-drop-inside{outline:3px dashed #005bd3!important;outline-offset:-5px;background-color:#e8f1ff88!important}[contenteditable=true]{outline:2px solid #005bd3!important;outline-offset:3px;cursor:text!important;min-width:10px}.fs-editor-hint{padding:60px 24px;border:2px dashed #b7c9e4;margin:24px;text-align:center;color:#617085;font:14px/1.6 system-ui,sans-serif}.fs-rich-tools{position:fixed;z-index:2147483647;background:#242426;border-radius:5px;padding:4px;display:flex;gap:3px}.fs-rich-tools button{border:0;border-radius:3px;color:white;background:transparent;padding:5px 8px;font:13px system-ui,sans-serif}.fs-rich-tools button:hover{background:#4b4b50}`;
   document.head.append(style);
+  style.textContent += `.fs-rich-tools{position:fixed;z-index:2147483647;left:4px;right:4px;max-width:calc(100vw - 8px);max-height:48vh;overflow:auto;background:#f8fafb;border:1px solid #cfd6dc;border-radius:8px;padding:5px;box-shadow:0 8px 24px #0003;color:#222;font:13px system-ui,sans-serif}.fs-rich-tools .rt-toolbar{display:flex;flex-wrap:wrap;gap:4px}.fs-rich-tools .rt-tool-group{display:flex;flex-wrap:wrap;gap:3px;border-right:1px solid #dce1e6;padding:0 4px}.fs-rich-tools button,.fs-rich-tools select{min-width:42px;min-height:42px;border:1px solid #cfd6dc;border-radius:5px;background:#fff;color:#222;padding:6px}.fs-rich-tools button[aria-pressed=true]{background:#e6f3ed;border-color:#2c7a54;color:#1a553a}.fs-rich-tools [data-rich-link-popover]{position:fixed;right:8px;top:58px;left:8px;max-width:420px;background:white;padding:12px;border:1px solid #cfd6dc;border-radius:6px;box-shadow:0 4px 16px #0003}.fs-rich-tools .rt-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}`;
   const tools = document.createElement("div");
   tools.className = "fs-editor-tools";
   tools.hidden = true;
@@ -109,15 +112,18 @@
     const field = editing,
       node = field.closest("[data-block-id]");
     field.contentEditable = "false";
+    const value = field.dataset.fieldType === "richtext"
+      ? (window.FastShopRichText?.sanitize(field.innerHTML) || field.innerHTML)
+      : field.textContent;
+    if (field.dataset.fieldType === "richtext") field.innerHTML = value;
     send({
       type: "inline",
       block_id: node.dataset.blockId,
       field: field.dataset.field,
-      value:
-        field.dataset.fieldType === "richtext"
-          ? field.innerHTML
-          : field.textContent,
+      value,
     });
+    if (field.dataset.inlineOverlay === "true") field.remove();
+    window.FastShopRichText?.unmountInline(field);
     editing = null;
     richTools.hidden = true;
   }
@@ -208,23 +214,7 @@
           field.querySelector("p,strong,em,ul,ol"))
       ) {
         field.dataset.fieldType = "richtext";
-        richTools.replaceChildren();
-        for (const [command, label] of [
-          ["bold", "B"],
-          ["italic", "I"],
-          ["insertUnorderedList", "• List"],
-          ["removeFormat", "Clear"],
-        ]) {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.textContent = label;
-          button.setAttribute("aria-label", command);
-          button.onmousedown = (ev) => {
-            ev.preventDefault();
-            document.execCommand(command, false);
-          };
-          richTools.append(button);
-        }
+        window.FastShopRichText?.mountInline(field, richTools);
         const r = field.getBoundingClientRect();
         richTools.style.top = `${Math.max(4, r.top - 35)}px`;
         richTools.style.left = `${Math.max(4, r.left)}px`;
@@ -233,15 +223,6 @@
     },
     true,
   );
-  document.addEventListener("paste", (e) => {
-    if (!editing) return;
-    e.preventDefault();
-    document.execCommand(
-      "insertText",
-      false,
-      e.clipboardData.getData("text/plain"),
-    );
-  });
   document.addEventListener("focusout", (e) => {
     if (
       editing &&

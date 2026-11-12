@@ -130,9 +130,21 @@ def test_campaign_body_sanitiser_and_text_part():
     )
 
     assert "onclick" not in cleaned and "<script" not in cleaned and "alert(1)" not in cleaned
-    assert "style=" not in cleaned and "javascript:" not in cleaned and "target=" not in cleaned
+    assert "style=" not in cleaned and "javascript:" not in cleaned
     assert 'href="https://example.test/news"' in cleaned
+    assert 'target="_blank" rel="noopener noreferrer"' in cleaned
     assert "Hello world link safe" in marketing_email.plain_text_from_html(cleaned)
+
+
+def test_campaign_save_round_trips_rich_html_and_strips_executable_markup(campaign_workspace):
+    work = campaign_workspace
+    dirty = '<h2>November update</h2><p style="color:red">Hello <strong>there</strong>.</p>' \
+            '<ul><li>New arrivals</li></ul><script>alert(1)</script>'
+    campaign_id = _create_draft(work, body=dirty)
+    with work.sessions() as db:
+        campaign = db.get(MarketingCampaign, campaign_id)
+        assert campaign.body_html == '<h2>November update</h2><p>Hello <strong>there</strong>.</p><ul><li>New arrivals</li></ul>'
+        assert "New arrivals" in campaign.body_text
 
 
 def test_campaign_audience_excludes_pending_and_unsubscribed_and_enqueue_is_idempotent(campaign_workspace):

@@ -9,7 +9,6 @@ import queue
 import re
 import threading
 import time
-from html import escape
 from types import SimpleNamespace
 
 import anyio
@@ -162,9 +161,10 @@ def render_document(db, site, page, document, token, block_id=""):
     html = _html(nodes)
     # Only application-owned script is introduced, never merchant code.
     config = json.dumps({"siteId": site.id, "pageId": page.id}).replace("<", "\\u003c")
-    bridge = (f'<script id="editor-canvas-config" type="application/json">{config}</script>'
-              f'<script src="/static/editor/canvas.js" defer data-site-id="{escape(site.id)}" '
-              f'data-page-id="{escape(page.id)}"></script>')
+    from app.rich_text_ui import rich_text_template
+    bridge = (_html(rich_text_template())
+              + f'<script id="editor-canvas-config" type="application/json">{config}</script>'
+              + '<script type="module" src="/static/editor/canvas.js"></script>')
     html = html.replace('src="/static/site-preview.js', 'data-disabled-src="/static/site-preview.js')
     return html + bridge
 

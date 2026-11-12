@@ -22,16 +22,16 @@ from starlette.testclient import TestClient
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app import (
+from app import (  # noqa: E402
     content,
     customer_routes,
     marketing_subscriber_routes,
     marketing_subscribers,
     site_ui,
 )
-from app.admin_ui import AdminContextMiddleware, admin_page, admin_scope
-from app.models import Base, Site, SitePage, User
-from app.services import CommerceError
+from app.admin_ui import AdminContextMiddleware, admin_page, admin_scope  # noqa: E402
+from app.models import Base, Site, SitePage, User  # noqa: E402
+from app.services import CommerceError  # noqa: E402
 
 OUTPUT = ROOT / "output" / "playwright" / "subscribers"
 

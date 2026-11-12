@@ -55,10 +55,14 @@ def _icon(name):
 
 
 def render_pack_widget(db, site, block, base="", preview=False):
+    from app.site_widgets import rich_content
+
     kind, items = block["type"], block.get("items", [])
     uid = "fs-pack4-" + re.sub(r"[^A-Za-z0-9_-]", "", str(block.get("id", "widget")))
 
     def field(key, field_kind="text"):
+        if field_kind == "text" and key.rsplit(".", 1)[-1] in {"body", "description", "quote", "bio", "disclaimer"}:
+            field_kind = "richtext"
         return {"data_field": key, "data_field_type": field_kind} if preview else {}
 
     def heading(value, key="heading", level="h2"):
@@ -91,13 +95,13 @@ def render_pack_widget(db, site, block, base="", preview=False):
             target = f"{uid}-back-{i}"
             cards.append(Div(Div(Div(image(item["image"], item["alt"], f"items.{i}.image") if item.get("image") else _icon(item["icon"]) if item.get("icon") else None,
                 heading(item["heading"], f"items.{i}.heading", "h3"), cls="flip-card-front"),
-                Div(P(item["body"], **field(f"items.{i}.body")), button(item.get("button_label"), item.get("link", ""), key=f"items.{i}.button_label"), id=target, cls="flip-card-back"), cls="flip-card-inner"),
+                Div(rich_content(item["body"], **field(f"items.{i}.body")), button(item.get("button_label"), item.get("link", ""), key=f"items.{i}.button_label"), id=target, cls="flip-card-back"), cls="flip-card-inner"),
                 Button("Show details", type="button", aria_expanded="false", aria_controls=target, data_flip_toggle="", hidden=True), cls="flip-card"))
         children = [Div(*cards, cls="flip-grid")]
     elif kind == "cta_box":
         attrs = {"data_layout": block.get("layout", "inline"), "data_style": block.get("box_style", "bordered"), "data_has_image": str(bool(block.get("image"))).lower(), "style": f"--fs-pack4-overlay:{block.get('overlay_opacity', 60) / 100}"}
         children = [image(block["image"], block.get("alt", ""), cls="cta-background") if block.get("image") else None,
-            Div(P(block["eyebrow"], cls="cta-eyebrow", **field("eyebrow")) if block.get("eyebrow") else None, heading(block["heading"]), P(block["body"], **field("body")), cls="cta-copy"),
+            Div(P(block["eyebrow"], cls="cta-eyebrow", **field("eyebrow")) if block.get("eyebrow") else None, heading(block["heading"]), rich_content(block["body"], **field("body")), cls="cta-copy"),
             Div(button(block.get("button_label"), block.get("link", "")), button(block.get("secondary_button"), block.get("secondary_link", ""), "secondary", "secondary_button"), cls="cta-actions")]
     elif kind == "video_lightbox":
         source = lightbox_source(block.get("url", ""))
@@ -114,11 +118,11 @@ def render_pack_widget(db, site, block, base="", preview=False):
                     platform = item.get(f"social_{j}_platform", "website")
                     label = PLATFORM_LABELS.get(platform, platform.capitalize())
                     socials.append(A(social_icon(platform), Span(label, cls="fs-pack4-sr"), href=item[f"social_{j}_url"], aria_label=item["name"] + ": " + label))
-            people.append(Div(image(item["image"], item["alt"], f"items.{i}.image"), heading(item["name"], f"items.{i}.name", "h3"), P(item["role"], cls="team-role", **field(f"items.{i}.role")), P(item["bio"], **field(f"items.{i}.bio")), Div(*socials, cls="team-socials") if socials else None, cls="team-card"))
+            people.append(Div(image(item["image"], item["alt"], f"items.{i}.image"), heading(item["name"], f"items.{i}.name", "h3"), P(item["role"], cls="team-role", **field(f"items.{i}.role")), rich_content(item["bio"], **field(f"items.{i}.bio")), Div(*socials, cls="team-socials") if socials else None, cls="team-card"))
         children = [Div(*people, cls="team-grid", style=f"--fs-pack4-columns:{block.get('columns', 3)}")]
     elif kind == "pull_quote":
         attrs = {"data_style": block.get("quote_style", "plain")}
-        children = [ft_hx("figure", ft_hx("blockquote", P(block["quote"], **field("quote"))),
+        children = [ft_hx("figure", ft_hx("blockquote", rich_content(block["quote"], **field("quote"))),
             ft_hx("figcaption", Span(block["attribution"], **field("attribution")) if block.get("attribution") else None,
                 ft_hx("cite", block["source"], **field("source")) if block.get("source") else None) if block.get("attribution") or block.get("source") else None)]
     elif kind == "button_group":

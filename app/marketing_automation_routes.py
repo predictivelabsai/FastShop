@@ -12,7 +12,6 @@ from fasthtml.common import (
     Label,
     P,
     Small,
-    Textarea,
 )
 from sqlalchemy import select
 from starlette.responses import RedirectResponse, Response
@@ -20,6 +19,7 @@ from starlette.responses import RedirectResponse, Response
 from app import content, marketing_automation, marketing_email
 from app.db import SessionLocal
 from app.models import Site
+from app.rich_text_ui import rich_text_editor
 from app.services import CommerceError
 
 
@@ -61,8 +61,8 @@ def register_marketing_automation_routes(rt, actor, csrf, check_csrf, shell, err
                 )),
                 Label("Subject", Input(name="subject", type="text", maxlength=200, required=True,
                                         value=values["subject"])),
-                Label("Email body", Textarea(values["body_html"], name="body_html", rows=12,
-                                              maxlength=20000, required=True)),
+                rich_text_editor(values["body_html"], name="body_html", label="Email body",
+                                 editor_id="abandoned-checkout-body"),
                 Small("Use paragraphs, headings, lists, emphasis, quotations and safe links."),
                 Label(Input(type="checkbox", name="include_recovery_link",
                             checked=values["include_recovery_link"]),

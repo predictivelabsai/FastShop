@@ -12,7 +12,7 @@ import importlib
 
 from app.services import CommerceError
 
-TEXT_TYPES = {"text", "textarea"}
+TEXT_TYPES = {"text", "textarea", "richtext"}
 _PROVIDERS = {}
 _MISSING = object()
 _DEFAULT_FIELDS = [
@@ -24,7 +24,7 @@ _DEFAULT_FIELDS = [
      "max_length": 500, "default": ""},
     {"id": "company", "group": "footer", "label": "Company name", "type": "text",
      "max_length": 200, "default": ""},
-    {"id": "footer", "group": "footer", "label": "Footer note", "type": "textarea",
+    {"id": "footer", "group": "footer", "label": "Footer note", "type": "richtext",
      "max_length": 2000, "default": ""},
 ]
 
@@ -112,6 +112,9 @@ def _clean(field, value):
         raise CommerceError(f"{field['label']}: use text up to {limit} characters.")
     if kind in {"url", "image"}:
         return _url(value)
+    if kind == "richtext":
+        from app.rich_text import sanitise_rich_text
+        return sanitise_rich_text(value)
     if kind not in TEXT_TYPES:
         raise CommerceError("Unsupported editable setting type.")
     return value
