@@ -805,7 +805,9 @@ function fieldHTML(f, obj, prefix = "") {
           `<option value="${esc(o.value)}" ${String(v) === String(o.value) ? "selected" : ""}>${esc(o.label)}</option>`,
       )
       .join("")}</select>`;
-  else if (["textarea", "richtext"].includes(f.type))
+  else if (f.type === "richtext")
+    html = `<div data-rich-inspector data-rich-setting="${esc(path)}" data-rich-value="${esc(v)}" data-rich-label="${esc(f.label || f.id)}"></div>`;
+  else if (f.type === "textarea")
     html = `<textarea ${attrs} rows="4">${esc(v)}</textarea>`;
   else if (f.type === "range")
     html = `<div class="field-inline"><input ${attrs} type="range" min="${f.min ?? 0}" max="${f.max ?? 100}" step="${f.step ?? 1}" value="${esc(v)}"><input type="number" data-companion="${esc(path)}" aria-label="${esc(f.label)} value" value="${esc(v)}" min="${f.min ?? 0}" max="${f.max ?? 100}" step="${f.step ?? 1}"><span class="subtle">${esc(f.unit || "")}</span></div>`;
@@ -872,6 +874,7 @@ function renderShell() {
       .filter((f) => f.group === shellGroup)
       .map((f) => fieldHTML(f, obj))
       .join("")}<button id="save-shell">Save store settings</button></div>`;
+  window.FastShopRichText?.mountAll($("#settings-content"));
   wireFields(obj, (path, v) => {
     set(obj, path, v);
     shellDirty = themeDirty = true;
@@ -929,6 +932,7 @@ function renderSettings() {
       .join(
         "",
       )}${tab === "Advanced" ? `<div class="field"><label for="move-into">Move into container</label><select id="move-into"><option value="">Choose container</option><option value="root">Page (top level)</option>${containers.map((x) => `<option value="${esc(x.block.id)}">${esc(label(x.block))} · ${esc(x.block.id.slice(-6))}</option>`).join("")}</select></div>` : ""}</div>`;
+  window.FastShopRichText?.mountAll($("#settings-content"));
   wireFields(n.block, (path, v) => {
     setField(n.block, path, v);
     changed(`Change ${path}`);

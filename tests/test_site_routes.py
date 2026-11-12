@@ -1,3 +1,4 @@
+import copy
 import re
 from datetime import UTC, datetime
 
@@ -85,6 +86,42 @@ def test_contact_persists_before_delivery_and_rate_limits(monkeypatch):
     with SessionLocal() as db:
         message = db.scalar(select(SiteContact).where(SiteContact.email == "visitor@example.test"))
         assert message.status == "failed"
+
+
+def test_general_settings_save_sanitises_policy_and_footer_rich_text():
+    from app.rich_text import sanitise_rich_text
+
+    site, _ = sample_store()
+    with SessionLocal() as db:
+        current = db.get(Site, site.id)
+        original_settings = copy.deepcopy(current.settings_json)
+        original_version = current.version
+    client, _ = signed_in()
+    path = f"/admin/sites/{site.id}/settings/general"
+    page = client.get(path)
+    assert page.status_code == 200
+    token = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
+    version = re.search(r'name="version" value="(\d+)"', page.text).group(1)
+    dirty = '<h2>Privacy details</h2><p style="color:red" onclick="x()">Carefully held.</p>' \
+            '<ul><li>Used only to fulfil orders.</li></ul><script>alert(1)</script>'
+    try:
+        saved = client.post(f"/admin/sites/{site.id}/settings", data={
+            "csrf_token": token, "version": version, "action": "draft",
+            "name": site.name, "footer": dirty, "policy_privacy": dirty,
+            "policy_terms": "", "policy_refunds": "", "policy_shipping": "",
+        }, follow_redirects=False)
+        assert saved.status_code == 303, saved.text
+        with SessionLocal() as db:
+            current = db.get(Site, site.id)
+            expected = sanitise_rich_text(dirty)
+            assert current.settings_json["footer"] == expected
+            assert current.settings_json["policies"]["privacy"] == expected
+    finally:
+        with SessionLocal() as db:
+            current = db.get(Site, site.id)
+            current.settings_json = original_settings
+            current.version = original_version
+            db.commit()
 
 
 def test_new_site_is_private_and_neutral(monkeypatch):

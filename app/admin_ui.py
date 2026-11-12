@@ -253,6 +253,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         Script(src=static_asset("site-editor.js"), defer=True),
         Script(src=static_asset("admin/admin.js"), defer=True),
         Script(src=static_asset("admin/polish.js"), defer=True),
+        Script(src=static_asset("admin/rich-text.js"), type="module"),
         Div(A("Skip to content", href="#admin-main", cls="a-skip-link"),
             Aside(
                 Details(Summary(Span(initials, cls="a-avatar"), Span(name), Span("⌄")),

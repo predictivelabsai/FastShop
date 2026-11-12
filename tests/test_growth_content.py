@@ -36,7 +36,8 @@ def test_article_sanitises_and_preserves_visual_content(workspace):
         page,
         {
             "title": "New post",
-            "body": "<p>Hello <strong>reader</strong></p><script>bad()</script>",
+            "body": "<h2>From the journal</h2><p>Hello <strong>reader</strong></p>"
+                    "<ul><li>First detail</li></ul><script>bad()</script>",
             "author": "Editor",
             "category": "News",
             "tags": "news, guides",
@@ -46,6 +47,8 @@ def test_article_sanitises_and_preserves_visual_content(workspace):
     )
     assert "<strong>reader</strong>" in doc["blocks"][0]["body"]
     assert "script" not in doc["blocks"][0]["body"]
+    assert "<h2>From the journal</h2>" in doc["blocks"][0]["body"]
+    assert "<ul><li>First detail</li></ul>" in doc["blocks"][0]["body"]
     assert doc["blog"]["excerpt"] == "An excerpt"
     content.save_page(db, site, page.id, owner.id, doc, page.version, "publish")
     assert is_listed(page)

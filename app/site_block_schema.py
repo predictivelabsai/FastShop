@@ -53,8 +53,8 @@ def _field(key, default="", *, choices=None):
     elif type(default) is int:
         kind = "range"
         data = {"min": 0, "max": 2400 if bare == "max_width" else 300, "step": 1, "unit": "px"}
-    elif bare == "body":
-        kind = "textarea"
+    elif bare in {"body", "description", "text", "quote", "bio", "disclaimer"}:
+        kind = "richtext"
     return {
         "id": key,
         "label": _label(bare),
@@ -71,6 +71,8 @@ def _widget_field(key, default, spec):
     kind = spec.get("kind", "text")
     result = _field(key, default, choices=spec.get("options"))
     result["type"] = kind
+    if key.rsplit(".", 1)[-1] in {"body", "description", "text", "quote", "bio", "disclaimer"}:
+        result["type"] = "richtext"
     result["help"] = spec.get("help", "")
     if kind in {"range", "number", "int"}:
         result.update(type="range", min=spec["min"], max=spec["max"], step=1, unit=spec.get("unit", ""))
@@ -233,11 +235,14 @@ def _registry():
             field = _field(
                 key, value, choices=layouts if key == "layout" and layouts else None
             )
-            if kind in {"richtext", "html"} and key == "body":
+            if key in {"body", "description", "text", "quote", "bio", "disclaimer"}:
                 field["type"] = "richtext"
                 field["help"] = (
                     "Safe formatting only. Scripts and inline event handlers are removed."
                 )
+            if key == "disclaimer":
+                field["type"] = "richtext"
+                field["label"] = "Hero disclaimer"
             if key == "collection":
                 field["label"] = "Collection"
                 field["help"] = "Choose a published catalogue collection."

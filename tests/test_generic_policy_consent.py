@@ -32,10 +32,10 @@ def policy_store(editorial_fixture):
 
     with SessionLocal() as db:
         site = db.scalar(select(Site).where(Site.slug == slug))
+        site.published_settings_json = original_settings
         page = db.scalar(select(SitePage).where(
             SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
             SitePage.path == "/pages/privacy-policy"))
-        site.published_settings_json = original_settings
         page.kind, page.published_json = original_page
         db.commit()
 
@@ -45,7 +45,10 @@ def test_generic_policy_renders_sanitised_content_and_empty_message(policy_store
     with SessionLocal() as db:
         site = db.scalar(select(Site).where(Site.slug == slug))
         site.published_settings_json = site.published_settings_json | {
-            "policies": {"privacy": "<h2>Privacy details</h2><p>Stored policy.</p><script>alert(1)</script>"}
+            "policies": {
+                "privacy": "<h2>Privacy details</h2><p>Stored policy.</p>"
+                "<ul><li>Clear choices</li></ul><script>alert(1)</script>"
+            }
         }
         db.commit()
 
@@ -53,6 +56,8 @@ def test_generic_policy_renders_sanitised_content_and_empty_message(policy_store
     assert response.status_code == 200
     assert "Privacy policy" in response.text
     assert "<h2>Privacy details</h2><p>Stored policy.</p>" in response.text
+    assert "<ul><li>Clear choices</li></ul>" in response.text
+    assert 'class="h-container h-policy-content"' in response.text
     assert "<script>alert(1)</script>" not in response.text
     assert "This policy has not been added yet." not in response.text
 
@@ -63,7 +68,6 @@ def test_generic_policy_renders_sanitised_content_and_empty_message(policy_store
     response = client.get(f"/sites/{slug}/pages/privacy-policy")
     assert response.status_code == 200
     assert "This policy has not been added yet." in response.text
-
 
 def test_published_site_page_takes_precedence_over_policy_setting(policy_store):
     client, slug = policy_store

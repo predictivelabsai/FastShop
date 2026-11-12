@@ -265,6 +265,7 @@ def _unsubscribe_url(site, subscriber) -> str:
 
 
 def _html_email(site, body_html, *, preheader="", extra_html="", unsubscribe_url=""):
+    body_html = sanitize_email_html(body_html)
     preheader_html = ("<div style=\"display:none;max-height:0;overflow:hidden\">" +
                       html.escape(preheader) + "</div>") if preheader else ""
     footer = ""

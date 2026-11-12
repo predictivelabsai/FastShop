@@ -5,14 +5,6 @@
     zone.addEventListener('dragleave', () => zone.classList.remove('gc-over'));
     zone.addEventListener('drop', event => {event.preventDefault(); zone.classList.remove('gc-over'); const files = event.dataTransfer.files; if (files.length) {zone.querySelector('input').files = files;}});
   });
-  document.querySelectorAll('[data-rich-source]').forEach(source => {
-    const rich = document.createElement('div'); rich.className = 'gc-rich'; rich.contentEditable = 'true'; rich.setAttribute('role', 'textbox'); rich.setAttribute('aria-label', 'Rich content'); rich.setAttribute('aria-multiline', 'true');
-    // Draft HTML has passed the shared server-side sanitiser.
-    rich.innerHTML = source.value; source.after(rich); source.hidden = true;
-    source.form.addEventListener('submit', () => {source.value = rich.innerHTML;});
-    source.form.querySelectorAll('[data-rich-command]').forEach(button => button.addEventListener('click', () => {rich.focus(); document.execCommand(button.dataset.richCommand, false); rich.dispatchEvent(new Event('input', {bubbles:true}));}));
-    rich.addEventListener('input', () => {source.value = rich.innerHTML; source.dispatchEvent(new Event('change', {bubbles:true}));});
-  });
   document.querySelectorAll('[data-menu-form]').forEach(form => {
     const root = form.querySelector(':scope > .gc-tree'); let dragging = null;
     const children = node => Array.from(node.children).filter(el => el.matches('li[data-menu-item]'));

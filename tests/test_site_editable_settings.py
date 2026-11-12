@@ -68,6 +68,16 @@ def test_apply_validates_declared_paths_and_keeps_unrelated_settings():
     assert published["design"] == {"accent": "#000000"}
 
 
+def test_rich_text_settings_use_the_shared_sanitiser():
+    fields = [{"id": "footer_note", "label": "Footer note", "type": "richtext"}]
+
+    saved = apply_shell({}, {
+        "footer_note": '<p onclick="bad()">A safe note</p><script>bad()</script><ul><li>One</li></ul>'
+    }, fields)
+
+    assert saved["footer_note"] == "<p>A safe note</p><ul><li>One</li></ul>"
+
+
 def test_editor_loads_saves_and_publishes_shell(workspace):  # noqa: F811
     w = workspace
     with w.sessions() as db:

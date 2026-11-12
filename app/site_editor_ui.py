@@ -5,6 +5,7 @@ from html import escape
 from fastcore.xml import NotStr
 from fasthtml.common import Link, Meta, Script, Title
 
+from app.rich_text_ui import rich_text_template
 from app.ui import static_asset
 
 
@@ -54,5 +55,7 @@ def editor_page(site, page, csrf_token):
             Link(rel="stylesheet", href="/static/editor/editor.css"),
             Link(rel="stylesheet", href="/static/agent-chat.css"),
             Link(rel="stylesheet", href="/static/editor/dynamic-sources.css"), NotStr(markup),
+            rich_text_template(),
             Script(NotStr(f"window.FASTSHOP_EDITOR={config};")),
+            Script(src="/static/admin/rich-text.js", type="module"),
             Script(src="/static/editor/editor.js", type="module"))

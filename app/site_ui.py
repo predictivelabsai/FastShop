@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import re
 from functools import partial
 
 from fasthtml.common import (
@@ -64,6 +65,7 @@ from app.site_widgets import (
     needs_widget_js,
     needs_widgets,
     render_widget,
+    rich_content,
     strip_editor_hooks,
 )
 from app.ui import static_asset
@@ -75,7 +77,14 @@ def label(config, key):
     return (config or {}).get("generic_labels", {}).get(key, DEFAULTS[key])
 
 
-def paragraphs(value):
+def paragraphs(value, *, preview=False, field=""):
+    from app.rich_text import sanitise_rich_text
+    safe = sanitise_rich_text(str(value or ""))
+    attrs = {"data_field": field, "data_field_type": "richtext"} if preview and field else {}
+    if attrs:
+        return [rich_content(safe, **attrs)]
+    if re.search(r"<(?:p|br|h[2-4]|strong|b|em|i|u|a|ul|ol|li|blockquote|hr)(?:\s|>)", safe):
+        return [rich_content(safe)]
     return [P(part.strip()) for part in str(value or "").split("\n\n") if part.strip()]
 
 
@@ -194,13 +203,14 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
     heading = section.get("heading", "")
     heading_tag = H1 if first and page.kind != "article" and kind not in {"hero", "product"} else H2
     intro = Div(Small(section.get("eyebrow", ""), cls="h-eyebrow"), heading_tag(heading) if heading else None,
-                *paragraphs(section.get("body")), cls="h-section-intro")
+                *paragraphs(section.get("body"), preview=preview, field="body"), cls="h-section-intro")
     if kind == "hero":
         media = Video(Source(src=section["mobile_video"], type="video/mp4", media="(max-width: 600px)") if section.get("mobile_video") else None,
                       Source(src=section["video"], type="video/mp4"), autoplay=True, muted=True, loop=True,
                       playsinline=True, poster=section.get("image", ""), aria_label=label(config, "hero_video_alt")) if section.get("video") else image(section.get("image"), label(config, "editorial_image_alt"), eager=True)
         return Section(Div(media, cls="h-hero-media"), Div(Small(section.get("eyebrow", ""), cls="h-eyebrow"),
-            H1(heading), *paragraphs(section.get("body")), cta(section, base, config), cls="h-hero-copy"),
+            H1(heading), *paragraphs(section.get("body"), preview=preview, field="body"),
+            cta(section, base, config), cls="h-hero-copy"),
             Button(label(config, "video_toggle"), type="button", data_video_toggle="", cls="h-video-toggle") if section.get("video") else None,
             Span(label(config, "placeholder_media"), cls="h-image-label"), cls="h-hero")
     if kind == "products":
@@ -217,7 +227,7 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
     if kind == "claims":
         approved = [item for item in config.get("claims", []) if item.get("approved")]
         return Section(intro, *[P(item["text"]) for item in approved],
-                       P(config.get("footer", ""), cls="h-disclaimer") if approved else P(label(config, "claims_pending")), cls="h-section h-container")
+                rich_content(config.get("footer", ""), cls="h-disclaimer") if approved else P(label(config, "claims_pending")), cls="h-section h-container")
     if kind == "reviews":
         from app.site_reviews import approved_reviews, review_summary
         product_id = page.product_id if page.kind == "product" else None
@@ -228,7 +238,8 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
                 P(f"{average} average from {count} approved review" + ("s" if count != 1 else "")),
                 Div(*[review_card(r) for r in reviews], cls="h-reviews-list"), cls="h-section h-reviews")
         return Section(Small(label(config, "reviews_empty_eyebrow"), cls="h-eyebrow"), H2(heading),
-            *paragraphs(section.get("body")), Span(label(config, "reviews_sample"), cls="h-tag"), cls="h-section h-reviews")
+            *paragraphs(section.get("body"), preview=preview, field="body"),
+            Span(label(config, "reviews_sample"), cls="h-tag"), cls="h-section h-reviews")
     if kind == "articles":
         from app.site_blog import articles_for, metadata
         articles = articles_for(db, site, preview=preview)[:3] if blog_articles is None else blog_articles
@@ -248,16 +259,21 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
                       **_research_preview_marker(preview, section, index, "theme")),
                 H3(item.get("heading", label(config, "research_study")),
                    **_research_preview_marker(preview, section, index, "heading")),
-                P(item.get("body", ""), **_research_preview_marker(preview, section, index, "body")),
+            rich_content(item.get("body", ""), **_research_preview_marker(preview, section, index, "body")),
                 A(label(config, "research_read"), href=item["url"], target="_blank", rel="noopener noreferrer"),
                 data_research_theme=item.get("theme", "")))
         return Section(intro, Div(*[Button(label(config, key), type="button", data_research_filter=label(config, key), cls="h-filter", aria_pressed=str(index == 0).lower()) for index, key in enumerate(("research_all", "research_exercise", "research_reviews", "research_meta"))], cls="h-filters") if kind == "research" else None,
             Div(*research_items, cls="h-research"), cls="h-section h-container")
     if kind == "faq":
-        return Section(intro, Div(*[Details(Summary(item["heading"]), *paragraphs(item.get("body"))) for item in section.get("items", [])], cls="h-faq"), cls="h-section h-container")
+        return Section(intro, Div(*[Details(
+            Summary(item["heading"]),
+            *paragraphs(item.get("body"), preview=preview, field=f"items.{index}.body"),
+        ) for index, item in enumerate(section.get("items", []))], cls="h-faq"), cls="h-section h-container")
     if kind == "team":
         return Section(intro, Div(*[Article(image(item["image"], item["heading"]) if item.get("image") else Div(Span(label(config, "team_photo")), cls="h-person-placeholder"), H3(item["heading"]),
-            P(item.get("body", "")), A(label(config, "team_learn"), href=item["url"], target="_blank", rel="noopener noreferrer") if item.get("url") else None) for item in section.get("items", [])], cls="h-team"), cls="h-section h-container")
+            *paragraphs(item.get("body", ""), preview=preview, field=f"items.{index}.body"),
+            A(label(config, "team_learn"), href=item["url"], target="_blank", rel="noopener noreferrer") if item.get("url") else None)
+            for index, item in enumerate(section.get("items", []))], cls="h-team"), cls="h-section h-container")
     if kind == "contact":
         return Section(Div(H2(label(config, "contact_heading")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
             P(config.get("company", site.name)), P(config.get("address", "")), cls="h-contact-info"),
@@ -295,7 +311,10 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
         return Section(Figure(Div(image(section.get("image"), label(config, "product_alt"), eager=True), data_gallery_main=""),
             Div(*[Button(image(src, label(config, "gallery_alt") + f" {i + 1}"), type="button", data_gallery_src=src, aria_label=f"{label(config, 'gallery_view')} {i + 1}") for i, src in enumerate(gallery) if src], cls="h-gallery-thumbs"),
             Figcaption(label(config, "product_gallery_caption"))),
-            Div(Small(product.name if product else label(config, "product_eyebrow"), cls="h-eyebrow"), H1(heading), *paragraphs(section.get("body")),
+            Div(Small(product.name if product else label(config, "product_eyebrow"), cls="h-eyebrow"), H1(heading),
+                *paragraphs(section.get("body"), preview=preview, field="body"),
+                rich_content(product.description_html, cls="h-product-description")
+                if product and product.description_html else None,
                 P(money(listing.price_minor, listing.currency) + label(config, "price_unit") + (label(config, "one_time_price_suffix") if subscription_enabled else "") if listing else label(config, "price_confirm"), cls="h-price"),
                 Small(label(config, "price_notice")),
                 Form(Input(type="hidden", name="csrf_token", value=csrf),
@@ -502,7 +521,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 Div(H3(config.get("company", site.name)), P(config.get("address", "")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
                 newsletter_block,
-                P(config.get("footer", ""), cls="h-disclaimer"), Div(Span(label(config, "copyright") + config.get("company", site.name)), payment_methods(), Button(label(config, "cookies"), type="button", data_cookie_open=""), cls="h-footer-bottom"),
+                rich_content(config.get("footer", ""), cls="h-disclaimer"), Div(Span(label(config, "copyright") + config.get("company", site.name)), payment_methods(), Button(label(config, "cookies"), type="button", data_cookie_open=""), cls="h-footer-bottom"),
                 cls="h-footer", data_builder_shell="footer" if preview else None),
             *foot_snippets,
             Div(H2("Your privacy, your choice."), P("Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."),

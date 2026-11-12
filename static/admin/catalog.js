@@ -31,35 +31,6 @@
         node.addEventListener('input', () => handler(node.value));
         return node;
       };
-      const rich = root.querySelector('[data-rich-editor]');
-      const source = root.querySelector('[data-rich-text]');
-      if (rich && source) {
-        rich.addEventListener('input', () => { source.value = rich.innerHTML; change(source); });
-        source.addEventListener('input', () => { if (!rich.hidden) rich.innerHTML = source.value; });
-        root.querySelectorAll('[data-rich-command]').forEach(node => node.addEventListener('mousedown', event => event.preventDefault()));
-        root.querySelectorAll('[data-rich-command]').forEach(node => node.addEventListener('click', () => {
-          const command = node.dataset.richCommand;
-          let value = null;
-          if (command === 'createLink') {
-            value = window.prompt('Link URL (https://...)');
-            if (!value || !/^(https:\/\/|\/|mailto:)/i.test(value)) return;
-          }
-          rich.focus(); document.execCommand(command, false, value);
-          source.value = rich.innerHTML; change(source);
-        }));
-        root.querySelector('[data-rich-block]')?.addEventListener('change', event => {
-          rich.focus(); document.execCommand('formatBlock', false, event.target.value);
-          source.value = rich.innerHTML; change(source);
-        });
-        root.querySelector('[data-rich-source]')?.addEventListener('click', event => {
-          const showSource = !rich.hidden;
-          if (!showSource) rich.innerHTML = source.value;
-          rich.hidden = showSource; source.hidden = !showSource;
-          source.closest('label').hidden = !showSource;
-          event.target.setAttribute('aria-pressed', String(showSource));
-        });
-        source.closest('label').hidden = true;
-      }
       const tags = root.querySelector('[data-tags-input]');
       const renderTags = () => {
         const host = root.querySelector('[data-tags-chips]');

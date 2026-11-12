@@ -297,7 +297,8 @@ def test_automation_admin_tenant_isolation_and_save(automation_workspace):
     assert token_match
     saved = work.client.post(path, data={
         "csrf_token": token_match.group(1), "enabled": "on", "delay_hours": "8",
-        "subject": "Basket update", "body_html": "<p>Still interested?</p>",
+        "subject": "Basket update", "body_html": '<h2>Your basket</h2><p style="color:red">Still interested?</p>'
+                                                   '<ol><li>Return to checkout</li></ol><script>x()</script>',
         "include_recovery_link": "on",
     })
     assert saved.status_code == 303
@@ -305,6 +306,8 @@ def test_automation_admin_tenant_isolation_and_save(automation_workspace):
         automation = marketing_automation.automation_for(db, work.site)
         assert automation.enabled and automation.delay_hours == 8
         assert "Still interested?" in automation.body_text
+        assert automation.body_html == '<h2>Your basket</h2><p>Still interested?</p><ol><li>Return to checkout</li></ol>'
+        assert "<script" not in automation.body_html
 
     work.state.user_id = work.other_owner.id
     assert work.client.get(path).status_code == 400

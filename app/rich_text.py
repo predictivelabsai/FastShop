@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import re
 from html.parser import HTMLParser
+from urllib.parse import urlsplit
 
 ALLOWED_TAGS = frozenset({
     "p", "br", "h2", "h3", "h4", "strong", "b", "em", "i", "u", "a",
@@ -33,6 +34,13 @@ def safe_rich_text_href(value: str | None) -> str:
         scheme = scheme_match.group(1).lower()
         if scheme not in _ALLOWED_SCHEMES:
             return ""
+        if scheme in {"http", "https"}:
+            try:
+                parsed = urlsplit(href)
+            except ValueError:
+                return ""
+            if not parsed.netloc or not parsed.hostname or parsed.username:
+                return ""
         if scheme in {"mailto", "tel"} and not href.split(":", 1)[1].strip():
             return ""
         return href
