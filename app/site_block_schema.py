@@ -53,7 +53,7 @@ def _field(key, default="", *, choices=None):
     elif type(default) is int:
         kind = "range"
         data = {"min": 0, "max": 2400 if bare == "max_width" else 300, "step": 1, "unit": "px"}
-    elif bare in {"body", "description", "text", "quote", "bio", "disclaimer"}:
+    elif bare in {"body", "description", "quote", "bio", "disclaimer"}:
         kind = "richtext"
     return {
         "id": key,
@@ -71,7 +71,7 @@ def _widget_field(key, default, spec):
     kind = spec.get("kind", "text")
     result = _field(key, default, choices=spec.get("options"))
     result["type"] = kind
-    if key.rsplit(".", 1)[-1] in {"body", "description", "text", "quote", "bio", "disclaimer"}:
+    if key.rsplit(".", 1)[-1] in {"body", "description", "quote", "bio", "disclaimer"}:
         result["type"] = "richtext"
     result["help"] = spec.get("help", "")
     if kind in {"range", "number", "int"}:
@@ -235,7 +235,7 @@ def _registry():
             field = _field(
                 key, value, choices=layouts if key == "layout" and layouts else None
             )
-            if key in {"body", "description", "text", "quote", "bio", "disclaimer"}:
+            if key in {"body", "description", "quote", "bio", "disclaimer"}:
                 field["type"] = "richtext"
                 field["help"] = (
                     "Safe formatting only. Scripts and inline event handlers are removed."

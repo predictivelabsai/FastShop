@@ -316,7 +316,10 @@ def test_values_for_every_owner_and_foreign_site_denials(workspace):
                 custom_data.save_values(db, w.other, kind, identifier, {})
             card = content_gap_routes.custom_data_card(db, w.site, kind, identifier, Input(name="csrf_token"))
             html = str(to_xml(card))
-            assert "&lt;p&gt;Safe&lt;/p&gt;" in html and "onmouseover" not in html
+            assert 'class="admin-rich-text"' in html
+            assert '<p>Safe</p>' in html
+            assert 'name="custom.note"' in html
+            assert "onmouseover" not in html and "<script>" not in html
 
 
 def test_public_redirect_is_301_and_real_page_wins(workspace, monkeypatch):

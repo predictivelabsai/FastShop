@@ -418,8 +418,11 @@ def register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
                 from app.rich_text import sanitise_rich_text
-                policies = {key: sanitise_rich_text(str(values.get(key, ""))[:50000])
-                            for key in ("refund", "privacy", "terms", "shipping_policy")}
+                raw_policies = {key: str(values.get(key, "")).strip()
+                                for key in ("refund", "privacy", "terms", "shipping_policy")}
+                if any(len(value) > 50000 for value in raw_policies.values()):
+                    raise CommerceError("Each policy must contain fewer than 50,000 characters.")
+                policies = {key: sanitise_rich_text(value) for key, value in raw_policies.items()}
                 if any(len(value) > 50000 for value in policies.values()):
                     raise CommerceError("Each policy must contain fewer than 50,000 characters.")
                 site.settings_json = {**(site.settings_json or {}), "policies": policies}

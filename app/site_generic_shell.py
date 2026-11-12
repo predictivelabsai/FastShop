@@ -117,7 +117,8 @@ def fields():
         {
             "id": f"generic_labels.{key}",
             "label": key.replace("_", " ").capitalize(),
-            "type": "textarea" if key.endswith(("body", "consent", "notice", "message")) else "text",
+            "type": "richtext" if key == "newsletter_unsubscribe_instruction" else "textarea"
+            if key.endswith(("body", "consent", "notice", "message")) else "text",
             "default": DEFAULTS[key],
             "group": group,
             "max_length": 2000,

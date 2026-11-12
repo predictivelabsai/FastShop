@@ -211,6 +211,23 @@ def test_settings_routes_csrf_and_tenant_isolation(store, monkeypatch):
     assert client.post(path + "/invite", data={"email": "new@example.test", "role": "editor"}).status_code == 400
     assert client.post(path + "/invite", data={"csrf_token": "expected-csrf", "email": "new@example.test", "role": "editor"}, follow_redirects=False).status_code == 303
     assert client.get("/admin/sites/foreign/settings/users").status_code == 400
+    policies_path = f"/admin/sites/{store.site.id}/settings/policies"
+    assert client.get(policies_path).status_code == 200
+    policy_values = {
+        "csrf_token": "expected-csrf",
+        "refund": "",
+        "privacy": "<h2>Privacy notice</h2><script>alert(1)</script>",
+        "terms": "",
+        "shipping_policy": "",
+    }
+    assert client.post(policies_path, data=policy_values, follow_redirects=False).status_code == 303
+    with Session(store.engine) as db:
+        saved_site = db.get(type(store.site), store.site.id)
+        assert saved_site.settings_json["policies"]["privacy"] == "<h2>Privacy notice</h2>"
+    oversized = {**policy_values, "privacy": "x" * 50001}
+    response = client.post(policies_path, data=oversized)
+    assert response.status_code == 400
+    assert "fewer than 50,000 characters" in response.text
     with Session(store.engine) as db:
         invite = db.scalar(select(StaffInvite).where(StaffInvite.email == "new@example.test"))
         token = service.invite_token(invite)

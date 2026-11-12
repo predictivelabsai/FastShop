@@ -320,7 +320,7 @@ def render_pack_widget(block, base="", preview=False):
     uid = "fs-pack-" + re.sub(r"[^a-zA-Z0-9_-]", "", str(block.get("id", "widget")))
 
     def field(key, field_kind="text"):
-        if field_kind == "text" and key.rsplit(".", 1)[-1] in {"body", "description", "text", "quote", "bio", "disclaimer"}:
+        if field_kind == "text" and key.rsplit(".", 1)[-1] in {"body", "description", "quote", "bio", "disclaimer"}:
             field_kind = "richtext"
         return {"data_field": key, "data_field_type": field_kind} if preview else {}
 

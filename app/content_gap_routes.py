@@ -30,6 +30,7 @@ from app.auth import password_attempt_allowed
 from app.content_gap_models import CustomDataValue
 from app.db import SessionLocal
 from app.models import Site
+from app.rich_text_ui import rich_text_editor
 from app.services import CommerceError
 from app.site_media import media_for
 
@@ -67,7 +68,14 @@ def custom_data_card(db, site, owner_type, owner_id, csrf_input):
                 SitePage.site_id == site.id, Product.tenant_id == site.tenant_id))
             control = Select(Option("Choose product", value=""), *[Option(p.name, value=p.id,
                 selected=value == p.id) for p in products], name=key)
-        elif kind in {"json", "rich_text", "multi_line_text"}:
+        elif kind == "rich_text":
+            control = rich_text_editor(
+                str(value),
+                name=key,
+                label=definition.name,
+                editor_id=f"custom-data-{owner_type}-{owner_id}-{definition.namespace}-{definition.key}",
+            )
+        elif kind in {"json", "multi_line_text"}:
             control = Textarea(json.dumps(value) if kind == "json" and value != "" else str(value),
                                name=key, rows=4, required=rules.get("required", False))
         else:
@@ -75,7 +83,7 @@ def custom_data_card(db, site, owner_type, owner_id, csrf_input):
                 type={"integer": "number", "decimal": "number", "date": "date",
                       "url": "url", "colour": "color"}.get(kind, "text"),
                 step="any" if kind == "decimal" else None)
-        fields.append(Label(definition.name, control))
+        fields.append(control if kind == "rich_text" else Label(definition.name, control))
     title = "Custom data"
     if owner_type == "variant":
         variant = custom_data.owner(db, site, owner_type, owner_id)

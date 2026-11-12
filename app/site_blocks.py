@@ -114,7 +114,7 @@ def _text(value, key, limit=30000):
             continue
         if key in URL_FIELDS and text:
             safe_url(text, media=key not in {'link', 'url'})
-    if key in {"body", "description", "text", "quote", "bio", "disclaimer"}:
+    if key in {"body", "description", "quote", "bio", "disclaimer"}:
         from app.rich_text import sanitise_rich_text
         if isinstance(value, dict):
             return {locale: sanitise_rich_text(text) for locale, text in value.items()}

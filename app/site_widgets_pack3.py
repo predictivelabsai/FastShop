@@ -95,7 +95,7 @@ def render_pack_widget(db, site, block, base="", preview=False):
     kind, items = block["type"], block.get("items", [])
 
     def field(key):
-        field_kind = "richtext" if key.rsplit(".", 1)[-1] in {"body", "description", "text", "quote", "bio", "disclaimer"} else "text"
+        field_kind = "richtext" if key.rsplit(".", 1)[-1] in {"body", "description", "quote", "bio", "disclaimer"} else "text"
         return {"data_field": key, "data_field_type": field_kind} if preview else {}
 
     def heading(value, key="heading", level="h2"):

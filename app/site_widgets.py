@@ -263,7 +263,7 @@ def validate_widget_field(value, key, spec):
             if kind == "colour" and not re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", entry):
                 raise CommerceError("Use a hexadecimal colour.")
         transform = sanitise_html if kind == "richtext" or key.rsplit(".", 1)[-1] in {
-            "body", "description", "text", "quote", "bio", "disclaimer"
+            "body", "description", "quote", "bio", "disclaimer"
         } else spec.get("validate")
         if transform:
             value = {locale: transform(entry) for locale, entry in value.items()} if isinstance(value, dict) else transform(value)
@@ -454,7 +454,7 @@ def _mark_fields(node, block):
             if isinstance(value, str) and value and _node_text(child).strip() == value.strip():
                 child.attrs["data-field"] = field
                 child.attrs["data-field-type"] = (
-                    "richtext" if field in {"body", "description", "text", "quote", "bio", "disclaimer"}
+                    "richtext" if field in {"body", "description", "quote", "bio", "disclaimer"}
                     else "text"
                 )
                 break
@@ -465,7 +465,7 @@ def _mark_fields(node, block):
                 suffix = field_id.rsplit(".", 1)[-1]
                 child.attrs["data-field-type"] = (
                     "image" if suffix == "image" else
-                    "richtext" if suffix in {"body", "description", "text", "quote", "bio", "disclaimer"}
+                    "richtext" if suffix in {"body", "description", "quote", "bio", "disclaimer"}
                     else "text"
                 )
         if tag == "img" and child.attrs.get("src") == block.get("image"):
@@ -496,7 +496,7 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
 
     def field(name):
         rich = name.rsplit(".", 1)[-1] in {
-            "body", "description", "text", "quote", "bio", "disclaimer"
+            "body", "description", "quote", "bio", "disclaimer"
         }
         return (
             {

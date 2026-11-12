@@ -24,7 +24,7 @@ _DEFAULT_FIELDS = [
      "max_length": 500, "default": ""},
     {"id": "company", "group": "footer", "label": "Company name", "type": "text",
      "max_length": 200, "default": ""},
-    {"id": "footer", "group": "footer", "label": "Footer note", "type": "textarea",
+    {"id": "footer", "group": "footer", "label": "Footer note", "type": "richtext",
      "max_length": 2000, "default": ""},
 ]
 

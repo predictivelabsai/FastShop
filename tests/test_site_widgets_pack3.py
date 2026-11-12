@@ -93,6 +93,22 @@ def test_defaults_validate_render_and_inline_hooks(context, kind):
         assert 'data-field="' in markup
 
 
+def test_inline_text_fields_remain_plain_text(context):
+    schemas = editor_schema()
+    trust_fields = next(field for field in schemas['trust_badges']['fields'] if field['id'] == 'items')['fields']
+    pricing_fields = next(field for field in schemas['pricing_table']['fields'] if field['id'] == 'items')['fields']
+    assert next(field for field in trust_fields if field['id'] == 'text')['type'] == 'textarea'
+    assert next(field for field in pricing_fields if field['id'] == 'description')['type'] == 'richtext'
+
+    block = default_block('trust_badges')
+    block['items'][0]['text'] = '<strong>Plain promise</strong>'
+    saved = validate_block(block)
+    assert saved['items'][0]['text'] == '<strong>Plain promise</strong>'
+    markup = render(context, saved)
+    assert '&lt;strong&gt;Plain promise&lt;/strong&gt;' in markup
+    assert 'data-field="items.0.text" data-field-type="text"' in markup
+
+
 @pytest.mark.parametrize(('kind', 'patch'), [
     ('featured_collection', {'limit': 0}), ('featured_collection', {'limit': 13}),
     ('featured_collection', {'limit': True}), ('featured_collection', {'columns': 5}),
