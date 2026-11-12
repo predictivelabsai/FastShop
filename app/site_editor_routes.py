@@ -47,7 +47,13 @@ from app.site_media import (
     prepare_svg_icon,
 )
 from app.site_styled_words import styled_words_for, validate_styled_words
-from app.site_theme import CHOICES, theme_pack, typography_schema, validate_theme
+from app.site_theme import (
+    CHOICES,
+    theme_pack,
+    typography_schema,
+    validate_liquid_theme,
+    validate_theme,
+)
 
 
 class EditorError(CommerceError):
@@ -66,6 +72,15 @@ def failure(exc):
     return response({"error": message, "errors": [{"path": getattr(exc, "path", match.group() if match else "$"),
                     "message": message}], **getattr(exc, "details", {})},
                     getattr(exc, "status", 422))
+
+
+def theme_settings(config, design):
+    liquid = theme_pack(config or {}) == "liquid"
+    return (validate_liquid_theme if liquid else validate_theme)(design)
+
+
+def theme_schema(config):
+    return typography_schema() if theme_pack(config or {}) == "liquid" else None
 
 
 def validate_editor_document(document):
@@ -320,10 +335,11 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     "page": {"id": selected.id, "title": selected.title, "kind": selected.kind,
                         "product_id": custom_data.product_id_for_page(db, site, selected),
                              "path": selected.path},
-                    "theme_settings": validate_theme((site.settings_json or {}).get("design", {})),
+                    "theme_settings": theme_settings(site.settings_json,
+                                                       (site.settings_json or {}).get("design", {})),
                     "styled_words": styled_words_for(site.settings_json),
                     **shell_payload(site, theme),
-                    "theme_choices": CHOICES, "typography_schema": typography_schema(),
+                    "theme_choices": CHOICES, "typography_schema": theme_schema(site.settings_json),
                     "can_publish": role in {"admin", "merchant"}})
         except CommerceError as exc:
             return failure(exc)
@@ -382,7 +398,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                         raise EditorError(str(exc), 409, conflict=True,
                                           site_version=site.version, version=selected.version) from exc
                     if "design" in (site.settings_json or {}):
-                        published_design = validate_theme(site.settings_json["design"])
+                        published_design = theme_settings(site.settings_json, site.settings_json["design"])
                     if "styled_words" in (site.settings_json or {}):
                         published_styled_words = validate_styled_words(site.settings_json["styled_words"])
                     from app.site_editable_settings import publish_shell, shell_fields
@@ -461,11 +477,11 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 site, _ = access(db, session, site_id)
                 if theme:
                     site, _ = editor_context(db, site, "", theme)
-                return response({"theme_settings": validate_theme(
-                    site.settings_json.get("design", {})),
+                return response({"theme_settings": theme_settings(
+                    site.settings_json, site.settings_json.get("design", {})),
                     "styled_words": styled_words_for(site.settings_json),
                     "theme_choices": CHOICES,
-                    "typography_schema": typography_schema(), "version": site.version})
+                    "typography_schema": theme_schema(site.settings_json), "version": site.version})
         except CommerceError as exc:
             return failure(exc)
 
@@ -491,7 +507,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     site = builder.lock_site(db, site.id, user_id, _version(values.get("version")))
                 except CommerceError as exc:
                     raise EditorError(str(exc), 409, conflict=True, version=site.version) from exc
-                design = validate_theme(values.get("theme_settings", {}))
+                design = theme_settings(site.settings_json, values.get("theme_settings", {}))
                 operations = [{"op": "theme", "values": design}]
                 if styled_words is not None:
                     operations.append({"op": "styled_words", "values": styled_words})

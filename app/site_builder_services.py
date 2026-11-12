@@ -22,7 +22,7 @@ from app.site_blocks import (
 from app.site_refinement import apply_operation as apply_refinement_operation
 from app.site_refinement import derive_operations
 from app.site_styled_words import validate_styled_words
-from app.site_theme import validate_theme
+from app.site_theme import theme_pack, validate_liquid_theme, validate_theme
 
 BRAND_FIELDS = {"name", "tagline", "announcement", "footer"}
 SECTION_FIELDS = {"heading", "eyebrow", "body", "image", "button", "link", "hidden", "items", "gallery", "alt", "video", "mobile_video", "poster", "role", "layout"}
@@ -168,7 +168,8 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
             site_menus.put_menu(db, site, "header", items)
             summaries.append("Navigation")
         elif kind == "theme" and set(operation) == {"op", "values"}:
-            config["design"] = validate_theme(config.get("design", {}) | operation["values"])
+            validator = validate_liquid_theme if theme_pack(config) == "liquid" else validate_theme
+            config["design"] = validator(config.get("design", {}) | operation["values"])
             summaries.append("Design settings")
         elif kind == "styled_words" and set(operation) == {"op", "values"}:
             config["styled_words"] = validate_styled_words(operation["values"])

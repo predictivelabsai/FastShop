@@ -1395,9 +1395,13 @@ function renderTheme() {
         const values = typography.roles?.[role.id] || {};
         return `<details class="theme-typography-role" ${role.id === "footer_heading" ? "open" : ""}><summary>${esc(role.label)}</summary>${(role.fields || []).map((field) => fieldHTML(field, values, `typography.roles.${role.id}.`)).join("")}</details>`;
       })
-      .join("");
+      .join(""),
+    typographyPanel =
+      state.theme_settings.typography && state.typography_schema
+        ? `<details class="theme-typography" open><summary>Typography</summary><p class="field-help">Choose local fonts and adjust every type role. Changes preview on the canvas before you save.</p>${fontFields.map((field) => fieldHTML(field, typography, "typography.")).join("")}${roleFields}</details>`
+        : "";
   $("#left-content").innerHTML =
-    `<div class="theme-fields"><p class="field-help">Shared across your storefront.</p>${fields.map((f) => fieldHTML(f, state.theme_settings)).join("")}<details class="theme-typography" open><summary>Typography</summary><p class="field-help">Choose local fonts and adjust every type role. Changes preview on the canvas before you save.</p>${fontFields.map((field) => fieldHTML(field, typography, "typography.")).join("")}${roleFields}</details>${renderStyledWords()}<button id="save-theme">Save theme settings</button></div>`;
+    `<div class="theme-fields"><p class="field-help">Shared across your storefront.</p>${fields.map((f) => fieldHTML(f, state.theme_settings)).join("")}${typographyPanel}${renderStyledWords()}<button id="save-theme">Save theme settings</button></div>`;
   wireFields(
     state.theme_settings,
     (p, v) => {

@@ -134,8 +134,11 @@ def typography_schema():
     }
 
 
-def theme_form_values(form):
+def theme_form_values(form, *, include_typography=False):
     """Read the classical form into the same bounded JSON shape as the editor API."""
+    result = {key: str(form.get(key, "")) for key in DEFAULTS}
+    if not include_typography:
+        return result
     typography = typography_defaults()
     for key in ("display_font", "body_font", "ui_font"):
         typography[key] = str(form.get(f"typography.{key}", typography[key]))
@@ -143,7 +146,7 @@ def theme_form_values(form):
         for field, default in defaults.items():
             name = f"typography.roles.{role}.{field}"
             typography["roles"][role][field] = str(form.get(name, default))
-    return {key: str(form.get(key, "")) for key in DEFAULTS} | {"typography": typography}
+    return result | {"typography": typography}
 
 
 def _validated_size(value, *, optional=False):
@@ -218,8 +221,9 @@ def validate_typography(value):
     return result
 
 
-def validate_theme(value):
-    if not isinstance(value, dict) or set(value) - (set(DEFAULTS) | {"typography"}):
+def _validate_design(value, *, allow_typography=False):
+    allowed = set(DEFAULTS) | ({"typography"} if allow_typography else set())
+    if not isinstance(value, dict) or set(value) - allowed:
         raise CommerceError("Choose supported design settings.")
     result = DEFAULTS | {key: item for key, item in value.items() if key in DEFAULTS}
     for key, item in result.items():
@@ -230,11 +234,22 @@ def validate_theme(value):
                 raise CommerceError("Choose a supported " + key + ".")
         elif not re.fullmatch(r"#[0-9a-fA-F]{6}", item):
             raise CommerceError("Colors must use six-digit hex values.")
+    return result
+
+
+def validate_theme(value):
+    """Validate the legacy, generic design token shape."""
+    return _validate_design(value)
+
+
+def validate_liquid_theme(value):
+    """Validate Liquid design tokens plus the bounded typography payload."""
+    result = _validate_design(value, allow_typography=True)
     result["typography"] = validate_typography(value.get("typography"))
     return result
 
 
-# Presets use the same fully-resolved settings shape that draft saves and previews use.
+# Generic presets retain their historical settings shape for generated site plans.
 PRESETS = {name: validate_theme(values) for name, values in _PRESET_VALUES.items()}
 
 
@@ -274,7 +289,7 @@ def theme_style(config):
     if not config.get("design") and not liquid:
         return ""  # Existing sites retain their exact legacy theme.
     try:
-        theme = validate_theme(config.get("design", {}))
+        theme = (validate_liquid_theme if liquid else validate_theme)(config.get("design", {}))
     except CommerceError:
         return ";".join(typography_style(typography_defaults())) if liquid else ""
     result = [

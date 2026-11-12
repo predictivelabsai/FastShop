@@ -3,7 +3,7 @@
 import pytest
 
 from app.services import CommerceError
-from app.site_theme import theme_style, validate_theme
+from app.site_theme import DEFAULTS, theme_style, validate_liquid_theme, validate_theme
 
 
 def _liquid_style(theme=None):
@@ -15,7 +15,7 @@ def _liquid_style(theme=None):
 
 def test_liquid_typography_defaults_are_an_explicit_css_variable_snapshot():
     """The emitted defaults reproduce the Liquid pack's established type scale."""
-    defaults = validate_theme({})["typography"]
+    defaults = validate_liquid_theme({})["typography"]
 
     assert defaults == {
         "display_font": "theme",
@@ -55,7 +55,7 @@ def test_liquid_typography_defaults_are_an_explicit_css_variable_snapshot():
 
 
 def test_liquid_typography_uses_only_validated_values_in_css_variables():
-    theme = validate_theme({
+    theme = validate_liquid_theme({
         "typography": {
             "display_font": "fraunces",
             "body_font": "system_sans",
@@ -104,7 +104,13 @@ def test_liquid_typography_uses_only_validated_values_in_css_variables():
 ])
 def test_liquid_typography_rejects_untrusted_css_and_out_of_range_values(typography):
     with pytest.raises(CommerceError):
-        validate_theme({"typography": typography})
+        validate_liquid_theme({"typography": typography})
+
+
+def test_generic_theme_validation_retains_the_legacy_shape():
+    assert set(validate_theme({})) == set(DEFAULTS)
+    with pytest.raises(CommerceError):
+        validate_theme({"typography": {}})
 
 
 def test_non_liquid_legacy_theme_style_remains_empty_without_design_settings():

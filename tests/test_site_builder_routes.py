@@ -22,7 +22,7 @@ from app.models import (
     VariantChannelListing,
 )
 from app.services import CommerceError
-from app.site_theme import DEFAULTS, PRESETS, validate_theme
+from app.site_theme import DEFAULTS, PRESETS, validate_liquid_theme
 
 
 @pytest.fixture
@@ -67,12 +67,18 @@ def test_builder_preview_and_classical_share_draft(editor, monkeypatch):
 
 def test_classical_design_form_exposes_and_saves_liquid_typography(editor):
     client, site, page, token = editor
+    with SessionLocal() as db:
+        saved = db.get(Site, site.id)
+        saved.settings_json = saved.settings_json | {"theme_pack": "liquid"}
+        saved.published_settings_json = saved.published_settings_json | {"theme_pack": "liquid"}
+        db.commit()
+        site.version = saved.version
     base = f"/admin/sites/{site.id}/build"
     design = client.get(base + "?view=design")
     assert design.status_code == 200
     assert "Typography" in design.text
     assert 'name="typography.roles.footer_heading.size"' in design.text
-    defaults = validate_theme({})
+    defaults = validate_liquid_theme({})
     values = {
         "csrf_token": token,
         "version": site.version,

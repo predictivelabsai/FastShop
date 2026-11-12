@@ -39,7 +39,9 @@ from app.site_theme import (
     CHOICES,
     PRESETS,
     theme_form_values,
+    theme_pack,
     typography_schema,
+    validate_liquid_theme,
     validate_theme,
 )
 from app.ui import static_asset
@@ -63,10 +65,12 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                 change = changes[0] if changes else None
                 from app.site_samples import pending_reviews
                 pending = pending_reviews(site.settings_json)
+                liquid = theme_pack(site.settings_json or {}) == "liquid"
+                validator = validate_liquid_theme if liquid else validate_theme
                 try:
-                    theme = validate_theme(site.settings_json.get("design", {}))
+                    theme = validator(site.settings_json.get("design", {}))
                 except CommerceError:
-                    theme = validate_theme({})
+                    theme = validator({})
                 base = f"/admin/sites/{site.id}"
                 can_review = bool(db.scalar(select(Membership.id).where(Membership.tenant_id == site.tenant_id,
                     Membership.user_id == user_id, Membership.role.in_(["admin", "merchant"]))))
@@ -169,34 +173,36 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     P(A("Review resolved images in the media library", href=base + "/media")),
                     cls="b-imagery",
                 ) if imagery else None
-                typography = theme["typography"]
-                typography_fields = typography_schema()
+                typography_controls = None
+                if liquid:
+                    typography = theme["typography"]
+                    typography_fields = typography_schema()
 
-                def typography_input(field, values, prefix):
-                    name = prefix + "." + field["id"]
-                    control = Select(*[
-                        Option(label, value=value, selected=values[field["id"]] == value)
-                        for value, label in field.get("options", {}).items()
-                    ], name=name) if field["type"] == "select" else Input(
-                        name=name, value=values[field["id"]], required=field["id"] != "mobile_size",
-                        inputmode="decimal",
+                    def typography_input(field, values, prefix):
+                        name = prefix + "." + field["id"]
+                        control = Select(*[
+                            Option(label, value=value, selected=values[field["id"]] == value)
+                            for value, label in field.get("options", {}).items()
+                        ], name=name) if field["type"] == "select" else Input(
+                            name=name, value=values[field["id"]], required=field["id"] != "mobile_size",
+                            inputmode="decimal",
+                        )
+                        return Label(field["label"], control,
+                            Small(field["help"]) if field.get("help") else None)
+
+                    typography_controls = Details(
+                        Summary("Typography"),
+                        P("Choose local fonts and adjust each text role. Size accepts px or rem."),
+                        *[typography_input(field, typography, "typography")
+                          for field in typography_fields["font_fields"]],
+                        *[Details(
+                            Summary(role["label"]),
+                            *[typography_input(field, typography["roles"][role["id"]],
+                                              "typography.roles." + role["id"])
+                              for field in role["fields"]],
+                        ) for role in typography_fields["roles"]],
+                        open=True,
                     )
-                    return Label(field["label"], control,
-                        Small(field["help"]) if field.get("help") else None)
-
-                typography_controls = Details(
-                    Summary("Typography"),
-                    P("Choose local fonts and adjust each text role. Size accepts px or rem."),
-                    *[typography_input(field, typography, "typography")
-                      for field in typography_fields["font_fields"]],
-                    *[Details(
-                        Summary(role["label"]),
-                        *[typography_input(field, typography["roles"][role["id"]],
-                                          "typography.roles." + role["id"])
-                          for field in role["fields"]],
-                    ) for role in typography_fields["roles"]],
-                    open=True,
-                )
                 design = Form(*hidden(), H2("Design settings"),
                     *[Label(k.title(), Input(name=k, type="color", value=theme[k]))
                       for k in ("accent", "background", "surface", "text")],
@@ -286,7 +292,9 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 user_id = actor(session)
                 site = builder.lock_site(db, site_id, user_id, int(form.get("version", 0)))
-                theme = validate_theme(theme_form_values(form))
+                liquid = theme_pack(site.settings_json or {}) == "liquid"
+                validator = validate_liquid_theme if liquid else validate_theme
+                theme = validator(theme_form_values(form, include_typography=liquid))
                 builder.apply_operations(db, site.id, user_id, builder.snapshot(db, site), [{"op": "theme", "values": theme}], "classical")
                 db.commit()
             return redirect(site_id, str(form.get("page_id", "")), "Design saved", "design")

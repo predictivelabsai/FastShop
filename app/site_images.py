@@ -22,7 +22,7 @@ from app.models import SiteMedia
 from app.services import CommerceError
 from app.site_blocks import default_locale, normalize_document, resolve_text
 from app.site_media import media_url, prepare_image_bytes
-from app.site_theme import DEFAULTS, validate_theme
+from app.site_theme import DEFAULTS, theme_pack, validate_liquid_theme, validate_theme
 
 MAX_IMAGES_PER_RESOLUTION = 60
 IMAGE_SIZES = {
@@ -239,7 +239,9 @@ def resolve_site_imagery(db, site, user_id: str, *, provider: SiteImageProvider 
         raise CommerceError(
             f"Resolve at most {MAX_IMAGES_PER_RESOLUTION} generated images at a time."
         )
-    theme = validate_theme(config.get("design", DEFAULTS))
+    validator = validate_liquid_theme if theme_pack(config) == "liquid" else validate_theme
+    validated_theme = validator(config.get("design", DEFAULTS))
+    theme = {key: validated_theme[key] for key in DEFAULTS}
     if provider is None:
         selected_name, provider = image_provider(provider_name, theme=theme, site_id=site.id)
     else:

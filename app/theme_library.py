@@ -121,8 +121,10 @@ def edit(db, site, user_id, theme_id, page_id, document, version, *, design=None
     if design is not None or styled_words is not None:
         settings = dict(state.get("settings") or {})
         if design is not None:
-            from app.site_theme import validate_theme
-            settings["design"] = validate_theme(design)
+            from app.site_theme import theme_pack, validate_liquid_theme, validate_theme
+            validator = (validate_liquid_theme if theme_pack(settings) == "liquid"
+                         else validate_theme)
+            settings["design"] = validator(design)
         if styled_words is not None:
             from app.site_styled_words import validate_styled_words
             settings["styled_words"] = validate_styled_words(styled_words)
