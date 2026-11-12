@@ -1,7 +1,9 @@
 """Site-owned media registry. Content URLs are never rewritten by registration."""
 import io
 import mimetypes
+import re
 from pathlib import Path
+from xml.etree import ElementTree
 
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
@@ -12,6 +14,127 @@ from app.services import CommerceError
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_IMAGE_PIXELS = 25_000_000
+MAX_SVG_ICON_BYTES = 256 * 1024
+
+_SVG_DRAWING_TAGS = {
+    "circle",
+    "ellipse",
+    "g",
+    "line",
+    "path",
+    "polygon",
+    "polyline",
+    "rect",
+}
+_SVG_ATTRIBUTES = {
+    "cx",
+    "cy",
+    "d",
+    "fill",
+    "fill-opacity",
+    "fill-rule",
+    "opacity",
+    "points",
+    "r",
+    "rx",
+    "ry",
+    "stroke",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "stroke-opacity",
+    "stroke-width",
+    "transform",
+    "vector-effect",
+    "x",
+    "x1",
+    "x2",
+    "y",
+    "y1",
+    "y2",
+}
+_SVG_VIEWBOX = re.compile(
+    r"\s*-?(?:\d+(?:\.\d*)?|\.\d+)\s+-?(?:\d+(?:\.\d*)?|\.\d+)"
+    r"\s+(?:\d+(?:\.\d*)?|\.\d+)\s+(?:\d+(?:\.\d*)?|\.\d+)\s*"
+)
+_SVG_NUMBER = re.compile(r"(?:0|1(?:\.0+)?|0?\.\d+)")
+_SVG_TRANSFORM = re.compile(r"[a-zA-Z0-9(),.\s+-]+")
+
+
+def _svg_name(value):
+    return value.rsplit("}", 1)[-1].lower()
+
+
+def _safe_svg_attribute(name, value):
+    """Return a safe drawing attribute, forcing visible ink to currentColor."""
+    if name not in _SVG_ATTRIBUTES or not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or re.search(r"(?:url\s*\(|https?:|data:|javascript:)", value, re.I):
+        return None
+    if name in {"fill", "stroke"}:
+        return "none" if value.lower() == "none" else "currentColor"
+    if name in {"opacity", "fill-opacity", "stroke-opacity"}:
+        return value if _SVG_NUMBER.fullmatch(value) else None
+    if name == "transform":
+        return value if _SVG_TRANSFORM.fullmatch(value) else None
+    return value
+
+
+def prepare_svg_icon(data: bytes) -> bytes:
+    """Rebuild a small, colour-inheriting SVG icon from safe drawing primitives."""
+    if not isinstance(data, bytes) or not data or len(data) > MAX_SVG_ICON_BYTES:
+        raise CommerceError("SVG icons must be smaller than 256 KB.")
+    if re.search(br"<!\s*(?:doctype|entity)\b", data, re.I):
+        raise CommerceError("SVG icons cannot include declarations or entities.")
+    try:
+        source = ElementTree.fromstring(data)
+    except ElementTree.ParseError as exc:
+        raise CommerceError("Invalid SVG icon.") from exc
+    if _svg_name(source.tag) != "svg":
+        raise CommerceError("Upload an SVG icon.")
+    view_box = source.attrib.get("viewBox", "0 0 24 24")
+    if not _SVG_VIEWBOX.fullmatch(view_box):
+        view_box = "0 0 24 24"
+
+    def rebuild(node):
+        tag = _svg_name(node.tag)
+        if tag not in _SVG_DRAWING_TAGS:
+            return None
+        attrs = {}
+        for raw_name, raw_value in node.attrib.items():
+            name = _svg_name(raw_name)
+            if name.startswith("on") or name in {"href", "style"}:
+                continue
+            value = _safe_svg_attribute(name, raw_value)
+            if value is not None:
+                attrs[name] = value
+        clean = ElementTree.Element(tag, attrs)
+        for child in node:
+            nested = rebuild(child)
+            if nested is not None:
+                clean.append(nested)
+        return clean
+
+    root = ElementTree.Element(
+        "svg",
+        {
+            "xmlns": "http://www.w3.org/2000/svg",
+            "viewBox": view_box,
+            "fill": "none",
+            "stroke": "currentColor",
+            "stroke-width": "1.7",
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
+            "aria-hidden": "true",
+        },
+    )
+    for child in source:
+        clean = rebuild(child)
+        if clean is not None:
+            root.append(clean)
+    if not list(root):
+        raise CommerceError("SVG icons need at least one supported drawing.")
+    return ElementTree.tostring(root, encoding="utf-8", short_empty_elements=True)
 
 
 def prepare_image_bytes(data: bytes, *, max_size=(1800, 1800)) -> bytes:
