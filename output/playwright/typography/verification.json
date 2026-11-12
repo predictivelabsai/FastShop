@@ -23,6 +23,13 @@
           "font_weight": "400",
           "letter_spacing": "normal"
         },
+        "footer_nav_heading": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "600",
+          "letter_spacing": "normal"
+        },
         "footer_title": {
           "computed_line_height": "39.6px",
           "font_family": "\"Liquid Fraunces\", Georgia, serif",
@@ -143,6 +150,13 @@
           "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
           "font_size": "16px",
           "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "footer_nav_heading": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "600",
           "letter_spacing": "normal"
         },
         "footer_title": {
@@ -269,6 +283,13 @@
           "font_weight": "400",
           "letter_spacing": "normal"
         },
+        "footer_nav_heading": {
+          "computed_line_height": "18px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "12px",
+          "font_weight": "600",
+          "letter_spacing": "normal"
+        },
         "footer_title": {
           "computed_line_height": "30.8px",
           "font_family": "\"Liquid Fraunces\", Georgia, serif",
@@ -391,6 +412,13 @@
           "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
           "font_size": "16px",
           "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "footer_nav_heading": {
+          "computed_line_height": "18px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "12px",
+          "font_weight": "600",
           "letter_spacing": "normal"
         },
         "footer_title": {

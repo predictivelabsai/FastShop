@@ -99,6 +99,7 @@ def typography_snapshot(frame):
         "button": element_typography(frame, ".metal-cta"),
         "nav": element_typography(frame, '.metal-header nav[aria-label="Main"] a'),
         "footer_title": element_typography(frame, ".liquid-footer-title"),
+        "footer_nav_heading": element_typography(frame, ".liquid-footer-grid nav h3"),
         "footer_body": element_typography(frame, ".liquid-footer-title + .fs-rich-content"),
     }
     viewport = root.evaluate("element => ({width: innerWidth, height: innerHeight})")
@@ -133,6 +134,7 @@ def assert_default_typography(snapshot, device):
         "button": ('Liquid Quicksand', "14px", "600", "21px"),
         "nav": ('Liquid Quicksand', "14px", "400", "21px"),
         "footer_title": ('Liquid Fraunces', "36px", "400", "39.6px"),
+        "footer_nav_heading": ('Liquid Quicksand', "16px", "600", "24px"),
         "footer_body": ('Liquid Quicksand', "16px", "400", "24px"),
     }
     for name, (family, size, weight, line_height) in expected_components.items():
@@ -256,6 +258,7 @@ def main():
                 display_font.select_option("fraunces")
                 page.wait_for_timeout(100)
                 assert_live_font(frame, ".metal-hero-title", "Liquid Fraunces")
+                assert_live_font(frame, ".liquid-footer-grid nav h3", "Liquid Fraunces")
                 display_font.select_option("theme")
                 body_font.select_option("system_serif")
                 page.wait_for_timeout(100)
@@ -283,6 +286,9 @@ def main():
                 field.fill("28px")
                 expect(page.locator("#save-status")).to_have_text("Unsaved changes")
                 expect(frame.locator(".liquid-footer-title")).to_have_css("font-size", "28px")
+                expect(frame.locator(".liquid-footer-grid nav h3").first).to_have_css(
+                    "font-size", "12px"
+                )
                 before_save = typography_snapshot(frame)
                 if before_save["roles"]["footer_heading"]["size"] != "28px":
                     raise AssertionError("The iframe did not receive the unsaved footer heading size")
@@ -291,6 +297,9 @@ def main():
                 frame = canvas(page)
                 mobile_field.fill("24px")
                 expect(frame.locator(".liquid-footer-title")).to_have_css("font-size", "24px")
+                expect(frame.locator(".liquid-footer-grid nav h3").first).to_have_css(
+                    "font-size", "12px"
+                )
                 before_save_mobile = typography_snapshot(frame)
                 if before_save_mobile["roles"]["footer_heading"]["mobile_size"] != "24px":
                     raise AssertionError("The iframe did not receive the unsaved mobile footer heading size")
