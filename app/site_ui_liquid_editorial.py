@@ -1,6 +1,5 @@
 """Liquid editorial components, rendered solely from canonical page block entries."""
 
-import re
 from html import escape
 
 from fasthtml.common import (
@@ -38,8 +37,7 @@ def link(href, base):
 
 
 def names(text):
-    return [Em(p, cls="bottle-one font-accent") if p in {"One", "Fizz"} else p
-            for p in re.split(r"\b(One|Fizz)\b", text)]
+    return [text]
 
 
 def svg(body, view="0 0 24 24", **attrs):

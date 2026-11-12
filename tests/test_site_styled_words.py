@@ -2,7 +2,12 @@ import pytest
 from fasthtml.common import A, Div, Img, Input, NotStr, Script, Style, Title, to_xml
 
 from app.services import CommerceError
-from app.site_styled_words import PRIMARY_COLOUR, apply_styled_words, validate_styled_words
+from app.site_styled_words import (
+    PRIMARY_COLOUR,
+    apply_styled_words,
+    styled_words_for,
+    validate_styled_words,
+)
 
 RULES = [
     {"word": "One", "italic": True, "bold": False, "colour": PRIMARY_COLOUR},
@@ -40,7 +45,7 @@ def test_styled_words_only_replace_case_sensitive_whole_visible_words():
 def test_styled_words_transform_rich_text_without_touching_attributes_or_double_wrapping():
     node = Div(
         NotStr(
-            '<p title="One">One <a href="/Fizz">Fizz</a></p><span class="fs-styled-word">One</span>'
+            '<p title="One">One <a href="/Fizz">Fizz</a></p><span class="fs-styled-word">One</span><span class="bottle-one">Fizz</span>'
         ),
         cls="fs-rich-content",
     )
@@ -52,6 +57,7 @@ def test_styled_words_transform_rich_text_without_touching_attributes_or_double_
     assert once.count('class="fs-styled-word"') == 3
     assert 'title="One"' in once and 'href="/Fizz"' in once
     assert '<span class="fs-styled-word">One</span>' in once
+    assert '<span class="bottle-one">Fizz</span>' in once
 
 
 def test_styled_words_reject_unbounded_or_unsafe_configuration():
@@ -63,3 +69,8 @@ def test_styled_words_reject_unbounded_or_unsafe_configuration():
     ):
         with pytest.raises(CommerceError, match="Styled word"):
             validate_styled_words(invalid)
+
+
+def test_styled_words_fail_closed_for_malformed_legacy_site_settings():
+    assert styled_words_for([]) == []
+    assert styled_words_for({"styled_words": "One"}) == []

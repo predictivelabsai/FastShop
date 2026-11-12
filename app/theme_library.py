@@ -112,15 +112,21 @@ def context(db, site, theme_id, page_id=""):
     return preview_site, preview_page
 
 
-def edit(db, site, user_id, theme_id, page_id, document, version, *, design=None):
+def edit(db, site, user_id, theme_id, page_id, document, version, *, design=None, styled_words=None):
     content.owned_site(db, site.id, user_id)
     theme = theme_for(db, site, theme_id)
     if theme.kind != "draft":
         raise CommerceError("Duplicate a previous live theme before editing it.")
     state = copy.deepcopy(theme.snapshot_json)
-    if design is not None:
-        from app.site_theme import validate_theme
-        state["settings"] = dict(state.get("settings") or {}, design=validate_theme(design))
+    if design is not None or styled_words is not None:
+        settings = dict(state.get("settings") or {})
+        if design is not None:
+            from app.site_theme import validate_theme
+            settings["design"] = validate_theme(design)
+        if styled_words is not None:
+            from app.site_styled_words import validate_styled_words
+            settings["styled_words"] = validate_styled_words(styled_words)
+        state["settings"] = settings
     else:
         page = next((p for p in state["pages"] if p["id"] == page_id), None)
         if page is None:

@@ -1,7 +1,6 @@
 /* Product styles retained from the reference, isolated to the Liquid pack. */
 .h-site[data-pack="liquid"] {
 .bottle-page { --bottle-blue-from: #14A5EE; --bottle-blue-to: #0A3DC7; --bottle-information: var(--bottle-blue-from); --bottle-information-gradient: linear-gradient(120deg, var(--bottle-blue-from), var(--bottle-blue-to)); --bottle-on-information: #fff; --bottle-photo-surface: #fff; --bottle-overlay-shade: rgb(0 0 0 / .78); --bottle-overlay: linear-gradient(to top, var(--bottle-overlay-shade), transparent); --bottle-pair-surface: oklch(0.235 0.023 285); --bottle-pair-border: color-mix(in oklch, var(--primary) 20%, var(--background)); }
-.bottle-one { background: var(--bottle-information-gradient); background-clip: text; -webkit-background-clip: text; color: transparent; font-weight: inherit; }
 .bottle-top { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 48px; padding-block: 48px; align-items: start; }
 .bottle-gallery { min-width: 0; }
 .bottle-gallery-viewport { overflow: hidden; background: var(--bottle-photo-surface); }
@@ -38,7 +37,6 @@
 .bottle-technology { display: grid; grid-template-columns: minmax(0,.8fr) minmax(0,1.2fr); gap: 32px; align-items: center; }
 .bottle-tech-photo { background: var(--bottle-photo-surface); border: 1px solid var(--pearl-border); }
 .bottle-tech-photo img { width: 100%; height: 100%; max-height: 540px; object-fit: contain; }
-.bottle-brand-name { font-family: var(--body-family); font-weight: 400; font-variant-numeric: lining-nums; }
 .bottle-total { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .bottle-savings { display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--bottle-information-gradient); color: var(--bottle-on-information); animation: bottle-savings-pop 260ms ease-out; }
 
@@ -213,8 +211,7 @@
   .tablet-equation { white-space: normal; }
 }
 
-/* ---------- Tablet page revision: names, badges, fizz moments, benefits ---------- */
-.product-name .bottle-one { font-style: italic; }
+/* ---------- Tablet page revision: badges, fizz moments, benefits ---------- */
 .tablet-gallery-col { min-width: 0; }
 .tablet-page .bottle-thumbnails button { flex: 1 1 0; min-width: 0; max-width: 72px; height: auto; aspect-ratio: 1; }
 .tablet-page .bottle-thumbnails { justify-content: space-between; }

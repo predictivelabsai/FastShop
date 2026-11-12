@@ -1,7 +1,6 @@
 """Source-faithful support components backed only by canonical block fields."""
 
 import json
-import re
 from urllib.parse import urlsplit
 
 from fasthtml.common import (
@@ -14,7 +13,6 @@ from fasthtml.common import (
     Button,
     Details,
     Div,
-    Em,
     Figcaption,
     Figure,
     Form,
@@ -41,8 +39,7 @@ def rows(block, theme):
 
 
 def names(value):
-    return [Em(p, cls='bottle-one font-accent') if p in {'One', 'Fizz'} else p
-            for p in re.split(r'\b(One|Fizz)\b', value)]
+    return [value]
 
 
 def href(base, value):

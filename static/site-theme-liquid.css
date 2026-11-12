@@ -652,8 +652,11 @@
 .h-site[data-pack="liquid"] .metal-stat-note { margin:4px auto 0; font-size:12px; color:var(--muted-foreground); }
 .h-site[data-pack="liquid"] .science-source { margin-top:40px; text-align:center; font-size:12px; line-height:1.625; color:var(--muted-foreground); }
 .h-site[data-pack="liquid"] .product-subtitle { margin-top:4px; font-size:12px; font-style:italic; color:var(--muted-foreground); }
-.h-site[data-pack="liquid"] .bottle-brand-name { font-family:var(--body-family); font-weight:400; font-variant-numeric:lining-nums; }
-.h-site[data-pack="liquid"] .bottle-one { font-family:var(--accent-family); background:var(--brand-gradient); background-clip:text; -webkit-background-clip:text; color:transparent; font-weight:inherit; }
+.h-site[data-pack="liquid"] .fs-styled-word { font-family:var(--accent-family); font-weight:inherit; }
+.h-site[data-pack="liquid"] .fs-styled-word[data-styled-word-italic="true"] { font-style:italic; }
+.h-site[data-pack="liquid"] .fs-styled-word[data-styled-word-bold="true"] { font-weight:700; }
+.h-site[data-pack="liquid"] .fs-styled-word[data-styled-word-colour="brand-primary"] { background:var(--brand-gradient); background-clip:text; -webkit-background-clip:text; color:transparent; }
+.h-site[data-pack="liquid"] .fs-styled-word[style] { color:var(--fs-styled-word-colour); }
 .h-site[data-pack="liquid"] .metal-product-controls { margin:0; }
 .h-site[data-pack="liquid"] .metal-product-controls > div { min-height:52px; }
 .h-site[data-pack="liquid"] .metal-product-controls select { width:100%; background:var(--card); border:1px solid var(--border); border-radius:4px; padding:5px; font-size:12px; }
@@ -802,7 +805,6 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 .h-site[data-pack="liquid"] .home-learn .metal-learn-more { color:#9C5A4C; font-weight:600; }
 .h-site[data-pack="liquid"] .home-learn .metal-card:hover, .h-site[data-pack="liquid"] .home-learn .metal-card:focus-visible, .h-site[data-pack="liquid"] .home-learn .metal-card:focus-within { background:var(--card-hover); border-color:var(--primary); }
 .h-site[data-pack="liquid"] .home-learn .metal-card:hover .metal-learn-image, .h-site[data-pack="liquid"] .home-learn .metal-card:focus-within .metal-learn-image { transform:none; filter:none; }
-.h-site[data-pack="liquid"] .metal-light .bottle-one { background:linear-gradient(120deg,#1E6FE0,#0A3DC7); background-clip:text; -webkit-background-clip:text; color:transparent; }
 .h-site[data-pack="liquid"] .metal-header { position:relative; }
 @media(min-width:768px) { .h-site[data-pack="liquid"] .metal-header nav[aria-label="Main"] { position:absolute; left:50%; transform:translateX(-50%); } .h-site[data-pack="liquid"] .liquid-header-actions { grid-column:3; } }
 

@@ -27,7 +27,8 @@ from app.models import (
 from app.services import CommerceError
 from app.site_blocks import BLOCK_TYPES, normalize_document, patch_block, validate_block
 from app.site_seed import seed_h24you
-from app.site_seed_liquid import CONTENT, documents, seed_h24you_liquid
+from app.site_seed_liquid import CONTENT, documents, ensure_styled_words, seed_h24you_liquid
+from app.site_styled_words import H24YOU_STYLED_WORDS
 from app.site_theme import theme_pack
 from app.site_ui import storefront
 
@@ -82,6 +83,27 @@ def test_seed_is_idempotent_and_preserves_edits(liquid):
     assert page.draft_json["blocks"][0]["heading"] == "Merchant heading"
     assert site.settings_json["email"] == "merchant@example.test"
     assert config.shipping_minor == 1200
+
+
+def test_liquid_seed_backfills_default_styled_words_without_replacing_edits(liquid):
+    db, site, owner = liquid
+    assert site.settings_json["styled_words"] == H24YOU_STYLED_WORDS
+    assert site.published_settings_json["styled_words"] == H24YOU_STYLED_WORDS
+
+    site.settings_json = {key: value for key, value in site.settings_json.items() if key != "styled_words"}
+    site.published_settings_json = {
+        key: value for key, value in site.published_settings_json.items() if key != "styled_words"
+    }
+    ensure_styled_words(site)
+    assert site.settings_json["styled_words"] == H24YOU_STYLED_WORDS
+    assert site.published_settings_json["styled_words"] == H24YOU_STYLED_WORDS
+
+    custom = [{"word": "Clear", "italic": False, "bold": True, "colour": "#123456"}]
+    site.settings_json["styled_words"] = custom
+    site.published_settings_json["styled_words"] = custom
+    seed_h24you_liquid(db, owner.email)
+    assert site.settings_json["styled_words"] == custom
+    assert site.published_settings_json["styled_words"] == custom
 
 
 def test_catalog_and_sandbox_prices(liquid):

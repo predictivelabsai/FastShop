@@ -84,18 +84,7 @@ def image(src, alt="", **attrs):
 
 
 def name(value):
-    from app.site_ui_liquid import product_name
-
-    if "One" in value and not value.startswith("H2 | 4 YOU"):
-        parts = value.split("One")
-        children = []
-        for index, part in enumerate(parts):
-            if index:
-                children.append(Span("One", cls="bottle-one"))
-            if part:
-                children.append(part)
-        return Span(*children)
-    return product_name(value)
+    return value
 
 
 def icon(kind="water", benefit=False):

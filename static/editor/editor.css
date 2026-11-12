@@ -760,6 +760,34 @@ body {
 .theme-fields {
   padding: 18px;
 }
+.theme-styled-words {
+  border-top: 1px solid var(--a-line);
+  margin-top: 20px;
+  padding-top: 16px;
+}
+.theme-styled-words h3 {
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+.theme-styled-word-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+.theme-styled-word-options label {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  font-size: 12px;
+}
+.theme-styled-word-options input {
+  width: auto;
+}
+.theme-styled-word-colour input[type="color"] {
+  flex: 0 0 36px;
+  padding: 2px;
+}
 .swatches {
   display: flex;
   gap: 6px;

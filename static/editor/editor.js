@@ -26,6 +26,7 @@ let state,
   dirty = false,
   themeDirty = false,
   designDirty = false,
+  styledWordsDirty = false,
   shellDirty = false,
   shellGroup = null,
   saving = false,
@@ -1175,6 +1176,86 @@ function wireFields(obj, update, root = "#settings-content") {
     };
   });
 }
+function styledWordEntries() {
+  if (!Array.isArray(state.styled_words)) state.styled_words = [];
+  return state.styled_words;
+}
+function styledWordColour(entry) {
+  return entry.colour === "brand-primary" ? "#1554cc" : entry.colour;
+}
+function styledWordsChanged() {
+  themeDirty = styledWordsDirty = true;
+  status("Unsaved changes");
+}
+function styledWordEditor(entry, index, total) {
+  const customColour = entry.colour !== "brand-primary",
+    colour = styledWordColour(entry),
+    title = entry.word || `Styled word ${index + 1}`;
+  return `<details class="repeater-item theme-styled-word" open><summary>${esc(title)}</summary><div class="field"><label for="styled-word-${index}">Word</label><input id="styled-word-${index}" data-styled-word-field="${index}" data-styled-word-key="word" maxlength="80" value="${esc(entry.word)}" placeholder="One"></div><div class="theme-styled-word-options" role="group" aria-label="${esc(title)} style"><label><input type="checkbox" data-styled-word-field="${index}" data-styled-word-key="italic" ${entry.italic ? "checked" : ""}> Italic</label><label><input type="checkbox" data-styled-word-field="${index}" data-styled-word-key="bold" ${entry.bold ? "checked" : ""}> Bold</label></div><div class="field"><label for="styled-word-colour-mode-${index}">Colour</label><select id="styled-word-colour-mode-${index}" data-styled-word-colour-mode="${index}"><option value="brand-primary" ${customColour ? "" : "selected"}>Brand primary</option><option value="custom" ${customColour ? "selected" : ""}>Custom hex</option></select><div class="field-inline theme-styled-word-colour"><input type="color" data-styled-word-colour="${index}" value="${esc(colour)}" aria-label="Custom colour picker" ${customColour ? "" : "disabled"}><input data-styled-word-colour-hex="${index}" value="${esc(colour)}" aria-label="Custom hex colour" placeholder="#1554cc" ${customColour ? "" : "disabled"}></div></div><div class="repeater-actions"><button type="button" data-styled-word-action="up" data-index="${index}" aria-label="Move ${esc(title)} up" ${index === 0 ? "disabled" : ""}>↑</button><button type="button" data-styled-word-action="down" data-index="${index}" aria-label="Move ${esc(title)} down" ${index === total - 1 ? "disabled" : ""}>↓</button><button type="button" data-styled-word-action="remove" data-index="${index}">Remove</button></div></details>`;
+}
+function renderStyledWords() {
+  const entries = styledWordEntries();
+  return `<section class="theme-styled-words" aria-labelledby="styled-words-heading"><h3 id="styled-words-heading">Styled words</h3><p class="field-help">Style exact, case-sensitive whole-word matches across storefront copy. Links keep their URLs and accessibility text unchanged.</p>${entries.map((entry, index) => styledWordEditor(entry, index, entries.length)).join("")}<button type="button" data-styled-word-add ${entries.length >= 30 ? "disabled" : ""}>+ Add styled word</button></section>`;
+}
+function wireStyledWords() {
+  const panel = $("#left-content"), entries = styledWordEntries();
+  panel.querySelectorAll("[data-styled-word-field]").forEach((input) => {
+    const save = () => {
+      const entry = entries[Number(input.dataset.styledWordField)];
+      if (!entry) return;
+      entry[input.dataset.styledWordKey] = input.type === "checkbox" ? input.checked : input.value;
+      styledWordsChanged();
+    };
+    input.addEventListener(input.type === "checkbox" ? "change" : "input", save);
+  });
+  panel.querySelectorAll("[data-styled-word-colour-mode]").forEach((select) => {
+    select.onchange = () => {
+      const entry = entries[Number(select.dataset.styledWordColourMode)];
+      if (!entry) return;
+      entry.colour = select.value === "brand-primary" ? "brand-primary" : entry.colour === "brand-primary" ? "#1554cc" : entry.colour;
+      styledWordsChanged();
+      renderTheme();
+    };
+  });
+  panel.querySelectorAll("[data-styled-word-colour]").forEach((input) => {
+    input.oninput = () => {
+      const index = Number(input.dataset.styledWordColour), entry = entries[index];
+      if (!entry) return;
+      entry.colour = input.value;
+      const hex = panel.querySelector(`[data-styled-word-colour-hex="${index}"]`);
+      if (hex) hex.value = input.value;
+      styledWordsChanged();
+    };
+  });
+  panel.querySelectorAll("[data-styled-word-colour-hex]").forEach((input) => {
+    input.oninput = () => {
+      const index = Number(input.dataset.styledWordColourHex), entry = entries[index];
+      if (!entry) return;
+      entry.colour = input.value.trim();
+      const picker = panel.querySelector(`[data-styled-word-colour="${index}"]`);
+      if (picker && /^#[0-9a-f]{6}$/i.test(entry.colour)) picker.value = entry.colour;
+      styledWordsChanged();
+    };
+  });
+  panel.querySelector("[data-styled-word-add]").onclick = () => {
+    if (entries.length >= 30) return;
+    entries.push({ word: "", italic: false, bold: false, colour: "brand-primary" });
+    styledWordsChanged();
+    renderTheme();
+  };
+  panel.querySelectorAll("[data-styled-word-action]").forEach((button) => {
+    button.onclick = () => {
+      const index = Number(button.dataset.index);
+      if (button.dataset.styledWordAction === "remove") entries.splice(index, 1);
+      if (button.dataset.styledWordAction === "up" && index > 0)
+        [entries[index - 1], entries[index]] = [entries[index], entries[index - 1]];
+      if (button.dataset.styledWordAction === "down" && index < entries.length - 1)
+        [entries[index + 1], entries[index]] = [entries[index], entries[index + 1]];
+      styledWordsChanged();
+      renderTheme();
+    };
+  });
+}
 function renderTheme() {
   const fields = Object.entries(state.theme_settings).map(([id, v]) => ({
     id,
@@ -1190,7 +1271,7 @@ function renderTheme() {
     default: v,
   }));
   $("#left-content").innerHTML =
-    `<div class="theme-fields"><p class="field-help">Shared across your storefront.</p>${fields.map((f) => fieldHTML(f, state.theme_settings)).join("")}<button id="save-theme">Save theme settings</button></div>`;
+    `<div class="theme-fields"><p class="field-help">Shared across your storefront.</p>${fields.map((f) => fieldHTML(f, state.theme_settings)).join("")}${renderStyledWords()}<button id="save-theme">Save theme settings</button></div>`;
   wireFields(
     state.theme_settings,
     (p, v) => {
@@ -1200,6 +1281,7 @@ function renderTheme() {
     },
     "#left-content",
   );
+  wireStyledWords();
   $("#save-theme").onclick = async () => {
     try {
       await saveTheme();
@@ -1233,20 +1315,31 @@ async function saveShell() {
 async function saveTheme() {
   if (!themeDirty) return;
   if (shellDirty) await saveShell();
-  if (!designDirty) {
+  if (!designDirty && !styledWordsDirty) {
     themeDirty = shellDirty;
     return;
   }
-  const submitted = JSON.stringify(state.theme_settings);
+  const submitted = JSON.stringify({
+    theme_settings: state.theme_settings,
+    styled_words: state.styled_words,
+  });
   try {
     const r = await api("/theme-settings", "PUT", {
       theme_settings: state.theme_settings,
+      styled_words: state.styled_words,
       version: state.site_version,
     });
     state.site_version = r.version;
     if (boot.theme_id) state.version = r.version;
-    designDirty = JSON.stringify(state.theme_settings) !== submitted;
-    themeDirty = designDirty || shellDirty;
+    if (JSON.stringify({ theme_settings: state.theme_settings, styled_words: state.styled_words }) === submitted) {
+      state.theme_settings = r.theme_settings;
+      state.styled_words = r.styled_words;
+      designDirty = styledWordsDirty = false;
+    } else {
+      designDirty = JSON.stringify(state.theme_settings) !== JSON.stringify(r.theme_settings);
+      styledWordsDirty = JSON.stringify(state.styled_words) !== JSON.stringify(r.styled_words);
+    }
+    themeDirty = designDirty || styledWordsDirty || shellDirty;
   } catch (e) {
     // Theme and page versions are distinct. Reload before retrying a theme conflict.
     if (e.conflict) {
@@ -1379,6 +1472,7 @@ async function load() {
   try {
     state = await api("/document");
     needsFullPreview = true;
+    state.styled_words = Array.isArray(state.styled_words) ? state.styled_words : [];
     if (state.schema.blocks) state.schema = state.schema.blocks;
     if (Array.isArray(state.schema))
       state.schema = Object.fromEntries(state.schema.map((s) => [s.type, s]));
@@ -1387,7 +1481,7 @@ async function load() {
     dirty = sanitizeBadItemLocaleKeys(state.document, state.schema) > 0;
     selected = null;
     shellGroup = null;
-    themeDirty = designDirty = shellDirty = false;
+    themeDirty = designDirty = styledWordsDirty = shellDirty = false;
     lastSaved = JSON.stringify(loadedDocument);
     history = [];
     snapshot("Opened page");

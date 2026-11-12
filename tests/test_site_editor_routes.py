@@ -281,6 +281,61 @@ def test_theme_validation_versions_and_media_scope(workspace):
     assert w.client.get(w.base + "/media").status_code == 200
     assert w.client.get(f"/admin/sites/{w.other.id}/editor/api/media").status_code == 403
 
+
+def test_styled_words_save_render_in_draft_preview_and_publish(workspace):
+    from fasthtml.common import to_xml
+
+    from app.site_ui import storefront
+
+    w = workspace
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        settings = {"theme_pack": "liquid", "default_locale": "en", "styled_words": []}
+        site.settings_json = settings
+        site.published_settings_json = dict(settings)
+        db.commit()
+
+    loaded = load(w)
+    theme = w.client.get(w.base + "/theme-settings").json()
+    words = [
+        {"word": "One", "italic": True, "bold": False, "colour": "brand-primary"},
+        {"word": "Fizz", "italic": True, "bold": True, "colour": "#1e6fe0"},
+    ]
+    saved_theme = w.client.put(
+        w.base + "/theme-settings",
+        json={"theme_settings": theme["theme_settings"], "styled_words": words,
+              "version": theme["version"]},
+        headers=w.headers,
+    )
+    assert saved_theme.status_code == 200, saved_theme.text
+    assert saved_theme.json()["styled_words"] == words
+
+    document = {"version": 1, "title": "One", "blocks": [
+        {"id": "copy", "type": "text", "heading": "One Fizz",
+         "body": "<p>One Fizz and one.</p>"},
+    ]}
+    preview = w.client.post(w.base + "/render", json={"document": document}, headers=w.headers)
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["html"].count('class="fs-styled-word"') >= 4
+    assert "and one." in preview.json()["html"]
+
+    published = w.client.post(
+        w.base + "/publish",
+        json={"document": document, "version": loaded["version"],
+              "site_version": saved_theme.json()["version"]},
+        headers=w.headers,
+    )
+    assert published.status_code == 200, published.text
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        page = db.get(SitePage, w.page.id)
+        live = "".join(str(to_xml(node)) for node in storefront(
+            db, site, page, "", "editor-csrf", "https://editor.example.test/"
+        ) if node is not None)
+        assert site.settings_json["styled_words"] == words
+        assert site.published_settings_json["styled_words"] == words
+    assert live.count('class="fs-styled-word"') >= 4
+
 def test_publish_success_and_revision_isolation(workspace):
     w = workspace
     loaded = load(w)

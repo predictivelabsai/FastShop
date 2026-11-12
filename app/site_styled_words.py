@@ -31,6 +31,8 @@ _PROTECTED_TAGS = frozenset(
         "textarea",
         "select",
         "option",
+        "svg",
+        "template",
     }
 )
 _VOID_TAGS = frozenset(
@@ -94,7 +96,8 @@ def validate_styled_words(value) -> list[dict]:
 def styled_words_for(config: dict | None) -> list[dict]:
     """Read valid rules defensively so a malformed legacy JSON value cannot break a store."""
     try:
-        return validate_styled_words((config or {}).get("styled_words", []))
+        settings = config if isinstance(config, dict) else {}
+        return validate_styled_words(settings.get("styled_words", []))
     except CommerceError:
         return []
 

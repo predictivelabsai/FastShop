@@ -39,6 +39,7 @@ from app.site_blocks import (
     validate_block,
 )
 from app.site_media import MAX_IMAGE_BYTES, media_for, media_url, prepare_image_bytes
+from app.site_styled_words import styled_words_for, validate_styled_words
 from app.site_theme import CHOICES, DEFAULTS, theme_pack, validate_theme
 
 
@@ -154,6 +155,8 @@ def render_document(db, site, page, document, token, block_id=""):
                                           f"/sites/{site.slug}", token, True)
         if hasattr(node, "attrs"):
             node.attrs["data-block-id"] = block_id
+        from app.site_styled_words import apply_styled_words
+        node = apply_styled_words(node, styled_words_for(site.settings_json))
         return _html(node)
     nodes = site_ui.storefront(db, site, preview, f"/sites/{site.slug}", token,
                               f"/sites/{site.slug}{page.path}", preview=True, editor=True)
@@ -298,6 +301,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                         "product_id": custom_data.product_id_for_page(db, site, selected),
                              "path": selected.path},
                     "theme_settings": DEFAULTS | (site.settings_json or {}).get("design", {}),
+                    "styled_words": styled_words_for(site.settings_json),
                     **shell_payload(site, theme),
                     "theme_choices": CHOICES, "can_publish": role in {"admin", "merchant"}})
         except CommerceError as exc:
@@ -347,6 +351,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     return response(result)
                 selected = page_for(db, site, page_id)
                 published_design = None
+                published_styled_words = None
                 if action == "publish":
                     from app.site_builder_services import lock_site
                     site_version = _version(values.get("site_version", site.version))
@@ -357,6 +362,8 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                                           site_version=site.version, version=selected.version) from exc
                     if "design" in (site.settings_json or {}):
                         published_design = validate_theme(site.settings_json["design"])
+                    if "styled_words" in (site.settings_json or {}):
+                        published_styled_words = validate_styled_words(site.settings_json["styled_words"])
                     from app.site_editable_settings import publish_shell, shell_fields
                     site.published_settings_json = publish_shell(site.settings_json,
                         site.published_settings_json, shell_fields(site.settings_json))
@@ -368,9 +375,12 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     selected = content.save_page(db, site, selected.id, user_id,
                         validate_editor_document(values.get("document", selected.draft_json)), version, action)
                 if action == "publish":
-                    if published_design is not None:
+                    if published_design is not None or published_styled_words is not None:
                         published_settings = copy.deepcopy(site.published_settings_json or {})
-                        published_settings["design"] = published_design
+                        if published_design is not None:
+                            published_settings["design"] = published_design
+                        if published_styled_words is not None:
+                            published_settings["styled_words"] = published_styled_words
                         site.published_settings_json = published_settings
                     site.version += 1
                     if site.status == "draft":
@@ -431,6 +441,7 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 if theme:
                     site, _ = editor_context(db, site, "", theme)
                 return response({"theme_settings": DEFAULTS | site.settings_json.get("design", {}),
+                                 "styled_words": styled_words_for(site.settings_json),
                                  "theme_choices": CHOICES, "version": site.version})
         except CommerceError as exc:
             return failure(exc)
@@ -441,10 +452,14 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
             values = await payload(session, request)
             with SessionLocal() as db:
                 site, user_id = access(db, session, site_id)
+                styled_words = (validate_styled_words(values["styled_words"])
+                                if "styled_words" in values else None)
                 if theme:
                     saved = theme_library.edit(db, site, user_id, theme, "", None,
-                        _version(values.get("version")), design=values.get("theme_settings", {}))
+                        _version(values.get("version")), design=values.get("theme_settings", {}),
+                        styled_words=styled_words)
                     result = {"theme_settings": saved.snapshot_json["settings"]["design"],
+                              "styled_words": styled_words_for(saved.snapshot_json["settings"]),
                               "version": saved.version}
                     db.commit()
                     return response(result)
@@ -454,9 +469,14 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 except CommerceError as exc:
                     raise EditorError(str(exc), 409, conflict=True, version=site.version) from exc
                 design = validate_theme(values.get("theme_settings", {}))
+                operations = [{"op": "theme", "values": design}]
+                if styled_words is not None:
+                    operations.append({"op": "styled_words", "values": styled_words})
                 builder.apply_operations(db, site.id, user_id, builder.snapshot(db, site),
-                    [{"op": "theme", "values": design}], "visual-editor")
-                result = {"theme_settings": design, "version": site.version}
+                    operations, "visual-editor")
+                result = {"theme_settings": design,
+                          "styled_words": styled_words_for(site.settings_json),
+                          "version": site.version}
                 db.commit()
                 return response(result)
         except (CommerceError, ValueError, TypeError) as exc:

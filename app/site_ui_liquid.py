@@ -19,7 +19,6 @@ from fasthtml.common import (
     Div,
     Dl,
     Dt,
-    Em,
     Figcaption,
     Figure,
     Footer,
@@ -61,14 +60,6 @@ def photo(src, alt="", **attrs):
 
 
 def product_name(name):
-    brand = "H2 | 4 YOU"
-    if name.startswith(brand):
-        return Span(
-            Span(brand, cls="bottle-brand-name"),
-            " ",
-            Em(name[len(brand) :].strip(), cls="bottle-one"),
-            cls="product-name",
-        )
     return name
 
 
@@ -1263,5 +1254,6 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     )
 
     from app.liquid_icons import glyphs
+    from app.site_styled_words import apply_styled_words, styled_words_for
 
-    return glyphs(result)
+    return apply_styled_words(glyphs(result), styled_words_for(config))

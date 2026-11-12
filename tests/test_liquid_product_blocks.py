@@ -2,13 +2,13 @@
 import copy
 
 import pytest
-from fasthtml.common import to_xml
+from fasthtml.common import Div, to_xml
 
 from app.services import CommerceError
 from app.site_block_schema import block_schema_registry
 from app.site_blocks import LIQUID_PRODUCT_THEMES, normalize_document, validate_block
 from app.site_liquid_products_content import product_documents
-from app.site_ui_liquid_products import name
+from app.site_styled_words import H24YOU_STYLED_WORDS, apply_styled_words
 
 
 def test_product_documents_cover_three_pages():
@@ -84,18 +84,20 @@ def test_liquid_product_editor_only_shows_fields_rendered_for_each_theme():
     assert {"image", "alt", "url", "body"} <= tablet_flavor_fields
 
 
-def test_brand_word_formatting_preserves_text_after_repeated_one():
+def test_styled_words_preserve_text_after_repeated_one():
     value = (
         "Keep the One for yourself, and share tablets with family and friends. "
         "One box is 30 glasses: a month for you, or a couple of weeks shared at home."
     )
 
-    markup = to_xml(name(value))
+    markup = to_xml(apply_styled_words(Div(value), H24YOU_STYLED_WORDS))
 
     assert "Keep the " in markup
-    assert '<span class="bottle-one">One</span> box is 30 glasses' in markup
+    assert 'data-styled-word="true"' in markup
+    assert "One</span> box is 30 glasses" in markup
     assert "a couple of weeks shared at home." in markup
-    assert markup.count('class="bottle-one"') == 2
+    assert markup.count('class="fs-styled-word"') == 2
+    assert "bottle-one" not in markup
 
 
 def test_real_bottle_photos_and_source_placeholders():

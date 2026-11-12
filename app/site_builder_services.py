@@ -21,6 +21,7 @@ from app.site_blocks import (
 )
 from app.site_refinement import apply_operation as apply_refinement_operation
 from app.site_refinement import derive_operations
+from app.site_styled_words import validate_styled_words
 from app.site_theme import validate_theme
 
 BRAND_FIELDS = {"name", "tagline", "announcement", "footer"}
@@ -169,6 +170,9 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
         elif kind == "theme" and set(operation) == {"op", "values"}:
             config["design"] = validate_theme(config.get("design", {}) | operation["values"])
             summaries.append("Design settings")
+        elif kind == "styled_words" and set(operation) == {"op", "values"}:
+            config["styled_words"] = validate_styled_words(operation["values"])
+            summaries.append("Styled words")
         elif kind == "brand" and set(operation) == {"op", "values"}:
             values = operation["values"]
             if not isinstance(values, dict) or set(values) - BRAND_FIELDS or any(not isinstance(v, str) or len(v) > 2000 for v in values.values()):

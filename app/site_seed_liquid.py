@@ -26,6 +26,7 @@ from app.models import (
     Warehouse,
 )
 from app.site_catalog import create_catalog_product
+from app.site_styled_words import H24YOU_STYLED_WORDS
 
 ASSETS = "/static/h24you/liquid/"
 CONTENT = json.loads(Path(__file__).with_name("site_liquid_content.json").read_text("utf-8"))
@@ -198,6 +199,14 @@ def documents():
     return [("/", "Your water, upgraded.", "home", home), ("/shop", "Shop", "content", catalog)]
 
 
+def ensure_styled_words(site):
+    """Backfill the Liquid defaults without replacing a merchant's word list."""
+    for field in ("settings_json", "published_settings_json"):
+        config = copy.deepcopy(getattr(site, field) or {})
+        config.setdefault("styled_words", copy.deepcopy(H24YOU_STYLED_WORDS))
+        setattr(site, field, config)
+
+
 def upgrade_liquid_assets_and_bundles(db, site):
     """Apply only known M1 substitutions and add missing catalogue bundle options."""
     image_updates = {
@@ -335,6 +344,7 @@ def seed_h24you_liquid(db, admin_email):
     if site:
         if site.status == "deleted":
             return site
+        ensure_styled_words(site)
         upgrade_liquid_assets_and_bundles(db, site)
         ensure_product_pages(db, site)
         ensure_content_pages(db, site)
@@ -360,6 +370,7 @@ def seed_h24you_liquid(db, admin_email):
     db.flush()
     config = {
         "theme_pack": "liquid",
+        "styled_words": copy.deepcopy(H24YOU_STYLED_WORDS),
         "default_locale": "en",
         "logo": ASSETS + "logo-clean-dark.png",
         "logo_light": ASSETS + "logo-clean-light.png",
