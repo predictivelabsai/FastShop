@@ -252,7 +252,8 @@ HEADER_FOOTER_SCHEMA = {
 }
 _COLOUR_RE = re.compile(r"#[0-9a-fA-F]{6}")
 _RGB_RE = re.compile(
-    r"rgb\(\s*(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})\s*\)",
+    r"rgb\(\s*(?:(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})|"
+    r"(\d{1,3})\s+(\d{1,3})\s+(\d{1,3}))\s*\)",
     re.IGNORECASE,
 )
 
@@ -416,7 +417,7 @@ def _validated_colour(value):
     if _COLOUR_RE.fullmatch(value):
         return value
     match = _RGB_RE.fullmatch(value)
-    if match and all(int(component) <= 255 for component in match.groups()):
+    if match and all(int(component) <= 255 for component in match.groups() if component):
         return value
     raise CommerceError("Header and footer colours must use six-digit hex or rgb values.")
 
@@ -551,6 +552,18 @@ def header_footer_style(header_footer):
             else announcement_text
         )
     )
+    for field, variable, trusted_default in (
+        ("background", "--liquid-header-mobile-menu-background", "var(--card)"),
+        ("text", "--liquid-header-mobile-menu-text", "var(--foreground)"),
+        ("link", "--liquid-header-mobile-menu-link", "var(--foreground)"),
+        ("link_hover", "--liquid-header-mobile-menu-link-hover", "var(--foreground)"),
+    ):
+        value = values["header"][field]
+        result.append(
+            variable + ":" + (
+                trusted_default if value == HEADER_FOOTER_DEFAULTS["header"][field] else value
+            )
+        )
     return result
 
 

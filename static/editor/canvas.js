@@ -48,6 +48,10 @@ import "/static/admin/rich-text.js";
     ["--liquid-header-padding-y", "header-length"],
     ["--liquid-header-logo-size", "logo-length"],
     ["--liquid-header-sticky", "toggle"],
+    ["--liquid-header-mobile-menu-background", "colour"],
+    ["--liquid-header-mobile-menu-text", "colour"],
+    ["--liquid-header-mobile-menu-link", "colour"],
+    ["--liquid-header-mobile-menu-link-hover", "colour"],
     ["--liquid-announcement-background", "colour"],
     ["--liquid-announcement-text", "colour"],
     ["--liquid-announcement-title-colour", "colour"],
@@ -83,6 +87,10 @@ import "/static/admin/rich-text.js";
     ["--liquid-header-link-hover", new Set(["var(--foreground)"])],
     ["--liquid-header-border", new Set(["var(--border)"])],
     ["--liquid-header-padding-y", new Set(["var(--liquid-header-padding-y-default)"])],
+    ["--liquid-header-mobile-menu-background", new Set(["var(--card)"])],
+    ["--liquid-header-mobile-menu-text", new Set(["var(--foreground)"])],
+    ["--liquid-header-mobile-menu-link", new Set(["var(--foreground)"])],
+    ["--liquid-header-mobile-menu-link-hover", new Set(["var(--foreground)"])],
     ["--liquid-announcement-background", new Set(["var(--card)"])],
     ["--liquid-announcement-text", new Set(["var(--foreground)"])],
     ["--liquid-announcement-title-colour", new Set(["var(--metal-sheen)"])],
@@ -92,13 +100,13 @@ import "/static/admin/rich-text.js";
     ["--liquid-footer-link", new Set(["var(--foreground)"])],
     ["--liquid-footer-link-hover", new Set(["var(--foreground)"])],
     ["--liquid-footer-divider", new Set(["color-mix(in oklch,var(--foreground) 15%,transparent)"])],
-    ["--liquid-footer-newsletter-background", new Set(["transparent")],
-    ["--liquid-footer-newsletter-input-background", new Set(["transparent")],
+    ["--liquid-footer-newsletter-background", new Set(["transparent"])],
+    ["--liquid-footer-newsletter-input-background", new Set(["transparent"])],
     ["--liquid-footer-newsletter-input-text", new Set(["var(--foreground)"])],
     ["--liquid-footer-newsletter-input-border", new Set(["var(--border)"])],
     ["--liquid-footer-newsletter-button-background", new Set(["var(--metal-sheen)"])],
     ["--liquid-footer-newsletter-button-text", new Set(["var(--primary-foreground)"])],
-    ["--liquid-footer-bottom-background", new Set(["transparent")],
+    ["--liquid-footer-bottom-background", new Set(["transparent"])],
     ["--liquid-footer-bottom-legal-text", new Set(["var(--foreground)"])],
     ["--liquid-footer-bottom-legal-link", new Set(["var(--foreground)"])],
     ["--liquid-footer-bottom-disclaimer", new Set(["var(--foreground)"])],
@@ -112,8 +120,8 @@ import "/static/admin/rich-text.js";
   function headerFooterColour(value) {
     if (typeof value !== "string") return false;
     if (/^#[0-9a-f]{6}$/i.test(value)) return true;
-    const match = value.match(/^rgb\(\s*(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})\s*\)$/i);
-    return Boolean(match && match.slice(1).every((component) => Number(component) <= 255));
+    const match = value.match(/^rgb\(\s*(?:(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})|(\d{1,3})\s+(\d{1,3})\s+(\d{1,3}))\s*\)$/i);
+    return Boolean(match && match.slice(1).filter(Boolean).every((component) => Number(component) <= 255));
   }
   function headerFooterLength(value, kind) {
     if (typeof value !== "string") return false;

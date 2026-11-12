@@ -147,7 +147,7 @@ def test_liquid_header_footer_defaults_are_an_explicit_css_variable_snapshot():
         "--liquid-footer-bottom-legal-text:var(--foreground)",
         "--liquid-footer-bottom-legal-link:var(--foreground)",
         "--liquid-footer-bottom-disclaimer:var(--foreground)",
-        "--liquid-footer-bottom-divider:color-mix(in oklch,var(--foreground) 15%,transparent)",
+        "--liquid-footer-bottom-divider:var(--liquid-footer-divider)",
     }
     style = set(_liquid_style().split(";"))
     assert expected <= style
@@ -221,6 +221,8 @@ def test_liquid_typography_rejects_untrusted_css_and_out_of_range_values(typogra
     {"header": {"background": "#ffffff;--unsafe:1"}},
     {"header": {"background": "url(https://bad.test/colour)"}},
     {"header": {"background": "rgb(12, 34, 256)"}},
+    {"header": {"background": "rgb(1, 2 3)"}},
+    {"header": {"background": "rgb(1 2, 3)"}},
     {"header": {"padding_y": "calc(1px + 1rem)"}},
     {"header": {"padding_y": "97px"}},
     {"header": {"logo_size": "361px"}},

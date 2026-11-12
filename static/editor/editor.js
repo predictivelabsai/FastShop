@@ -938,8 +938,8 @@ const headerFooterPreviewFields = [
 function headerFooterColour(value) {
   if (typeof value !== "string") return "";
   if (/^#[0-9a-f]{6}$/i.test(value)) return value;
-  const match = value.match(/^rgb\(\s*(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})\s*\)$/i);
-  return match && match.slice(1).every((component) => Number(component) <= 255) ? value : "";
+  const match = value.match(/^rgb\(\s*(?:(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})|(\d{1,3})\s+(\d{1,3})\s+(\d{1,3}))\s*\)$/i);
+  return match && match.slice(1).filter(Boolean).every((component) => Number(component) <= 255) ? value : "";
 }
 function headerFooterLength(value, px, rem) {
   if (typeof value !== "string") return "";
@@ -972,6 +972,18 @@ function headerFooterPreviewProperties(theme) {
       ? "var(--metal-sheen)" : announcementText;
     properties["--liquid-announcement-request-colour"] = isDefault
       ? "var(--muted-foreground)" : announcementText;
+  }
+  for (const [id, property, cssDefault] of [
+    ["background", "--liquid-header-mobile-menu-background", "var(--card)"],
+    ["text", "--liquid-header-mobile-menu-text", "var(--foreground)"],
+    ["link", "--liquid-header-mobile-menu-link", "var(--foreground)"],
+    ["link_hover", "--liquid-header-mobile-menu-link-hover", "var(--foreground)"],
+  ]) {
+    const value = headerFooterColour(headerFooter.header?.[id]);
+    if (value)
+      properties[property] = value === headerFooterPreviewFields.find(
+        (field) => field.section === "header" && field.id === id,
+      )?.defaultValue ? cssDefault : value;
   }
   return properties;
 }
