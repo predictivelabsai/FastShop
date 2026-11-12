@@ -347,7 +347,17 @@ def test_styled_words_save_render_in_draft_preview_and_publish(workspace):
 
 
 def test_typography_theme_settings_are_validated_draft_only_then_publish(workspace):
+    from fasthtml.common import to_xml
+
+    from app.site_ui import storefront
+
     w = workspace
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        liquid_settings = {"theme_pack": "liquid", "default_locale": "en"}
+        site.settings_json = liquid_settings
+        site.published_settings_json = liquid_settings
+        db.commit()
     loaded = load(w)
     before = w.client.get(w.base + "/theme-settings").json()
     assert before["typography_schema"]["roles"][-2]["id"] == "footer_heading"
@@ -386,6 +396,11 @@ def test_typography_theme_settings_are_validated_draft_only_then_publish(workspa
     with w.sessions() as db:
         site = db.get(Site, w.site.id)
         assert site.published_settings_json["design"] == saved.json()["theme_settings"]
+        page = db.get(SitePage, w.page.id)
+        markup = to_xml(storefront(db, site, page, "/sites/" + site.slug, "csrf", ""))
+    assert '--liquid-font-display:"Liquid Fraunces",Georgia,serif' in markup
+    assert "--liquid-type-footer-heading-size:28px" in markup
+    assert "--liquid-type-footer-heading-size-mobile:24px" in markup
 
 
 def test_publish_success_and_revision_isolation(workspace):

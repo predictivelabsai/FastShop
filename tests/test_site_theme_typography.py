@@ -35,18 +35,23 @@ def test_liquid_typography_defaults_are_an_explicit_css_variable_snapshot():
         },
     }
 
-    style = _liquid_style()
-    for expected in (
+    expected_style = [
         '--liquid-font-display:"Liquid Italiana",Georgia,serif',
+        '--liquid-font-heading-content:"Liquid Quicksand",system-ui,sans-serif',
         '--liquid-font-body:"Liquid Quicksand",system-ui,sans-serif',
         '--liquid-font-ui:"Liquid Quicksand",system-ui,sans-serif',
         '--liquid-font-footer-heading:"Liquid Fraunces",Georgia,serif',
-        "--liquid-type-h1-size:80px",
-        "--liquid-type-h1-size-mobile:56px",
-        "--liquid-type-footer-heading-size:36px",
-        "--liquid-type-footer-heading-line-height:1.1",
-    ):
-        assert expected in style
+    ]
+    for role, values in defaults["roles"].items():
+        name = role.replace("_", "-")
+        expected_style.extend((
+            f"--liquid-type-{name}-size:{values['size']}",
+            f"--liquid-type-{name}-size-mobile:{values['mobile_size']}",
+            f"--liquid-type-{name}-weight:{values['weight']}",
+            f"--liquid-type-{name}-line-height:{values['line_height']}",
+            f"--liquid-type-{name}-letter-spacing:{values['letter_spacing']}",
+        ))
+    assert _liquid_style().split(";") == expected_style
 
 
 def test_liquid_typography_uses_only_validated_values_in_css_variables():
@@ -75,6 +80,7 @@ def test_liquid_typography_uses_only_validated_values_in_css_variables():
 
     style = _liquid_style(theme)
     assert '--liquid-font-display:"Liquid Fraunces",Georgia,serif' in style
+    assert '--liquid-font-heading-content:"Liquid Fraunces",Georgia,serif' in style
     assert "--liquid-font-body:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif" in style
     assert '--liquid-font-ui:"Liquid Italiana",Georgia,serif' in style
     assert '--liquid-font-footer-heading:"Liquid Fraunces",Georgia,serif' in style

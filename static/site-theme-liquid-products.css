@@ -88,7 +88,7 @@
 @media (prefers-reduced-motion: reduce) { .bottle-day-photo { opacity: 1; transform: none; } .bottle-savings { animation: none; } }
 @media (max-width: 1100px) {
   .bottle-top { gap: 32px; }
-  .bottle-purchase h1 { font-size: 40px; }
+  .bottle-purchase h1 { font-size:calc(var(--liquid-type-h1-size) - 40px); }
   .bottle-bundles { gap: 6px; }
   .bottle-bundle { font-size: 11px; padding-inline: 5px; }
   .bottle-trust li { flex-direction: column; }
@@ -110,7 +110,7 @@
   .bottle-pair-spacing { padding-block: 80px 64px; }
   .bottle-pair-panel { padding: 24px 20px; }
   .bottle-top { padding-block: 32px 48px; gap: 28px; }
-  .bottle-purchase h1 { font-size: 40px; }
+  .bottle-purchase h1 { font-size:calc(var(--liquid-type-h1-size-mobile) - 16px); }
   .bottle-bundles { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
   .bottle-bundle { font-size: 14px; height: 98px; }
   .bottle-thumbnails button { flex-basis: 56px; height: 56px; }
@@ -366,7 +366,7 @@
 .bottle-page .bottle-pair-card form .metal-flavors { margin-top:0; }
 .bottle-page .bottle-pair-card .metal-specs { margin-top:0; }
 @media(max-width:1023px) { .bottle-page .product-faq-grid { grid-template-columns:1fr; } }
-@media(max-width:767px) { .bottle-page h2.text-5xl { font-size:40px; } }
+@media(max-width:767px) { .bottle-page h2.text-5xl { font-size:var(--liquid-type-h2-size-mobile); } }
 @media(prefers-reduced-motion:reduce) { .bottle-page .bottle-gallery-track { transition:none; } }
 }
 
@@ -378,6 +378,12 @@
 .h-site[data-pack="liquid"] .product-stars { display:inline-flex; gap:0; height:24px; align-items:center; }
 .h-site[data-pack="liquid"] .bottle-page .metal-flavor-column:has(input:checked) .metal-flavor-value { text-decoration:underline; text-underline-offset:5px; }
 .h-site[data-pack="liquid"] .bottle-page .tablet-subscription-points > span { display:flex; align-items:center; gap:8px; }
+
+/* Product-page heading utilities retain their reference defaults while following role settings. */
+.h-site[data-pack="liquid"] .bottle-page h2.text-3xl { font-size:calc(var(--liquid-type-h2-size) - 18px); font-weight:var(--liquid-type-h2-weight); line-height:calc(var(--liquid-type-h2-line-height) + .2); letter-spacing:var(--liquid-type-h2-letter-spacing); }
+.h-site[data-pack="liquid"] .bottle-page h3.text-3xl { font-size:calc(var(--liquid-type-h3-size) + 6px); font-weight:var(--liquid-type-h3-weight); line-height:var(--liquid-type-h3-line-height); letter-spacing:var(--liquid-type-h3-letter-spacing); }
+.h-site[data-pack="liquid"] .bottle-page h3.text-2xl { font-size:var(--liquid-type-h3-size); font-weight:var(--liquid-type-h3-weight); line-height:calc(var(--liquid-type-h3-line-height) + .133); letter-spacing:var(--liquid-type-h3-letter-spacing); }
+@media(max-width:767px) { .h-site[data-pack="liquid"] .bottle-page h2.text-3xl { font-size:calc(var(--liquid-type-h2-size-mobile) - 10px); } .h-site[data-pack="liquid"] .bottle-page h3.text-3xl { font-size:calc(var(--liquid-type-h3-size-mobile) + 6px); } .h-site[data-pack="liquid"] .bottle-page h3.text-2xl { font-size:var(--liquid-type-h3-size-mobile); } }
 
 @keyframes bottle-savings-pop { 0% { transform: scale(1); } 45% { transform: scale(1.06); } 100% { transform: scale(1); } }
 @keyframes tablet-seal-spin { to { transform: rotate(360deg); } }

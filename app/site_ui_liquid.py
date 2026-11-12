@@ -998,6 +998,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     structured_data = [] if content is not None else jsonld_for_page(
         db, site, page, document, seo["canonical"], seo, preview=preview,
     )
+    theme_css = theme_style(config)
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(seo["title"]),
@@ -1260,7 +1261,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 data_preview_consent="true" if preview else None,
             ),
             cls="h-site theme-metal",
-            style=theme_style(config) or None, data_themed="true" if theme_style(config) else None,
+            style=theme_css or None, data_themed="true" if config.get("design") else None,
             data_pack="liquid",
             data_tone="rose",
             data_site=site.id,

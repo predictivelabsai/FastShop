@@ -42,6 +42,9 @@ FONT_STACKS = {
 }
 DEFAULT_FONT_STACKS = {
     "display": FONT_STACKS["italiana"],
+    # Some existing content headings use the body face. Keep that legacy default
+    # while making them follow a merchant's deliberate display-font choice.
+    "heading_content": FONT_STACKS["quicksand"],
     "body": FONT_STACKS["quicksand"],
     "ui": FONT_STACKS["quicksand"],
     "footer_heading": FONT_STACKS["fraunces"],
@@ -245,6 +248,8 @@ def typography_style(typography):
     result = [
         "--liquid-font-display:" + _font_stack(
             values["display_font"], DEFAULT_FONT_STACKS["display"]),
+        "--liquid-font-heading-content:" + _font_stack(
+            values["display_font"], DEFAULT_FONT_STACKS["heading_content"]),
         "--liquid-font-body:" + _font_stack(values["body_font"], DEFAULT_FONT_STACKS["body"]),
         "--liquid-font-ui:" + _font_stack(values["ui_font"], DEFAULT_FONT_STACKS["ui"]),
         "--liquid-font-footer-heading:" + _font_stack(

@@ -16,6 +16,7 @@ import "/static/admin/rich-text.js";
     editorOrigin = parent.location.origin;
   const typographyProperties = new Set([
     "--liquid-font-display",
+    "--liquid-font-heading-content",
     "--liquid-font-body",
     "--liquid-font-ui",
     "--liquid-font-footer-heading",

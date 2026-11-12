@@ -1,0 +1,508 @@
+{
+  "defaults": {
+    "desktop": {
+      "components": {
+        "body": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "button": {
+          "computed_line_height": "21px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "14px",
+          "font_weight": "600",
+          "letter_spacing": "normal"
+        },
+        "footer_body": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "footer_title": {
+          "computed_line_height": "39.6px",
+          "font_family": "\"Liquid Fraunces\", Georgia, serif",
+          "font_size": "36px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "hero": {
+          "computed_line_height": "86.4px",
+          "font_family": "\"Liquid Italiana\", Georgia, serif",
+          "font_size": "80px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "nav": {
+          "computed_line_height": "21px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "14px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        }
+      },
+      "roles": {
+        "body": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "16px",
+          "size": "16px",
+          "weight": "400"
+        },
+        "button": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "14px",
+          "size": "14px",
+          "weight": "600"
+        },
+        "eyebrow": {
+          "letter_spacing": "0.2em",
+          "line_height": "1.5",
+          "mobile_size": "11px",
+          "size": "11px",
+          "weight": "600"
+        },
+        "footer_body": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "16px",
+          "size": "16px",
+          "weight": "400"
+        },
+        "footer_heading": {
+          "letter_spacing": "0em",
+          "line_height": "1.1",
+          "mobile_size": "36px",
+          "size": "36px",
+          "weight": "400"
+        },
+        "h1": {
+          "letter_spacing": "0em",
+          "line_height": "1.08",
+          "mobile_size": "56px",
+          "size": "80px",
+          "weight": "400"
+        },
+        "h2": {
+          "letter_spacing": "0em",
+          "line_height": "1",
+          "mobile_size": "40px",
+          "size": "48px",
+          "weight": "400"
+        },
+        "h3": {
+          "letter_spacing": "0em",
+          "line_height": "1.2",
+          "mobile_size": "24px",
+          "size": "24px",
+          "weight": "400"
+        },
+        "nav": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "30px",
+          "size": "14px",
+          "weight": "400"
+        },
+        "small": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "12px",
+          "size": "12px",
+          "weight": "400"
+        }
+      },
+      "viewport": {
+        "height": 954,
+        "width": 1540
+      }
+    },
+    "mobile": {
+      "components": {
+        "body": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "button": {
+          "computed_line_height": "21px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "14px",
+          "font_weight": "600",
+          "letter_spacing": "normal"
+        },
+        "footer_body": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "footer_title": {
+          "computed_line_height": "39.6px",
+          "font_family": "\"Liquid Fraunces\", Georgia, serif",
+          "font_size": "36px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "hero": {
+          "computed_line_height": "60.48px",
+          "font_family": "\"Liquid Italiana\", Georgia, serif",
+          "font_size": "56px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "nav": {
+          "computed_line_height": "21px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "14px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        }
+      },
+      "roles": {
+        "body": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "16px",
+          "size": "16px",
+          "weight": "400"
+        },
+        "button": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "14px",
+          "size": "14px",
+          "weight": "600"
+        },
+        "eyebrow": {
+          "letter_spacing": "0.2em",
+          "line_height": "1.5",
+          "mobile_size": "11px",
+          "size": "11px",
+          "weight": "600"
+        },
+        "footer_body": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "16px",
+          "size": "16px",
+          "weight": "400"
+        },
+        "footer_heading": {
+          "letter_spacing": "0em",
+          "line_height": "1.1",
+          "mobile_size": "36px",
+          "size": "36px",
+          "weight": "400"
+        },
+        "h1": {
+          "letter_spacing": "0em",
+          "line_height": "1.08",
+          "mobile_size": "56px",
+          "size": "80px",
+          "weight": "400"
+        },
+        "h2": {
+          "letter_spacing": "0em",
+          "line_height": "1",
+          "mobile_size": "40px",
+          "size": "48px",
+          "weight": "400"
+        },
+        "h3": {
+          "letter_spacing": "0em",
+          "line_height": "1.2",
+          "mobile_size": "24px",
+          "size": "24px",
+          "weight": "400"
+        },
+        "nav": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "30px",
+          "size": "14px",
+          "weight": "400"
+        },
+        "small": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "12px",
+          "size": "12px",
+          "weight": "400"
+        }
+      },
+      "viewport": {
+        "height": 954,
+        "width": 390
+      }
+    }
+  },
+  "edited": {
+    "desktop": {
+      "components": {
+        "body": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "button": {
+          "computed_line_height": "21px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "14px",
+          "font_weight": "600",
+          "letter_spacing": "normal"
+        },
+        "footer_body": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "footer_title": {
+          "computed_line_height": "30.8px",
+          "font_family": "\"Liquid Fraunces\", Georgia, serif",
+          "font_size": "28px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "hero": {
+          "computed_line_height": "86.4px",
+          "font_family": "\"Liquid Italiana\", Georgia, serif",
+          "font_size": "80px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "nav": {
+          "computed_line_height": "21px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "14px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        }
+      },
+      "roles": {
+        "body": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "16px",
+          "size": "16px",
+          "weight": "400"
+        },
+        "button": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "14px",
+          "size": "14px",
+          "weight": "600"
+        },
+        "eyebrow": {
+          "letter_spacing": "0.2em",
+          "line_height": "1.5",
+          "mobile_size": "11px",
+          "size": "11px",
+          "weight": "600"
+        },
+        "footer_body": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "16px",
+          "size": "16px",
+          "weight": "400"
+        },
+        "footer_heading": {
+          "letter_spacing": "0em",
+          "line_height": "1.1",
+          "mobile_size": "24px",
+          "size": "28px",
+          "weight": "400"
+        },
+        "h1": {
+          "letter_spacing": "0em",
+          "line_height": "1.08",
+          "mobile_size": "56px",
+          "size": "80px",
+          "weight": "400"
+        },
+        "h2": {
+          "letter_spacing": "0em",
+          "line_height": "1",
+          "mobile_size": "40px",
+          "size": "48px",
+          "weight": "400"
+        },
+        "h3": {
+          "letter_spacing": "0em",
+          "line_height": "1.2",
+          "mobile_size": "24px",
+          "size": "24px",
+          "weight": "400"
+        },
+        "nav": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "30px",
+          "size": "14px",
+          "weight": "400"
+        },
+        "small": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "12px",
+          "size": "12px",
+          "weight": "400"
+        }
+      },
+      "viewport": {
+        "height": 954,
+        "width": 1540
+      }
+    },
+    "footer_heading_mobile_size": "24px",
+    "footer_heading_size": "28px",
+    "mobile": {
+      "components": {
+        "body": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "button": {
+          "computed_line_height": "21px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "14px",
+          "font_weight": "600",
+          "letter_spacing": "normal"
+        },
+        "footer_body": {
+          "computed_line_height": "24px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "16px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "footer_title": {
+          "computed_line_height": "26.4px",
+          "font_family": "\"Liquid Fraunces\", Georgia, serif",
+          "font_size": "24px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "hero": {
+          "computed_line_height": "60.48px",
+          "font_family": "\"Liquid Italiana\", Georgia, serif",
+          "font_size": "56px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        },
+        "nav": {
+          "computed_line_height": "21px",
+          "font_family": "\"Liquid Quicksand\", system-ui, sans-serif",
+          "font_size": "14px",
+          "font_weight": "400",
+          "letter_spacing": "normal"
+        }
+      },
+      "roles": {
+        "body": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "16px",
+          "size": "16px",
+          "weight": "400"
+        },
+        "button": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "14px",
+          "size": "14px",
+          "weight": "600"
+        },
+        "eyebrow": {
+          "letter_spacing": "0.2em",
+          "line_height": "1.5",
+          "mobile_size": "11px",
+          "size": "11px",
+          "weight": "600"
+        },
+        "footer_body": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "16px",
+          "size": "16px",
+          "weight": "400"
+        },
+        "footer_heading": {
+          "letter_spacing": "0em",
+          "line_height": "1.1",
+          "mobile_size": "24px",
+          "size": "28px",
+          "weight": "400"
+        },
+        "h1": {
+          "letter_spacing": "0em",
+          "line_height": "1.08",
+          "mobile_size": "56px",
+          "size": "80px",
+          "weight": "400"
+        },
+        "h2": {
+          "letter_spacing": "0em",
+          "line_height": "1",
+          "mobile_size": "40px",
+          "size": "48px",
+          "weight": "400"
+        },
+        "h3": {
+          "letter_spacing": "0em",
+          "line_height": "1.2",
+          "mobile_size": "24px",
+          "size": "24px",
+          "weight": "400"
+        },
+        "nav": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "30px",
+          "size": "14px",
+          "weight": "400"
+        },
+        "small": {
+          "letter_spacing": "0em",
+          "line_height": "1.5",
+          "mobile_size": "12px",
+          "size": "12px",
+          "weight": "400"
+        }
+      },
+      "viewport": {
+        "height": 954,
+        "width": 390
+      }
+    }
+  },
+  "screenshots": [
+    "defaults-desktop.png",
+    "defaults-mobile.png",
+    "edited-desktop.png",
+    "edited-mobile.png"
+  ],
+  "status": "passed",
+  "theme_settings_request": {
+    "csrf_header": "present",
+    "footer_heading_mobile_size": "24px",
+    "footer_heading_size": "28px"
+  }
+}

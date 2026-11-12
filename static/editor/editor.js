@@ -836,6 +836,7 @@ const typographyRoles = [
 const typographyFontStacks = {
   theme: {
     display: '"Liquid Italiana",Georgia,serif',
+    headingContent: '"Liquid Quicksand",system-ui,sans-serif',
     body: '"Liquid Quicksand",system-ui,sans-serif',
     ui: '"Liquid Quicksand",system-ui,sans-serif',
     footer: '"Liquid Fraunces",Georgia,serif',
@@ -880,6 +881,7 @@ function typographyPreviewProperties(theme) {
     typeof choice === "object" ? choice[role] : choice;
   const properties = {
     "--liquid-font-display": stack(display, "display"),
+    "--liquid-font-heading-content": stack(display, "headingContent"),
     "--liquid-font-body": stack(body, "body"),
     "--liquid-font-ui": stack(ui, "ui"),
     "--liquid-font-footer-heading": stack(display, "footer"),
