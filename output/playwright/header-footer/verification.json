@@ -1,0 +1,500 @@
+{
+  "defaults": {
+    "desktop": {
+      "announcement": {
+        "background": "oklch(0.25 0.025 305)",
+        "color": "oklch(0.96 0.007 255)"
+      },
+      "bottom": {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "oklch(0.96 0.007 255 / 0.15)",
+        "color": "oklch(0.96 0.007 255)"
+      },
+      "footer": {
+        "background": "oklch(0.15 0.018 285)",
+        "color": "oklch(0.96 0.007 255)"
+      },
+      "footer_grid": {
+        "column_gap": "64px",
+        "padding_top": "64px"
+      },
+      "header": {
+        "background": "oklch(0.19 0.02 285)",
+        "color": "oklch(0.96 0.007 255)",
+        "padding_top": "16px"
+      },
+      "logos": {
+        "footer_width": "144px",
+        "header_width": "144px"
+      },
+      "newsletter": {
+        "background": "rgba(0, 0, 0, 0)",
+        "button_background": "rgba(0, 0, 0, 0)",
+        "button_text": "oklch(0.18 0.025 258)",
+        "input_background": "rgba(0, 0, 0, 0)",
+        "input_border": "oklch(0.43 0.03 305)",
+        "input_text": "oklch(0.96 0.007 255)"
+      },
+      "properties": {
+        "--liquid-announcement-background": "oklch(0.25 0.025 305)",
+        "--liquid-announcement-request-colour": "oklch(0.83 0.027 20)",
+        "--liquid-announcement-text": "oklch(0.96 0.007 255)",
+        "--liquid-announcement-title-colour": "linear-gradient(115deg, oklch(0.72 0.07 35), oklch(0.96 0.025 50) 28%, oklch(0.8 0.065 35) 48%, oklch(0.93 0.04 55) 70%, oklch(0.7 0.07 30))",
+        "--liquid-footer-background": "oklch(0.15 0.018 285)",
+        "--liquid-footer-bottom-background": "transparent",
+        "--liquid-footer-bottom-disclaimer": "oklch(0.96 0.007 255)",
+        "--liquid-footer-bottom-divider": "color-mix(in oklch,oklch(0.96 0.007 255) 15%,transparent)",
+        "--liquid-footer-bottom-legal-link": "oklch(0.96 0.007 255)",
+        "--liquid-footer-bottom-legal-text": "oklch(0.96 0.007 255)",
+        "--liquid-footer-column-gap": "64px",
+        "--liquid-footer-divider": "color-mix(in oklch,oklch(0.96 0.007 255) 15%,transparent)",
+        "--liquid-footer-link": "oklch(0.96 0.007 255)",
+        "--liquid-footer-link-hover": "oklch(0.96 0.007 255)",
+        "--liquid-footer-logo-size": "144px",
+        "--liquid-footer-newsletter-background": "transparent",
+        "--liquid-footer-newsletter-button-background": "linear-gradient(115deg, oklch(0.72 0.07 35), oklch(0.96 0.025 50) 28%, oklch(0.8 0.065 35) 48%, oklch(0.93 0.04 55) 70%, oklch(0.7 0.07 30))",
+        "--liquid-footer-newsletter-button-text": "oklch(0.18 0.025 258)",
+        "--liquid-footer-newsletter-input-background": "transparent",
+        "--liquid-footer-newsletter-input-border": "oklch(0.43 0.03 305)",
+        "--liquid-footer-newsletter-input-text": "oklch(0.96 0.007 255)",
+        "--liquid-footer-padding-y": "64px",
+        "--liquid-footer-text": "oklch(0.96 0.007 255)",
+        "--liquid-header-background": "oklch(0.19 0.02 285)",
+        "--liquid-header-border": "oklch(0.43 0.03 305)",
+        "--liquid-header-link": "oklch(0.96 0.007 255)",
+        "--liquid-header-link-hover": "oklch(0.96 0.007 255)",
+        "--liquid-header-logo-size": "144px",
+        "--liquid-header-mobile-menu-background": "oklch(0.25 0.025 305)",
+        "--liquid-header-mobile-menu-link": "oklch(0.96 0.007 255)",
+        "--liquid-header-mobile-menu-link-hover": "oklch(0.96 0.007 255)",
+        "--liquid-header-mobile-menu-text": "oklch(0.96 0.007 255)",
+        "--liquid-header-padding-y": "16px",
+        "--liquid-header-sticky": "1",
+        "--liquid-header-text": "oklch(0.96 0.007 255)"
+      },
+      "sticky": "true",
+      "top_bars": {
+        "background": "oklch(0.19 0.02 285)",
+        "color": "oklch(0.96 0.007 255)",
+        "position": "sticky"
+      }
+    },
+    "mobile": {
+      "announcement": {
+        "background": "oklch(0.25 0.025 305)",
+        "color": "oklch(0.96 0.007 255)"
+      },
+      "bottom": {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "oklch(0.96 0.007 255 / 0.15)",
+        "color": "oklch(0.96 0.007 255)"
+      },
+      "footer": {
+        "background": "oklch(0.15 0.018 285)",
+        "color": "oklch(0.96 0.007 255)"
+      },
+      "footer_grid": {
+        "column_gap": "40px",
+        "padding_top": "64px"
+      },
+      "header": {
+        "background": "oklch(0.19 0.02 285)",
+        "color": "oklch(0.96 0.007 255)",
+        "padding_top": "10px"
+      },
+      "logos": {
+        "footer_width": "144px",
+        "header_width": "144px"
+      },
+      "newsletter": {
+        "background": "rgba(0, 0, 0, 0)",
+        "button_background": "rgba(0, 0, 0, 0)",
+        "button_text": "oklch(0.18 0.025 258)",
+        "input_background": "rgba(0, 0, 0, 0)",
+        "input_border": "oklch(0.43 0.03 305)",
+        "input_text": "oklch(0.96 0.007 255)"
+      },
+      "properties": {
+        "--liquid-announcement-background": "oklch(0.25 0.025 305)",
+        "--liquid-announcement-request-colour": "oklch(0.83 0.027 20)",
+        "--liquid-announcement-text": "oklch(0.96 0.007 255)",
+        "--liquid-announcement-title-colour": "linear-gradient(115deg, oklch(0.72 0.07 35), oklch(0.96 0.025 50) 28%, oklch(0.8 0.065 35) 48%, oklch(0.93 0.04 55) 70%, oklch(0.7 0.07 30))",
+        "--liquid-footer-background": "oklch(0.15 0.018 285)",
+        "--liquid-footer-bottom-background": "transparent",
+        "--liquid-footer-bottom-disclaimer": "oklch(0.96 0.007 255)",
+        "--liquid-footer-bottom-divider": "color-mix(in oklch,oklch(0.96 0.007 255) 15%,transparent)",
+        "--liquid-footer-bottom-legal-link": "oklch(0.96 0.007 255)",
+        "--liquid-footer-bottom-legal-text": "oklch(0.96 0.007 255)",
+        "--liquid-footer-column-gap": "64px",
+        "--liquid-footer-divider": "color-mix(in oklch,oklch(0.96 0.007 255) 15%,transparent)",
+        "--liquid-footer-link": "oklch(0.96 0.007 255)",
+        "--liquid-footer-link-hover": "oklch(0.96 0.007 255)",
+        "--liquid-footer-logo-size": "144px",
+        "--liquid-footer-newsletter-background": "transparent",
+        "--liquid-footer-newsletter-button-background": "linear-gradient(115deg, oklch(0.72 0.07 35), oklch(0.96 0.025 50) 28%, oklch(0.8 0.065 35) 48%, oklch(0.93 0.04 55) 70%, oklch(0.7 0.07 30))",
+        "--liquid-footer-newsletter-button-text": "oklch(0.18 0.025 258)",
+        "--liquid-footer-newsletter-input-background": "transparent",
+        "--liquid-footer-newsletter-input-border": "oklch(0.43 0.03 305)",
+        "--liquid-footer-newsletter-input-text": "oklch(0.96 0.007 255)",
+        "--liquid-footer-padding-y": "64px",
+        "--liquid-footer-text": "oklch(0.96 0.007 255)",
+        "--liquid-header-background": "oklch(0.19 0.02 285)",
+        "--liquid-header-border": "oklch(0.43 0.03 305)",
+        "--liquid-header-link": "oklch(0.96 0.007 255)",
+        "--liquid-header-link-hover": "oklch(0.96 0.007 255)",
+        "--liquid-header-logo-size": "144px",
+        "--liquid-header-mobile-menu-background": "oklch(0.25 0.025 305)",
+        "--liquid-header-mobile-menu-link": "oklch(0.96 0.007 255)",
+        "--liquid-header-mobile-menu-link-hover": "oklch(0.96 0.007 255)",
+        "--liquid-header-mobile-menu-text": "oklch(0.96 0.007 255)",
+        "--liquid-header-padding-y": "10px",
+        "--liquid-header-sticky": "1",
+        "--liquid-header-text": "oklch(0.96 0.007 255)"
+      },
+      "sticky": "true",
+      "top_bars": {
+        "background": "oklch(0.19 0.02 285)",
+        "color": "oklch(0.96 0.007 255)",
+        "position": "sticky"
+      }
+    }
+  },
+  "edited": {
+    "desktop": {
+      "announcement": {
+        "background": "rgb(35, 69, 103)",
+        "color": "rgb(248, 250, 252)"
+      },
+      "bottom": {
+        "background": "rgb(9, 17, 26)",
+        "border": "rgb(52, 86, 120)",
+        "color": "rgb(216, 225, 234)"
+      },
+      "footer": {
+        "background": "rgb(16, 32, 48)",
+        "color": "rgb(226, 232, 240)"
+      },
+      "footer_grid": {
+        "column_gap": "48px",
+        "padding_top": "72px"
+      },
+      "header": {
+        "background": "rgb(18, 52, 86)",
+        "color": "rgb(248, 250, 252)",
+        "padding_top": "24px"
+      },
+      "logos": {
+        "footer_width": "156px",
+        "header_width": "168px"
+      },
+      "newsletter": {
+        "background": "rgb(32, 48, 64)",
+        "button_background": "rgb(219, 234, 254)",
+        "button_text": "rgb(16, 32, 48)",
+        "input_background": "rgb(255, 255, 255)",
+        "input_border": "rgb(69, 103, 137)",
+        "input_text": "rgb(16, 32, 48)"
+      },
+      "properties": {
+        "--liquid-announcement-background": "#234567",
+        "--liquid-announcement-request-colour": "#f8fafc",
+        "--liquid-announcement-text": "#f8fafc",
+        "--liquid-announcement-title-colour": "#f8fafc",
+        "--liquid-footer-background": "#102030",
+        "--liquid-footer-bottom-background": "#09111a",
+        "--liquid-footer-bottom-disclaimer": "#b9c6d2",
+        "--liquid-footer-bottom-divider": "#345678",
+        "--liquid-footer-bottom-legal-link": "#ffffff",
+        "--liquid-footer-bottom-legal-text": "#d8e1ea",
+        "--liquid-footer-column-gap": "48px",
+        "--liquid-footer-divider": "#345678",
+        "--liquid-footer-link": "#bae6fd",
+        "--liquid-footer-link-hover": "#fef3c7",
+        "--liquid-footer-logo-size": "156px",
+        "--liquid-footer-newsletter-background": "#203040",
+        "--liquid-footer-newsletter-button-background": "#dbeafe",
+        "--liquid-footer-newsletter-button-text": "#102030",
+        "--liquid-footer-newsletter-input-background": "#ffffff",
+        "--liquid-footer-newsletter-input-border": "#456789",
+        "--liquid-footer-newsletter-input-text": "#102030",
+        "--liquid-footer-padding-y": "72px",
+        "--liquid-footer-text": "#e2e8f0",
+        "--liquid-header-background": "#123456",
+        "--liquid-header-border": "#456789",
+        "--liquid-header-link": "#dbeafe",
+        "--liquid-header-link-hover": "#fef3c7",
+        "--liquid-header-logo-size": "168px",
+        "--liquid-header-mobile-menu-background": "#123456",
+        "--liquid-header-mobile-menu-link": "#dbeafe",
+        "--liquid-header-mobile-menu-link-hover": "#fef3c7",
+        "--liquid-header-mobile-menu-text": "#f8fafc",
+        "--liquid-header-padding-y": "24px",
+        "--liquid-header-sticky": "0",
+        "--liquid-header-text": "#f8fafc"
+      },
+      "sticky": "false",
+      "top_bars": {
+        "background": "rgb(18, 52, 86)",
+        "color": "rgb(248, 250, 252)",
+        "position": "static"
+      }
+    },
+    "mobile": {
+      "announcement": {
+        "background": "rgb(35, 69, 103)",
+        "color": "rgb(248, 250, 252)"
+      },
+      "bottom": {
+        "background": "rgb(9, 17, 26)",
+        "border": "rgb(52, 86, 120)",
+        "color": "rgb(216, 225, 234)"
+      },
+      "footer": {
+        "background": "rgb(16, 32, 48)",
+        "color": "rgb(226, 232, 240)"
+      },
+      "footer_grid": {
+        "column_gap": "40px",
+        "padding_top": "72px"
+      },
+      "header": {
+        "background": "rgb(18, 52, 86)",
+        "color": "rgb(248, 250, 252)",
+        "padding_top": "24px"
+      },
+      "logos": {
+        "footer_width": "156px",
+        "header_width": "168px"
+      },
+      "newsletter": {
+        "background": "rgb(32, 48, 64)",
+        "button_background": "rgb(219, 234, 254)",
+        "button_text": "rgb(16, 32, 48)",
+        "input_background": "rgb(255, 255, 255)",
+        "input_border": "rgb(69, 103, 137)",
+        "input_text": "rgb(16, 32, 48)"
+      },
+      "properties": {
+        "--liquid-announcement-background": "#234567",
+        "--liquid-announcement-request-colour": "#f8fafc",
+        "--liquid-announcement-text": "#f8fafc",
+        "--liquid-announcement-title-colour": "#f8fafc",
+        "--liquid-footer-background": "#102030",
+        "--liquid-footer-bottom-background": "#09111a",
+        "--liquid-footer-bottom-disclaimer": "#b9c6d2",
+        "--liquid-footer-bottom-divider": "#345678",
+        "--liquid-footer-bottom-legal-link": "#ffffff",
+        "--liquid-footer-bottom-legal-text": "#d8e1ea",
+        "--liquid-footer-column-gap": "48px",
+        "--liquid-footer-divider": "#345678",
+        "--liquid-footer-link": "#bae6fd",
+        "--liquid-footer-link-hover": "#fef3c7",
+        "--liquid-footer-logo-size": "156px",
+        "--liquid-footer-newsletter-background": "#203040",
+        "--liquid-footer-newsletter-button-background": "#dbeafe",
+        "--liquid-footer-newsletter-button-text": "#102030",
+        "--liquid-footer-newsletter-input-background": "#ffffff",
+        "--liquid-footer-newsletter-input-border": "#456789",
+        "--liquid-footer-newsletter-input-text": "#102030",
+        "--liquid-footer-padding-y": "72px",
+        "--liquid-footer-text": "#e2e8f0",
+        "--liquid-header-background": "#123456",
+        "--liquid-header-border": "#456789",
+        "--liquid-header-link": "#dbeafe",
+        "--liquid-header-link-hover": "#fef3c7",
+        "--liquid-header-logo-size": "168px",
+        "--liquid-header-mobile-menu-background": "#123456",
+        "--liquid-header-mobile-menu-link": "#dbeafe",
+        "--liquid-header-mobile-menu-link-hover": "#fef3c7",
+        "--liquid-header-mobile-menu-text": "#f8fafc",
+        "--liquid-header-padding-y": "24px",
+        "--liquid-header-sticky": "0",
+        "--liquid-header-text": "#f8fafc"
+      },
+      "sticky": "false",
+      "top_bars": {
+        "background": "rgb(18, 52, 86)",
+        "color": "rgb(248, 250, 252)",
+        "position": "static"
+      }
+    }
+  },
+  "published": {
+    "desktop": {
+      "announcement": {
+        "background": "rgb(35, 69, 103)",
+        "color": "rgb(248, 250, 252)"
+      },
+      "bottom": {
+        "background": "rgb(9, 17, 26)",
+        "border": "rgb(52, 86, 120)",
+        "color": "rgb(216, 225, 234)"
+      },
+      "footer": {
+        "background": "rgb(16, 32, 48)",
+        "color": "rgb(226, 232, 240)"
+      },
+      "footer_grid": {
+        "column_gap": "48px",
+        "padding_top": "72px"
+      },
+      "header": {
+        "background": "rgb(18, 52, 86)",
+        "color": "rgb(248, 250, 252)",
+        "padding_top": "24px"
+      },
+      "logos": {
+        "footer_width": "156px",
+        "header_width": "168px"
+      },
+      "newsletter": {
+        "background": "rgb(32, 48, 64)",
+        "button_background": "rgb(219, 234, 254)",
+        "button_text": "rgb(16, 32, 48)",
+        "input_background": "rgb(255, 255, 255)",
+        "input_border": "rgb(69, 103, 137)",
+        "input_text": "rgb(16, 32, 48)"
+      },
+      "properties": {
+        "--liquid-announcement-background": "#234567",
+        "--liquid-announcement-request-colour": "#f8fafc",
+        "--liquid-announcement-text": "#f8fafc",
+        "--liquid-announcement-title-colour": "#f8fafc",
+        "--liquid-footer-background": "#102030",
+        "--liquid-footer-bottom-background": "#09111a",
+        "--liquid-footer-bottom-disclaimer": "#b9c6d2",
+        "--liquid-footer-bottom-divider": "#345678",
+        "--liquid-footer-bottom-legal-link": "#ffffff",
+        "--liquid-footer-bottom-legal-text": "#d8e1ea",
+        "--liquid-footer-column-gap": "48px",
+        "--liquid-footer-divider": "#345678",
+        "--liquid-footer-link": "#bae6fd",
+        "--liquid-footer-link-hover": "#fef3c7",
+        "--liquid-footer-logo-size": "156px",
+        "--liquid-footer-newsletter-background": "#203040",
+        "--liquid-footer-newsletter-button-background": "#dbeafe",
+        "--liquid-footer-newsletter-button-text": "#102030",
+        "--liquid-footer-newsletter-input-background": "#ffffff",
+        "--liquid-footer-newsletter-input-border": "#456789",
+        "--liquid-footer-newsletter-input-text": "#102030",
+        "--liquid-footer-padding-y": "72px",
+        "--liquid-footer-text": "#e2e8f0",
+        "--liquid-header-background": "#123456",
+        "--liquid-header-border": "#456789",
+        "--liquid-header-link": "#dbeafe",
+        "--liquid-header-link-hover": "#fef3c7",
+        "--liquid-header-logo-size": "168px",
+        "--liquid-header-mobile-menu-background": "#123456",
+        "--liquid-header-mobile-menu-link": "#dbeafe",
+        "--liquid-header-mobile-menu-link-hover": "#fef3c7",
+        "--liquid-header-mobile-menu-text": "#f8fafc",
+        "--liquid-header-padding-y": "24px",
+        "--liquid-header-sticky": "0",
+        "--liquid-header-text": "#f8fafc"
+      },
+      "sticky": "false",
+      "top_bars": {
+        "background": "rgb(18, 52, 86)",
+        "color": "rgb(248, 250, 252)",
+        "position": "static"
+      }
+    },
+    "mobile": {
+      "announcement": {
+        "background": "rgb(35, 69, 103)",
+        "color": "rgb(248, 250, 252)"
+      },
+      "bottom": {
+        "background": "rgb(9, 17, 26)",
+        "border": "rgb(52, 86, 120)",
+        "color": "rgb(216, 225, 234)"
+      },
+      "footer": {
+        "background": "rgb(16, 32, 48)",
+        "color": "rgb(226, 232, 240)"
+      },
+      "footer_grid": {
+        "column_gap": "40px",
+        "padding_top": "72px"
+      },
+      "header": {
+        "background": "rgb(18, 52, 86)",
+        "color": "rgb(248, 250, 252)",
+        "padding_top": "24px"
+      },
+      "logos": {
+        "footer_width": "156px",
+        "header_width": "168px"
+      },
+      "newsletter": {
+        "background": "rgb(32, 48, 64)",
+        "button_background": "rgb(219, 234, 254)",
+        "button_text": "rgb(16, 32, 48)",
+        "input_background": "rgb(255, 255, 255)",
+        "input_border": "rgb(69, 103, 137)",
+        "input_text": "rgb(16, 32, 48)"
+      },
+      "properties": {
+        "--liquid-announcement-background": "#234567",
+        "--liquid-announcement-request-colour": "#f8fafc",
+        "--liquid-announcement-text": "#f8fafc",
+        "--liquid-announcement-title-colour": "#f8fafc",
+        "--liquid-footer-background": "#102030",
+        "--liquid-footer-bottom-background": "#09111a",
+        "--liquid-footer-bottom-disclaimer": "#b9c6d2",
+        "--liquid-footer-bottom-divider": "#345678",
+        "--liquid-footer-bottom-legal-link": "#ffffff",
+        "--liquid-footer-bottom-legal-text": "#d8e1ea",
+        "--liquid-footer-column-gap": "48px",
+        "--liquid-footer-divider": "#345678",
+        "--liquid-footer-link": "#bae6fd",
+        "--liquid-footer-link-hover": "#fef3c7",
+        "--liquid-footer-logo-size": "156px",
+        "--liquid-footer-newsletter-background": "#203040",
+        "--liquid-footer-newsletter-button-background": "#dbeafe",
+        "--liquid-footer-newsletter-button-text": "#102030",
+        "--liquid-footer-newsletter-input-background": "#ffffff",
+        "--liquid-footer-newsletter-input-border": "#456789",
+        "--liquid-footer-newsletter-input-text": "#102030",
+        "--liquid-footer-padding-y": "72px",
+        "--liquid-footer-text": "#e2e8f0",
+        "--liquid-header-background": "#123456",
+        "--liquid-header-border": "#456789",
+        "--liquid-header-link": "#dbeafe",
+        "--liquid-header-link-hover": "#fef3c7",
+        "--liquid-header-logo-size": "168px",
+        "--liquid-header-mobile-menu-background": "#123456",
+        "--liquid-header-mobile-menu-link": "#dbeafe",
+        "--liquid-header-mobile-menu-link-hover": "#fef3c7",
+        "--liquid-header-mobile-menu-text": "#f8fafc",
+        "--liquid-header-padding-y": "24px",
+        "--liquid-header-sticky": "0",
+        "--liquid-header-text": "#f8fafc"
+      },
+      "sticky": "false",
+      "top_bars": {
+        "background": "rgb(18, 52, 86)",
+        "color": "rgb(248, 250, 252)",
+        "position": "static"
+      }
+    },
+    "mobile_menu": {
+      "background": "rgb(18, 52, 86)",
+      "link": "rgb(219, 234, 254)",
+      "link_hover": "rgb(254, 243, 199)",
+      "text": "rgb(248, 250, 252)"
+    }
+  },
+  "screenshots": [
+    "defaults-desktop.png",
+    "defaults-mobile.png",
+    "edited-desktop.png",
+    "edited-mobile.png"
+  ],
+  "status": "passed",
+  "theme_settings_request": {
+    "csrf_header": "present",
+    "footer_background": "#102030",
+    "header_background": "#123456"
+  }
+}
