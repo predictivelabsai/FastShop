@@ -302,6 +302,33 @@ def test_liquid_product_action_labels_have_preview_markers(context):
     assert "data-field=" not in public
 
 
+def test_liquid_product_research_cta_uses_seed_fallback_when_legacy_url_is_missing(context):
+    db, site, page = context
+    block = {
+        "id": "benefits",
+        "type": "liquid_product_benefits",
+        "layout": "dark",
+        "heading": "The research",
+        "body": "",
+        "image": "/static/glass.jpg",
+        "alt": "Water glass",
+        "items": [
+            {
+                "theme": "research",
+                "heading": "The research behind it",
+                "body": "Published studies",
+                "url": "/science",
+            },
+            {"theme": "research-cta", "label": "Explore the science →"},
+        ],
+    }
+
+    markup = to_xml(render_block(db, site, page, {}, block, "", "csrf", False))
+
+    assert 'href="/why-hydrogen/science"' in markup
+    assert 'href="/science"' not in markup
+
+
 def test_newsletter_reuses_consent_flow_and_disables_preview(context):
     db, site, page = context
     block = default_block("newsletter")

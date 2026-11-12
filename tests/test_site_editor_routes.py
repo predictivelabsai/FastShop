@@ -12,7 +12,7 @@ from starlette.responses import Response
 from starlette.testclient import TestClient
 
 from app import content, site_editor_routes
-from app.models import AgentConversation, AgentMessage, Base, Membership, SitePage, User
+from app.models import AgentConversation, AgentMessage, Base, Membership, Site, SitePage, User
 from app.services import CommerceError
 
 
@@ -279,6 +279,241 @@ def test_publish_success_and_revision_isolation(workspace):
     with w.sessions() as db:
         page = db.get(SitePage, w.page.id)
         assert page.published_json and page.version == loaded["version"] + 1
+
+
+def test_liquid_product_editor_save_renders_edited_share_body_and_research_link(workspace):
+    from fasthtml.common import to_xml
+
+    from app.site_ui import storefront
+
+    w = workspace
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        liquid_settings = {"theme_pack": "liquid", "default_locale": "en"}
+        site.settings_json = liquid_settings
+        site.published_settings_json = liquid_settings
+        site.hostname = "h24you.fastsme.com"
+        db.commit()
+
+    loaded = load(w)
+    share_body = (
+        "Keep the One for yourself, and share tablets with family and friends. "
+        "One box is 30 glasses: a month for you, or a couple of weeks shared at home."
+    )
+    document = loaded["document"] | {
+        "title": "Hydrogen Tablets",
+        "blocks": [
+            {
+                "id": "benefits",
+                "type": "liquid_product_benefits",
+                "layout": "dark",
+                "heading": "The research",
+                "body": "",
+                "image": "/static/research.jpg",
+                "alt": "Research water glass",
+                "items": [
+                    {
+                        "theme": "research",
+                        "heading": "The research behind it",
+                        "body": "Published studies",
+                        "value": "2,000+",
+                        "label": "articles published",
+                        "alt": "Source note",
+                        "url": "/science",
+                    },
+                    {
+                        "theme": "research-cta",
+                        "label": "Explore the science →",
+                        "url": "https://h24you.fastsme.com/why-hydrogen/science",
+                    },
+                ],
+            },
+            {
+                "id": "share",
+                "type": "liquid_product_lifestyle",
+                "layout": "light",
+                "heading": "Share the routine",
+                "body": share_body,
+                "image": "/static/share.jpg",
+                "alt": "Friends sharing water",
+                "button": "Meet the One →",
+                "link": "/products/h2-4-you-one",
+            },
+        ],
+    }
+    lifestyle_schema = loaded["schema"]["liquid_product_lifestyle"]
+    body_field = next(field for field in lifestyle_schema["fields"] if field["id"] == "body")
+    assert body_field["type"] == "richtext"
+
+    saved = w.client.put(
+        w.base + "/draft",
+        params={"page": w.page.id},
+        json={"document": document, "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert saved.status_code == 200, saved.text
+    saved_document = saved.json()["document"]
+    saved_share = next(block for block in saved_document["blocks"] if block["id"] == "share")
+    assert saved_share["body"] == share_body
+
+    share_preview = w.client.post(
+        w.base + "/render",
+        params={"page": w.page.id, "block_id": "share"},
+        json={"document": saved_document},
+        headers=w.headers,
+    )
+    assert share_preview.status_code == 200, share_preview.text
+    assert share_body in share_preview.json()["html"]
+    assert 'data-field="body"' in share_preview.json()["html"]
+
+    cta_preview = w.client.post(
+        w.base + "/render",
+        params={"page": w.page.id, "block_id": "benefits"},
+        json={"document": saved_document},
+        headers=w.headers,
+    )
+    assert cta_preview.status_code == 200, cta_preview.text
+    assert 'href="/sites/editor-store/why-hydrogen/science"' in cta_preview.json()["html"]
+    assert 'data-link-field="items.1.url"' in cta_preview.json()["html"]
+
+    published = w.client.post(
+        w.base + "/publish",
+        params={"page": w.page.id},
+        json={
+            "document": saved_document,
+            "version": saved.json()["version"],
+            "site_version": loaded["site_version"],
+        },
+        headers=w.headers,
+    )
+    assert published.status_code == 200, published.text
+
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        page = db.get(SitePage, w.page.id)
+        live_nodes = storefront(
+            db,
+            site,
+            page,
+            "",
+            "editor-csrf",
+            "https://h24you.fastsme.com/products/hydrogen-tablets",
+        )
+        live = "".join(str(to_xml(node)) for node in live_nodes if node is not None)
+    assert share_body in live
+    assert 'href="/why-hydrogen/science"' in live
+
+
+def test_liquid_product_editable_text_and_links_round_trip_for_each_block(workspace, monkeypatch):
+    from copy import deepcopy
+    from types import SimpleNamespace
+
+    from app import site_ui_liquid_products
+    from app.site_liquid_products_content import product_documents
+
+    w = workspace
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        site.settings_json = {"theme_pack": "liquid", "default_locale": "en"}
+        site.published_settings_json = site.settings_json
+        db.commit()
+    monkeypatch.setattr(
+        site_ui_liquid_products,
+        "catalogue",
+        lambda *_: [(SimpleNamespace(id=f"variant-{index}"), 2800) for index in range(12)],
+    )
+
+    loaded = load(w)
+    expected = {}
+    blocks = []
+    for page_index, (_, _, _, source_blocks) in enumerate(product_documents()):
+        for block_index, source in enumerate(source_blocks):
+            if not source["type"].startswith("liquid_product_"):
+                continue
+            block = deepcopy(source)
+            block["id"] = f"audit_{page_index}_{block_index}_{source['id']}"
+            block_expected = []
+            schema = loaded["schema"][block["type"]]
+            for field in schema["fields"]:
+                key = field["id"]
+                if key in {"items", "layout", "hidden"} or key.startswith("style."):
+                    continue
+                if key == "url" and block["type"] == "liquid_product_purchase":
+                    continue
+                value = (
+                    f"/static/{block['id']}_{key}.jpg"
+                    if key == "image"
+                    else f"/edited/{block['id']}/{key}"
+                    if key == "url" or key == "link"
+                    else f"edit_{block['id']}_{key}"
+                )
+                block[key] = value
+                block_expected.append(value)
+
+            repeater = next(
+                (field for field in schema["fields"] if field["id"] == "items"), None
+            )
+            if repeater:
+                layout_fields = repeater.get("layout_theme_fields", {}).get(
+                    block.get("layout"), repeater["theme_fields"]
+                )
+                for item_index, item in enumerate(block.get("items", [])):
+                    for field in layout_fields.get(item["theme"], []):
+                        key = field["id"]
+                        if key == "theme":
+                            continue
+                        theme = item["theme"]
+                        if key == "value" and theme in {
+                            "bundle", "flavor", "ingredient", "quality", "day-stat", "rating"
+                        }:
+                            continue
+                        if key == "label" and theme == "rating":
+                            continue
+                        if key == "body" and theme == "bundle":
+                            item[key] = "15"
+                            block_expected.append("15")
+                            continue
+                        value = (
+                            f"/static/{block['id']}_{item_index}_{key}.jpg"
+                            if key == "image"
+                            else f"/edited/{block['id']}/{item_index}/{key}"
+                            if key == "url"
+                            else f"edit_{block['id']}_{item_index}_{key}"
+                        )
+                        item[key] = value
+                        block_expected.append(value)
+            expected[block["id"]] = block_expected
+            blocks.append(block)
+
+    faq_block = next(block for block in blocks if block["type"] == "liquid_product_faq")
+    faq_link = {
+        "theme": "faq-link",
+        "label": "edit_faq_resource_label",
+        "url": "/edited/faq-resource",
+    }
+    faq_block["items"].append(faq_link)
+    expected[faq_block["id"]].extend([faq_link["label"], faq_link["url"]])
+
+    document = loaded["document"] | {"title": "Product field audit", "blocks": blocks}
+    saved = w.client.put(
+        w.base + "/draft",
+        params={"page": w.page.id},
+        json={"document": document, "version": loaded["version"]},
+        headers=w.headers,
+    )
+    assert saved.status_code == 200, saved.text
+
+    for block_id, values in expected.items():
+        rendered = w.client.post(
+            w.base + "/render",
+            params={"page": w.page.id, "block_id": block_id},
+            json={"document": saved.json()["document"]},
+            headers=w.headers,
+        )
+        assert rendered.status_code == 200, rendered.text
+        markup = rendered.json()["html"]
+        for value in values:
+            assert value in markup, f"{block_id} did not render edited value {value!r}"
     revision = w.client.get(w.base + "/revisions").json()["revisions"][0]
     other_base = f"/admin/sites/{w.other.id}/editor/api"
     assert w.client.post(other_base + "/restore", json={"revision_id": revision["id"],

@@ -115,6 +115,99 @@ ADVANCED_IDS = {
     "style.hide_mobile",
 }
 
+LIQUID_PRODUCT_TOP_FIELDS = {
+    "liquid_product_purchase": {"heading", "eyebrow", "body", "url"},
+    "liquid_product_steps": {"heading", "body", "button", "link"},
+    "liquid_product_technology": {"heading", "body", "image", "alt"},
+    "liquid_product_day": {"heading"},
+    "liquid_product_lifestyle": {"heading", "body", "image", "alt", "button", "link"},
+    "liquid_product_flavors": {"heading", "body"},
+    "liquid_product_benefits": {"heading", "body", "image", "alt"},
+    "liquid_product_faq": {"heading", "body", "eyebrow", "button", "link"},
+    "liquid_product_pair": {"heading", "body", "eyebrow", "url", "image", "alt", "button"},
+}
+
+LIQUID_PRODUCT_ITEM_EDITOR_FIELDS = {
+    "liquid_product_purchase": {
+        "gallery": {"image", "alt"},
+        "trust": {"label"},
+        "box": {"body"},
+        "rating": {"value", "label"},
+        "spec": {"label", "value"},
+        "bundle": {"label", "value", "body"},
+        "color": {"label"},
+        "flavor": {"value", "label", "image", "alt", "url", "body"},
+        "quality": {"label", "value"},
+        "fact": {"label", "value", "body"},
+        "facts-lead": {"body"},
+        "facts-placeholder": {"body"},
+        "quality-title": {"body"},
+        "ingredient": {"value", "body"},
+        "range-link": {"label", "body", "url"},
+        "subscription": {"heading", "label", "body"},
+        "one-time": {"label"},
+        "mix-hint": {"body"},
+        "pack": {"label", "body"},
+        "subscribe-link": {"body", "url"},
+        "facts-note": {"body"},
+        "ingredient-range": {"body"},
+    },
+    "liquid_product_steps": {"step": {"heading", "body", "image", "alt"}},
+    "liquid_product_technology": {"technology": {"heading", "body"}},
+    "liquid_product_day": {
+        "day": {"heading", "body", "label", "image", "alt"},
+        "day-stat": {"heading", "body", "label", "image", "alt", "value"},
+        "day-source": {"label", "body"},
+    },
+    "liquid_product_flavors": {
+        "flavor": {"heading", "body", "value", "image", "alt"},
+        "range-link": {"label", "body", "url"},
+    },
+    "liquid_product_benefits": {
+        "cell": {"heading", "body", "label", "url"},
+        "shield": {"heading", "body", "label", "url"},
+        "exercise": {"heading", "body", "label", "url"},
+        "leaf": {"heading", "body", "label", "url"},
+        "water": {"heading", "body", "label", "url"},
+        "research": {"heading", "body", "value", "label", "alt"},
+        "research-cta": {"label", "url"},
+    },
+    "liquid_product_faq": {
+        "faq": {"heading", "body", "label", "url"},
+        "faq-link": {"label", "url"},
+    },
+    "liquid_product_pair": {
+        "product": {"heading", "body"},
+        "flavor": {"value", "label", "image", "alt", "url", "body"},
+        "spec": {"label", "value"},
+    },
+}
+
+LIQUID_PRODUCT_ITEM_LAYOUT_THEMES = {
+    "liquid_product_purchase": {
+        "bottle": {"gallery", "trust", "box", "rating", "spec", "bundle", "color"},
+        "tablet": {
+            "gallery", "trust", "box", "rating", "flavor", "quality", "fact",
+            "facts-lead", "facts-placeholder", "quality-title", "ingredient",
+            "range-link", "subscription", "one-time", "mix-hint",
+        },
+        "range": {
+            "gallery", "trust", "box", "rating", "flavor", "quality", "fact",
+            "facts-lead", "facts-placeholder", "quality-title", "ingredient", "pack",
+            "subscribe-link", "facts-note",
+        },
+    },
+    "liquid_product_pair": {
+        "tablet-dark": {"product", "flavor"},
+        "bottle-light": {"product", "spec"},
+        "bottle-dark": {"product", "spec"},
+    },
+    "liquid_product_flavors": {
+        "tablet-light": {"flavor", "range-link"},
+        "range-dark": {"flavor"},
+    },
+}
+
 
 
 LEGACY_PICKER = {
@@ -220,7 +313,11 @@ def _registry():
                 alt="",
                 items=[],
             )
-            keys = sorted(TEXT_FIELDS) + ["items", "hidden", "subscription_preview"]
+            keys = (
+                sorted(LIQUID_PRODUCT_TOP_FIELDS[kind]) + ["items", "hidden"]
+                if kind in LIQUID_PRODUCT_TOP_FIELDS
+                else sorted(TEXT_FIELDS) + ["items", "hidden", "subscription_preview"]
+            )
             keys += list(liquid_copy)
             if kind in LIQUID_PRODUCT_THEMES:
                 themes = LIQUID_PRODUCT_THEMES[kind]
@@ -283,9 +380,15 @@ def _registry():
             if key == "items":
                 if kind == "liquid_product_lifestyle":
                     continue
-                item_keys = ["heading", "body", "url", "image", "alt", "label", "value"]
-                if themes:
-                    item_keys = ["theme"] + item_keys
+                product_item_fields = LIQUID_PRODUCT_ITEM_EDITOR_FIELDS.get(kind)
+                if product_item_fields:
+                    product_item_fields = copy.deepcopy(product_item_fields)
+                if product_item_fields:
+                    item_keys = ["theme"] + sorted(set().union(*product_item_fields.values()))
+                else:
+                    item_keys = ["heading", "body", "url", "image", "alt", "label", "value"]
+                    if themes:
+                        item_keys = ["theme"] + item_keys
                 required = spec.required_item_fields
                 item_default = {
                     k: "Your content" if k not in {"url", "image"} else ("/" if k == "url" else "")
@@ -293,6 +396,12 @@ def _registry():
                 }
                 if themes:
                     item_default["theme"] = sorted(themes)[0]
+                if product_item_fields:
+                    for editor_fields in product_item_fields.values():
+                        for key in editor_fields:
+                            item_default.setdefault(
+                                key, "/" if key == "url" else "" if key == "image" else "Your content"
+                            )
                 if kind in {"liquid_reviews"}:
                     item_default["value"] = "5"
                 if kind in LIQUID_PRODUCT_THEMES:
@@ -304,9 +413,18 @@ def _registry():
                         item_default.update(value="1", body="0")
                     if item_default.get("theme") == "rating":
                         item_default.update(value="5", label="1")
+                item_fields = [
+                    _field(k, item_default[k], choices=themes if k == "theme" else None)
+                    for k in item_keys
+                ]
                 theme_defaults = {}
                 for theme in themes:
-                    entry = dict(item_default, theme=theme)
+                    if product_item_fields:
+                        active_keys = product_item_fields[theme]
+                        entry = {key: item_default[key] for key in active_keys}
+                        entry["theme"] = theme
+                    else:
+                        entry = dict(item_default, theme=theme)
                     if kind in LIQUID_PRODUCT_THEMES:
                         if theme == "bundle":
                             entry.update(value="1", body="0")
@@ -320,10 +438,40 @@ def _registry():
                             url="/",
                         )
                     theme_defaults[theme] = entry
-                item_fields = [
-                    _field(k, item_default[k], choices=themes if k == "theme" else None)
-                    for k in item_keys
-                ]
+                if product_item_fields:
+                    item_default = copy.deepcopy(theme_defaults[sorted(themes)[0]])
+                theme_fields = {
+                    theme: [
+                        field for field in item_fields
+                        if field["id"] == "theme" or field["id"] in item_fields_for_theme
+                    ]
+                    for theme, item_fields_for_theme in product_item_fields.items()
+                } if product_item_fields else {}
+                layout_theme_fields = {}
+                layout_theme_defaults = {}
+                for layout, active_themes in LIQUID_PRODUCT_ITEM_LAYOUT_THEMES.get(
+                    kind, {}
+                ).items():
+                    layout_fields = {
+                        theme: set(product_item_fields[theme])
+                        for theme in sorted(active_themes)
+                        if theme in product_item_fields
+                    }
+                    if kind == "liquid_product_purchase" and layout == "range":
+                        layout_fields["flavor"] = {"value", "label"}
+                        layout_fields["ingredient"] = {"body"}
+                    layout_theme_fields[layout] = {
+                        theme: [
+                            field for field in item_fields
+                            if field["id"] == "theme" or field["id"] in active_fields
+                        ]
+                        for theme, active_fields in layout_fields.items()
+                    }
+                    layout_theme_defaults[layout] = {
+                        theme: {key: theme_defaults[theme][key] for key in active_fields}
+                        | {"theme": theme}
+                        for theme, active_fields in layout_fields.items()
+                    }
                 fields.append(
                     {
                         "id": "items",
@@ -334,6 +482,9 @@ def _registry():
                         "item_fields": item_fields,
                         "item_default": item_default,
                         "theme_defaults": theme_defaults,
+                        **({"theme_fields": theme_fields} if product_item_fields else {}),
+                        **({"layout_theme_fields": layout_theme_fields} if layout_theme_fields else {}),
+                        **({"layout_theme_defaults": layout_theme_defaults} if layout_theme_defaults else {}),
                         "min": 0,
                         "max": len(default["items"]) if kind == "liquid_editorial" else 200,
                         "help": "",

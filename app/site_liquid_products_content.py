@@ -5,6 +5,7 @@ from pathlib import Path
 
 CONTENT = json.loads(Path(__file__).with_suffix(".json").read_text("utf-8"))
 ASSETS = "/static/h24you/liquid/"
+RESEARCH_CTA_URL = "/why-hydrogen/science"
 
 
 def item(theme, **values):
@@ -378,9 +379,12 @@ def product_documents():
                                 value=tablet["research"]["number"],
                                 label=tablet["research"]["label"],
                                 alt=tablet["research"]["source"],
-                                url="/science",
                             ),
-                            item("research-cta", label=tablet["research"]["cta"]),
+                            item(
+                                "research-cta",
+                                label=tablet["research"]["cta"],
+                                url=RESEARCH_CTA_URL,
+                            ),
                         ],
                     ),
                     block(

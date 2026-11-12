@@ -120,7 +120,7 @@ LIQUID_PRODUCT_ITEM_FIELDS = {
     'ingredient': {'value', 'body'}, 'day': {'heading', 'body', 'label', 'image', 'alt'},
     'day-stat': {'heading', 'body', 'label', 'image', 'alt', 'value'},
     'day-source': {'label', 'body'}, 'faq': {'heading', 'body'},
-    'product': {'heading', 'body'},
+    'product': {'heading', 'body'}, 'faq-link': {'label', 'url'},
 }
 LIQUID_PRODUCT_LAYOUTS = {
     'liquid_product_purchase': {'bottle', 'tablet', 'range'},

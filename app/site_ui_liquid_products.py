@@ -1,5 +1,7 @@
 """Liquid product blocks, using the existing scoped catalogue and cart flow."""
 
+from urllib.parse import urlsplit, urlunsplit
+
 from fasthtml.common import (
     H1,
     H2,
@@ -40,6 +42,7 @@ from sqlalchemy import select
 from app.commerce import discounted
 from app.models import Product, ProductVariant, VariantChannelListing
 from app.services import money
+from app.site_liquid_products_content import RESEARCH_CTA_URL
 
 ASSETS = "/static/h24you/liquid/"
 
@@ -60,6 +63,22 @@ def text(b, theme, field="body"):
     return one(b, theme).get(field, "")
 
 
+def product_href(site, base, destination):
+    """Resolve store links against the routed base while retaining their full path."""
+    destination = str(destination or "").strip()
+    parsed = urlsplit(destination)
+    if (
+        parsed.scheme in {"http", "https"}
+        and site.hostname
+        and parsed.hostname
+        and parsed.hostname.casefold() == site.hostname.casefold()
+    ):
+        destination = urlunsplit(("", "", parsed.path or "/", parsed.query, parsed.fragment))
+    elif parsed.scheme or parsed.netloc:
+        return destination
+    return base + destination if destination.startswith("/") else destination
+
+
 def image(src, alt="", **attrs):
     return Img(src=src, alt=alt, loading="lazy", decoding="async", **attrs)
 
@@ -69,7 +88,13 @@ def name(value):
 
     if "One" in value and not value.startswith("H2 | 4 YOU"):
         parts = value.split("One")
-        return Span(parts[0], Span("One", cls="bottle-one"), parts[1])
+        children = []
+        for index, part in enumerate(parts):
+            if index:
+                children.append(Span("One", cls="bottle-one"))
+            if part:
+                children.append(part)
+        return Span(*children)
     return product_name(value)
 
 
@@ -311,14 +336,17 @@ def facts(b, mode, *, preview=False):
         ]
         if mode == "tablet"
         else [
-            P(Span("Unflavored: ", cls="range-facts-label"), text(b, "ingredient")),
             P(
-                Span("Raspberry, Pineapple, Peach: ", cls="range-facts-label"),
-                text(b, "ingredient-range"),
-                cls="mt-2",
-            ),
-            P(text(b, "facts-note"), cls="mt-3 text-xs"),
+                Span(
+                    s.get("value", "").replace("-", " ").title() + ": ",
+                    cls="range-facts-label",
+                ),
+                _rich(s["body"], key=f"items.{i}.body", preview=preview),
+                cls="mt-2" if i else "",
+            )
+            for i, s in enumerate(rows(b, "ingredient"))
         ]
+        + [P(text(b, "facts-note"), cls="mt-3 text-xs")]
     )
     return Div(
         P(text(b, "facts-lead"), cls="mb-3 font-semibold"),
@@ -554,7 +582,7 @@ def purchase(db, site, b, base, csrf, enabled, *, preview=False):
                     r.get("label", "") + " ",
                     A(
                         r.get("body", ""),
-                        href=base + r.get("url", ""),
+                        href=product_href(site, base, r.get("url", "")),
                         cls="text-primary underline",
                     ),
                     cls="mt-4 text-sm",
@@ -582,7 +610,7 @@ def purchase(db, site, b, base, csrf, enabled, *, preview=False):
         s = one(b, "subscribe-link")
         controls.append(
             P(
-                A(s.get("body", ""), href=base + s.get("url", ""), cls="text-primary underline"),
+                A(s.get("body", ""), href=product_href(site, base, s.get("url", "")), cls="text-primary underline"),
                 cls="mt-5 text-sm",
             )
         )
@@ -723,10 +751,10 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                             Span(str(i + 1)),
                             cls="bottle-step-photo",
                         )
-                        if bottle
+                        if bottle or s.get("image")
                         else None,
                         H3(s["heading"], cls="font-display text-3xl" + (" mt-6" if bottle else "")),
-                        None if bottle else fizz(i),
+                        None if bottle or s.get("image") else fizz(i),
                         _rich(
                             s["body"], key=f"items.{i}.body", preview=preview,
                             cls="mt-3 text-sm leading-relaxed text-muted-foreground"
@@ -740,18 +768,18 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                 cls=("bottle-steps" if bottle else "tablet-fizz") + " mt-12",
                 data_liquid_reveal="",
             ),
-            None
-            if bottle
-            else _rich(
+            _rich(
                 b.get("body", ""), key="body", preview=preview,
                 cls="tablet-steps-chemistry text-center text-sm text-muted-foreground",
-            ),
-            None
-            if bottle
-            else P(
-                A(b.get("button", ""), href=base + b.get("link", ""), cls="text-primary underline"),
+            )
+            if b.get("body")
+            else None,
+            P(
+                A(b.get("button", ""), href=product_href(site, base, b.get("link", "")), cls="text-primary underline"),
                 cls="mt-2 text-center text-sm",
-            ),
+            )
+            if b.get("button")
+            else None,
         ]
         if not bottle:
             cls += " tablet-steps-section"
@@ -827,7 +855,7 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                       cls="mt-6 max-w-md leading-relaxed text-muted-foreground"),
                 A(
                     name(b["button"]),
-                    href=base + b.get("link", ""),
+                    href=product_href(site, base, b.get("link", "")),
                     cls="mt-6 inline-block text-primary underline",
                 )
                 if b.get("button")
@@ -886,7 +914,7 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                     r.get("label", "") + " ",
                     A(
                         r.get("body", ""),
-                        href=base + r.get("url", ""),
+                        href=product_href(site, base, r.get("url", "")),
                         cls="text-primary underline",
                     ),
                     cls="mt-10 text-center text-sm",
@@ -894,6 +922,7 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
             )
     elif kind == "benefits":
         research = one(b, "research")
+        research_cta = one(b, "research-cta")
         benefits = [
             s for s in b.get("items", []) if s.get("theme") not in {"research", "research-cta"}
         ]
@@ -916,7 +945,7 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                             else None,
                             A(
                                 s.get("label", ""),
-                                href=base + s["url"],
+                                href=product_href(site, base, s["url"]),
                                 cls="tablet-benefit-link mt-3 inline-block text-sm text-primary underline",
                             )
                             if s.get("url")
@@ -944,8 +973,12 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                     H2(research.get("heading", ""), cls="font-display text-5xl"),
                     _rich(research.get("body", ""), key=f"items.{b.get('items', []).index(research) if research in b.get('items', []) else 0}.body", preview=preview, cls="mt-6 leading-relaxed text-muted-foreground"),
                     A(
-                        text(b, "research-cta", "label"),
-                        href=base + research.get("url", ""),
+                        research_cta.get("label", ""),
+                        href=product_href(
+                            site,
+                            base,
+                            research_cta.get("url") or RESEARCH_CTA_URL,
+                        ),
                         cls="metal-add-button tablet-research-cta mt-8 bg-metal-sheen",
                     ),
                 ),
@@ -975,7 +1008,7 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                             _rich(s["body"], key=f"items.{i}.body", preview=preview),
                             A(
                                 s.get("label", ""),
-                                href=base + s["url"],
+                                href=product_href(site, base, s["url"]),
                                 cls="text-primary underline text-sm",
                             )
                             if s.get("url")
@@ -989,7 +1022,20 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
                     for i, s in enumerate(rows(b, "faq"))
                 ],
                 P(
-                    A(b.get("button", ""), href=base + b.get("link", ""), cls="faq-more-link"),
+                    *[
+                        A(
+                            item["label"],
+                            href=product_href(site, base, item["url"]),
+                            cls="text-primary underline",
+                        )
+                        for item in rows(b, "faq-link")
+                    ],
+                    cls="faq-resource-links",
+                )
+                if rows(b, "faq-link")
+                else None,
+                P(
+                    A(b.get("button", ""), href=product_href(site, base, b.get("link", "")), cls="faq-more-link"),
                     cls="faq-more",
                 ),
             ),
@@ -1032,14 +1078,14 @@ def render_product_block(db, site, b, base, csrf, enabled, *, preview=False):
             Article(
                 A(
                     image(b["image"], b["alt"], width=1280, height=1280, cls="metal-product-image"),
-                    href=base + b["url"],
+                    href=product_href(site, base, b["url"]),
                     cls="metal-photo-frame",
                 ),
                 Div(
                     Div(
                         Div(
                             H3(
-                                A(name(product.get("heading", "")), href=base + b["url"]),
+                                A(name(product.get("heading", "")), href=product_href(site, base, b["url"])),
                                 cls="font-display text-3xl",
                             ),
                             P(

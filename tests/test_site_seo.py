@@ -1,10 +1,10 @@
 """Store SEO metadata and crawler controls are shared by both themes."""
 
 import pytest
-from test_site_seed_liquid import html, liquid  # noqa: F401
 
 from app.services import CommerceError
 from app.site_seo import metadata, robots_content, validate
+from tests.test_site_seed_liquid import html, liquid  # noqa: F401
 
 
 @pytest.mark.parametrize("theme", ["generic", "liquid"])

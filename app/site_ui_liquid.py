@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from urllib.parse import urlsplit, urlunsplit
 
 from fasthtml.common import (
     H1,
@@ -163,11 +164,11 @@ def _mark_nested_images(node, block, preview):
         _mark_nested_images(child, block, preview)
 
 
-def _mark_liquid_fields(node, block, preview):
+def _mark_liquid_fields(node, block, preview, site=None):
     """Bind bespoke renderer nodes to their source paths in canvas previews."""
     if isinstance(node, (list, tuple)):
         for child in node:
-            _mark_liquid_fields(child, block, preview)
+            _mark_liquid_fields(child, block, preview, site)
         return
     if not preview or not hasattr(node, "children"):
         return
@@ -204,9 +205,19 @@ def _mark_liquid_fields(node, block, preview):
                 element.attrs["data-alt-field"] = path
             elif rendered == value:
                 element.attrs.update(_field_attrs(True, path))
-            elif path.endswith((".url", ".link", "link")) and tag == "a":
+            elif (path.endswith((".url", ".link")) or path in {"url", "link"}) and tag == "a":
                 href = element.attrs.get("href", "")
-                if value and href.endswith(value):
+                expected = value
+                parsed = urlsplit(value)
+                if (
+                    parsed.scheme in {"http", "https"}
+                    and site is not None
+                    and site.hostname
+                    and parsed.hostname
+                    and parsed.hostname.casefold() == site.hostname.casefold()
+                ):
+                    expected = urlunsplit(("", "", parsed.path or "/", parsed.query, parsed.fragment))
+                if expected and href.endswith(expected):
                     element.attrs["data-link-field"] = path
         classes = element.attrs.get("class", "").split()
         if "shop-view" in classes:
@@ -294,12 +305,12 @@ def render_block(db, site, page, config, b, base, csrf, enabled, preview=False):
                          lambda child: render_block(db, site, page, config, child, base, csrf, enabled, preview))
     if node is not None:
         _mark_nested_images(node, b, preview)
-        _mark_liquid_fields(node, b, preview)
+        _mark_liquid_fields(node, b, preview, site)
         return node
     node = _render_block(db, site, page, config, b, base, csrf, enabled, preview)
     node = decorate_block(node, b, preview)
     _mark_nested_images(node, b, preview)
-    _mark_liquid_fields(node, b, preview)
+    _mark_liquid_fields(node, b, preview, site)
     return node
 
 

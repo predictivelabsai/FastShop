@@ -849,8 +849,24 @@ function fieldHTML(f, obj, prefix = "") {
     html =
       rows
         .map(
-          (item, i) =>
-            `<details class="repeater-item" draggable="true" data-repeater="${esc(path)}" data-index="${i}"><summary>${esc(text(item.heading || item.label) || `Item ${i + 1}`)}</summary>${f.value_list ? `<div class="field-inline"><input data-setting="${esc(path)}.${i}" data-type="${esc(f.fields[0].type)}" value="${esc(item)}" aria-label="${esc(f.fields[0].label)} ID"><button data-link="${esc(path)}.${i}" data-resource-type="${esc(f.fields[0].type)}" aria-label="Choose ${esc(f.fields[0].label)}">↗</button></div>` : (f.fields || f.item_fields || []).map((sub) => fieldHTML(sub, item, `${path}.${i}.`)).join("")}<div class="repeater-actions"><button data-repeat-action="up" data-path="${esc(path)}" data-index="${i}" aria-label="Move item up" ${i === 0 ? "disabled" : ""}>↑</button><button data-repeat-action="down" data-path="${esc(path)}" data-index="${i}" aria-label="Move item down" ${i === rows.length - 1 ? "disabled" : ""}>↓</button>${f.fixed ? "" : `<button data-repeat-action="remove" data-path="${esc(path)}" data-index="${i}" ${rows.length <= (f.min ?? 0) ? "disabled" : ""}>Remove</button>`}</div></details>`,
+          (item, i) => {
+            const layoutFields = f.layout_theme_fields?.[obj?.layout],
+              itemFields = layoutFields
+                ? layoutFields[item.theme] || []
+                : f.theme_fields?.[item.theme] || f.fields || f.item_fields || [],
+              editorFields = itemFields.map((field) =>
+                field.id === "theme" && layoutFields
+                  ? {
+                      ...field,
+                      options: Object.keys(layoutFields).map((theme) => ({
+                        value: theme,
+                        label: theme.replaceAll("-", " ").replace(/^./, (letter) => letter.toUpperCase()),
+                      })),
+                    }
+                  : field,
+              );
+            return `<details class="repeater-item" draggable="true" data-repeater="${esc(path)}" data-index="${i}"><summary>${esc(text(item.heading || item.label) || `Item ${i + 1}`)}</summary>${f.value_list ? `<div class="field-inline"><input data-setting="${esc(path)}.${i}" data-type="${esc(f.fields[0].type)}" value="${esc(item)}" aria-label="${esc(f.fields[0].label)} ID"><button data-link="${esc(path)}.${i}" data-resource-type="${esc(f.fields[0].type)}" aria-label="Choose ${esc(f.fields[0].label)}">↗</button></div>` : editorFields.map((sub) => fieldHTML(sub, item, `${path}.${i}.`)).join("")}<div class="repeater-actions"><button data-repeat-action="up" data-path="${esc(path)}" data-index="${i}" aria-label="Move item up" ${i === 0 ? "disabled" : ""}>↑</button><button data-repeat-action="down" data-path="${esc(path)}" data-index="${i}" aria-label="Move item down" ${i === rows.length - 1 ? "disabled" : ""}>↓</button>${f.fixed ? "" : `<button data-repeat-action="remove" data-path="${esc(path)}" data-index="${i}" ${rows.length <= (f.min ?? 0) ? "disabled" : ""}>Remove</button>`}</div></details>`;
+          },
         )
         .join("") +
       (f.fixed
@@ -1017,12 +1033,22 @@ function wireFields(obj, update, root = "#settings-content") {
           const itemPath = el.dataset.setting.slice(0, -6),
             repeaterPath = itemPath.split(".").slice(0, -1).join("."),
             field = findField(repeaterPath, spec(obj.type).fields || []),
-            defaults = field.theme_defaults?.[v];
+            layoutDefaults = field.layout_theme_defaults?.[obj.layout],
+            defaults = layoutDefaults?.[v] || field.theme_defaults?.[v],
+            layoutFields = field.layout_theme_fields?.[obj.layout];
           if (defaults) {
-            const item =
-              obj.type === "liquid_benefits"
-                ? { ...get(obj, itemPath), theme: v }
-                : { ...get(obj, itemPath), ...copy(defaults), theme: v };
+            const current = get(obj, itemPath) || {};
+            const activeFields = layoutFields?.[v] || field.theme_fields?.[v];
+            const item = activeFields
+              ? Object.fromEntries(activeFields.map((itemField) => [
+                  itemField.id,
+                  itemField.id === "theme"
+                    ? v
+                    : copy(current[itemField.id] ?? defaults[itemField.id] ?? itemField.default ?? ""),
+                ]))
+              : obj.type === "liquid_benefits"
+                ? { ...current, theme: v }
+                : { ...current, ...copy(defaults), theme: v };
             update(itemPath, item);
             renderSettings();
             return;
@@ -1082,8 +1108,13 @@ function wireFields(obj, update, root = "#settings-content") {
           f = findField(path, spec(obj.type).fields || []),
           rows = copy(get(obj, path) || []);
         if (rows.length >= (f.max ?? 50)) return;
-        const item = f.item_default ? copy(f.item_default) : {};
-        for (const field of f.fields || f.item_fields || [])
+        const layoutDefaults = f.layout_theme_defaults?.[obj.layout],
+          layoutFields = f.layout_theme_fields?.[obj.layout],
+          firstTheme = Object.keys(layoutDefaults || {})[0],
+          item = layoutDefaults?.[firstTheme]
+            ? copy(layoutDefaults[firstTheme])
+            : f.item_default ? copy(f.item_default) : {};
+        for (const field of layoutFields?.[item.theme] || f.theme_fields?.[item.theme] || f.fields || f.item_fields || [])
           if (item[field.id] === undefined)
             item[field.id] = copy(field.default ?? "");
         rows.push(f.value_list ? "" : item);

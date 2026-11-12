@@ -2,10 +2,13 @@
 import copy
 
 import pytest
+from fasthtml.common import to_xml
 
 from app.services import CommerceError
+from app.site_block_schema import block_schema_registry
 from app.site_blocks import LIQUID_PRODUCT_THEMES, normalize_document, validate_block
 from app.site_liquid_products_content import product_documents
+from app.site_ui_liquid_products import name
 
 
 def test_product_documents_cover_three_pages():
@@ -32,6 +35,67 @@ def test_product_documents_cover_three_pages():
                 invalid["items"][0]["image"] = "javascript:alert(1)"
                 with pytest.raises(CommerceError):
                     validate_block(invalid)
+
+
+def test_tablet_research_cta_seed_has_its_own_default_link():
+    blocks = product_documents()[1][3]
+    benefits = next(block for block in blocks if block["type"] == "liquid_product_benefits")
+    research = next(item for item in benefits["items"] if item["theme"] == "research")
+    cta = next(item for item in benefits["items"] if item["theme"] == "research-cta")
+
+    assert "url" not in research
+    assert cta["url"] == "/why-hydrogen/science"
+
+
+def test_liquid_product_editor_only_shows_fields_rendered_for_each_theme():
+    schemas = block_schema_registry()
+
+    def top_fields(block_type):
+        return {field["id"] for field in schemas[block_type]["fields"]}
+
+    def theme_fields(block_type, theme):
+        repeater = next(
+            field for field in schemas[block_type]["fields"] if field["id"] == "items"
+        )
+        return {field["id"] for field in repeater["theme_fields"][theme]}
+
+    assert "url" not in top_fields("liquid_product_benefits")
+    assert "button" not in top_fields("liquid_product_benefits")
+    assert {"theme", "label", "url"} <= theme_fields("liquid_product_benefits", "research-cta")
+    assert "url" not in theme_fields("liquid_product_benefits", "research")
+    assert "url" not in theme_fields("liquid_product_day", "day")
+    assert {"theme", "label", "url"} <= theme_fields("liquid_product_faq", "faq-link")
+    assert "body" not in theme_fields("liquid_product_faq", "faq-link")
+
+    purchase_items = next(
+        field
+        for field in schemas["liquid_product_purchase"]["fields"]
+        if field["id"] == "items"
+    )
+    range_flavor_fields = {
+        field["id"]
+        for field in purchase_items["layout_theme_fields"]["range"]["flavor"]
+    }
+    tablet_flavor_fields = {
+        field["id"]
+        for field in purchase_items["layout_theme_fields"]["tablet"]["flavor"]
+    }
+    assert range_flavor_fields == {"theme", "label", "value"}
+    assert {"image", "alt", "url", "body"} <= tablet_flavor_fields
+
+
+def test_brand_word_formatting_preserves_text_after_repeated_one():
+    value = (
+        "Keep the One for yourself, and share tablets with family and friends. "
+        "One box is 30 glasses: a month for you, or a couple of weeks shared at home."
+    )
+
+    markup = to_xml(name(value))
+
+    assert "Keep the " in markup
+    assert '<span class="bottle-one">One</span> box is 30 glasses' in markup
+    assert "a couple of weeks shared at home." in markup
+    assert markup.count('class="bottle-one"') == 2
 
 
 def test_real_bottle_photos_and_source_placeholders():

@@ -5,11 +5,6 @@ import json
 import re
 
 from sqlalchemy import select
-from test_catalog_admin_routes import catalogue  # noqa: F401
-from test_liquid_storefront import browser as public_browser  # noqa: F401
-from test_marketing_hub import marketing_hub  # noqa: F401
-from test_site_seed_liquid import html, liquid  # noqa: F401
-from test_store_agent import workspace as agent_workspace  # noqa: F401
 
 from app import catalog_admin, content
 from app.models import (
@@ -23,6 +18,11 @@ from app.models import (
 )
 from app.site_seo import health_report, metadata, seo_document
 from app.store_agent_ops import confirm_action, register_tools
+from tests.test_catalog_admin_routes import catalogue  # noqa: F401
+from tests.test_liquid_storefront import browser as public_browser  # noqa: F401
+from tests.test_marketing_hub import marketing_hub  # noqa: F401
+from tests.test_site_seed_liquid import html, liquid  # noqa: F401
+from tests.test_store_agent import workspace as agent_workspace  # noqa: F401
 
 
 def jsonld_from(markup):
