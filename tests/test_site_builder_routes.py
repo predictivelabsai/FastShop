@@ -78,6 +78,11 @@ def test_classical_design_form_exposes_and_saves_liquid_typography(editor):
     assert design.status_code == 200
     assert "Typography" in design.text
     assert 'name="typography.roles.footer_heading.size"' in design.text
+    assert "Header and footer" in design.text
+    assert 'name="header_footer.header.background"' in design.text
+    assert 'name="header_footer.header.sticky"' in design.text
+    assert 'name="header_footer.newsletter.button_background"' in design.text
+    assert 'name="header_footer.bottom.disclaimer"' in design.text
     defaults = validate_liquid_theme({})
     values = {
         "csrf_token": token,
@@ -87,6 +92,18 @@ def test_classical_design_form_exposes_and_saves_liquid_typography(editor):
         "typography.display_font": "fraunces",
         "typography.roles.footer_heading.size": "28px",
         "typography.roles.footer_heading.mobile_size": "24px",
+        "header_footer.header.background": "#123456",
+        "header_footer.header.padding_y": "24px",
+        "header_footer.header.logo_size": "160px",
+        "header_footer.announcement.background": "rgb(22, 44, 66)",
+        "header_footer.footer.background": "#0c1824",
+        "header_footer.footer.padding_y": "5rem",
+        "header_footer.footer.logo_size": "156px",
+        "header_footer.footer.column_gap": "48px",
+        "header_footer.newsletter.input_background": "#1a2b3c",
+        "header_footer.newsletter.button_background": "#dbeafe",
+        "header_footer.bottom.legal_link": "#d7e5f4",
+        "header_footer.bottom.disclaimer": "#b7c8d9",
     }
     saved = client.post(base + "/design", data=values)
     assert saved.status_code == 200, saved.text
@@ -96,6 +113,22 @@ def test_classical_design_form_exposes_and_saves_liquid_typography(editor):
         assert typography["display_font"] == "fraunces"
         assert typography["roles"]["footer_heading"]["size"] == "28px"
         assert typography["roles"]["footer_heading"]["mobile_size"] == "24px"
+        chrome = site.settings_json["design"]["header_footer"]
+        assert chrome["header"] == {
+            **defaults["header_footer"]["header"],
+            "background": "#123456", "padding_y": "24px", "logo_size": "160px",
+            "sticky": False,
+        }
+        assert chrome["announcement"]["background"] == "rgb(22, 44, 66)"
+        assert chrome["footer"] == {
+            **defaults["header_footer"]["footer"],
+            "background": "#0c1824", "padding_y": "5rem", "logo_size": "156px",
+            "column_gap": "48px",
+        }
+        assert chrome["newsletter"]["input_background"] == "#1a2b3c"
+        assert chrome["newsletter"]["button_background"] == "#dbeafe"
+        assert chrome["bottom"]["legal_link"] == "#d7e5f4"
+        assert chrome["bottom"]["disclaimer"] == "#b7c8d9"
         assert "design" not in site.published_settings_json
 
 

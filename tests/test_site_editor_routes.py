@@ -361,6 +361,17 @@ def test_typography_theme_settings_are_validated_draft_only_then_publish(workspa
     loaded = load(w)
     before = w.client.get(w.base + "/theme-settings").json()
     assert before["typography_schema"]["roles"][-2]["id"] == "footer_heading"
+    chrome_schema = before["header_footer_schema"]
+    assert [section["id"] for section in chrome_schema["sections"]] == [
+        "header", "announcement", "footer", "newsletter", "bottom",
+    ]
+    header_fields = {field["id"]: field for field in chrome_schema["sections"][0]["fields"]}
+    assert header_fields["background"]["type"] == "colour"
+    assert header_fields["sticky"]["type"] == "toggle"
+    newsletter_fields = {
+        field["id"]: field for field in chrome_schema["sections"][3]["fields"]
+    }
+    assert newsletter_fields["button_background"]["type"] == "colour"
     theme = before["theme_settings"]
     typography = theme["typography"]
     footer_heading = typography["roles"]["footer_heading"] | {
@@ -371,14 +382,47 @@ def test_typography_theme_settings_are_validated_draft_only_then_publish(workspa
         "display_font": "fraunces",
         "roles": typography["roles"] | {"footer_heading": footer_heading},
     }
+    chrome = theme["header_footer"]
+    header = chrome["header"] | {
+        "background": "#123456", "link_hover": "#dbeafe", "padding_y": "24px",
+        "logo_size": "168px", "sticky": False,
+    }
+    footer = chrome["footer"] | {
+        "background": "#102030", "padding_y": "72px", "logo_size": "9rem",
+        "column_gap": "48px",
+    }
+    newsletter = chrome["newsletter"] | {
+        "input_background": "#1c2d3e", "button_background": "#dbeafe",
+    }
+    bottom = chrome["bottom"] | {"legal_link": "#e2e8f0", "disclaimer": "#cbd5e1"}
+    theme["header_footer"] = chrome | {
+        "header": header,
+        "announcement": chrome["announcement"] | {"background": "rgb(25, 45, 65)"},
+        "footer": footer,
+        "newsletter": newsletter,
+        "bottom": bottom,
+    }
     saved = w.client.put(w.base + "/theme-settings", json={
         "theme_settings": theme, "version": before["version"],
     }, headers=w.headers)
     assert saved.status_code == 200, saved.text
     assert saved.json()["theme_settings"]["typography"]["roles"]["footer_heading"] == footer_heading
+    assert saved.json()["theme_settings"]["header_footer"]["header"] == header
+    assert saved.json()["theme_settings"]["header_footer"]["announcement"]["background"] == (
+        "rgb(25, 45, 65)"
+    )
+    assert saved.json()["theme_settings"]["header_footer"]["footer"] == footer
+    assert saved.json()["theme_settings"]["header_footer"]["newsletter"] == newsletter
+    assert saved.json()["theme_settings"]["header_footer"]["bottom"] == bottom
 
     invalid = saved.json()["theme_settings"]
     invalid["typography"]["roles"]["footer_heading"]["size"] = "url(https://bad.test)"
+    rejected = w.client.put(w.base + "/theme-settings", json={
+        "theme_settings": invalid, "version": saved.json()["version"],
+    }, headers=w.headers)
+    assert rejected.status_code == 422
+    invalid = saved.json()["theme_settings"]
+    invalid["header_footer"]["header"]["background"] = "#ffffff;--unsafe:1"
     rejected = w.client.put(w.base + "/theme-settings", json={
         "theme_settings": invalid, "version": saved.json()["version"],
     }, headers=w.headers)
@@ -401,6 +445,19 @@ def test_typography_theme_settings_are_validated_draft_only_then_publish(workspa
     assert '--liquid-font-display:"Liquid Fraunces",Georgia,serif' in markup
     assert "--liquid-type-footer-heading-size:28px" in markup
     assert "--liquid-type-footer-heading-size-mobile:24px" in markup
+    assert "--liquid-header-background:#123456" in markup
+    assert "--liquid-header-padding-y:24px" in markup
+    assert "--liquid-header-logo-size:168px" in markup
+    assert "--liquid-header-sticky:0" in markup
+    assert "--liquid-announcement-background:rgb(25, 45, 65)" in markup
+    assert "--liquid-footer-background:#102030" in markup
+    assert "--liquid-footer-padding-y:72px" in markup
+    assert "--liquid-footer-logo-size:9rem" in markup
+    assert "--liquid-footer-column-gap:48px" in markup
+    assert "--liquid-footer-newsletter-input-background:#1c2d3e" in markup
+    assert "--liquid-footer-newsletter-button-background:#dbeafe" in markup
+    assert "--liquid-footer-bottom-legal-link:#e2e8f0" in markup
+    assert "--liquid-footer-bottom-disclaimer:#cbd5e1" in markup
 
 
 def test_publish_success_and_revision_isolation(workspace):
