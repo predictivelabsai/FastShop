@@ -18,8 +18,9 @@ SITE_ROOT_SELECTOR = "[data-fs-site-root]"
 MAX_CSS_BYTES = 50 * 1024
 MAX_NOTE = 400
 MAX_PUBLISHED_VERSIONS = 50
-_BLOCKED_PROPERTIES = {"behavior", "behaviour", "-moz-binding"}
+_BLOCKED_PROPERTIES = {"behavior", "behaviour", "-moz-binding", "-ms-behavior"}
 _BLOCKED_PSEUDOS = {"global", "host", "host-context", "root", "scope", "slotted", "view-transition"}
+_URL_IMAGE_FUNCTIONS = {"image-set", "-webkit-image-set", "cross-fade", "-webkit-cross-fade"}
 
 
 @dataclass(frozen=True)
@@ -90,9 +91,39 @@ def _validate_url_function(token, allowed_media_urls: set[str]) -> None:
     _validate_url(arguments[0].value, allowed_media_urls, token)
 
 
+def _looks_like_url(value: str) -> bool:
+    value = value.strip()
+    parsed = urlsplit(value)
+    return value.startswith("/") or bool(parsed.scheme or parsed.netloc)
+
+
+def _validate_image_tokens(tokens, allowed_media_urls: set[str], item) -> None:
+    for token in _meaningful(tokens):
+        if token.type == "error":
+            _error(token, "Invalid CSS value.")
+        if token.type == "string":
+            _validate_url(token.value, allowed_media_urls, token)
+        elif token.type == "url":
+            _validate_url(token.value, allowed_media_urls, token)
+        elif token.type == "function":
+            name = token.lower_name
+            if name == "var":
+                _error(token, "Dynamic image values are not allowed.")
+            if name == "url":
+                _validate_url_function(token, allowed_media_urls)
+            elif name == "expression":
+                _error(token, "expression() is not allowed.")
+            else:
+                _validate_image_tokens(token.arguments, allowed_media_urls, token)
+        elif token.type in {"() block", "[] block", "{} block"}:
+            _validate_image_tokens(token.content, allowed_media_urls, token)
+
+
 def _validate_tokens(tokens, allowed_media_urls: set[str], item) -> None:
     values = _meaningful(tokens)
     for index, token in enumerate(values):
+        if token.type == "error":
+            _error(token, "Invalid CSS value.")
         if token.type == "url":
             _validate_url(token.value, allowed_media_urls, token)
         elif token.type == "function":
@@ -100,19 +131,27 @@ def _validate_tokens(tokens, allowed_media_urls: set[str], item) -> None:
             if name == "url":
                 _validate_url_function(token, allowed_media_urls)
                 continue
+            if name in _URL_IMAGE_FUNCTIONS:
+                _validate_image_tokens(token.arguments, allowed_media_urls, token)
+                continue
             if name == "expression":
                 _error(token, "expression() is not allowed.")
             if name in _BLOCKED_PROPERTIES:
                 _error(token, name + " is not allowed.")
             _validate_tokens(token.arguments, allowed_media_urls, token)
-        elif token.type in {"() block", "{} block"}:
+        elif token.type in {"() block", "[] block", "{} block"}:
             _validate_tokens(token.content, allowed_media_urls, token)
         elif token.type == "ident" and token.value.lower() == "javascript":
             next_token = values[index + 1] if index + 1 < len(values) else None
             if next_token and next_token.type == "literal" and next_token.value == ":":
                 _error(token, "javascript: is not allowed.")
-        elif token.type == "string" and token.value.strip().lower().startswith("javascript:"):
-            _error(token, "javascript: is not allowed.")
+        elif token.type == "ident" and token.value.lower() == "progid":
+            _error(token, "progid is not allowed.")
+        elif token.type == "string":
+            if token.value.strip().lower().startswith("javascript:"):
+                _error(token, "javascript: is not allowed.")
+            if _looks_like_url(token.value):
+                _validate_url(token.value, allowed_media_urls, token)
 
 
 def _selector_targets_document(tokens, item) -> None:
@@ -139,6 +178,57 @@ def _selector_targets_document(tokens, item) -> None:
         previous = token
 
 
+def _is_site_root_attribute(token) -> bool:
+    if token.type != "[] block":
+        return False
+    contents = _meaningful(token.content)
+    return bool(contents and contents[0].type == "ident" and
+                contents[0].value.lower() == "data-fs-site-root")
+
+
+def _contains_site_root_attribute(tokens) -> bool:
+    for token in tokens:
+        if _is_site_root_attribute(token):
+            return True
+        if token.type == "function" and _contains_site_root_attribute(token.arguments):
+            return True
+        if token.type in {"() block", "{} block"} and _contains_site_root_attribute(token.content):
+            return True
+    return False
+
+
+def _explicit_root_scope(tokens, item) -> bool:
+    """Validate a user-supplied root prefix without letting it select a sibling."""
+    values = [token for token in tokens if token.type != "comment"]
+    first = next((index for index, token in enumerate(values) if token.type != "whitespace"), None)
+    if first is None:
+        return False
+    if not _is_site_root_attribute(values[first]):
+        if _contains_site_root_attribute(values):
+            _error(item, "The storefront root selector may only be the initial scope.")
+        return False
+    if _contains_site_root_attribute(values[first + 1:]):
+        _error(item, "The storefront root selector may only appear once.")
+
+    descendant_scope = False
+    for index, token in enumerate(values[first + 1:], start=first + 1):
+        if token.type == "whitespace":
+            next_token = next((candidate for candidate in values[index + 1:]
+                               if candidate.type != "whitespace"), None)
+            if next_token is None:
+                continue
+            if (next_token.type == "literal" and next_token.value in {"+", "~", "||"}
+                    and not descendant_scope):
+                _error(item, "Selectors cannot leave the storefront root through a sibling combinator.")
+            descendant_scope = True
+        elif token.type == "literal":
+            if token.value == ">":
+                descendant_scope = True
+            elif token.value in {"+", "~", "||"} and not descendant_scope:
+                _error(item, "Selectors cannot leave the storefront root through a sibling combinator.")
+    return True
+
+
 def _scoped_selectors(tokens, allowed_media_urls: set[str], item) -> str:
     selectors = [[]]
     for token in tokens:
@@ -153,9 +243,12 @@ def _scoped_selectors(tokens, allowed_media_urls: set[str], item) -> str:
             _error(item, "Selectors cannot be empty.")
         _validate_tokens(selector, allowed_media_urls, item)
         _selector_targets_document(selector, item)
-        if text[0] in ">+~":
+        if text[0] in "&>+~":
             _error(item, "Relative selectors are not allowed.")
-        result.append(text if text.startswith(SITE_ROOT_SELECTOR) else SITE_ROOT_SELECTOR + " " + text)
+        if _explicit_root_scope(selector, item):
+            result.append(text)
+        else:
+            result.append(SITE_ROOT_SELECTOR + " " + text)
     return ", ".join(result)
 
 

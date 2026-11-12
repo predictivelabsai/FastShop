@@ -26,7 +26,7 @@ from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import RedirectResponse
 
-from app import content
+from app import content, site_design_overrides
 from app import site_builder_services as builder
 from app.config import settings
 from app.db import SessionLocal
@@ -72,6 +72,8 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     theme = validator(site.settings_json.get("design", {}))
                 except CommerceError:
                     theme = validator({})
+                override_state = site_design_overrides.get(db, site.id, user_id)
+                override_history = site_design_overrides.history(db, site.id, user_id)
                 base = f"/admin/sites/{site.id}"
                 can_review = bool(db.scalar(select(Membership.id).where(Membership.tenant_id == site.tenant_id,
                     Membership.user_id == user_id, Membership.role.in_(["admin", "merchant"]))))
@@ -237,7 +239,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                             ) for field in section["fields"]],
                         ) for section in header_footer_fields["sections"]],
                     )
-                design = Form(*hidden(), H2("Design settings"),
+                design_settings = Form(*hidden(), H2("Design settings"),
                     *[Label(k.title(), Input(name=k, type="color", value=theme[k]))
                       for k in ("accent", "background", "surface", "text")],
                     *[Label(k.title(), Select(*[
@@ -246,6 +248,83 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     header_footer_controls,
                     Button("Save design", cls="e-button"), method="post", action=base + "/build/design",
                     cls="e-form")
+
+                def history_item(item):
+                    timestamp = item.created_at.isoformat() if item.created_at else "Publication pending"
+                    return Div(
+                        Div(
+                            Small("Published version " + str(item.publication_number)),
+                            P(item.author_name + " · " + timestamp),
+                            P(item.note) if item.note else None,
+                        ),
+                        Form(
+                            csrf(session),
+                            Input(type="hidden", name="version", value=override_state.version),
+                            Input(type="hidden", name="page_id", value=selected.id),
+                            Input(type="hidden", name="revision_id", value=item.id),
+                            Input(name="note", maxlength=site_design_overrides.MAX_NOTE,
+                                  placeholder="Optional note for this revert"),
+                            Button("Revert to this version", name="action", value="revert",
+                                   disabled=not can_review),
+                            method="post",
+                            action=base + "/build/design-overrides",
+                            cls="b-css-revert",
+                        ),
+                        cls="b-css-history-item",
+                    )
+
+                custom_css = Div(
+                    H2("Custom CSS"),
+                    P("Add CSS for this storefront only. Every selector is scoped to the store, so it "
+                      "cannot style FastShop administration, editor controls, or another site."),
+                    Small("Only style rules and @media or @supports blocks are accepted. Remote URLs, "
+                          "unsafe CSS, and document-level selectors are blocked.", id="custom-css-help"),
+                    P("This draft is visible in the storefront preview. Publish it when you are ready "
+                      "for customers to see it.", cls="e-note"),
+                    P(notice, role="status", cls="e-note") if notice.startswith("Custom CSS") else None,
+                    Form(
+                        csrf(session),
+                        Input(type="hidden", name="version", value=override_state.version),
+                        Input(type="hidden", name="page_id", value=selected.id),
+                        Label("Custom CSS", Textarea(
+                            override_state.draft_css,
+                            name="css",
+                            rows=16,
+                            maxlength=site_design_overrides.MAX_CSS_BYTES,
+                            spellcheck="false",
+                            aria_describedby="custom-css-help",
+                            cls="b-custom-css",
+                        )),
+                        Label("Publish note (optional)", Input(
+                            name="note",
+                            maxlength=site_design_overrides.MAX_NOTE,
+                            placeholder="What changed?",
+                        )),
+                        Div(
+                            A("Preview draft", href=base + "/preview/" + selected.id, target="_blank",
+                              rel="noopener"),
+                            Button("Save draft", name="action", value="draft", cls="e-button"),
+                            Button("Publish CSS", name="action", value="publish", cls="e-button",
+                                   disabled=not can_review),
+                            cls="e-actions",
+                        ),
+                        method="post",
+                        action=base + "/build/design-overrides",
+                        cls="e-form b-custom-css-form",
+                    ),
+                    P("Only merchants and administrators can publish or revert Custom CSS.", cls="e-note")
+                    if not can_review else None,
+                    Details(
+                        Summary("Published CSS history"),
+                        P("The latest 50 published versions are kept. Reverting creates a new published version."),
+                        *[history_item(item) for item in override_history],
+                        P("No Custom CSS has been published yet.") if not override_history else None,
+                        cls="b-css-history",
+                    ),
+                    id="custom-css",
+                    cls="b-custom-css-panel",
+                )
+                design = Div(design_settings, custom_css, cls="b-design-settings")
                 turn_views = [Div(
                         Div(Small("You", cls="b-message-label"), P(turn.prompt, cls="b-user"), cls="b-message b-message-user"),
                         Div(Small("Assistant", cls="b-message-label"),
@@ -285,6 +364,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     ("Build & appearance", (
                         A("Chat", href=base + "/build?page=" + selected.id),
                         A("Design controls", href=base + "/build?view=design&page=" + selected.id),
+                        A("Custom CSS", href=base + "/build?view=design&page=" + selected.id + "#custom-css"),
                         A("Merchant details & samples", href=base + "/samples"))),
                     ("Catalog & commerce", (
                         A("Products", href=base + "/products"), A("Commerce", href=base + "/commerce"),
@@ -335,6 +415,50 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                 builder.apply_operations(db, site.id, user_id, builder.snapshot(db, site), [{"op": "theme", "values": theme}], "classical")
                 db.commit()
             return redirect(site_id, str(form.get("page_id", "")), "Design saved", "design")
+        except (CommerceError, ValueError) as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/build/design-overrides", methods=["POST"])
+    async def post(session, request, site_id: str):
+        form = await request.form()
+        try:
+            check_csrf(session, form)
+            action = str(form.get("action", ""))
+            version = int(form.get("version", -1))
+            page_id = str(form.get("page_id", ""))
+            with SessionLocal() as db:
+                user_id = actor(session)
+                if action == "draft":
+                    site_design_overrides.save_draft(
+                        db, site_id, user_id, str(form.get("css", "")), version,
+                    )
+                    notice = "Custom CSS draft saved."
+                elif action == "publish":
+                    saved = site_design_overrides.save_draft(
+                        db, site_id, user_id, str(form.get("css", "")), version,
+                    )
+                    site_design_overrides.publish(
+                        db,
+                        site_id,
+                        user_id,
+                        saved.version,
+                        note=str(form.get("note", "")),
+                    )
+                    notice = "Custom CSS published."
+                elif action == "revert":
+                    site_design_overrides.revert(
+                        db,
+                        site_id,
+                        user_id,
+                        str(form.get("revision_id", "")),
+                        version,
+                        note=str(form.get("note", "")),
+                    )
+                    notice = "Custom CSS version reverted and published."
+                else:
+                    raise CommerceError("Choose save draft, publish CSS, or revert.")
+                db.commit()
+            return redirect(site_id, page_id, notice, "design")
         except (CommerceError, ValueError) as exc:
             return error(exc)
 

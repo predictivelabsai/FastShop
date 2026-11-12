@@ -1000,6 +1000,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     )
     theme_css = theme_style(config)
     header_sticky = liquid_header_sticky(config)
+    from app.site_design_overrides import css_for_storefront
+    design_override_css = css_for_storefront(db, site, preview=preview)
     result = (
         Style(NotStr(WIDGET_CSS + LIQUID_DESIGN_CSS)) if needs_widget_css(document["blocks"]) or config.get("design") else None,
         Title(seo["title"]),
@@ -1048,6 +1050,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Script(src=static_asset("cart-drawer.js"), defer=True) if enabled else None,
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
         Script(src=static_asset("site-preview.js"), defer=True) if preview else None,
+        Style(NotStr(design_override_css), id="fs-design-overrides") if design_override_css else None,
         Div(
             A(labels["skip"], href="#content", cls="liquid-skip"),
             Div(
@@ -1270,6 +1273,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             data_header_sticky=str(header_sticky).lower(),
             data_tone="rose",
             data_site=site.id,
+            data_fs_site_root="",
             data_builder_page=page.id if preview else "",
         ),
     )

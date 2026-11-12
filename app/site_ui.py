@@ -432,6 +432,8 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     has_gated_snippets = any(
         item["consent"] != "none" for placement in snippets.values() for item in placement
     )
+    from app.site_design_overrides import css_for_storefront
+    design_override_css = css_for_storefront(db, site, preview=preview)
     anchor_ids = {item["block_id"] for item in header_navigation + footer_navigation
                   if item.get("kind") == "anchor" and item["path"].split("#")[0] == page.path}
     home = page.path == "/"
@@ -480,6 +482,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Link(rel="stylesheet", href=static_asset("site-preview.css")) if preview else None,
         Link(rel="stylesheet", href=static_asset("cart-drawer.css")) if customer_services_enabled and not preview else None,
         Script(src=static_asset("cart-drawer.js"), defer=True) if customer_services_enabled and not preview else None,
+        Style(NotStr(design_override_css), id="fs-design-overrides") if design_override_css else None,
         Div(
             A(label(config, "skip"), href="#content", cls="h-skip"),
             Div("SANDBOX · Test purchases only" if customer_services_enabled and not preview else "PHASE 1 PREVIEW · Design & content · Purchasing opens after review", cls="h-preview-note") if site.status != "published" or preview or customer_services_enabled else None,
@@ -530,6 +533,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 A(label(config, "privacy"), href=url(base, "/pages/privacy-policy")), id="h-offer-panel", cls="h-offer-panel", hidden=True),
             Div(id="h-toast", role="status", cls="h-toast", hidden=True),
             cls="h-site " + ("h-home" if home else "h-inner"), data_site=site.id,
+            data_fs_site_root="",
             style=theme_style(config), data_themed="true" if theme_style(config) else "false",
             data_builder_page=page.id if preview else "",
         ),

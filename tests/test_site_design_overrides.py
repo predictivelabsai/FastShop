@@ -41,6 +41,7 @@ def test_sanitiser_scopes_rules_and_allows_media_and_supports(workspace):
 
     raw_css = """
         .hero, .card:hover { background-image: url('/static/h24you/liquid/tablets.jpg'); }
+        .image-set { background-image: image-set('/static/h24you/liquid/tablets.jpg' 1x); }
         .texture { background-image: url('/site-media/{site_id}/{media_id}'); }
         @media (max-width: 700px) { .hero { padding: 1rem; } }
         @supports (display: grid) { .grid { display: grid; } }
@@ -51,6 +52,7 @@ def test_sanitiser_scopes_rules_and_allows_media_and_supports(workspace):
 
     assert "[data-fs-site-root] .hero" in css
     assert "[data-fs-site-root] .card:hover" in css
+    assert "[data-fs-site-root] .image-set" in css
     assert "[data-fs-site-root] .texture" in css
     assert "@media (max-width: 700px)" in css
     assert "@supports (display: grid)" in css
@@ -63,14 +65,27 @@ def test_sanitiser_scopes_rules_and_allows_media_and_supports(workspace):
     ("@font-face { src: url('/static/font.woff2'); }", "@font-face"),
     ("@namespace svg url('/static/ns');", "@namespace"),
     ("@charset 'utf-8';", "@charset"),
+    ("@keyframes pulse { from { opacity: 0; } }", "@keyframes"),
     ("body { color: red; }", "body"),
     (":root { color: red; }", ":root"),
+    ("[data-fs-site-root] + .outside { color: red; }", "sibling combinator"),
+    ("[data-fs-site-root] ~ .outside { color: red; }", "sibling combinator"),
+    ("[data-fs-site-root]:not(.missing) + .outside { color: red; }", "sibling combinator"),
+    ("[data-fs-site-root][data-x] ~ .outside { color: red; }", "sibling combinator"),
+    (":is([data-fs-site-root]) + .outside { color: red; }", "initial scope"),
     (".card { background: url('https://example.test/tracker.png'); }", "same-origin"),
+    (r".card { background: u\72l('https://example.test/tracker.png'); }", "same-origin"),
     (".card { background: url('data:image/svg+xml,evil'); }", "same-origin"),
     (".card { background: url('javascript:alert(1)'); }", "same-origin"),
+    (r".card { background: url(ja\76ascript:alert(1)); }", "Invalid CSS value"),
+    (".card { background-image: image-set('https://example.test/tracker.png' 1x); }", "same-origin"),
+    (".card { background-image: -webkit-image-set('https://example.test/tracker.png' 1x); }", "same-origin"),
+    (".card { background-image: cross-fade('https://example.test/tracker.png', #fff); }", "same-origin"),
     (".card { width: expression(alert(1)); }", "expression"),
     (".card { behavior: url('/static/legacy.htc'); }", "behavior"),
+    (".card { -ms-behavior: url('/static/legacy.htc'); }", "-ms-behavior"),
     (".card { -moz-binding: url('/static/legacy.xml'); }", "-moz-binding"),
+    (".card { filter: progid:DXImageTransform.Microsoft.AlphaImageLoader(src='https://example.test/x'); }", "progid"),
     (".card { color: red; }</style><script>alert(1)</script>", "</style"),
 ])
 def test_sanitiser_rejects_unsafe_css(workspace, css, message):
@@ -102,6 +117,13 @@ def test_sanitiser_rejects_foreign_site_media_and_oversized_css(workspace):
         )
     with pytest.raises(CommerceError, match="50 KB"):
         overrides.validate(db, site.id, owner.id, ".card { color: red; }" * 3_000)
+
+
+def test_sanitiser_accepts_its_own_safe_scope_when_a_draft_is_resaved(workspace):
+    db, owner, site, _, _ = workspace
+    first = overrides.validate(db, site.id, owner.id, ".card + .card { margin-top: 1rem; }")
+
+    assert overrides.validate(db, site.id, owner.id, first) == first
 
 
 def test_draft_and_published_css_are_independent(workspace):
