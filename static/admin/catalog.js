@@ -150,7 +150,6 @@
       renderOptions(); renderVariants();
       root.querySelector('form[data-catalog-editor]')?.addEventListener('reset', () => setTimeout(() => window.location.reload(), 0));
       root.querySelector('form[data-catalog-editor]')?.addEventListener('submit', () => {
-        if (rich && !rich.hidden) source.value = rich.innerHTML;
         write('variants_json', variants); write('options_json', options);
       });
       const imagesHost = root.querySelector('[data-media-list]');
