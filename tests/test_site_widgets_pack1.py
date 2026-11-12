@@ -14,10 +14,12 @@ from app.models import SitePage
 from app.services import CommerceError
 from app.site_block_schema import default_block, editor_schema
 from app.site_blocks import normalize_document, validate_block
+from app.site_icons import LEGACY_ICON_REFERENCES
 from app.site_refinement import apply_operation, derive_operations
 from app.site_theme import PRESETS
 from app.site_ui import render_section, storefront
 from app.site_widgets import WIDGET_CSS, WIDGETS
+from app.site_widgets_pack1 import ICON_PATHS
 from tests.test_site_editor_blocks import context as context
 from tests.test_site_editor_routes import load
 from tests.test_site_editor_routes import workspace as workspace
@@ -98,6 +100,14 @@ def test_repeater_bounds_item_allowlists_and_coordinate_validation():
     icon = default_block("icon_box")
     with pytest.raises(CommerceError):
         validate_block(icon | {"items": [icon["items"][0] | {"icon": "<svg>"}]})
+
+
+def test_legacy_widget_icon_keys_remain_valid():
+    assert set(ICON_PATHS) <= LEGACY_ICON_REFERENCES
+    for kind in ("icon_box", "trust_badges", "steps", "flip_card"):
+        block = default_block(kind)
+        block["items"][0]["icon"] = "clock"
+        validate_block(block)
 
 
 def test_image_link_safety_and_dynamic_sources():

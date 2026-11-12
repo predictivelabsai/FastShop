@@ -21,7 +21,7 @@ _SVG_CONTENT = re.compile(r"\A\s*<svg\b[^>]*>(.*)</svg>\s*\Z", re.S)
 # These are values already persisted by the original widget and Liquid renderers.
 LEGACY_ICON_REFERENCES = frozenset({
     "account", "arrow", "bag", "box", "calendar", "calories", "card", "cart", "cell",
-    "chat", "check", "exercise", "facebook", "gift", "globe", "heart", "home", "instagram",
+    "chat", "check", "clock", "exercise", "facebook", "gift", "globe", "heart", "home", "instagram",
     "leaf", "lock", "mail", "map_pin", "menu", "molecule", "phone", "recycle", "return",
     "returns", "search", "shield", "shipping", "sparkle", "star", "sugar", "sun", "tag",
     "tested", "truck", "water",
