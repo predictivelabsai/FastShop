@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.testclient import TestClient
 
-from app import commerce, site_routes, store_checkout_routes
+from app import commerce, site_routes, store_checkout_routes, theme_library
 from app.models import (
     Base,
     Channel,
@@ -27,7 +27,12 @@ from app.models import (
 from app.services import CommerceError
 from app.site_blocks import BLOCK_TYPES, normalize_document, patch_block, validate_block
 from app.site_seed import seed_h24you
-from app.site_seed_liquid import CONTENT, documents, ensure_styled_words, seed_h24you_liquid
+from app.site_seed_liquid import (
+    CONTENT,
+    documents,
+    ensure_styled_words,
+    seed_h24you_liquid,
+)
 from app.site_styled_words import H24YOU_STYLED_WORDS
 from app.site_theme import theme_pack
 from app.site_ui import storefront
@@ -104,6 +109,31 @@ def test_liquid_seed_backfills_default_styled_words_without_replacing_edits(liqu
     seed_h24you_liquid(db, owner.email)
     assert site.settings_json["styled_words"] == custom
     assert site.published_settings_json["styled_words"] == custom
+
+
+def test_liquid_seed_backfills_old_theme_styled_words_before_preview_and_publish(liquid):
+    db, site, owner = liquid
+    old_theme = theme_library.duplicate(db, site, owner.id)
+    old_state = copy.deepcopy(old_theme.snapshot_json)
+    old_state["settings"].pop("styled_words")
+    old_theme.snapshot_json = old_state
+    explicit_empty = theme_library.duplicate(db, site, owner.id)
+    empty_state = copy.deepcopy(explicit_empty.snapshot_json)
+    empty_state["settings"]["styled_words"] = []
+    explicit_empty.snapshot_json = empty_state
+    db.flush()
+
+    seed_h24you_liquid(db, owner.email)
+    old_theme = theme_library.theme_for(db, site, old_theme.id)
+    explicit_empty = theme_library.theme_for(db, site, explicit_empty.id)
+    assert old_theme.snapshot_json["settings"]["styled_words"] == H24YOU_STYLED_WORDS
+    assert explicit_empty.snapshot_json["settings"]["styled_words"] == []
+
+    preview_site, _ = theme_library.context(db, site, old_theme.id)
+    assert preview_site.settings_json["styled_words"] == H24YOU_STYLED_WORDS
+    theme_library.publish(db, site, owner.id, old_theme.id, old_theme.version)
+    assert site.settings_json["styled_words"] == H24YOU_STYLED_WORDS
+    assert site.published_settings_json["styled_words"] == H24YOU_STYLED_WORDS
 
 
 def test_catalog_and_sandbox_prices(liquid):

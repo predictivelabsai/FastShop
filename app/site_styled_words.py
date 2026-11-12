@@ -146,6 +146,13 @@ def _classes(attrs) -> set[str]:
     return set(str(value or "").split())
 
 
+def _styled_span(tag: str, attrs) -> bool:
+    if tag != "span":
+        return False
+    values = attrs if isinstance(attrs, dict) else dict(attrs)
+    return bool(values.get("class") or values.get("style") or "data-styled-word" in values)
+
+
 class _RichTextStyler(HTMLParser):
     """Copy safe rich HTML while replacing text nodes only."""
 
@@ -161,7 +168,7 @@ class _RichTextStyler(HTMLParser):
 
     def _enter(self, tag: str, attrs) -> None:
         protected = tag in _PROTECTED_TAGS
-        styled = bool(_classes(attrs) & {"fs-styled-word", "bottle-one"})
+        styled = bool(_classes(attrs) & {"fs-styled-word", "bottle-one"}) or _styled_span(tag, attrs)
         if tag in _VOID_TAGS:
             return
         self.stack.append((tag, protected, styled))
@@ -221,7 +228,11 @@ def _style_html(value: NotStr, pattern: re.Pattern[str], by_word: dict[str, dict
 def _style_node(node, pattern: re.Pattern[str], by_word: dict[str, dict]):
     if isinstance(node, FT):
         tag = str(node.tag).lower()
-        if tag in _PROTECTED_TAGS or _classes(node.attrs) & {"fs-styled-word", "bottle-one"}:
+        if (
+            tag in _PROTECTED_TAGS
+            or _classes(node.attrs) & {"fs-styled-word", "bottle-one"}
+            or _styled_span(tag, node.attrs)
+        ):
             return node
         node.children = tuple(_style_node(child, pattern, by_word) for child in node.children)
         return node

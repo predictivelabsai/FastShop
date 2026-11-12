@@ -27,6 +27,7 @@ from app.models import (
 )
 from app.site_catalog import create_catalog_product
 from app.site_styled_words import H24YOU_STYLED_WORDS
+from app.theme_bulk_models import ThemeSnapshot
 
 ASSETS = "/static/h24you/liquid/"
 CONTENT = json.loads(Path(__file__).with_name("site_liquid_content.json").read_text("utf-8"))
@@ -207,6 +208,23 @@ def ensure_styled_words(site):
         setattr(site, field, config)
 
 
+def ensure_theme_styled_words(db, site):
+    """Backfill old H24 theme snapshots without replacing their explicit word lists."""
+    themes = db.scalars(
+        select(ThemeSnapshot).where(
+            ThemeSnapshot.site_id == site.id,
+            ThemeSnapshot.tenant_id == site.tenant_id,
+        )
+    )
+    for theme in themes:
+        state = copy.deepcopy(theme.snapshot_json or {})
+        settings = state.get("settings")
+        if not isinstance(settings, dict) or "styled_words" in settings:
+            continue
+        settings["styled_words"] = copy.deepcopy(H24YOU_STYLED_WORDS)
+        theme.snapshot_json = state
+
+
 def upgrade_liquid_assets_and_bundles(db, site):
     """Apply only known M1 substitutions and add missing catalogue bundle options."""
     image_updates = {
@@ -345,6 +363,7 @@ def seed_h24you_liquid(db, admin_email):
         if site.status == "deleted":
             return site
         ensure_styled_words(site)
+        ensure_theme_styled_words(db, site)
         upgrade_liquid_assets_and_bundles(db, site)
         ensure_product_pages(db, site)
         ensure_content_pages(db, site)

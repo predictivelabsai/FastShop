@@ -1,5 +1,5 @@
 import pytest
-from fasthtml.common import A, Div, Img, Input, NotStr, Script, Style, Title, to_xml
+from fasthtml.common import A, Div, Img, Input, NotStr, Script, Span, Style, Title, to_xml
 
 from app.services import CommerceError
 from app.site_styled_words import (
@@ -29,6 +29,7 @@ def test_styled_words_only_replace_case_sensitive_whole_visible_words():
             Title("One Fizz"),
             Script(NotStr('{"name":"One Fizz"}'), type="application/ld+json"),
             Style(NotStr(".One { color: blue; }")),
+            Span("One", cls="manual-emphasis"),
         )
     )
 
@@ -40,12 +41,13 @@ def test_styled_words_only_replace_case_sensitive_whole_visible_words():
     assert 'value="One" placeholder="Fizz"' in result
     assert "<title>One Fizz</title>" in result
     assert '{"name":"One Fizz"}' in result and ".One { color: blue; }" in result
+    assert '<span class="manual-emphasis">One</span>' in result
 
 
 def test_styled_words_transform_rich_text_without_touching_attributes_or_double_wrapping():
     node = Div(
         NotStr(
-            '<p title="One">One <a href="/Fizz">Fizz</a></p><span class="fs-styled-word">One</span><span class="bottle-one">Fizz</span>'
+            '<p title="One">One <a href="/Fizz">Fizz</a></p><span class="fs-styled-word">One</span><span class="bottle-one">Fizz</span><span style="color:red">One</span>'
         ),
         cls="fs-rich-content",
     )
@@ -58,6 +60,7 @@ def test_styled_words_transform_rich_text_without_touching_attributes_or_double_
     assert 'title="One"' in once and 'href="/Fizz"' in once
     assert '<span class="fs-styled-word">One</span>' in once
     assert '<span class="bottle-one">Fizz</span>' in once
+    assert '<span style="color:red">One</span>' in once
 
 
 def test_styled_words_reject_unbounded_or_unsafe_configuration():
