@@ -376,6 +376,7 @@ async function preview(blockId = null) {
     frame.onload = () => {
       if (request === serial) needsFullPreview = false;
       send({ type: "context", block_id: selected, scroll_y: y });
+      previewTypography();
     };
     frame.srcdoc = result.html;
     $("#node-count").textContent = `${walk().length} blocks`;
@@ -819,6 +820,90 @@ function options(opts) {
           : { value: o, label: o },
       )
     : Object.entries(opts || {}).map(([value, label]) => ({ value, label }));
+}
+const typographyRoles = [
+  "h1",
+  "h2",
+  "h3",
+  "body",
+  "small",
+  "eyebrow",
+  "button",
+  "nav",
+  "footer-heading",
+  "footer-body",
+];
+const typographyFontStacks = {
+  theme: {
+    display: '"Liquid Italiana",Georgia,serif',
+    body: '"Liquid Quicksand",system-ui,sans-serif',
+    ui: '"Liquid Quicksand",system-ui,sans-serif',
+    footer: '"Liquid Fraunces",Georgia,serif',
+  },
+  italiana: '"Liquid Italiana",Georgia,serif',
+  fraunces: '"Liquid Fraunces",Georgia,serif',
+  quicksand: '"Liquid Quicksand",system-ui,sans-serif',
+  system_sans: 'system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+  system_serif: 'Georgia,"Times New Roman",serif',
+};
+function typographySize(value, optional = false) {
+  if (optional && value === "") return value;
+  if (typeof value !== "string") return "";
+  const match = value.match(/^(0|[1-9]\d*)(?:\.\d+)?(px|rem)$/);
+  if (!match) return "";
+  const number = Number.parseFloat(value),
+    [min, max] = match[2] === "px" ? [8, 160] : [0.5, 10];
+  return number >= min && number <= max ? value : "";
+}
+function typographyLineHeight(value) {
+  if (typeof value !== "string" || !/^(0|[1-9]\d*)(?:\.\d+)?$/.test(value))
+    return "";
+  const number = Number.parseFloat(value);
+  return number >= 0.8 && number <= 3 ? value : "";
+}
+function typographyTracking(value) {
+  if (typeof value !== "string") return "";
+  const match = value.match(/^-?(0|[1-9]\d*)(?:\.\d+)?(px|em)$/);
+  if (!match) return "";
+  const number = Number.parseFloat(value),
+    [min, max] = match[2] === "px" ? [-4, 12] : [-0.1, 0.5];
+  return number >= min && number <= max ? value : "";
+}
+function typographyPreviewProperties(theme) {
+  const typography = theme?.typography;
+  if (!typography || typeof typography !== "object") return {};
+  const display = typographyFontStacks[typography.display_font],
+    body = typographyFontStacks[typography.body_font],
+    ui = typographyFontStacks[typography.ui_font];
+  if (!display || !body || !ui) return {};
+  const stack = (choice, role) =>
+    typeof choice === "object" ? choice[role] : choice;
+  const properties = {
+    "--liquid-font-display": stack(display, "display"),
+    "--liquid-font-body": stack(body, "body"),
+    "--liquid-font-ui": stack(ui, "ui"),
+    "--liquid-font-footer-heading": stack(display, "footer"),
+  };
+  for (const role of typographyRoles) {
+    const values = typography.roles?.[role.replaceAll("-", "_")] || {},
+      size = typographySize(values.size),
+      mobile = typographySize(values.mobile_size, true),
+      lineHeight = typographyLineHeight(values.line_height),
+      tracking = typographyTracking(values.letter_spacing),
+      weight = values.weight;
+    if (!size || !lineHeight || !tracking || !/^[1-9]00$/.test(weight || ""))
+      continue;
+    const prefix = `--liquid-type-${role}`;
+    properties[`${prefix}-size`] = size;
+    properties[`${prefix}-size-mobile`] = mobile || size;
+    properties[`${prefix}-weight`] = weight;
+    properties[`${prefix}-line-height`] = lineHeight;
+    properties[`${prefix}-letter-spacing`] = tracking;
+  }
+  return properties;
+}
+function previewTypography() {
+  send({ type: "theme", properties: typographyPreviewProperties(state.theme_settings) });
 }
 function fieldHTML(f, obj, prefix = "") {
   if (f.id === "body" && ["bundle", "box"].includes(obj?.theme)) {
@@ -1285,7 +1370,9 @@ function wireStyledWords() {
   });
 }
 function renderTheme() {
-  const fields = Object.entries(state.theme_settings).map(([id, v]) => ({
+  const fields = Object.entries(state.theme_settings)
+    .filter(([id]) => id !== "typography")
+    .map(([id, v]) => ({
     id,
     label: id.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase()),
     type: state.theme_choices?.[id]
@@ -1297,15 +1384,25 @@ function renderTheme() {
           : "text",
     options: state.theme_choices?.[id],
     default: v,
-  }));
+    }));
+  const typography = state.theme_settings.typography || {},
+    schema = state.typography_schema || { font_fields: [], roles: [] },
+    fontFields = schema.font_fields || [],
+    roleFields = (schema.roles || [])
+      .map((role) => {
+        const values = typography.roles?.[role.id] || {};
+        return `<details class="theme-typography-role" ${role.id === "footer_heading" ? "open" : ""}><summary>${esc(role.label)}</summary>${(role.fields || []).map((field) => fieldHTML(field, values, `typography.roles.${role.id}.`)).join("")}</details>`;
+      })
+      .join("");
   $("#left-content").innerHTML =
-    `<div class="theme-fields"><p class="field-help">Shared across your storefront.</p>${fields.map((f) => fieldHTML(f, state.theme_settings)).join("")}${renderStyledWords()}<button id="save-theme">Save theme settings</button></div>`;
+    `<div class="theme-fields"><p class="field-help">Shared across your storefront.</p>${fields.map((f) => fieldHTML(f, state.theme_settings)).join("")}<details class="theme-typography" open><summary>Typography</summary><p class="field-help">Choose local fonts and adjust every type role. Changes preview on the canvas before you save.</p>${fontFields.map((field) => fieldHTML(field, typography, "typography.")).join("")}${roleFields}</details>${renderStyledWords()}<button id="save-theme">Save theme settings</button></div>`;
   wireFields(
     state.theme_settings,
     (p, v) => {
       set(state.theme_settings, p, v);
       themeDirty = designDirty = true;
       status("Unsaved changes");
+      if (p.startsWith("typography.")) previewTypography();
     },
     "#left-content",
   );

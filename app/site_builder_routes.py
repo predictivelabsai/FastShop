@@ -35,7 +35,13 @@ from app.models import Membership, SiteBuilderTurn, SiteChangeSet
 from app.platform_ui import platform_subnav
 from app.services import CommerceError, money
 from app.site_blocks import default_locale, resolve_document
-from app.site_theme import CHOICES, DEFAULTS, PRESETS, validate_theme
+from app.site_theme import (
+    CHOICES,
+    PRESETS,
+    theme_form_values,
+    typography_schema,
+    validate_theme,
+)
 from app.ui import static_asset
 
 
@@ -60,7 +66,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                 try:
                     theme = validate_theme(site.settings_json.get("design", {}))
                 except CommerceError:
-                    theme = DEFAULTS
+                    theme = validate_theme({})
                 base = f"/admin/sites/{site.id}"
                 can_review = bool(db.scalar(select(Membership.id).where(Membership.tenant_id == site.tenant_id,
                     Membership.user_id == user_id, Membership.role.in_(["admin", "merchant"]))))
@@ -163,10 +169,42 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     P(A("Review resolved images in the media library", href=base + "/media")),
                     cls="b-imagery",
                 ) if imagery else None
+                typography = theme["typography"]
+                typography_fields = typography_schema()
+
+                def typography_input(field, values, prefix):
+                    name = prefix + "." + field["id"]
+                    control = Select(*[
+                        Option(label, value=value, selected=values[field["id"]] == value)
+                        for value, label in field.get("options", {}).items()
+                    ], name=name) if field["type"] == "select" else Input(
+                        name=name, value=values[field["id"]], required=field["id"] != "mobile_size",
+                        inputmode="decimal",
+                    )
+                    return Label(field["label"], control,
+                        Small(field["help"]) if field.get("help") else None)
+
+                typography_controls = Details(
+                    Summary("Typography"),
+                    P("Choose local fonts and adjust each text role. Size accepts px or rem."),
+                    *[typography_input(field, typography, "typography")
+                      for field in typography_fields["font_fields"]],
+                    *[Details(
+                        Summary(role["label"]),
+                        *[typography_input(field, typography["roles"][role["id"]],
+                                          "typography.roles." + role["id"])
+                          for field in role["fields"]],
+                    ) for role in typography_fields["roles"]],
+                    open=True,
+                )
                 design = Form(*hidden(), H2("Design settings"),
-                    *[Label(k.title(), Input(name=k, type="color", value=theme[k])) for k in ("accent", "background", "surface", "text")],
-                    *[Label(k.title(), Select(*[Option(v.title(), value=v, selected=theme[k] == v) for v in values], name=k)) for k, values in CHOICES.items()],
-                    Button("Save design", cls="e-button"), method="post", action=base + "/build/design", cls="e-form")
+                    *[Label(k.title(), Input(name=k, type="color", value=theme[k]))
+                      for k in ("accent", "background", "surface", "text")],
+                    *[Label(k.title(), Select(*[
+                        Option(v.title(), value=v, selected=theme[k] == v) for v in values
+                    ], name=k)) for k, values in CHOICES.items()], typography_controls,
+                    Button("Save design", cls="e-button"), method="post", action=base + "/build/design",
+                    cls="e-form")
                 turn_views = [Div(
                         Div(Small("You", cls="b-message-label"), P(turn.prompt, cls="b-user"), cls="b-message b-message-user"),
                         Div(Small("Assistant", cls="b-message-label"),
@@ -248,7 +286,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 user_id = actor(session)
                 site = builder.lock_site(db, site_id, user_id, int(form.get("version", 0)))
-                theme = validate_theme({key: str(form.get(key, "")) for key in DEFAULTS})
+                theme = validate_theme(theme_form_values(form))
                 builder.apply_operations(db, site.id, user_id, builder.snapshot(db, site), [{"op": "theme", "values": theme}], "classical")
                 db.commit()
             return redirect(site_id, str(form.get("page_id", "")), "Design saved", "design")

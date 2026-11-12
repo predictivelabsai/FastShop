@@ -14,11 +14,49 @@ import "/static/admin/rich-text.js";
   const siteId = String(config.siteId),
     pageId = String(config.pageId),
     editorOrigin = parent.location.origin;
+  const typographyProperties = new Set([
+    "--liquid-font-display",
+    "--liquid-font-body",
+    "--liquid-font-ui",
+    "--liquid-font-footer-heading",
+    ...[
+      "h1",
+      "h2",
+      "h3",
+      "body",
+      "small",
+      "eyebrow",
+      "button",
+      "nav",
+      "footer-heading",
+      "footer-body",
+    ].flatMap((role) => [
+      `${"--liquid-type-" + role}-size`,
+      `${"--liquid-type-" + role}-size-mobile`,
+      `${"--liquid-type-" + role}-weight`,
+      `${"--liquid-type-" + role}-line-height`,
+      `${"--liquid-type-" + role}-letter-spacing`,
+    ]),
+  ]);
   const send = (data) =>
     parent.postMessage(
       { source: "fastshop-editor", site_id: siteId, page_id: pageId, ...data },
       editorOrigin,
     );
+  function previewTheme(properties) {
+    const root = document.querySelector(".h-site[data-pack='liquid']");
+    if (!root || !properties || typeof properties !== "object") return;
+    typographyProperties.forEach((property) => root.style.removeProperty(property));
+    Object.entries(properties).forEach(([property, value]) => {
+      if (
+        typographyProperties.has(property) &&
+        typeof value === "string" &&
+        value.length <= 160 &&
+        !/[;{}]/.test(value)
+      )
+        root.style.setProperty(property, value);
+    });
+  }
   let selected = null,
     dragPayload = null,
     editing = null,
@@ -365,6 +403,7 @@ import "/static/admin/rich-text.js";
       select(d.block_id);
       if (Number.isFinite(d.scroll_y)) scrollTo(0, d.scroll_y);
     }
+    if (d.type === "theme") previewTheme(d.properties);
     if (d.type === "drag") dragPayload = d.payload;
   });
   window.addEventListener("scroll", positionTools, { passive: true });

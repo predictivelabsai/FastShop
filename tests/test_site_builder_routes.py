@@ -22,7 +22,7 @@ from app.models import (
     VariantChannelListing,
 )
 from app.services import CommerceError
-from app.site_theme import PRESETS
+from app.site_theme import DEFAULTS, PRESETS, validate_theme
 
 
 @pytest.fixture
@@ -63,6 +63,34 @@ def test_builder_preview_and_classical_share_draft(editor, monkeypatch):
         assert saved.settings_json["design"] == PRESETS["warm"]
         assert "design" not in saved.published_settings_json
         assert len(list(db.scalars(select(SiteBuilderTurn).where(SiteBuilderTurn.site_id == site.id)))) == 1
+
+
+def test_classical_design_form_exposes_and_saves_liquid_typography(editor):
+    client, site, page, token = editor
+    base = f"/admin/sites/{site.id}/build"
+    design = client.get(base + "?view=design")
+    assert design.status_code == 200
+    assert "Typography" in design.text
+    assert 'name="typography.roles.footer_heading.size"' in design.text
+    defaults = validate_theme({})
+    values = {
+        "csrf_token": token,
+        "version": site.version,
+        "page_id": page.id,
+        **{key: defaults[key] for key in DEFAULTS},
+        "typography.display_font": "fraunces",
+        "typography.roles.footer_heading.size": "28px",
+        "typography.roles.footer_heading.mobile_size": "24px",
+    }
+    saved = client.post(base + "/design", data=values)
+    assert saved.status_code == 200, saved.text
+    with SessionLocal() as db:
+        site = db.get(Site, site.id)
+        typography = site.settings_json["design"]["typography"]
+        assert typography["display_font"] == "fraunces"
+        assert typography["roles"]["footer_heading"]["size"] == "28px"
+        assert typography["roles"]["footer_heading"]["mobile_size"] == "24px"
+        assert "design" not in site.published_settings_json
 
 
 def test_chat_can_update_shell_and_publish_to_storefront(editor, monkeypatch):

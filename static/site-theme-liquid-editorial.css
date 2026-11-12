@@ -127,3 +127,7 @@
 .h-site[data-pack="liquid"] #sources,
 .h-site[data-pack="liquid"] .editorial-placeholder-topic { scroll-margin-top:0; }
 .h-site[data-pack="liquid"] .why-ppb-shield svg { fill:none; stroke:currentColor; stroke-width:1.5; }
+
+/* Preserve the former 12px label while making its semantic role configurable. */
+.h-site[data-pack="liquid"] .why-label { font-size:calc(var(--liquid-type-eyebrow-size) + 1px); font-weight:var(--liquid-type-eyebrow-weight); line-height:var(--liquid-type-eyebrow-line-height); letter-spacing:var(--liquid-type-eyebrow-letter-spacing); }
+@media(max-width:767px) { .h-site[data-pack="liquid"] .why-label { font-size:calc(var(--liquid-type-eyebrow-size-mobile) + 1px); } }

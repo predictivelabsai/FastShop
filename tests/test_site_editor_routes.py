@@ -345,6 +345,49 @@ def test_styled_words_save_render_in_draft_preview_and_publish(workspace):
         assert site.published_settings_json["styled_words"] == words
     assert live.count('class="fs-styled-word"') >= 4
 
+
+def test_typography_theme_settings_are_validated_draft_only_then_publish(workspace):
+    w = workspace
+    loaded = load(w)
+    before = w.client.get(w.base + "/theme-settings").json()
+    assert before["typography_schema"]["roles"][-2]["id"] == "footer_heading"
+    theme = before["theme_settings"]
+    typography = theme["typography"]
+    footer_heading = typography["roles"]["footer_heading"] | {
+        "size": "28px", "mobile_size": "24px", "weight": "500",
+        "line_height": "1.2", "letter_spacing": "0.01em",
+    }
+    theme["typography"] = typography | {
+        "display_font": "fraunces",
+        "roles": typography["roles"] | {"footer_heading": footer_heading},
+    }
+    saved = w.client.put(w.base + "/theme-settings", json={
+        "theme_settings": theme, "version": before["version"],
+    }, headers=w.headers)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["theme_settings"]["typography"]["roles"]["footer_heading"] == footer_heading
+
+    invalid = saved.json()["theme_settings"]
+    invalid["typography"]["roles"]["footer_heading"]["size"] = "url(https://bad.test)"
+    rejected = w.client.put(w.base + "/theme-settings", json={
+        "theme_settings": invalid, "version": saved.json()["version"],
+    }, headers=w.headers)
+    assert rejected.status_code == 422
+
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        assert site.settings_json["design"] == saved.json()["theme_settings"]
+        assert "design" not in site.published_settings_json
+
+    published = w.client.post(w.base + "/publish", json={
+        "version": loaded["version"], "site_version": saved.json()["version"],
+    }, headers=w.headers)
+    assert published.status_code == 200, published.text
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        assert site.published_settings_json["design"] == saved.json()["theme_settings"]
+
+
 def test_publish_success_and_revision_isolation(workspace):
     w = workspace
     loaded = load(w)

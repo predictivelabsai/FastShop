@@ -47,7 +47,7 @@ from app.site_media import (
     prepare_svg_icon,
 )
 from app.site_styled_words import styled_words_for, validate_styled_words
-from app.site_theme import CHOICES, DEFAULTS, theme_pack, validate_theme
+from app.site_theme import CHOICES, theme_pack, typography_schema, validate_theme
 
 
 class EditorError(CommerceError):
@@ -320,10 +320,11 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     "page": {"id": selected.id, "title": selected.title, "kind": selected.kind,
                         "product_id": custom_data.product_id_for_page(db, site, selected),
                              "path": selected.path},
-                    "theme_settings": DEFAULTS | (site.settings_json or {}).get("design", {}),
+                    "theme_settings": validate_theme((site.settings_json or {}).get("design", {})),
                     "styled_words": styled_words_for(site.settings_json),
                     **shell_payload(site, theme),
-                    "theme_choices": CHOICES, "can_publish": role in {"admin", "merchant"}})
+                    "theme_choices": CHOICES, "typography_schema": typography_schema(),
+                    "can_publish": role in {"admin", "merchant"}})
         except CommerceError as exc:
             return failure(exc)
 
@@ -460,9 +461,11 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 site, _ = access(db, session, site_id)
                 if theme:
                     site, _ = editor_context(db, site, "", theme)
-                return response({"theme_settings": DEFAULTS | site.settings_json.get("design", {}),
-                                 "styled_words": styled_words_for(site.settings_json),
-                                 "theme_choices": CHOICES, "version": site.version})
+                return response({"theme_settings": validate_theme(
+                    site.settings_json.get("design", {})),
+                    "styled_words": styled_words_for(site.settings_json),
+                    "theme_choices": CHOICES,
+                    "typography_schema": typography_schema(), "version": site.version})
         except CommerceError as exc:
             return failure(exc)
 
