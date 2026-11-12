@@ -1239,6 +1239,10 @@ function wireFields(obj, update, root = "#settings-content") {
         const input = host.querySelector(
           `[data-setting="${CSS.escape(el.dataset.companion)}"]`,
         );
+        if (["colour", "color"].includes(input?.dataset.type)) {
+          update(el.dataset.companion, el.value);
+          return;
+        }
         input.value = el.value;
         input.dispatchEvent(new Event("input", { bubbles: true }));
       }),
