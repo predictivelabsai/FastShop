@@ -38,15 +38,24 @@ from fasthtml.common import (
     ft,
     to_xml,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from starlette.responses import HTMLResponse, RedirectResponse
 
-from app import auth, plans, signup_services
+from app import auth, content, discounts, plans, signup_services
+from app.admin_ui import card, page_header
 from app.config import settings
+from app.content_gap_models import UrlRedirect
 from app.db import SessionLocal
 from app.integrations.commerce_email import dispatch_mail
-from app.models import User
+from app.models import (
+    Discount,
+    MarketingAutomation,
+    MarketingCampaign,
+    MarketingSubscriber,
+    SitePage,
+    User,
+)
 from app.services import CommerceError
 from app.site_blocks import BLOCK_TYPES
 from app.site_generation import MAX_PAGES
@@ -1163,3 +1172,196 @@ def register_marketing_routes(rt, csrf_token, require_csrf, establish_session):
     @rt("/signup/verified", methods=["GET"])
     def get():
         return verified_page()
+
+
+def register_admin_marketing_routes(rt, actor, shell, error):
+    """Register the tenant-scoped marketing overview in the merchant admin."""
+    @rt("/admin/sites/{site_id}/marketing", methods=["GET"])
+    def get(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session))
+                published_settings = site.published_settings_json or {}
+                home = db.scalar(select(SitePage).where(
+                    SitePage.site_id == site.id,
+                    SitePage.tenant_id == site.tenant_id,
+                    SitePage.path == "/",
+                ))
+                home_document = (home.published_json or {}) if home else {}
+                home_title = home_document.get("seo_title") or home_document.get("title", "")
+                default_description = published_settings.get("seo_default_description", "")
+                indexing_enabled = published_settings.get("seo_indexing", True)
+                sitemap = "https://" + (site.hostname or "your-store.example") + "/sitemap.xml"
+                from app.site_seo import health_report
+
+                seo_rows = health_report(db, site)
+                seo_counts = {}
+                for row in seo_rows:
+                    for issue in row["issues"]:
+                        seo_counts[issue["code"]] = seo_counts.get(issue["code"], 0) + 1
+
+                redirect_count = db.scalar(select(func.count()).select_from(UrlRedirect).where(
+                    UrlRedirect.site_id == site.id,
+                    UrlRedirect.tenant_id == site.tenant_id,
+                )) or 0
+                from app.site_tracking import tracking_ids
+
+                tracking = tracking_ids(db, site, published_settings)
+                active_discounts = sum(
+                    discounts.status(rule) == "Active"
+                    for rule in db.scalars(select(Discount).where(
+                        Discount.site_id == site.id,
+                        Discount.tenant_id == site.tenant_id,
+                    ))
+                )
+                subscriber_count = db.scalar(
+                    select(func.count()).select_from(MarketingSubscriber).where(
+                        MarketingSubscriber.tenant_id == site.tenant_id,
+                        MarketingSubscriber.site_id == site.id,
+                        MarketingSubscriber.status == "subscribed",
+                    )
+                ) or 0
+                campaign_drafts = db.scalar(select(func.count(MarketingCampaign.id)).where(
+                    MarketingCampaign.tenant_id == site.tenant_id,
+                    MarketingCampaign.site_id == site.id,
+                    MarketingCampaign.status == "draft",
+                )) or 0
+                last_sent = db.scalar(select(MarketingCampaign).where(
+                    MarketingCampaign.tenant_id == site.tenant_id,
+                    MarketingCampaign.site_id == site.id,
+                    MarketingCampaign.status == "sent",
+                ).order_by(MarketingCampaign.sent_at.desc()).limit(1))
+                automation = db.scalar(select(MarketingAutomation).where(
+                    MarketingAutomation.tenant_id == site.tenant_id,
+                    MarketingAutomation.site_id == site.id,
+                ))
+
+                base = f"/admin/sites/{site.id}"
+                seo_card = card(
+                    P("Indexing: " + ("On" if indexing_enabled else "Off")),
+                    P("Home page title: " + ("Set" if home_title else "Not set")),
+                    P("Default description: " + ("Set" if default_description else "Not set")),
+                    P("Sitemap: ", A("Open sitemap", href=sitemap, target="_blank", rel="noopener")),
+                    A("Edit SEO settings", href=base + "/settings/seo", cls="a-button"),
+                    title="Search engine optimisation",
+                )
+                health_labels = (
+                    ("missing_title", "Missing SEO title"),
+                    ("duplicate_title", "Duplicate title"),
+                    ("missing_description", "Missing description"),
+                    ("long_description", "Description over 160 characters"),
+                    ("missing_social_image", "Missing social image"),
+                    ("noindex", "Hidden from search engines"),
+                    ("long_title", "Title over 60 characters"),
+                )
+                review_count = sum(bool(row["issues"]) for row in seo_rows)
+                review_label = "published item needs" if review_count == 1 else "published items need"
+                health_card = card(
+                    P(f"{review_count} {review_label} review."),
+                    *[
+                        P(
+                            label + ": ",
+                            Strong(str(seo_counts.get(code, 0)) if seo_counts.get(code) else "Clear"),
+                        )
+                        for code, label in health_labels
+                    ],
+                    A("Review SEO health", href=base + "/marketing/seo-health", cls="a-button"),
+                    title="SEO health",
+                )
+                redirects_card = card(
+                    P(f"{redirect_count} URL redirect" + ("" if redirect_count == 1 else "s")),
+                    A("Manage redirects", href=base + "/redirects", cls="a-button"),
+                    title="URL redirects",
+                )
+                tracking_card = card(
+                    P(Strong("GA4: "), tracking["ga4_measurement_id"] or "Not set"),
+                    P(Strong("Google Ads: "), (
+                        tracking["google_ads_conversion_id"]
+                        + (" / " + tracking["google_ads_purchase_label"]
+                           if tracking["google_ads_purchase_label"] else "")
+                    ) or "Not set"),
+                    P(Strong("Meta pixel: "), tracking["meta_pixel_id"] or "Not set"),
+                    P(Strong("TikTok pixel: "), tracking["tiktok_pixel_id"] or "Not set"),
+                    P("Tags load only after the relevant visitor consent."),
+                    Div(
+                        A("Edit tracking settings", href=base + "/marketing/tracking", cls="a-button"),
+                        cls="a-marketing-actions",
+                    ),
+                    title="Tracking and pixels",
+                )
+                discounts_card = card(
+                    P(f"{active_discounts} active discount" + ("" if active_discounts == 1 else "s")),
+                    A("Manage discounts", href=base + "/discounts", cls="a-button"),
+                    title="Discounts",
+                )
+                subscribers_card = card(
+                    P(f"{subscriber_count} subscribed email subscriber" + ("" if subscriber_count == 1 else "s")),
+                    A("Manage subscribers", href=base + "/marketing/subscribers", cls="a-button"),
+                    title="Email subscribers",
+                )
+                campaigns_card = card(
+                    P(f"{campaign_drafts} draft campaign" + ("" if campaign_drafts == 1 else "s")),
+                    P("Last sent: " + (last_sent.sent_at.strftime("%d %b %Y %H:%M UTC")
+                                       if last_sent and last_sent.sent_at else "Never")),
+                    A("Manage campaigns", href=base + "/marketing/campaigns", cls="a-button"),
+                    title="Campaigns",
+                )
+                automations_card = card(
+                    P("Abandoned checkout email: " + ("On" if automation and automation.enabled else "Off")),
+                    A("Manage automations", href=base + "/marketing/automations", cls="a-button"),
+                    title="Automations",
+                )
+                return shell(
+                    "Marketing",
+                    page_header("Marketing"),
+                    P("Review search, tracking, redirects and promotions for this store."),
+                    Div(
+                        seo_card,
+                        health_card,
+                        redirects_card,
+                        tracking_card,
+                        discounts_card,
+                        subscribers_card,
+                        campaigns_card,
+                        automations_card,
+                        cls="a-marketing-grid",
+                    ),
+                )
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/marketing/seo-health", methods=["GET"])
+    def seo_health(session, site_id: str):
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session))
+                from app.site_seo import health_report
+
+                rows = [row for row in health_report(db, site) if row["issues"]]
+                entries = [
+                    Article(
+                        Div(
+                            Small(row["kind"].replace("_", " ").title()),
+                            H3(row["title"]),
+                            P(row["url"]),
+                            P(*[
+                                Span(issue["label"], cls="a-seo-issue")
+                                for issue in row["issues"]
+                            ]),
+                        ),
+                        A("Edit SEO", href=row["edit_href"], cls="a-button"),
+                        cls="a-seo-health-row",
+                    )
+                    for row in rows
+                ]
+                return shell(
+                    "SEO health",
+                    page_header("SEO health", back_href=f"/admin/sites/{site.id}/marketing"),
+                    P("Review these recommendations for published pages and catalogue entries."),
+                    card(
+                        *(entries if entries else [P("No SEO issues found for published content.")]),
+                        title="Published content",
+                    ),
+                )
+        except CommerceError as exc:
+            return error(exc)

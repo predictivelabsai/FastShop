@@ -16,6 +16,7 @@ from app.models import (
     CustomerOffer,
     DraftOrder,
     MarketingConsent,
+    MarketingSubscriber,
     Membership,
     Order,
     PaymentTransaction,
@@ -33,7 +34,8 @@ from app.models import (
 from app.services import CommerceError, money
 
 
-def send_email(recipient, subject, body, *, message_id, site=None, db=None):
+def send_email(recipient, subject, body, *, message_id, site=None, db=None,
+               html_body=None, headers=None):
     if site is not None:
         from app.site_integrations import _from_address, mail_settings
 
@@ -47,6 +49,10 @@ def send_email(recipient, subject, body, *, message_id, site=None, db=None):
     payload = {"From": sender, "To": recipient, "Subject": subject, "TextBody": body,
                "MessageStream": "outbound", "TrackOpens": False, "TrackLinks": "None",
                "Metadata": {"fastshop_message_id": message_id}}
+    if html_body:
+        payload["HtmlBody"] = html_body
+    if headers:
+        payload["Headers"] = [{"Name": name, "Value": value} for name, value in headers.items()]
     if site is not None and config.get("reply_to"):
         payload["ReplyTo"] = config["reply_to"]
     try:
@@ -64,6 +70,14 @@ def send_email(recipient, subject, body, *, message_id, site=None, db=None):
 def render_message(db, row, site, customer=None, user=None):
     """Apply merchant text templates only after existing reference checks pass."""
     reference = row.reference_json or {}
+    if row.kind in {"marketing_campaign", "marketing_campaign_test"}:
+        from app.marketing_email import render_campaign_message
+
+        return render_campaign_message(db, row, site, user)
+    if row.kind == "marketing_abandoned":
+        from app.marketing_automation import render_abandoned_message
+
+        return render_abandoned_message(db, row, site, customer)
     if row.kind == "staff_invite":
         invite = db.scalar(select(StaffInvite).where(
             StaffInvite.id == reference.get("invite_id"), StaffInvite.site_id == site.id,
@@ -300,7 +314,15 @@ def _render_message(db, row, site, customer=None, user=None):
             MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.customer_id == customer.id))
         if not offer or not consent or consent.status != "subscribed" or customers.utc(offer.expires_at) <= datetime.now(UTC):
             return None
-        url = customers.customer_base(site) + f"/unsubscribe/{customer.id}#token=" + customers.unsubscribe_token(site, customer)
+        subscriber = db.scalar(select(MarketingSubscriber).where(
+            MarketingSubscriber.site_id == site.id,
+            MarketingSubscriber.tenant_id == site.tenant_id,
+            MarketingSubscriber.email == customer.email,
+        ))
+        if subscriber:
+            url = customers.customer_base(site) + "/unsubscribe?token=" + subscriber.unsubscribe_token
+        else:
+            url = customers.customer_base(site) + f"/unsubscribe/{customer.id}#token=" + customers.unsubscribe_token(site, customer)
         return "Your first-order code — " + site.name, (
             f"Your 10% first-order merchandise code is {offer.code}. It expires {offer.expires_at:%Y-%m-%d}. "
             "It is tied to this email address and can be used once. On an eligible subscription it applies after the subscription saving, to the first delivery only.\n\n"
@@ -426,12 +448,23 @@ def dispatch_mail(message_id, *, sessions=SessionLocal, sender=send_email):
         message = render_message(db, row, site, customer, user) if site else None
         if not message:
             row.status = "cancelled"
+            from app.marketing_email import sync_mail_result
+
+            sync_mail_result(db, row)
             db.commit()
             return False
-        subject, body = message
+        html_body = None
+        headers = None
+        if len(message) == 4:
+            subject, body, html_body, headers = message
+        else:
+            subject, body = message
         recipient = user.email if user else customer.email if customer else (row.reference_json or {}).get("recipient_email")
         if not recipient:
             row.status = "cancelled"
+            from app.marketing_email import sync_mail_result
+
+            sync_mail_result(db, row)
             db.commit()
             return False
         if row.kind == "staff_invite":
@@ -440,12 +473,17 @@ def dispatch_mail(message_id, *, sessions=SessionLocal, sender=send_email):
                 StaffInvite.site_id == row.site_id, StaffInvite.tenant_id == row.tenant_id))
             recipient = invite.email
         if sender is send_email:
-            status, provider_id = sender(recipient, subject, body, message_id=row.id,
-                                         site=site, db=db)
+            status, provider_id = sender(
+                recipient, subject, body, message_id=row.id, site=site, db=db,
+                html_body=html_body, headers=headers,
+            )
         else:
             status, provider_id = sender(recipient, subject, body, message_id=row.id)
         row.status, row.provider_id = status, provider_id
         row.available_at = datetime.now(UTC) + timedelta(minutes=min(60, 2 ** row.attempts))
+        from app.marketing_email import sync_mail_result
+
+        sync_mail_result(db, row)
         db.commit()
         return status == "sent"
 

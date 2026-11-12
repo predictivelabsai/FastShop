@@ -72,7 +72,12 @@ def register_site_routes(rt):
     from app.site_delete_routes import register_site_delete_routes
     from app.site_index_routes import register_site_index_routes
     register_site_index_routes(rt)
+    from app.marketing_automation_routes import register_marketing_automation_routes
+    from app.marketing_campaign_routes import register_marketing_campaign_routes
+    from app.marketing_routes import register_admin_marketing_routes
+    from app.marketing_subscriber_routes import register_marketing_subscriber_routes
     from app.site_seo_routes import register_site_seo_routes
+    from app.site_tracking_routes import register_site_tracking_routes
 
     def actor(session):
         with SessionLocal() as db:
@@ -97,6 +102,11 @@ def register_site_routes(rt):
         return Response(str(exc), status_code=400, media_type="text/plain")
 
     register_site_seo_routes(rt, actor, csrf, check_csrf, shell, error)
+    register_site_tracking_routes(rt, actor, csrf, check_csrf, shell, error)
+    register_admin_marketing_routes(rt, actor, shell, error)
+    register_marketing_campaign_routes(rt, actor, csrf, check_csrf, shell, error)
+    register_marketing_automation_routes(rt, actor, csrf, check_csrf, shell, error)
+    register_marketing_subscriber_routes(rt, actor, csrf, check_csrf, shell, error)
     register_site_delete_routes(rt, actor, csrf, check_csrf, shell, error)
 
     def verification_banner(db, user_id, session):
@@ -519,8 +529,9 @@ def register_site_routes(rt):
                             *[Label(key.replace("_", " ").capitalize(), Input(name="portal_copy_" + key,
                                 value=(config.get("portal_copy") or {}).get(key, default), maxlength=500))
                               for key, default in DEFAULT_PORTAL_COPY.items()],
-                            H3("Analytics"), Label("GA4 measurement ID (optional)", Input(name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""), placeholder="G-ABC1234567", maxlength=22)),
-                            P("Disabled when empty. Published public pages load Google Analytics only after analytics consent. Account and checkout pages are excluded; no Meta pixel is installed. Publish shared settings to apply changes."),
+                            H3("Tracking and pixels"),
+                            P("Tracking tags load only after the relevant visitor consent."),
+                            A("Edit tracking settings", href=f"/admin/sites/{site.id}/marketing/tracking"),
                             H3("Checkout payment methods"),
                             Label(Input(type="checkbox", name="offer_paypal", checked="paypal" in config.get("payment_methods", ["card"])), " Offer PayPal at one-time checkout (requires PayPal enabled on your Stripe account)"),
                             P("Card is always available. Apple Pay and Google Pay appear automatically once your store domain is registered with Stripe. Subscriptions stay card-only so renewals can charge the saved card.", cls="e-note"),
@@ -558,8 +569,6 @@ def register_site_routes(rt):
                 site = builder.lock_site(db, site.id, user_id, site.version)
                 before = builder.snapshot(db, site)
                 config = copy.deepcopy(site.settings_json)
-                from app.site_analytics import validate_measurement_id
-                config["ga4_measurement_id"] = validate_measurement_id(form.get("ga4_measurement_id", config.get("ga4_measurement_id", "")))
                 config["payment_methods"] = ["card"] + (["paypal"] if form.get("offer_paypal") == "on" else [])
                 for key in ("name", "tagline", "email", "company", "address", "announcement", "offer", "logo", "logo_light", "science_date", "footer"):
                     config[key] = str(form.get(key, ""))[:2000]
@@ -754,11 +763,20 @@ def register_site_routes(rt):
                 blog_categories = categories_for(db, site) if page.kind == "article" else []
                 from app.site_media import media_for, media_url
                 library = [(media_url(m), m.title or "Untitled image", resolve_text(m.localized_alt if m.localized_alt is not None else m.alt, default_locale(site))) for m in media_for(db, site) if m.content_type.startswith("image/")]
+                if page.kind == "article":
+                    seo_href = f"/admin/sites/{site.id}/content/blog-posts/{page.id}"
+                elif page.kind == "product":
+                    seo_href = f"/admin/sites/{site.id}/products/{page.product_id}"
+                elif page.kind == "collection":
+                    seo_href = f"/admin/sites/{site.id}/collections/{page.collection_id}"
+                else:
+                    seo_href = f"/admin/sites/{site.id}/content/pages/{page.id}/seo"
 
                 revisions = list(db.scalars(select(SiteRevision).where(SiteRevision.page_id == page.id,
                     SiteRevision.site_id == site.id, SiteRevision.tenant_id == site.tenant_id).order_by(SiteRevision.created_at.desc()).limit(20)))
                 return shell(document["title"], Div(A("← Pages", href=f"/admin/sites/{site.id}/pages"),
                     A("Open visual editor", href=f"/admin/sites/{site.id}/editor?page={page.id}"),
+                    A("Edit SEO", href=seo_href),
                     A("Browse media library", href=f"/admin/sites/{site.id}/media", target="_blank"), cls="e-actions"),
                     Div(Form(csrf(session), Input(type="hidden", name="version", value=page.version),
                         Label("URL path", Input(name="path", value=page.path, required=True)),
@@ -1030,4 +1048,7 @@ def register_site_routes(rt):
             canonical_base = request.scope.get("site_canonical", settings.public_url + base) if request else settings.public_url + base
             with content.catalogue_view(db, site, page):
                 return site_ui.storefront(db, site, page, base, session["csrf_token"], canonical_base + normalized_path,
-                    message=message, blog_listing=page.kind == "blog", blog_category=category, blog_tag=tag)
+                    message=message,
+                    newsletter_result=(request.query_params.get("newsletter", "")
+                                      if request and normalized_path == "/" else ""),
+                    blog_listing=page.kind == "blog", blog_category=category, blog_tag=tag)

@@ -35,7 +35,7 @@ from app.storefront_ui import commerce_page, public_message
 
 
 def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error):
-    def resolve(db, slug, *, enabled=True):
+    def resolve(db, slug, *, enabled=True, require_commerce=True):
         query = select(Site).where(Site.slug == slug, Site.status != "deleted")
         if enabled:
             query = query.where(Site.status.in_(["preview", "published"]))
@@ -43,7 +43,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
         if not site:
             raise CommerceError("Store not found.")
         config = commerce.settings_for(db, site)
-        if enabled and (not config or not commerce.payments_enabled(db, site, config)):
+        if enabled and require_commerce and (not config or not commerce.payments_enabled(db, site, config)):
             raise CommerceError("Customer services are not enabled for this store yet.")
         return site
 
@@ -150,23 +150,42 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
 
     async def request_link(session, request, slug, purpose):
         form = await request.form()
+        newsletter_source = "footer" if form.get("newsletter_source") == "footer" else "account"
+        footer_signup = purpose == "newsletter" and newsletter_source == "footer"
         try:
             with SessionLocal() as db:
-                site = account_site(db, slug) if purpose == "login" else resolve(db, slug)
+                if purpose == "login":
+                    site = account_site(db, slug)
+                else:
+                    site = resolve(db, slug, require_commerce=purpose != "newsletter")
                 check_csrf(session, form)
                 mail = None if form.get("website") else customers.request_email_challenge(db, site,
                     form.get("email", ""), purpose, request.client.host if request.client else "unknown",
-                    consent=form.get("marketing_consent") == "on")
+                    consent=form.get("marketing_consent") == "on", source=newsletter_source)
                 message_id = mail.id if mail else None
                 db.commit()
-                response = screen(db, site, request, "Check your email", Div(P("If your request can be processed, an email link will arrive shortly. Check your spam folder too. Repeated requests are limited."),
-                    P("The link expires and can only be used once. No order has been placed."), cls="e-card"))
+                if footer_signup:
+                    response = RedirectResponse(
+                        base(site, request) + "/?newsletter=success#footer", status_code=303,
+                    )
+                else:
+                    copy = account_copy(site)
+                    response = screen(db, site, request, copy["check_email"], Div(
+                        P(copy["email_link_message"]), P(copy["link_expiry_message"]), cls="e-card",
+                    ))
             if message_id:
                 dispatch_mail(message_id)
+            if isinstance(response, RedirectResponse):
+                response.headers["Cache-Control"] = "private, no-store"
+                response.headers["Referrer-Policy"] = "no-referrer"
+                return response
             return private_response(response)
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:
+            if footer_signup:
+                root = request.scope.get("site_base", "/sites/" + slug)
+                return RedirectResponse(root + "/?newsletter=error#footer", status_code=303)
             return public_message(request, slug, exc)
 
     @rt("/sites/{slug}/account/login", methods=["POST"])

@@ -16,13 +16,25 @@ def article_document(db, site, page, data):
     title = str(data.get("title", "")).strip()
     if not title or len(title) > 240:
         raise CommerceError("Enter a title of up to 240 characters.")
-    for key, value in {
+    values = {
         "title": title,
-        "description": str(data.get("description", ""))[:320],
         "image": str(data.get("image", "")),
         "category": str(data.get("category", "General")),
-    }.items():
+    }
+    if "description" in data:
+        values["description"] = str(data.get("description", ""))[:320]
+    for key, value in values.items():
         document[key] = merge_localized(document.get(key, ""), value, locale)
+    from app.site_seo import validate_entity_fields
+
+    seo_values = validate_entity_fields(db, site, {
+        "seo_title": str(data.get("seo_title", "")),
+        "seo_description": str(data.get("seo_description", "")),
+        "seo_social_title": str(data.get("seo_social_title", "")),
+        "seo_social_image": str(data.get("seo_social_image", "")),
+        "seo_noindex": data.get("seo_noindex") is True or data.get("seo_noindex") == "on",
+    })
+    document.update(seo_values)
     category = ensure_category(db, site, str(data.get("category", "General")))
     publish_at = str(data.get("publish_at", "")).strip()
     if publish_at:

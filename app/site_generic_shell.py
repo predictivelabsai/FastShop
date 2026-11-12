@@ -77,6 +77,17 @@ DEFAULTS = {
     "offer_preview": "Preview the offer",
     "footer_explore": "Explore",
     "footer_help": "Help",
+    "newsletter_title": "Get store updates",
+    "newsletter_body": "Occasional updates about new products and offers.",
+    "newsletter_email": "Email address",
+    "newsletter_submit": "Subscribe",
+    "newsletter_success": "Thanks. Check your email to confirm.",
+    "newsletter_error": "Please check the email address and try again.",
+    "newsletter_preview": "Signup is available when the store is published.",
+    "newsletter_unsubscribe_title": "Email preferences",
+    "newsletter_unsubscribe_instruction": "Confirm to stop receiving marketing emails.",
+    "newsletter_unsubscribe_cta": "Unsubscribe",
+    "newsletter_unsubscribed": "You will no longer receive marketing emails.",
     "terms": "Terms",
     "privacy_policy": "Privacy policy",
     "faq": "FAQ",
@@ -93,7 +104,7 @@ DEFAULTS = {
 }
 
 _HEADER = "cta video_toggle contact_heading contact_name contact_email contact_message contact_honeypot contact_consent contact_send privacy skip menu shop all_products account bag bag_empty cart_aria offer_eyebrow offer_body offer_preview offer_close offer_confirm offer_email offer_submit offer_preview_body email_placeholder".split()
-_FOOTER = "footer_explore footer_help terms privacy_policy faq returns shipping_policy copyright cookies".split()
+_FOOTER = "footer_explore footer_help newsletter_title newsletter_body newsletter_email newsletter_submit newsletter_success newsletter_error newsletter_preview terms privacy_policy faq returns shipping_policy copyright cookies".split()
 GROUPS = {
     "header": _HEADER,
     "footer": _FOOTER,

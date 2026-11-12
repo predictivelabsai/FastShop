@@ -295,6 +295,8 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
                     raise CommerceError("Choose a blog post.")
                 doc = resolve_document(page.draft_json, default_locale(site)) if page else {}
                 blog = metadata(doc)
+                from app.site_seo_ui import seo_editor_fields
+
                 body = next(
                     (b.get("body", "") for b in doc.get("blocks", []) if b["id"] == "article-body"),
                     "",
@@ -358,15 +360,22 @@ def register_growth_content_routes(rt, actor, csrf, check_csrf, shell, error):
                                         maxlength=1000,
                                     ),
                                 ),
-                                Label(
-                                    "SEO description",
-                                    Textarea(
-                                        doc.get("description", ""),
-                                        name="description",
-                                        rows=3,
-                                        maxlength=320,
-                                    ),
+                            ),
+                            card(
+                                seo_editor_fields(
+                                    site,
+                                    title=doc.get("title", ""),
+                                    path=page.path if page else "/blog/",
+                                    seo_title=doc.get("seo_title", ""),
+                                    seo_description=doc.get("seo_description") or doc.get("description", ""),
+                                    social_title=doc.get("seo_social_title", ""),
+                                    social_image=doc.get("seo_social_image", ""),
+                                    noindex=doc.get("seo_noindex", False),
+                                    images=media_for(db, site),
+                                    default_description=(doc.get("description")
+                                        or (site.settings_json or {}).get("seo_default_description", "")),
                                 ),
+                                title="Search engine listing",
                             ),
                             card(
                                 Label(

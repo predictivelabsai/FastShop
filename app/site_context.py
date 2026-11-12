@@ -56,7 +56,9 @@ class SiteHostMiddleware:
                     # The slug path remains the bounded merchant preview. A bound custom
                     # hostname is public only after the reviewed publication transition.
                     is_index_file = path in {"/robots.txt", "/sitemap.xml"}
-                    if site.status != "published" and not is_index_file and not path.startswith(("/unsubscribe/", "/account")):
+                    if (site.status != "published" and not is_index_file and
+                            path != "/unsubscribe" and
+                            not path.startswith(("/unsubscribe/", "/account"))):
                         return await Response("This store is not open.", status_code=404)(scope, receive, send)
                     commerce = db.scalar(select(SiteCommerceSettings).where(SiteCommerceSettings.site_id == site.id,
                         SiteCommerceSettings.tenant_id == site.tenant_id))

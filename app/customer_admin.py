@@ -8,7 +8,14 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 
 from app.catalog_admin import _atomic as atomic
-from app.customer_services import customer_for, normalized_email, orders_for, unsubscribe
+from app.customer_services import (
+    consent_text,
+    customer_for,
+    normalized_email,
+    orders_for,
+    unsubscribe,
+)
+from app.marketing_subscribers import upsert_subscriber
 from app.models import (
     Channel,
     CustomerAddress,
@@ -186,18 +193,11 @@ def save_customer(db, site, data, customer_id=None):
             setattr(customer, kind + "_consent_at", now)
             setattr(customer, kind + "_consent_source", "admin")
         setattr(customer, field, enabled)
-        if kind == "email" and enabled != current:
-            if not enabled:
-                unsubscribe(db, site, customer)
-            else:
-                consent = db.scalar(select(MarketingConsent).where(
-                    MarketingConsent.tenant_id == site.tenant_id, MarketingConsent.site_id == site.id,
-                    MarketingConsent.customer_id == customer.id))
-                if not consent:
-                    consent = MarketingConsent(tenant_id=site.tenant_id, site_id=site.id, customer_id=customer.id)
-                    db.add(consent)
-                consent.status, consent.confirmed_at, consent.unsubscribed_at = "subscribed", now, None
-                consent.consent_json = {"source": "admin", "confirmed_at": now.isoformat()}
+        if kind == "email" and enabled:
+            upsert_subscriber(db, site, email, source="admin", status="subscribed",
+                              evidence=consent_text(site), consented_at=now)
+        elif kind == "email" and enabled != current:
+            unsubscribe(db, site, customer)
     db.flush()
     return customer
 

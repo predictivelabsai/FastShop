@@ -55,7 +55,7 @@ def test_merged_navigation_links_to_implemented_routes(suffix, destinations):
     site = SimpleNamespace(id="store-one", name="My store")
     prefix = "/admin/sites/store-one/"
     html = str(to_xml(admin_page("Store", site=site, sites=[site], path=prefix + suffix)))
-    for destination in [*destinations, "discounts", "analytics"]:
+    for destination in [*destinations, "analytics"]:
         assert f'href="{prefix}{destination}"' in html
     assert "/coming-soon/" not in html
 

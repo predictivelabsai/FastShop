@@ -317,6 +317,39 @@ def test_shipping_proposal_is_read_only_and_confirmation_applies_once():
     engine.dispose()
 
 
+def test_tracking_ids_use_agent_confirm_card_and_update_published_settings():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        user = User(email="tracking-agent@example.test", name="Merchant")
+        db.add(user)
+        db.flush()
+        site = content.create_site(db, user.id, "Tracking", "tracking-agent-test")
+        site.status = "published"
+        site.settings_json = {**site.settings_json, "ga4_measurement_id": "G-OLD1234567"}
+        site.published_settings_json = {"ga4_measurement_id": "G-OLD1234567"}
+        from app.store_agent_ops import register_tools
+
+        settings = register_tools(db, site, user.id, "tracking-agent-read")[
+            "get_store_settings"].handler({})
+        assert settings["tracking"]["ga4_measurement_id"] == "G-OLD1234567"
+        action = _propose_tool(db, site, user, "set_tracking_ids", {
+            "ga4_measurement_id": "G-NEW1234567",
+            "meta_pixel_id": "123456789",
+        })
+
+        assert action.status == "pending"
+        assert site.published_settings_json["ga4_measurement_id"] == "G-OLD1234567"
+        result = confirm_action(db, site, user, action.id)
+        assert result.status == "confirmed"
+        assert site.settings_json["tracking"]["ga4_measurement_id"] == "G-NEW1234567"
+        assert site.published_settings_json["tracking"] == site.settings_json["tracking"]
+        assert "ga4_measurement_id" not in site.published_settings_json
+        confirm_action(db, site, user, action.id)
+        assert site.version == action.result_json["version"]
+    engine.dispose()
+
+
 def test_customer_update_and_message_are_pending_scoped_and_single_execution():
     from tests.test_order_management import workspace
 

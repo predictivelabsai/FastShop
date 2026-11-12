@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import json
 from functools import partial
 
 from fasthtml.common import (
@@ -325,7 +324,9 @@ def has_published_recently_viewed(db, site):
                              {"recently_viewed"}) for doc in documents)
 
 
-def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag="", policy_html=None, policy_empty_message=None):
+def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="",
+               newsletter_result="", blog_listing=False, blog_category="", blog_tag="",
+               policy_html=None, policy_empty_message=None):
     from app.site_theme import pack_renderer
     config = site.settings_json if preview else site.published_settings_json
     if renderer := pack_renderer(config or {}, "storefront"):
@@ -333,24 +334,20 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                         editor=editor, message=message)
     from app.commerce import payments_enabled, settings_for
     from app.customer_services import consent_text
-    from app.site_analytics import measurement_id
     from app.site_theme import theme_style
-    analytics_id = measurement_id(site, preview=preview)
     commerce_config = settings_for(db, site)
     customer_services_enabled = bool(commerce_config and payments_enabled(db, site, commerce_config))
     if customer_services_enabled:
         from app.commerce import payment_mode
         site._payment_mode = payment_mode(db, site, commerce_config)
-    ga4_item = None
-    if analytics_id and page.kind == "product" and page.product_id:
-        ga4_product = catalog_product(db, site, page.product_id)
-        if ga4_product:
-            ga4_listing = db.scalar(select(VariantChannelListing).join(ProductVariant).where(
-                ProductVariant.product_id == ga4_product.id, ProductVariant.tenant_id == site.tenant_id,
-                VariantChannelListing.channel_id == site.channel_id).order_by(ProductVariant.sort_order))
-            ga4_item = {"item_id": ga4_product.slug, "item_name": ga4_product.name,
-                        "currency": ga4_listing.currency if ga4_listing else "USD",
-                        "price": round(ga4_listing.price_minor / 100, 2) if ga4_listing else 0}
+    from app.site_tracking import product_item, tracking_nodes
+
+    product = product_item(db, site, page) if not preview else None
+    tracking_event = ({"name": "view_item", "currency": product["item"]["currency"],
+                       "value": product["item"]["price"], "items": [product["item"]],
+                       "variants": product["variants"]}
+                      if product else {})
+    provider_nodes = tracking_nodes(db, site, tracking_event, preview=preview)
     record_recent_product = bool(not preview and site.status == "published" and
         page.kind == "product" and page.product_id and has_published_recently_viewed(db, site))
     image = partial(owned_image, db, site)
@@ -387,7 +384,13 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         if active:
             document["title"] += " — " + active
     from app.site_seo import metadata as seo_metadata
+    from app.site_seo import seo_document
+    from app.site_structured_data import jsonld_for_page
+    document = seo_document(db, site, page, document)
     seo = seo_metadata(site, page, document, canonical, preview=preview)
+    structured_data = jsonld_for_page(
+        db, site, page, document, seo["canonical"], seo, preview=preview,
+    )
     from app.site_menus import rendered_navigation
     header_navigation = rendered_navigation(db, site, "header", preview=preview)
     footer_navigation = rendered_navigation(db, site, "footer", preview=preview)
@@ -414,22 +417,49 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         return Div(blog_filters, rendered) if blog_listing and section["type"] == "articles" else rendered
     def brand(light=False):
         return image(config.get("logo_light" if light else "logo"), config.get("name", site.name), eager=True) or Span(config.get("name", site.name))
+    newsletter_status = (
+        label(config, "newsletter_success") if newsletter_result == "success"
+        else label(config, "newsletter_error") if newsletter_result == "error" else ""
+    )
+    newsletter_active = site.status == "published" and not preview
+    newsletter_block = Div(
+        H2(label(config, "newsletter_title")),
+        P(label(config, "newsletter_body")),
+        P(newsletter_status, role="status", aria_live="polite") if newsletter_status else None,
+        Form(
+            Input(type="hidden", name="csrf_token", value=csrf),
+            Input(type="hidden", name="newsletter_source", value="footer"),
+            Label(label(config, "newsletter_email"), Input(
+                name="email", type="email", required=True, maxlength=320,
+                autocomplete="email", placeholder=label(config, "email_placeholder"),
+            )),
+            Label(Input(type="checkbox", name="marketing_consent", required=True),
+                  " " + consent_text(site)),
+            Input(name="website", tabindex="-1", autocomplete="off", style="display:none"),
+            Button(label(config, "newsletter_submit"), type="submit", cls="h-button"),
+            method="post", action=base + "/newsletter", cls="h-newsletter-form",
+        ) if newsletter_active else P(label(config, "newsletter_preview"), cls="h-newsletter-preview"),
+        cls="h-footer-newsletter h-container", id="footer",
+    )
     return (
         Title(seo["title"]), Meta(name="viewport", content="width=device-width, initial-scale=1"),
-        Meta(name="description", content=seo["description"]), Meta(name="robots", content="noindex,nofollow" if site.status != "published" or preview else "noindex,follow" if not seo["indexing"] or (blog_listing and (blog_tag or not listing_articles)) else "index,follow"),
+        Meta(name="description", content=seo["description"]),
+        Meta(name="robots", content="noindex,nofollow" if site.status != "published" or preview else "noindex" if seo["noindex"] else "noindex,follow" if blog_listing and (blog_tag or not listing_articles) else "index,follow"),
         Meta(property="og:title", content=seo["social_title"]), Meta(property="og:description", content=seo["description"]),
         Meta(property="og:image", content=seo["image"]) if seo["image"] else None,
+        Meta(property="og:type", content=seo["og_type"]),
         Meta(property="og:url", content=seo["canonical"]), Meta(name="twitter:card", content="summary_large_image" if seo["image"] else "summary"),
         Meta(name="google-site-verification", content=seo["google_verification"]) if seo["google_verification"] else None,
         Meta(name="msvalidate.01", content=seo["bing_verification"]) if seo["bing_verification"] else None,
         Link(rel="canonical", href=seo["canonical"]),
+        *structured_data,
         *head_snippets,
         *head_nodes(db, site, preferences, preview=preview),
+        *provider_nodes,
         Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml") if not preferences or not preferences.favicon_id else None, Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
-        Script(src=static_asset("site-analytics.js"), defer=True) if analytics_id else None,
         Script(src=static_asset("site-snippets.js"), defer=True) if has_gated_snippets else None,
-        Script(NotStr(json.dumps(ga4_item)), type="application/json", id="h-ga4-item") if ga4_item else None,
         Link(rel="stylesheet", href=static_asset("site-theme.css")),
+        Link(rel="stylesheet", href=static_asset("site-newsletter.css")),
         Link(rel="stylesheet", href=static_asset("site-blog.css")) if blog_listing else None,
         Style(NotStr(WIDGET_CSS)) if needs_widget_css(document["blocks"]) else None,
         Link(rel="stylesheet", href=static_asset("widgets-pack1.css")) if needs_pack1_css(document["blocks"]) else None,
@@ -471,6 +501,7 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 Div(H3(label(config, "footer_help")), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", label(config, "terms")), ("privacy-policy", label(config, "privacy_policy")), ("faq", label(config, "faq")), ("returns-and-refunds", label(config, "returns")), ("shipping-policy", label(config, "shipping_policy"))]]),
                 Div(H3(config.get("company", site.name)), P(config.get("address", "")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
+                newsletter_block,
                 P(config.get("footer", ""), cls="h-disclaimer"), Div(Span(label(config, "copyright") + config.get("company", site.name)), payment_methods(), Button(label(config, "cookies"), type="button", data_cookie_open=""), cls="h-footer-bottom"),
                 cls="h-footer", data_builder_shell="footer" if preview else None),
             *foot_snippets,
@@ -491,7 +522,6 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 A(label(config, "privacy"), href=url(base, "/pages/privacy-policy")), id="h-offer-panel", cls="h-offer-panel", hidden=True),
             Div(id="h-toast", role="status", cls="h-toast", hidden=True),
             cls="h-site " + ("h-home" if home else "h-inner"), data_site=site.id,
-            data_ga4=analytics_id, data_analytics_path=base or "/",
             style=theme_style(config), data_themed="true" if theme_style(config) else "false",
             data_builder_page=page.id if preview else "",
         ),

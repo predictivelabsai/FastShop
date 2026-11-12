@@ -1,0 +1,77 @@
+.h-footer-newsletter {
+  margin: 3rem auto 0;
+  padding: 2rem 0;
+  border-top: 1px solid #d4d9d9;
+}
+
+.h-footer-newsletter h2 {
+  max-width: 32rem;
+  margin-bottom: 0.75rem;
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+}
+
+.h-footer-newsletter > p {
+  max-width: 42rem;
+  color: #56626c;
+}
+
+.h-newsletter-form {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) minmax(16rem, 2fr) auto;
+  align-items: end;
+  gap: 1rem 1.5rem;
+  max-width: 62rem;
+}
+
+.h-newsletter-form label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.h-newsletter-form input[type="email"] {
+  width: 100%;
+  min-height: 3rem;
+  box-sizing: border-box;
+  border: 1px solid #aab8c2;
+  border-radius: 3px;
+  background: #fff;
+  padding: 0.65rem 0.8rem;
+}
+
+.h-newsletter-form label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  font-size: 0.75rem;
+}
+
+.h-newsletter-form .h-button {
+  min-height: 3rem;
+  box-sizing: border-box;
+}
+
+.h-newsletter-preview {
+  font-size: 0.8rem;
+  color: #56626c;
+}
+
+@media (max-width: 700px) {
+  .h-footer-newsletter {
+    width: min(100%, 88vw);
+    padding: 1.75rem 0;
+  }
+
+  .h-newsletter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .h-newsletter-form label:has(input[type="checkbox"]) {
+    padding-bottom: 0;
+  }
+
+  .h-newsletter-form .h-button {
+    width: 100%;
+  }
+}
