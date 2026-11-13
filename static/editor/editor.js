@@ -1105,7 +1105,7 @@ function renderPages(query = "") {
   $("#page-options").innerHTML = [...groups]
     .map(
       ([kind, pages]) =>
-        `<h3>${esc(kind.replaceAll("_", " "))}</h3>${pages.map((p) => `<a href="/admin/sites/${encodeURIComponent(boot.site_id)}/editor?page=${encodeURIComponent(p.id)}&theme=${encodeURIComponent(boot.theme_id || '')}">${esc(p.title)}</a>`).join("")}`,
+        `<h3>${esc(kind.replaceAll("_", " "))}</h3>${pages.map((p) => `<a href="/admin/sites/${encodeURIComponent(boot.site_id)}/editor?page=${encodeURIComponent(p.id)}&theme=${encodeURIComponent(boot.theme_id || '')}"${p.id === boot.page_id ? ' aria-current="page"' : ""}>${esc(p.title)}</a>`).join("")}`,
     )
     .join("");
 }

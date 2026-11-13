@@ -63,6 +63,15 @@ def load(w):
     return result.json()
 
 
+def test_editor_page_switcher_labels_the_current_page_and_links_to_page_management(workspace):
+    w = workspace
+    result = w.client.get(f"/admin/sites/{w.site.id}/editor", params={"page": w.page.id})
+    assert result.status_code == 200
+    assert 'aria-label="Switch the page you are editing"' in result.text
+    assert '<span class="page-switcher-label">Editing</span>' in result.text
+    assert f'href="/admin/sites/{w.site.id}/pages"' in result.text
+
+
 def test_load_requires_active_actor_membership_and_scoped_page(workspace):
     w = workspace
     loaded = load(w)

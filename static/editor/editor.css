@@ -57,6 +57,9 @@ body {
   min-width: 150px;
 }
 .page-switcher summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   padding: 8px 12px;
   border: 1px solid var(--a-line);
   border-radius: 7px;
@@ -66,6 +69,13 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 550;
+}
+.page-switcher-label {
+  color: var(--a-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .page-menu {
   position: absolute;
@@ -79,6 +89,22 @@ body {
   border-radius: 10px;
   max-height: 440px;
   overflow: auto;
+}
+.page-menu-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.page-menu-heading strong {
+  font-size: 13px;
+}
+.page-menu-heading a {
+  color: var(--a-link, var(--a-ink));
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .page-menu input {
   width: 100%;
@@ -96,6 +122,10 @@ body {
   padding: 8px;
   color: var(--a-ink);
   border-radius: 5px;
+}
+.page-menu-heading a {
+  display: inline;
+  padding: 0;
 }
 .page-menu a:hover {
   background: #eef3ff;
