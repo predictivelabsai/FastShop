@@ -574,6 +574,23 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                     AgentMessage.conversation_id == conversation.id,
                 ).order_by(AgentMessage.created_at, AgentMessage.id).limit(100))
                 rows = list(messages)
+                actions = db.scalars(select(AgentAction).where(
+                    AgentAction.tenant_id == site.tenant_id,
+                    AgentAction.site_id == site.id,
+                    AgentAction.conversation_id == conversation.id,
+                ).order_by(AgentAction.created_at, AgentAction.id)).all()
+                actions_by_message = {}
+                unlinked_actions = []
+                for action in actions:
+                    if action.message_id:
+                        actions_by_message.setdefault(action.message_id, []).append(action)
+                    elif action.status == "pending":
+                        unlinked_actions.append(action)
+                if unlinked_actions:
+                    latest_assistant = next((row for row in reversed(rows)
+                                             if row.role == "assistant"), None)
+                    if latest_assistant:
+                        actions_by_message.setdefault(latest_assistant.id, []).extend(unlinked_actions)
                 results = {}
                 for row in rows:
                     if row.role != "tool":
@@ -601,16 +618,13 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                         events.append({"name": name, "label": call.get("label", name),
                                        "status": "error" if failed else "done"})
                     return events
-                actions = db.scalars(select(AgentAction).where(
-                    AgentAction.tenant_id == site.tenant_id, AgentAction.site_id == site.id,
-                    AgentAction.conversation_id == conversation.id, AgentAction.status == "pending"
-                ).order_by(AgentAction.created_at))
-                return response({"conversation_id": conversation.id, "actions": [
-                    {"id": action.id, "kind": action.kind, "summary": action.summary}
-                    for action in actions
-                ], "messages": [
+                return response({"conversation_id": conversation.id, "actions": [], "messages": [
                     {"id": m.id, "role": m.role, "content": m.content,
                      "events": message_events(m),
+                     "actions": [{"id": action.id, "kind": action.kind,
+                                  "summary": action.summary, "status": action.status,
+                                  "result": action.result_json or {}}
+                                 for action in actions_by_message.get(m.id, [])],
                      "has_checkpoint": bool(m.checkpoint_revision_id)} for m in rows
                 ]})
         except CommerceError as exc:
@@ -661,10 +675,34 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
                 kwargs["conversation_id"] = conversation_id
             transport = None
             if settings.environment.lower() != "production" and os.getenv("FASTSHOP_AGENT_FAKE") == "1":
+                from app.models import ProductVariant, VariantChannelListing
+                with SessionLocal() as db:
+                    price_pair = db.execute(select(ProductVariant, VariantChannelListing).join(
+                        VariantChannelListing, VariantChannelListing.variant_id == ProductVariant.id
+                    ).where(ProductVariant.tenant_id == site.tenant_id,
+                            VariantChannelListing.channel_id == site.channel_id).limit(1)).first()
+                    fake_variant_id = price_pair[0].id if price_pair else ""
+                    fake_product_id = price_pair[0].product_id if price_pair else ""
+                    fake_price = price_pair[1].price_minor if price_pair else 0
                 class ScriptedTransport:
                     def __init__(self):
                         self.sent = False
+                        self.price_step = 0
+                        self.price_task = "price change" in message.casefold()
+                        self.decline_price = "decline" in message.casefold()
                     def complete(self, messages, tools):
+                        if self.price_task:
+                            self.price_step += 1
+                            if self.price_step == 1:
+                                return {"tool_calls": [{"id": "fake-editor-read-product", "type": "function",
+                                    "function": {"name": "get_product", "arguments": json.dumps({
+                                        "product_id": fake_product_id})}}]}
+                            if self.price_step == 2:
+                                return {"tool_calls": [{"id": "fake-editor-set-price", "type": "function",
+                                    "function": {"name": "set_variant_price", "arguments": json.dumps({
+                                        "variant_id": fake_variant_id,
+                                        "price_minor": fake_price + (5000 if self.decline_price else 2000)})}}]}
+                            return {"content": "I’ve proposed the price change for your review."}
                         if self.sent:
                             delay = float(os.getenv("FASTSHOP_AGENT_FAKE_DELAY", "0"))
                             if delay:

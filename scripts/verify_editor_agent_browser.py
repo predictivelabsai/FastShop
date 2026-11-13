@@ -30,12 +30,19 @@ def main():
         from app.db import SessionLocal, engine
         from app.main import app
         from app import content
-        from app.models import Site
+        from app.models import AgentMessage, ProductVariant, Site, VariantChannelListing
         from sqlalchemy import select
         with SessionLocal() as db:
             site = db.scalar(select(Site).where(Site.slug == "h24you-liquid"))
             home = next(page for page in content.site_pages(db, site) if page.path == "/")
             site_id, page_id = site.id, home.id
+            listing_pair = db.execute(select(ProductVariant, VariantChannelListing).join(
+                VariantChannelListing, VariantChannelListing.variant_id == ProductVariant.id
+            ).where(ProductVariant.tenant_id == site.tenant_id,
+                    VariantChannelListing.channel_id == site.channel_id).limit(1)).first()
+            assert listing_pair, "The seeded store needs a priced product variant"
+            variant, listing = listing_pair
+            variant_id, product_id, initial_price = variant.id, variant.product_id, listing.price_minor
         OUTPUT.mkdir(parents=True, exist_ok=True)
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port,
             log_level="error", access_log=False))
@@ -58,6 +65,7 @@ def main():
                 page.get_by_role("button", name="Sign in", exact=True).click(); page.wait_for_url("**/admin/sites")
                 page.goto(f"/admin/sites/{site_id}/editor?page={page_id}")
                 page.locator('[data-mode="assistant"]').click()
+                page.screenshot(path=str(OUTPUT / "pinned-composer.png"), full_page=True)
                 sent = []
                 page.on("request", lambda request: sent.append(request.post_data_json)
                         if request.method == "POST" and request.url.endswith("/editor/agent") else None)
@@ -82,8 +90,69 @@ def main():
                 if page.locator("#conflict-dialog").is_visible():
                     page.locator("#conflict-reload").click()
                 expect(page.locator("#save-status")).to_contain_text("Saved")
+                def propose_price(prompt):
+                    previous_cards = page.locator(".agent-action-card").count()
+                    page.locator("#agent-input").fill(prompt)
+                    page.locator("#agent-form").press("Enter")
+                    expect(page.locator(".agent-action-card")).to_have_count(previous_cards + 1)
+                    card = page.locator(".agent-action-card").last
+                    expect(card).to_be_visible()
+                    expect(card.get_by_role("button", name="Confirm")).to_be_enabled(timeout=10000)
+                    return card
+
+                decline_card = propose_price("Read the product and propose a price change for me to decline")
+                history = page.request.get(f"/admin/sites/{site_id}/editor/agent/history").json()
+                price_message = next(message for message in history["messages"]
+                                     if any(action["summary"].startswith("Change price")
+                                            for action in message.get("actions", [])))
+                assert {event["label"] for event in price_message["events"]} >= {
+                    "Get Product", "Set Variant Price"}
+                page.screenshot(path=str(OUTPUT / "cards-desktop.png"), full_page=True)
+                decline_card.get_by_role("button", name="Decline").click()
+                expect(decline_card).to_contain_text("Declined")
+                with SessionLocal() as db:
+                    current = db.scalar(select(VariantChannelListing).where(
+                        VariantChannelListing.variant_id == variant_id,
+                        VariantChannelListing.channel_id == site.channel_id))
+                    assert current.price_minor == initial_price
+
+                confirm_card = propose_price("Read the product and propose a price change")
                 page.set_viewport_size({"width":390,"height":844})
-                page.screenshot(path=str(OUTPUT / "mobile.png"), full_page=True)
+                page.screenshot(path=str(OUTPUT / "cards-mobile.png"), full_page=True)
+                confirm_card.get_by_role("button", name="Confirm").click()
+                expect(confirm_card).to_contain_text("Done")
+                with SessionLocal() as db:
+                    current = db.scalar(select(VariantChannelListing).where(
+                        VariantChannelListing.variant_id == variant_id,
+                        VariantChannelListing.channel_id == site.channel_id))
+                    assert current.price_minor == initial_price + 2000
+
+                history = page.request.get(f"/admin/sites/{site_id}/editor/agent/history").json()
+                conversation_id = history["conversation_id"]
+                with SessionLocal() as db:
+                    for index in range(18):
+                        db.add_all([
+                            AgentMessage(tenant_id=site.tenant_id, site_id=site.id,
+                                conversation_id=conversation_id, role="user", content=f"Earlier request {index + 1}"),
+                            AgentMessage(tenant_id=site.tenant_id, site_id=site.id,
+                                conversation_id=conversation_id, role="assistant", content=f"Earlier response {index + 1}"),
+                        ])
+                    db.commit()
+                page.reload()
+                page.locator('[data-mode="assistant"]').click()
+                page.locator(".agent-messages").evaluate("el => el.scrollTop = el.scrollHeight")
+                page.screenshot(path=str(OUTPUT / "pinned-composer.png"), full_page=True)
+                metrics = page.evaluate("""() => {
+                    const panel = document.querySelector('.agent-panel');
+                    const messages = document.querySelector('.agent-messages');
+                    const form = document.querySelector('#agent-form');
+                    const panelRect = panel.getBoundingClientRect();
+                    const formRect = form.getBoundingClientRect();
+                    return {overflowing: messages.scrollHeight > messages.clientHeight,
+                        composerBottom: formRect.bottom, panelBottom: panelRect.bottom};
+                }""")
+                assert metrics["overflowing"], metrics
+                assert abs(metrics["composerBottom"] - metrics["panelBottom"]) < 4, metrics
                 browser.close()
         finally:
             server.should_exit = True; thread.join(timeout=10); engine.dispose()

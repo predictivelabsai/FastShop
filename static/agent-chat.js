@@ -28,7 +28,7 @@ function sparkle() {
   return icon;
 }
 
-export function renderMessages(container, rows = []) {
+export function renderMessages(container, rows = [], onDecision) {
   container.replaceChildren();
   for (const row of rows) {
     if (!row || !["user", "assistant"].includes(row.role)) continue;
@@ -78,6 +78,9 @@ export function renderMessages(container, rows = []) {
       rows.append(list);
       body.append(rows);
     }
+    if (row.role === "assistant" && row.actions?.length) {
+      for (const action of row.actions) renderAction(body, action, onDecision);
+    }
     if (row.error) {
       const error = document.createElement("div");
       error.className = "agent-error";
@@ -107,19 +110,26 @@ export function renderMessages(container, rows = []) {
 
 export function renderAction(container, action, onDecision) {
   const card = document.createElement("section");
-  card.className = "agent-actions";
+  card.className = "agent-action-card";
   card.dataset.actionCard = action.id;
   const heading = document.createElement("strong");
-  heading.textContent = "Review this change";
+  const status = action.status || "pending";
+  heading.textContent = status === "pending" ? "Review this change" :
+    status === "confirmed" ? "Done" :
+      status === "declined" ? "Declined" : "Action needs attention";
   const description = document.createElement("p");
   description.textContent = action.summary || action.kind || "The assistant needs your approval.";
   card.append(heading, description);
+  container.append(card);
+  if (status !== "pending" || !onDecision) return card;
   for (const decision of ["confirm", "decline"]) {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.actionId = action.id;
     button.dataset.decision = decision;
-    button.textContent = decision === "confirm" ? "Confirm" : "Decline";
+    button.textContent = action.waiting_for_turn ? "Preparing…" :
+      decision === "confirm" ? "Confirm" : "Decline";
+    button.disabled = Boolean(action.waiting_for_turn);
     button.addEventListener("click", async () => {
       if (card.dataset.state && card.dataset.state !== "pending") return;
       card.dataset.state = decision === "confirm" ? "confirming" : "declining";
@@ -127,13 +137,12 @@ export function renderAction(container, action, onDecision) {
       heading.textContent = decision === "confirm" ? "Confirming…" : "Declining…";
       const result = await onDecision(action.id, decision);
       card.dataset.state = result.ok ? (decision === "confirm" ? "confirmed" : "declined") : "pending";
-      heading.textContent = result.ok ? (decision === "confirm" ? "Confirmed" : "Declined") : "Could not complete this action";
+      heading.textContent = result.ok ? (decision === "confirm" ? "Done" : "Declined") : "Could not complete this action";
       description.textContent = result.message || description.textContent;
       card.querySelectorAll("button").forEach(item => { item.disabled = result.ok; });
     });
     card.append(button);
   }
-  container.append(card);
   return card;
 }
 

@@ -721,16 +721,11 @@ function renderAgentPanel() {
   const bottom = !document.querySelector(".agent-messages") || (() => { const el = $(".agent-messages"); return el.scrollHeight - el.scrollTop - el.clientHeight < 48; })();
   $("#left-content").innerHTML = `<section class="agent-panel"><header><span>Draft assistant</span><button id="agent-new">New chat</button></header><div class="agent-messages agent-chat-shared" aria-live="polite" aria-relevant="additions text"></div>${context ? `<div class="agent-context"><span>Editing: ${esc(label(context))}</span><button type="button" id="agent-clear-context" aria-label="Clear selected block">×</button></div>` : ""}<form id="agent-form"><div class="agent-composer"><textarea id="agent-input" rows="1" maxlength="4000" aria-label="Message the assistant" placeholder="Describe a change…"></textarea><button id="agent-send" type="submit" aria-label="${agentAbort ? "Stop assistant response" : "Send message"}" title="${agentAbort ? "Stop" : "Send"}">${agentAbort ? "■" : "↑"}</button></div><div class="agent-compose-hint">Enter to send · Shift+Enter for a new line</div></form></section>`;
   const messageBox = $(".agent-messages");
-  renderMessages(messageBox, agentMessages);
+  renderMessages(messageBox, agentMessages, decideAgentAction);
   if (!agentMessages.length) {
     messageBox.innerHTML = `<div class="agent-empty"><strong>What would you like to change?</strong><div class="agent-suggestions"><button>Make the hero headline bolder</button><button>Add a FAQ section</button><button>Change the accent colour</button><button>Make the page easier to scan</button></div></div>`;
   }
-  for (const action of agentPendingActions) renderAction(messageBox, action, async (id, decision) => {
-    const response = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/agent/actions/${id}/${decision}`, {method:"POST", headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token}, body:JSON.stringify({csrf_token:boot.csrf_token})});
-    const result = response.ok ? await response.json() : {};
-    if(response.ok){agentPendingActions=agentPendingActions.filter(action=>action.id!==id);if(decision==="confirm")await load();}
-    return {ok:response.ok,message:result.summary || result.error || "Action could not be completed."};
-  });
+  for (const action of agentPendingActions) renderAction(messageBox, action, decideAgentAction);
   wireRestore(messageBox, async messageId => {
     const response = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/restore`, {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":boot.csrf_token},body:JSON.stringify({message_id:messageId})});
     if (response.ok) { await load(); mode="assistant"; renderLeft(); }
@@ -744,7 +739,36 @@ function renderAgentPanel() {
   $("#agent-input").oninput = (e) => { e.target.style.height = "auto"; e.target.style.height = `${Math.min(e.target.scrollHeight, 192)}px`; };
   $("#agent-input").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#agent-form").requestSubmit(); } };
   $$('[data-retry-message]').forEach((b) => b.onclick = () => { $("#agent-input").value = b.dataset.retryMessage; sendAgentMessage(); });
+  $$('[data-action-decision]').forEach((button) => button.onclick = () => decideAgentAction(button.dataset.actionId, button.dataset.actionDecision));
   const box = $(".agent-messages"); if (bottom) box.scrollTop = box.scrollHeight;
+}
+async function decideAgentAction(actionId, decision) {
+  const action = [...agentMessages.flatMap((message) => message.actions || []), ...agentPendingActions]
+    .find((item) => item.id === actionId);
+  if (!action || action.status !== "pending" || action.submitting)
+    return {ok:false, message:"This action is no longer available."};
+  action.submitting = decision;
+  action.error = "";
+  try {
+    const response = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/agent/actions/${encodeURIComponent(actionId)}/${decision}`, {
+      method:"POST", headers:{"X-CSRF-Token":boot.csrf_token}, credentials:"same-origin",
+      body:new URLSearchParams({csrf_token:boot.csrf_token}),
+    });
+    const responseText = await response.text();
+    let result = {};
+    try { result = JSON.parse(responseText); }
+    catch { if (!response.ok) throw Error(responseText || "The action could not be updated."); }
+    if (!response.ok) throw Error(result.error || "The action could not be updated.");
+    action.status = result.status;
+    action.result = result.result || {};
+    await loadAgentHistory();
+    return {ok:true, message:result.summary || "Action updated."};
+  } catch (error) {
+    action.error = error.message || "The action could not be updated. Try again.";
+    return {ok:false, message:action.error};
+  } finally {
+    action.submitting = "";
+  }
 }
 async function loadAgentHistory() {
   const r = await fetch(`/admin/sites/${encodeURIComponent(boot.site_id)}/editor/agent/history`);
@@ -768,9 +792,9 @@ async function sendAgentMessage() {
         if(step){let result={};try{result=JSON.parse(ev.summary||"{}");}catch{}step.status=result.error?"error":"done";}
         clearTimeout(window.agentRefreshTimer);window.agentRefreshTimer=setTimeout(()=>load(),300);
       }
-      if(ev.type==="action_pending")agentPendingActions.push({id:ev.id,kind:ev.kind,summary:ev.summary});
-      if(ev.type==="done")answer.running=false;
-      if(ev.type==="error"){answer.running=false;answer.error="I couldn’t complete that change. Please try again.";answer.retry=message;}
+      if(ev.type==="action_pending"){answer.actions=answer.actions||[];answer.actions.push({...ev,status:"pending",waiting_for_turn:true});}
+      if(ev.type==="done"){answer.running=false;(answer.actions||[]).forEach(action=>action.waiting_for_turn=false);}
+      if(ev.type==="error"){answer.running=false;(answer.actions||[]).forEach(action=>action.waiting_for_turn=false);answer.error="I couldn’t complete that change. Please try again.";answer.retry=message;}
       renderAgentPanel();
     });
   } catch(e) { answer.running=false; if(e.name!=="AbortError"){answer.error=e.message === "The assistant could not start." ? "I couldn’t start that change." : "I couldn’t connect just now.";answer.retry=message;} }

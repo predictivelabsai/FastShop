@@ -13,6 +13,7 @@ from starlette.testclient import TestClient
 
 from app import content, site_editor_routes
 from app.models import (
+    AgentAction,
     AgentConversation,
     AgentMessage,
     Base,
@@ -148,6 +149,30 @@ def test_agent_history_rebuilds_steps_from_saved_tool_calls(workspace):
     events = assistant["events"]
     assert [(event["label"], event["status"]) for event in events] == [
         ("Updated hero", "done"), ("Updated colours", "error")]
+
+
+def test_agent_history_includes_pending_actions_on_their_message(workspace):
+    w = workspace
+    with w.sessions() as db:
+        conversation = AgentConversation(tenant_id=w.site.tenant_id, site_id=w.site.id,
+                                        user_id=w.owner.id, title="Review a price change")
+        db.add(conversation)
+        db.flush()
+        message = AgentMessage(tenant_id=w.site.tenant_id, site_id=w.site.id,
+            conversation_id=conversation.id, role="assistant", content="I can change that price.")
+        db.add(message)
+        db.flush()
+        action = AgentAction(tenant_id=w.site.tenant_id, site_id=w.site.id,
+            conversation_id=conversation.id, message_id=message.id, user_id=w.owner.id,
+            kind="set_variant_price", payload_json={"price_minor": 4500},
+            summary="Change the product price to $45.00", status="pending",
+            idempotency_key="pending-history-action")
+        db.add(action)
+        db.commit()
+    result = w.client.get(f"/admin/sites/{w.site.id}/editor/agent/history")
+    assistant = next(row for row in result.json()["messages"] if row["id"] == message.id)
+    assert assistant["actions"] == [{"id": action.id, "kind": "set_variant_price",
+        "summary": "Change the product price to $45.00", "status": "pending", "result": {}}]
 
 
 def test_agent_stream_forwards_run_turn_event_order(workspace, monkeypatch):
@@ -901,7 +926,7 @@ def test_liquid_benefit_icon_override_renders_and_blank_icon_keeps_legacy_art(wo
         json={"document": legacy_document, "block_id": "why"}, headers=w.headers,
     )
     assert legacy.status_code == 200, legacy.text
-    assert 'd="M37 14c8 6' in legacy.json()["html"]
+    assert 'd="M20.2 20.2c2.04-2.03' in legacy.json()["html"]
     assert 'd="M12 22a7 7 0 0 0 7-7' not in legacy.json()["html"]
 
     legacy_choice = json.loads(json.dumps(saved.json()["document"]))
@@ -911,7 +936,7 @@ def test_liquid_benefit_icon_override_renders_and_blank_icon_keeps_legacy_art(wo
         json={"document": legacy_choice, "block_id": "why"}, headers=w.headers,
     )
     assert rendered_choice.status_code == 200, rendered_choice.text
-    assert 'd="M37 14c8 6' in rendered_choice.json()["html"]
+    assert 'd="M20.2 20.2c2.04-2.03' in rendered_choice.json()["html"]
 
 
 def test_unsupported_item_field_error_names_field_and_index(workspace):

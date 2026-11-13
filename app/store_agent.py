@@ -8,12 +8,20 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app import content, site_menus
 from app import site_builder_services as builder
 from app.integrations.agent_llm import XAITransport
-from app.models import AgentConversation, AgentMessage, SiteMedia, SiteMenu, SitePage, SiteRevision
+from app.models import (
+    AgentAction,
+    AgentConversation,
+    AgentMessage,
+    SiteMedia,
+    SiteMenu,
+    SitePage,
+    SiteRevision,
+)
 from app.services import CommerceError
 from app.site_blocks import add_block, normalize_document, patch_block, remove_block, reorder_blocks
 from app.site_editable_settings import apply_shell, shell_fields, shell_values
@@ -352,6 +360,7 @@ def run_turn(db, site, user, message, *, page_id, selection=None, conversation_i
         yield emit("step_started", step=1)
         tx = transport or XAITransport()
         steps, deadline, ran = 0, time.monotonic() + 240, []
+        pending_action_ids = []
         while steps < 15 and time.monotonic() < deadline:
             reply = tx.complete(msgs, schema)
             if time.monotonic() >= deadline:
@@ -359,9 +368,14 @@ def run_turn(db, site, user, message, *, page_id, selection=None, conversation_i
             calls = reply.get("tool_calls") or []
             if not calls:
                 answer = reply.get("content") or "Done."
-                db.add(AgentMessage(tenant_id=site.tenant_id, site_id=site.id,
+                assistant_message = AgentMessage(tenant_id=site.tenant_id, site_id=site.id,
                     conversation_id=conversation.id, role="assistant", content=answer,
-                    tool_calls_json=ran, checkpoint_revision_id=cp_holder["id"]))
+                    tool_calls_json=ran, checkpoint_revision_id=cp_holder["id"])
+                db.add(assistant_message)
+                db.flush()
+                if pending_action_ids:
+                    db.execute(update(AgentAction).where(AgentAction.id.in_(pending_action_ids))
+                               .values(message_id=assistant_message.id))
                 db.commit()
                 yield emit("assistant_text", text=answer)
                 yield emit("done")
@@ -391,6 +405,7 @@ def run_turn(db, site, user, message, *, page_id, selection=None, conversation_i
                     summary = json.dumps(result)
                 yield emit("tool_result", name=name, summary=summary)
                 if isinstance(result, dict) and result.get("pending_action"):
+                    pending_action_ids.append(result["pending_action"])
                     yield emit("action_pending", id=result["pending_action"],
                                kind=result.get("kind", name),
                                summary=result["summary"])
@@ -404,9 +419,14 @@ def run_turn(db, site, user, message, *, page_id, selection=None, conversation_i
             yield emit("step_started", step=steps + 1)
         answer = ("I reached the design step limit. Tell me what you would like to change next."
                   if steps >= 15 else "I ran out of time before finishing. Please tell me what you would like to change next.")
-        db.add(AgentMessage(tenant_id=site.tenant_id, site_id=site.id,
+        assistant_message = AgentMessage(tenant_id=site.tenant_id, site_id=site.id,
             conversation_id=conversation.id, role="assistant", content=answer,
-            tool_calls_json=ran, checkpoint_revision_id=cp_holder["id"]))
+            tool_calls_json=ran, checkpoint_revision_id=cp_holder["id"])
+        db.add(assistant_message)
+        db.flush()
+        if pending_action_ids:
+            db.execute(update(AgentAction).where(AgentAction.id.in_(pending_action_ids))
+                       .values(message_id=assistant_message.id))
         db.commit()
         yield emit("assistant_text", text=answer)
         yield emit("done")
