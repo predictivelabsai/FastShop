@@ -256,6 +256,26 @@ def test_design_tools_cover_shell_brand_navigation_pages_meta_and_media(workspac
         "create_page", "update_page_meta", "list_media", "set_block_image"]
 
 
+def test_liquid_benefit_icon_and_footer_newsletter_tools_are_bounded(workspace):
+    db, user, site = workspace
+    page = content.site_pages(db, site)[0]
+    site.settings_json = site.settings_json | {"theme_pack": "liquid"}
+    page.draft_json = {"version": 1, "title": "Home", "blocks": [{
+        "id": "why", "type": "liquid_benefits", "heading": "Why hydrogen",
+        "items": [{"theme": "exercise", "heading": "Steady energy", "body": "Daily support."}],
+    }]}
+    events = list(run_turn(db, site, user, "Update the benefit card", page_id=page.id,
+        transport=FakeTransport([
+            call("set_liquid_benefit_icon", {"page_id": page.id, "block_id": "why",
+                "item_index": 0, "icon": "lucide:zap"}, "benefit"),
+            call("set_footer_newsletter_heading", {"heading_size": "compact"}, "newsletter"),
+            {"content": "Updated the draft."},
+        ])))
+    assert not [event for event in events if event["type"] == "tool_result" and '"error"' in event["summary"]]
+    assert page.draft_json["blocks"][0]["items"][0]["icon"] == "lucide:zap"
+    assert site.settings_json["design"]["header_footer"]["newsletter"]["heading_size"] == "compact"
+
+
 def site_menus_header(db, site):
     from app.site_menus import get_menu
 

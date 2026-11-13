@@ -126,6 +126,7 @@ def test_login_code_forms_render_in_liquid_shell(customer_site):
         db.commit()
     login = client.get(base + "/account")
     assert login.status_code == 200 and "account-login-card" in login.text
+    assert "account-login-primary" in login.text
     verify = request_code(site, client, base, "liquid@example.test")
     assert verify.status_code == 200 and "account-login-card" in verify.text
     assert "--store-accent" in verify.text and "--store-radius" in verify.text

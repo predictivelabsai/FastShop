@@ -81,7 +81,7 @@ def documents():
             image=ASSETS + "metal-water-hero.jpg",
             alt="",
             button="Shop",
-            link="/#products",
+            link="/shop",
         ),
         block(
             "liquid_stats",

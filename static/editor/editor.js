@@ -953,6 +953,7 @@ const headerFooterPreviewFields = [
   { section: "newsletter", id: "input_border", property: "--liquid-footer-newsletter-input-border", type: "colour", defaultValue: "#534c5d", cssDefault: "var(--border)" },
   { section: "newsletter", id: "button_background", property: "--liquid-footer-newsletter-button-background", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--metal-sheen)" },
   { section: "newsletter", id: "button_text", property: "--liquid-footer-newsletter-button-text", type: "colour", defaultValue: "#0b121d", cssDefault: "var(--primary-foreground)" },
+  { section: "newsletter", id: "heading_size", property: "--liquid-footer-newsletter-heading-size", type: "choice", options: ["compact", "standard"], defaultValue: "compact", cssValues: { compact: "clamp(22px,2.2vw,32px)", standard: "clamp(28px,3vw,40px)" } },
   { section: "bottom", id: "background", property: "--liquid-footer-bottom-background", type: "colour", defaultValue: "#0a0a13", cssDefault: "transparent" },
   { section: "bottom", id: "legal_text", property: "--liquid-footer-bottom-legal-text", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
   { section: "bottom", id: "legal_link", property: "--liquid-footer-bottom-legal-link", type: "colour", defaultValue: "#eff2f7", cssDefault: "var(--foreground)" },
@@ -983,11 +984,15 @@ function headerFooterPreviewProperties(theme) {
       ? headerFooterColour(value)
       : field.type === "length"
         ? headerFooterLength(value, field.px, field.rem)
+        : field.type === "choice"
+          ? field.options.includes(value) ? value : ""
         : typeof value === "boolean" ? value : null;
     if (valid === "" || valid === null) continue;
-    properties[field.property] = value === field.defaultValue
-      ? field.cssDefault
-      : field.type === "toggle" ? (value ? "1" : "0") : value;
+    properties[field.property] = field.type === "choice"
+      ? field.cssValues[value]
+      : value === field.defaultValue
+        ? field.cssDefault
+        : field.type === "toggle" ? (value ? "1" : "0") : value;
   }
   const announcementText = headerFooterColour(headerFooter.announcement?.text);
   if (announcementText) {

@@ -47,7 +47,7 @@ def context():
     [
         ("cell", "atom"),
         ("shield", "shield-check"),
-        ("exercise", "dumbbell"),
+        ("exercise", "zap"),
         ("leaf", "leaf"),
         ("molecule", "atom"),
         ("water", "droplet"),

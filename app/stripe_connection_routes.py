@@ -128,10 +128,10 @@ def register_stripe_connection_routes(rt, actor, csrf, check_csrf, shell, error)
                             P("Step 3 · Paste your API keys", cls="payment-step-label"),
                             Div(Label("Publishable key", Input(name="publishable_key", type="password",
                                 autocomplete="new-password", required=True, placeholder="pk_test_…" if selected == "test" else "pk_live_…",
-                                pattern="pk_test_[A-Za-z0-9_]{8,}" if selected == "test" else "pk_live_[A-Za-z0-9_]{8,}")),
+                                aria_describedby="payment-key-hint")),
                                 Label("Secret key or restricted key", Input(name="secret_key", type="password",
                                 autocomplete="new-password", required=True, placeholder="sk_test_… or rk_test_…" if selected == "test" else "sk_live_… or rk_live_…",
-                                pattern="(sk|rk)_test_[A-Za-z0-9_]{8,}" if selected == "test" else "(sk|rk)_live_[A-Za-z0-9_]{8,}")),
+                                aria_describedby="payment-key-hint")),
                                 cls="payment-key-fields"),
                             P("Use " + expected_key + ". Keys are encrypted and never shown again.", cls="e-help", id="payment-key-hint"),
                             Details(Summary("Advanced · webhook settings"),
@@ -154,9 +154,14 @@ const link=document.getElementById('stripe-keys-link'), hint=document.getElement
 function update(){const chosen=form.querySelector('[name=payment_mode]:checked')||radios[0]; if(!chosen)return; const live=chosen.value==='live'; selectedMode.value=live?'live':'test';
 const suffix=live?'live':'test'; link.href=live?'https://dashboard.stripe.com/apikeys':'https://dashboard.stripe.com/test/apikeys';
 publishable.placeholder='pk_'+suffix+'_…'; secret.placeholder='sk_'+suffix+'_… or rk_'+suffix+'_…';
-publishable.pattern='pk_'+suffix+'_[A-Za-z0-9_]{8,}'; secret.pattern='(sk|rk)_'+suffix+'_[A-Za-z0-9_]{8,}';
 hint.textContent='Use pk_'+suffix+'_… / sk_'+suffix+'_… / rk_'+suffix+'_…. Keys are encrypted and never shown again.';}
-radios.forEach(r=>r.addEventListener('change',update)); update();
+function validateKeys(){const chosen=form.querySelector('[name=payment_mode]:checked')||radios[0]; if(!chosen)return; const suffix=chosen.value==='live'?'live':'test';
+const publishableValid=new RegExp('^pk_'+suffix+'_[A-Za-z0-9_]{8,}$').test(publishable.value.trim());
+const secretValid=new RegExp('^(sk|rk)_'+suffix+'_[A-Za-z0-9_]{8,}$').test(secret.value.trim());
+publishable.setCustomValidity(publishable.value && !publishableValid?'Paste the Stripe '+suffix+' publishable key beginning pk_'+suffix+'_.':'');
+secret.setCustomValidity(secret.value && !secretValid?'Paste the Stripe '+suffix+' secret or restricted key beginning sk_'+suffix+'_ or rk_'+suffix+'_.':'');}
+radios.forEach(r=>r.addEventListener('change',()=>{update();validateKeys();}));
+publishable.addEventListener('input',validateKeys); secret.addEventListener('input',validateKeys); update();
 document.querySelectorAll('.payment-card-actions a[data-mode]').forEach(a=>a.addEventListener('click',()=>{
 const radio=form.querySelector('input[name=payment_mode][value='+a.dataset.mode+']'); if(radio){radio.checked=true; radio.dispatchEvent(new Event('change',{bubbles:true}));}
 }));

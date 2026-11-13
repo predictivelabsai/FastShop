@@ -1,5 +1,6 @@
 """Inline-card checkout JSON endpoints: quotes, session secrets and hosted fallback."""
 from functools import partial
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -81,6 +82,11 @@ def test_checkout_page_renders_editable_standalone_summary_and_policy_links(stor
     assert "subscription_consent" not in response.text
     assert "newsletter_label" not in response.text
     assert "sk_test_never_render" not in response.text
+
+
+def test_checkout_header_uses_the_same_desktop_container_as_checkout_content():
+    stylesheet = Path("static/checkout.css").read_text(encoding="utf-8")
+    assert "padding:0 max(24px,calc((100vw - 1240px)/2))" in stylesheet
 
 
 def test_checkout_page_shows_subscription_consent_only_for_subscription_lines(storefront):

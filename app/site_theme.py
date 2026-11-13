@@ -109,6 +109,7 @@ HEADER_FOOTER_DEFAULTS = {
         "background": "#0a0a13", "input_background": "#0a0a13",
         "input_text": "#eff2f7", "input_border": "#534c5d",
         "button_background": "#eff2f7", "button_text": "#0b121d",
+        "heading_size": "compact",
     },
     "bottom": {
         "background": "#0a0a13", "legal_text": "#eff2f7", "legal_link": "#eff2f7",
@@ -131,6 +132,12 @@ HEADER_FOOTER_LENGTH_BOUNDS = {
     ("footer", "padding_y"): ((0, 160), (0, 10)),
     ("footer", "logo_size"): ((32, 360), (2, 22.5)),
     ("footer", "column_gap"): ((0, 160), (0, 10)),
+}
+HEADER_FOOTER_SELECT_OPTIONS = {
+    ("newsletter", "heading_size"): {
+        "compact": "clamp(22px,2.2vw,32px)",
+        "standard": "clamp(28px,3vw,40px)",
+    },
 }
 HEADER_FOOTER_CSS_VARIABLES = {
     ("header", "background"): "--liquid-header-background",
@@ -157,6 +164,7 @@ HEADER_FOOTER_CSS_VARIABLES = {
     ("newsletter", "input_border"): "--liquid-footer-newsletter-input-border",
     ("newsletter", "button_background"): "--liquid-footer-newsletter-button-background",
     ("newsletter", "button_text"): "--liquid-footer-newsletter-button-text",
+    ("newsletter", "heading_size"): "--liquid-footer-newsletter-heading-size",
     ("bottom", "background"): "--liquid-footer-bottom-background",
     ("bottom", "legal_text"): "--liquid-footer-bottom-legal-text",
     ("bottom", "legal_link"): "--liquid-footer-bottom-legal-link",
@@ -237,6 +245,9 @@ HEADER_FOOTER_SCHEMA = {
                 {"id": "button_background", "label": "Button background colour", "type": "colour",
                  "help": "The default retains the existing metallic gradient."},
                 {"id": "button_text", "label": "Button text colour", "type": "colour"},
+                {"id": "heading_size", "label": "Newsletter heading size", "type": "select",
+                 "options": {"compact": "Compact", "standard": "Standard"},
+                 "help": "Compact keeps the offer on one line on desktop and tablet."},
             ],
         },
         {
@@ -451,6 +462,10 @@ def validate_header_footer(value):
                 result[section][field] = item
             elif field in HEADER_FOOTER_COLOUR_FIELDS[section]:
                 result[section][field] = _validated_colour(item)
+            elif (section, field) in HEADER_FOOTER_SELECT_OPTIONS:
+                if item not in HEADER_FOOTER_SELECT_OPTIONS[(section, field)]:
+                    raise CommerceError("Choose a supported newsletter heading size.")
+                result[section][field] = item
             else:
                 result[section][field] = _validated_header_footer_length(
                     item, HEADER_FOOTER_LENGTH_BOUNDS[(section, field)]
@@ -534,6 +549,10 @@ def header_footer_style(header_footer):
             variable = HEADER_FOOTER_CSS_VARIABLES[(section, field)]
             if field == "sticky":
                 result.append(f"{variable}:{1 if value else 0}")
+                continue
+            options = HEADER_FOOTER_SELECT_OPTIONS.get((section, field))
+            if options:
+                result.append(f"{variable}:{options[value]}")
                 continue
             trusted_default = HEADER_FOOTER_STYLE_DEFAULTS.get((section, field))
             result.append(f"{variable}:{trusted_default if value == default and trusted_default else value}")

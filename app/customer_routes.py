@@ -169,7 +169,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                     response = screen(db, site, request, copy["check_email"], Div(
                         P(newsletter_thanks) if newsletter_thanks else None,
                         P(copy["email_link_message"]),
-                        P(copy["link_expiry_message"]), cls="e-card"))
+                        P(copy["link_expiry_message"]), cls="e-card account-email-confirmation"))
             if message_id:
                 dispatch_mail(message_id)
             if isinstance(response, RedirectResponse):
@@ -265,7 +265,7 @@ def register_customer_routes(rt, actor, csrf, check_csrf, merchant_shell, error)
                 return private_response(screen(db, site, request, copy["confirm_email"], Div(
                     P(copy["confirm_email_instruction"]),
                     Form(csrf(session), Label(copy["verification_code"], Input(name="token", required=True, data_email_token="", autocomplete="off", maxlength=64)),
-                        Button(copy["confirm"], cls="e-button"), method="post", cls="e-form"), cls="e-card")))
+                        Button(copy["confirm"], cls="e-button account-confirm-primary"), method="post", cls="e-form account-confirmation-form"), cls="e-card account-email-confirmation")))
         except CustomerAccountsUnavailable as exc:
             return unavailable_response(exc, request)
         except CommerceError as exc:

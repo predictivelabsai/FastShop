@@ -886,7 +886,7 @@ def test_live_liquid_benefits_fields_round_trip_through_editor_save(workspace, t
     assert result.json()["document"]["blocks"][0]["items"][0]["body"] == "Edited benefit text."
 
 
-def test_liquid_benefit_icon_override_renders_and_blank_icon_keeps_legacy_art(workspace):
+def test_liquid_benefit_icon_override_renders_and_blank_icon_uses_lucide_defaults(workspace):
     w = workspace
     with w.sessions() as db:
         site = db.get(Site, w.site.id)
@@ -926,7 +926,9 @@ def test_liquid_benefit_icon_override_renders_and_blank_icon_keeps_legacy_art(wo
         json={"document": legacy_document, "block_id": "why"}, headers=w.headers,
     )
     assert legacy.status_code == 200, legacy.text
-    assert 'd="M20.2 20.2c2.04-2.03' in legacy.json()["html"]
+    assert 'class="metal-benefit-icon"' in legacy.json()["html"]
+    assert 'viewBox="0 0 24 24"' in legacy.json()["html"]
+    assert 'viewBox="0 0 56 56"' not in legacy.json()["html"]
     assert 'd="M12 22a7 7 0 0 0 7-7' not in legacy.json()["html"]
 
     legacy_choice = json.loads(json.dumps(saved.json()["document"]))
@@ -936,7 +938,33 @@ def test_liquid_benefit_icon_override_renders_and_blank_icon_keeps_legacy_art(wo
         json={"document": legacy_choice, "block_id": "why"}, headers=w.headers,
     )
     assert rendered_choice.status_code == 200, rendered_choice.text
-    assert 'd="M20.2 20.2c2.04-2.03' in rendered_choice.json()["html"]
+    assert 'viewBox="0 0 24 24"' in rendered_choice.json()["html"]
+    assert 'viewBox="0 0 56 56"' not in rendered_choice.json()["html"]
+
+
+def test_liquid_hero_uses_shop_for_legacy_product_anchor_and_hides_marker(workspace):
+    w = workspace
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        settings = {"theme_pack": "liquid", "default_locale": "en", "footer": "Required notice."}
+        site.settings_json = settings
+        site.published_settings_json = settings
+        db.commit()
+    loaded = load(w)
+    document = loaded["document"] | {"blocks": [{
+        "id": "hero", "type": "liquid_hero", "heading": "Hydrogen water",
+        "body": "Daily support.<p>*</p>", "button": "Shop", "link": "/#products",
+        "image": "/static/example.jpg", "alt": "",
+    }]}
+    rendered = w.client.post(
+        w.base + "/render", params={"page": w.page.id},
+        json={"document": document, "block_id": "hero"}, headers=w.headers,
+    )
+    assert rendered.status_code == 200, rendered.text
+    assert 'href="/sites/' + w.site.slug + '/shop"' in rendered.json()["html"]
+    assert "Daily support." in rendered.json()["html"]
+    assert "<p>*</p>" not in rendered.json()["html"]
+    assert "Required notice." in rendered.json()["html"]
 
 
 def test_unsupported_item_field_error_names_field_and_index(workspace):

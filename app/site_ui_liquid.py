@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from urllib.parse import urlsplit, urlunsplit
 
@@ -53,6 +54,13 @@ from app.site_menus import rendered_navigation
 from app.site_ui import url
 from app.ui import static_asset
 
+_HERO_DISCLAIMER_MARKER = re.compile(r"(?:\s*<p>\s*\*\s*</p>\s*|\s*\*\s*)$", re.IGNORECASE)
+
+
+def _hero_body_without_disclaimer_marker(value):
+    """Keep legacy disclaimer markers out of the visible hero copy."""
+    return _HERO_DISCLAIMER_MARKER.sub("", value) if isinstance(value, str) else value
+
 
 def photo(src, alt="", **attrs):
     return Img(src=src, alt=alt, loading="lazy", decoding="async", **attrs)
@@ -99,7 +107,7 @@ def icon(kind, *, benefit=False):
         lucide_name = {
             "cell": "atom",
             "shield": "shield-check",
-            "exercise": "dumbbell",
+            "exercise": "zap",
             "leaf": "leaf",
             "molecule": "atom",
             "water": "droplet",
@@ -341,6 +349,8 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
     kind, heading = b["type"], b.get("heading", "")
     items = b.get("items", [])
     if kind == "liquid_hero":
+        hero_body = b.get("body", "")
+        hero_link = "/shop" if b.get("link") == "/#products" else b.get("link", "/shop")
         return Section(
             Div(
                 Img(
@@ -359,20 +369,20 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                 H1(heading, cls="metal-hero-title font-display"),
                 Div(cls="hero-rule"),
                 _rich(
-                    b.get("body", "").removesuffix("*"),
+                    _hero_body_without_disclaimer_marker(hero_body),
                     cls="hero-subheadline",
                     data_field="body" if preview else None,
                     data_field_type="richtext" if preview else None,
                 ),
                 A(
                     b.get("button", "Shop"),
-                    href=url(base, b.get("link", "/#products")),
+                    href=url(base, hero_link),
                     cls="metal-cta bg-metal-sheen",
                 ),
                 _rich(b.get("disclaimer", config.get("footer", "")), cls="liquid-hero-disclaimer",
                   data_field="disclaimer" if preview else None,
                   data_field_type="richtext" if preview else None)
-                if "*" in b.get("body", "") and b.get("disclaimer", config.get("footer", "")) else None,
+                if b.get("disclaimer", config.get("footer", "")) else None,
                 cls="metal-container hero-copy",
             ),
             Button(

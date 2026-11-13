@@ -111,6 +111,7 @@ def test_liquid_header_footer_defaults_are_an_explicit_css_variable_snapshot():
             "background": "#0a0a13", "input_background": "#0a0a13",
             "input_text": "#eff2f7", "input_border": "#534c5d",
             "button_background": "#eff2f7", "button_text": "#0b121d",
+            "heading_size": "compact",
         },
         "bottom": {
             "background": "#0a0a13", "legal_text": "#eff2f7", "legal_link": "#eff2f7",
@@ -143,6 +144,7 @@ def test_liquid_header_footer_defaults_are_an_explicit_css_variable_snapshot():
         "--liquid-footer-newsletter-input-border:var(--border)",
         "--liquid-footer-newsletter-button-background:var(--metal-sheen)",
         "--liquid-footer-newsletter-button-text:var(--primary-foreground)",
+        "--liquid-footer-newsletter-heading-size:clamp(22px,2.2vw,32px)",
         "--liquid-footer-bottom-background:transparent",
         "--liquid-footer-bottom-legal-text:var(--foreground)",
         "--liquid-footer-bottom-legal-link:var(--foreground)",
@@ -171,6 +173,7 @@ def test_liquid_header_footer_uses_only_validated_values_in_css_variables():
                 "background": "#203040", "input_background": "#102030",
                 "input_text": "#f0f4f8", "input_border": "#456789",
                 "button_background": "#dbeafe", "button_text": "#102030",
+                "heading_size": "standard",
             },
             "bottom": {
                 "background": "#09111a", "legal_text": "#d8e1ea", "legal_link": "#ffffff",
@@ -196,6 +199,7 @@ def test_liquid_header_footer_uses_only_validated_values_in_css_variables():
         "--liquid-footer-column-gap:3rem",
         "--liquid-footer-newsletter-input-background:#102030",
         "--liquid-footer-newsletter-button-background:#dbeafe",
+        "--liquid-footer-newsletter-heading-size:clamp(28px,3vw,40px)",
         "--liquid-footer-bottom-legal-link:#ffffff",
     ):
         assert expected in style
@@ -228,6 +232,7 @@ def test_liquid_typography_rejects_untrusted_css_and_out_of_range_values(typogra
     {"header": {"logo_size": "361px"}},
     {"footer": {"column_gap": "10.1rem"}},
     {"header": {"sticky": "false"}},
+    {"newsletter": {"heading_size": "giant"}},
     {"header": {"unexpected": "#ffffff"}},
     {"unexpected": {"background": "#ffffff"}},
 ])

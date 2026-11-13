@@ -529,8 +529,7 @@
 .h-site[data-pack="liquid"] .metal-benefit-card { padding: 28px; }
 .h-site[data-pack="liquid"] .metal-benefits-section { padding-bottom: 44px; }
 .h-site[data-pack="liquid"] .metal-benefits-disclaimer { margin-top: 18px; font-size: 10px; }
-.h-site[data-pack="liquid"] .metal-benefit-icon { width: 48px; height: 48px; color: var(--primary); }
-.h-site[data-pack="liquid"] .metal-benefit-card:nth-child(2n) .metal-benefit-icon { color: var(--brand-to); }
+.h-site[data-pack="liquid"] .metal-benefit-icon { width: 48px; height: 48px; color: var(--brand-to); }
 .h-site[data-pack="liquid"] .metal-review-viewport { overflow: hidden; }
 .h-site[data-pack="liquid"] .metal-review-track { display: flex; touch-action: pan-y pinch-zoom; }
 .h-site[data-pack="liquid"] .metal-review-card { flex: 0 0 calc((100% - 48px) / 3); min-width: 0; margin-right: 24px; display: flex; align-items: center; flex-direction: column; text-align: center; padding: 32px 24px; }
@@ -795,7 +794,7 @@
 .h-site[data-pack="liquid"] .liquid-mobile-group a { display:block; padding-block:8px; }
 .h-site[data-pack="liquid"] .liquid-mobile-help { margin-top:auto; padding-top:24px; display:flex; gap:24px; font-size:14px; }
 .h-site[data-pack="liquid"] .liquid-footer-grid { display:grid; padding-block:64px; }
-.h-site[data-pack="liquid"] .liquid-footer-title { margin-top:32px; font-family:var(--liquid-font-footer-heading); font-style:italic; font-size:var(--liquid-type-footer-heading-size); font-weight:var(--liquid-type-footer-heading-weight); line-height:var(--liquid-type-footer-heading-line-height); letter-spacing:var(--liquid-type-footer-heading-letter-spacing); }
+.h-site[data-pack="liquid"] .liquid-footer-title { margin-top:32px; font-family:var(--liquid-font-footer-heading); font-style:italic; font-size:var(--liquid-footer-newsletter-heading-size,clamp(22px,2.2vw,32px)); font-weight:var(--liquid-type-footer-heading-weight); line-height:var(--liquid-type-footer-heading-line-height); letter-spacing:var(--liquid-type-footer-heading-letter-spacing); }
 .h-site[data-pack="liquid"] .liquid-footer-title + :is(p,.fs-rich-content) { margin-top:8px; max-width:448px; opacity:.8; font-size:var(--liquid-type-footer-body-size); font-weight:var(--liquid-type-footer-body-weight); line-height:var(--liquid-type-footer-body-line-height); letter-spacing:var(--liquid-type-footer-body-letter-spacing); }
 .h-site[data-pack="liquid"] .liquid-footer-grid nav > a { display:block; margin-bottom:12px; font-size:var(--liquid-type-footer-body-size); font-weight:var(--liquid-type-footer-body-weight); line-height:var(--liquid-type-footer-body-line-height); letter-spacing:var(--liquid-type-footer-body-letter-spacing); }
 .h-site[data-pack="liquid"] .liquid-footer-grid nav h3 { font-family:var(--liquid-font-heading-content); font-size:clamp(12px,calc(var(--liquid-type-footer-heading-size) - 20px),24px); font-weight:min(900,calc(var(--liquid-type-footer-heading-weight) + 200)); line-height:min(3,calc(var(--liquid-type-footer-heading-line-height) + .4)); letter-spacing:var(--liquid-type-footer-heading-letter-spacing); margin-block:32px 16px; }
@@ -805,10 +804,11 @@
 .h-site[data-pack="liquid"] .metal-payment-logos > span { color:#25303a; font:9px "Liquid Quicksand",sans-serif; font-weight:600; }
 .h-site[data-pack="liquid"] .liquid-footer-bottom { border-top:1px solid color-mix(in oklch,var(--foreground) 15%,transparent); padding-block:24px; font-size:var(--liquid-type-small-size); font-weight:var(--liquid-type-small-weight); line-height:var(--liquid-type-small-line-height); letter-spacing:var(--liquid-type-small-letter-spacing); opacity:.75; }
 .h-site[data-pack="liquid"] .liquid-footer-bottom p + p { margin-top:8px; }
-.h-site[data-pack="liquid"] .liquid-newsletter { margin-top:20px; max-width:448px; }
+.h-site[data-pack="liquid"] .liquid-newsletter { margin-top:20px; max-width:536px; }
 .h-site[data-pack="liquid"] .liquid-email-row { display:flex; gap:8px; }
-.h-site[data-pack="liquid"] .liquid-email-row input { min-width:0; flex:1; border:1px solid var(--border); border-radius:8px; padding:12px 16px; background:transparent; }
-.h-site[data-pack="liquid"] .liquid-email-row button { flex-shrink:0; border-radius:8px; padding:12px 20px; font-family:var(--liquid-font-ui); font-size:var(--liquid-type-button-size); font-weight:var(--liquid-type-button-weight); line-height:var(--liquid-type-button-line-height); letter-spacing:var(--liquid-type-button-letter-spacing); }
+.h-site[data-pack="liquid"] .liquid-email-row input { min-width:0; flex:1 1 260px; border:1px solid var(--border); border-radius:8px; padding:12px 16px; background:transparent; }
+.h-site[data-pack="liquid"] .liquid-email-row button { flex-shrink:0; border-radius:8px; padding:12px 14px; font-family:var(--liquid-font-ui); font-size:var(--liquid-type-button-size); font-weight:var(--liquid-type-button-weight); line-height:var(--liquid-type-button-line-height); letter-spacing:var(--liquid-type-button-letter-spacing); }
+@media(min-width:768px) { .h-site[data-pack="liquid"] .liquid-footer-title { white-space:nowrap; } }
 .h-site[data-pack="liquid"] .liquid-consent { display:flex; align-items:flex-start; gap:8px; margin-top:12px; font-size:var(--liquid-type-small-size); font-weight:var(--liquid-type-small-weight); line-height:var(--liquid-type-small-line-height); letter-spacing:var(--liquid-type-small-letter-spacing); }
 .h-site[data-pack="liquid"] .liquid-consent input { margin-top:3px; flex-shrink:0; accent-color:var(--primary); }
 .h-site[data-pack="liquid"] .liquid-consent a { text-decoration:underline; }
@@ -829,6 +829,8 @@
 .h-site[data-pack="liquid"] .hero-subheadline { font-size:16px; max-width:300px; }
 .h-site[data-pack="liquid"] .metal-review-track::after { display:none; }
 .h-site[data-pack="liquid"] .liquid-email-row { flex-direction:column; }
+.h-site[data-pack="liquid"] .liquid-email-row :is(input,button) { width:100%; }
+.h-site[data-pack="liquid"] .liquid-email-row input { flex:0 0 auto; }
 .h-site[data-pack="liquid"] .metal-offer-line { min-height:34px; }
 .h-site[data-pack="liquid"] .metal-offer-request, .h-site[data-pack="liquid"] .metal-offer-dismiss { min-height:30px; }
 }
@@ -985,6 +987,13 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
 .h-site[data-pack="liquid"] .liquid-cart-line-price { flex-shrink:0; text-align:right; }
 .h-site[data-pack="liquid"] .liquid-cart-line-price del { display:block; font-size:12px; font-weight:400; color:var(--muted-foreground); }
 
+/* Keep customer confirmation and sign-in actions consistent with the Liquid storefront. */
+.h-site[data-pack="liquid"] :is(.account-login-primary,.account-confirm-primary) { background:#241f2b; border-color:#241f2b; color:#fff; }
+.h-site[data-pack="liquid"] :is(.account-login-primary,.account-confirm-primary):hover { background:#18131e; border-color:#18131e; }
+.h-site[data-pack="liquid"] .account-email-confirmation { width:min(100%,34rem); margin:clamp(2rem,8vh,5rem) auto; }
+.h-site[data-pack="liquid"] .account-email-confirmation p { max-width:56ch; }
+.h-site[data-pack="liquid"] .account-confirmation-form { display:grid; gap:1rem; }
+
 .h-site[data-pack="liquid"] .liquid-cart-purchase { display:flex; align-items:center; gap:6px; }
 .h-site[data-pack="liquid"] .liquid-cart-purchase .liquid-cart-update { font-size:11px; padding:4px; }
 .h-site[data-pack="liquid"] .liquid-cart-controls > .text-muted-foreground { font-size:12px; }
@@ -996,7 +1005,7 @@ body:has(> .h-site[data-pack="liquid"]) { margin:0; }
  .h-site[data-pack="liquid"] .metal-add-button { font-size:calc(var(--liquid-type-button-size-mobile) - 2px); }
  .h-site[data-pack="liquid"] :is(.liquid-commerce small,.liquid-footer-bottom,.liquid-consent) { font-size:var(--liquid-type-small-size-mobile); }
  .h-site[data-pack="liquid"] .liquid-hero-disclaimer { font-size:calc(var(--liquid-type-small-size-mobile) - 1px); }
- .h-site[data-pack="liquid"] .liquid-footer-title { font-size:var(--liquid-type-footer-heading-size-mobile); }
+ .h-site[data-pack="liquid"] .liquid-footer-title { font-size:var(--liquid-footer-newsletter-heading-size-mobile,clamp(22px,2.2vw,32px)); }
  .h-site[data-pack="liquid"] .liquid-footer-grid nav h3 { font-size:clamp(12px,calc(var(--liquid-type-footer-heading-size-mobile) - 20px),24px); }
  .h-site[data-pack="liquid"] :is(.liquid-footer-title + p,.liquid-footer-title + .fs-rich-content,.liquid-footer-grid nav > a,.liquid-footer-grid > div:last-child p) { font-size:var(--liquid-type-footer-body-size-mobile); }
 }
