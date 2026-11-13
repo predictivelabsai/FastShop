@@ -23,8 +23,9 @@ from app.site_blocks import (
     resolve_document,
     validate_block,
 )
+from app.site_icons import builtin_icon_markup
 from app.site_ui import render_section
-from app.site_ui_liquid import render_block
+from app.site_ui_liquid import icon, render_block
 
 
 @pytest.fixture()
@@ -39,6 +40,26 @@ def context():
         page = site_pages(db, site)[0]
         yield db, site, page
     engine.dispose()
+
+
+@pytest.mark.parametrize(
+    ("legacy_name", "lucide_name"),
+    [
+        ("cell", "atom"),
+        ("shield", "shield-check"),
+        ("exercise", "dumbbell"),
+        ("leaf", "leaf"),
+        ("molecule", "atom"),
+        ("water", "droplet"),
+    ],
+)
+def test_liquid_benefit_icons_use_vendored_lucide(legacy_name, lucide_name):
+    assert str(icon(legacy_name, benefit=True)) == builtin_icon_markup(
+        "lucide:" + lucide_name,
+        css_class="metal-benefit-icon",
+        size=48,
+        stroke_width="1.3",
+    )
 
 
 def document(*blocks):

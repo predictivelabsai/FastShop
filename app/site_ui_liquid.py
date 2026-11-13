@@ -40,7 +40,6 @@ from fasthtml.common import (
     Span,
     Style,
     Summary,
-    Sup,
     Title,
     Ul,
 )
@@ -94,6 +93,27 @@ def display_price(db, site, item):
 
 
 def icon(kind, *, benefit=False):
+    if benefit:
+        from app.site_icons import builtin_icon_markup
+
+        lucide_name = {
+            "cell": "atom",
+            "shield": "shield-check",
+            "exercise": "dumbbell",
+            "leaf": "leaf",
+            "molecule": "atom",
+            "water": "droplet",
+        }.get(kind)
+        if lucide_name:
+            markup = builtin_icon_markup(
+                "lucide:" + lucide_name,
+                css_class="metal-benefit-icon",
+                size=48,
+                stroke_width="1.3",
+            )
+            if markup:
+                return NotStr(markup)
+
     # Application-owned, fixed SVG paths. Merchant text is never executable markup.
     paths = {
         "cell": '<path d="M37 14c8 6 10 17 5 25s-17 11-26 5S5 29 10 19s18-12 27-5Z"/><circle cx="27" cy="28" r="7"/><path d="m17 18 3 2m16 17-3-2M14 32h3m17-14-2 3"/>',
@@ -344,7 +364,6 @@ def _render_block(db, site, page, config, b, base, csrf, enabled, preview=False)
                     data_field="body" if preview else None,
                     data_field_type="richtext" if preview else None,
                 ),
-                Sup("*") if b.get("body", "").endswith("*") else None,
                 A(
                     b.get("button", "Shop"),
                     href=url(base, b.get("link", "/#products")),

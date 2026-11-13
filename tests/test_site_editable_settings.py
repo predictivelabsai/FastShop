@@ -221,6 +221,7 @@ def test_hero_disclaimer_can_be_edited_and_hidden(browser):  # noqa: F811
     assert hero.get("disclaimer") is None
     default_home = client.get("/sites/" + site.slug + "/").text
     assert FDA in default_home
+    assert "<sup>*</sup>" not in default_home
     page.published_json = {**original, "blocks": [
         ({**block, "disclaimer": "Merchant hero disclaimer."}
          if block.get("type") == "liquid_hero" else block)
