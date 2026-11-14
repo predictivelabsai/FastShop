@@ -85,12 +85,17 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                             item = next((item for item in previous.get("catalog", []) if item["variant_id"] == proposal["variant_id"]), {})
                             details.append(P(item.get("product", "Product option") + " · " + item.get("variant", "") + ": " +
                                 (money(item["price_minor"], "USD") if type(item.get("price_minor")) is int else "Unset") + " → " + money(proposal["price_minor"], "USD")))
+                        elif proposal["kind"] == "tax_rate":
+                            region = (" · " + proposal["region"]) if proposal["region"] else ""
+                            details.append(P("Tax rate " + proposal["country"] + region + ": " +
+                                str(proposal["rate_bps"] / 100) + "% · " + proposal["name"] +
+                                (" · prices include tax" if proposal["prices_include_tax"] else " · prices exclude tax")))
                         else:
                             details.append(P("Create product: " + proposal["name"] + " · /products/" + proposal["slug"]))
                             details.extend(P(item["name"] + ": " + money(item["price_minor"], "USD")) for item in proposal["variants"])
                     pending = response.get("review_status") == "pending"
                     return Div(H2("Review merchant changes"), *details,
-                        P("Catalog approval changes prices immediately. Merchant details remain draft; shipping settings are operational. This does not publish pages, enable payments or approve tax registrations."),
+                        P("Catalog, shipping and tax settings apply only after approval. This does not publish pages, enable payments or approve tax registrations."),
                         Small("Status: " + response.get("review_status", "unavailable"), cls="b-review-status"),
                         Form(csrf(session), Input(type="hidden", name="turn_id", value=turn.id),
                             Input(type="hidden", name="decision", value="approve"), Input(type="hidden", name="page_id", value=selected.id),
@@ -183,7 +188,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                     Div(H2("Build together"),
                         P("AI assistant" if settings.xai_api_key else "Guided presets · AI provider not configured", cls="b-mode"),
                         P(next_question(site.settings_json), cls="b-next-question"),
-                        Small("Guided commands: Business:, Audience:, Pages:, Tone:, Headline:, Shipping: (USD cents).", cls="b-guidance"),
+                        Small("Try design, pages, SEO, navigation, shipping or tax. Settings proposals always need your approval.", cls="b-guidance"),
                         cls="b-assistant-header"),
                     Div(*[P(key.replace("_", " ").title() + ": " + value) for key, value in site.settings_json.get("builder_brief", {}).items()], cls="b-brief"),
                     Div(*[Button(name.title(), type="button", data_prompt=name) for name in PRESETS], cls="b-presets"),
@@ -193,7 +198,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                         Label("Target section (optional)", Select(Option("Whole page / design", value=""),
                             *[Option((s.get("heading") or s["type"])[:100], value=s["id"]) for s in resolve_document(selected.draft_json, default_locale(site))["blocks"]], name="section_id")),
                         Label("Describe your site or a change", Textarea(name="prompt", rows=4, required=True, maxlength=4000,
-                            placeholder="Warm cream and green, editorial headings, less whitespace…")),
+                            placeholder="Improve this page's SEO, or propose a California tax rate I provide…")),
                         Small("Draft edits only. Do not enter passwords, API keys or customer information.", cls="b-compose-note"),
                         Div(Button("Prepare update", cls="e-button"), P("", data_builder_status="", role="status"),
                             Button("Cancel pending edit", type="button", data_builder_cancel=base + "/build/cancel", hidden=True), cls="b-submit-row"),

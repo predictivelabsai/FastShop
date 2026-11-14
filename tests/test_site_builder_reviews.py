@@ -8,7 +8,7 @@ from app import commerce, content, site_samples
 from app import site_builder_reviews as reviews
 from app import site_builder_services as builder
 from app.integrations.site_builder_llm import guided, next_question
-from app.models import Base, Membership, Product, User, VariantChannelListing
+from app.models import Base, Membership, Product, TaxRate, User, VariantChannelListing
 from app.services import CommerceError
 
 
@@ -90,6 +90,25 @@ def test_product_then_price_proposals_use_owned_catalog(merchant):
     assert db.scalar(select(VariantChannelListing)).price_minor == 2795
 
 
+def test_tax_rate_proposal_requires_approval_and_rejects_stale_context(merchant):
+    db, owner, _, site = merchant
+    proposal = {"kind": "tax_rate", "country": "US", "region": "CA", "name": "California sales tax",
+        "rate_bps": 725, "prices_include_tax": False}
+    turn = propose(db, owner, site, [proposal])
+    assert not db.scalar(select(TaxRate).where(TaxRate.site_id == site.id))
+    assert reviews.decide(db, site.id, owner.id, turn.id, approve=True) == "approved"
+    db.commit()
+    rate = db.scalar(select(TaxRate).where(TaxRate.site_id == site.id, TaxRate.country == "US", TaxRate.region == "CA"))
+    assert (rate.name, rate.rate_bps, rate.prices_include_tax) == ("California sales tax", 725, False)
+
+    update = proposal | {"rate_bps": 750}
+    stale_turn = propose(db, owner, site, [update])
+    rate.rate_bps = 800
+    db.commit()
+    with pytest.raises(CommerceError, match="changed"):
+        reviews.decide(db, site.id, owner.id, stale_turn.id, approve=True)
+
+
 def test_atomic_bundle_rejects_duplicate_product_without_partial_shipping(merchant):
     db, owner, _, site = merchant
     product = {"kind": "product", "name": "Tea", "slug": "tea", "variants": [{"name": "Original", "price_minor": 2000}]}
@@ -105,6 +124,8 @@ def test_atomic_bundle_rejects_duplicate_product_without_partial_shipping(mercha
     {"kind": "merchant", "values": {"mode": "live"}}, {"kind": "merchant", "values": {"shipping_minor": 1.5}},
     {"kind": "merchant", "values": {"tax_registration_reviewed": True}}, {"kind": "payment"},
     {"kind": "product", "name": "Tea", "slug": "tea", "variants": [{"name": "Original", "price_minor": True}]},
+    {"kind": "tax_rate", "country": "USA", "region": "CA", "name": "Sales tax", "rate_bps": 725, "prices_include_tax": False},
+    {"kind": "tax_rate", "country": "US", "region": "CA", "name": "Sales tax", "rate_bps": 7.25, "prices_include_tax": False},
 ])
 def test_unsafe_review_proposals_rejected(proposal):
     with pytest.raises(CommerceError):

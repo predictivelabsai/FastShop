@@ -68,6 +68,21 @@ def test_design_and_copy_share_draft_and_undo(workspace):
     assert page.draft_json == expected["pages"][page.id]["document"]
 
 
+def test_seo_changes_are_draft_only_and_undoable(workspace):
+    db, owner, _, site, _ = workspace
+    page = content.site_pages(db, site)[0]
+    expected = builder.snapshot(db, site)
+    change = builder.apply_operations(db, site.id, owner.id, expected, [{
+        "op": "seo", "page_id": page.id,
+        "values": {"title": "Better title", "description": "A concise, accurate description."},
+    }])
+    assert page.draft_json["title"] == "Better title"
+    assert page.draft_json["description"] == "A concise, accurate description."
+    assert page.published_json is None
+    builder.undo_change(db, site.id, owner.id, change.id, site.version)
+    assert page.draft_json == expected["pages"][page.id]["document"]
+
+
 def test_cross_tenant_commands_and_undo_denied(workspace):
     db, owner, outsider, site, other = workspace
     with pytest.raises(CommerceError):

@@ -169,6 +169,20 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
                 raise CommerceError("Choose supported brand text fields.")
             config.update(values)
             summaries.append("Brand text")
+        elif kind == "seo" and set(operation) == {"op", "page_id", "values"}:
+            values = operation["values"]
+            if not isinstance(values, dict) or not values or set(values) - {"title", "description"}:
+                raise CommerceError("Choose a page title and/or SEO description.")
+            if any(not isinstance(value, str) or not value.strip() or len(value.strip()) >
+                   (240 if key == "title" else 320) for key, value in values.items()):
+                raise CommerceError("SEO text is invalid or too long.")
+            page = content.site_page(db, site, operation["page_id"])
+            document = normalize_document(page.draft_json)
+            locale = default_locale(site)
+            for key, value in values.items():
+                document[key] = merge_localized(document.get(key, ""), value.strip(), locale)
+            content.save_page(db, site, page.id, user_id, document, page.version)
+            summaries.append("SEO: " + page.title)
         elif kind in {"section", "add_section", "reorder"}:
             allowed = {"section": {"op", "page_id", "section_id", "values"},
                        "add_section": {"op", "page_id", "section"}, "reorder": {"op", "page_id", "ids"}}[kind]

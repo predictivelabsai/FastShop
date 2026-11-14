@@ -181,3 +181,16 @@ def test_merchant_proposal_requires_csrf_and_explicit_confirmation(editor, monke
     assert "Sandbox commerce blocked" in blocked.text and "Merchant details are reviewed" in blocked.text
     with SessionLocal() as db:
         assert commerce.settings_for(db, db.get(Site, site.id)).mode == "disabled"
+
+
+def test_builder_message_renders_tax_rate_review_card(editor, monkeypatch):
+    import app.site_builder_routes as routes
+
+    client, site, page, token = editor
+    monkeypatch.setattr(routes, "respond", lambda *args: ({"answer": "Review tax", "operations": [],
+        "proposals": [{"kind": "tax_rate", "country": "US", "region": "CA", "name": "California sales tax",
+            "rate_bps": 725, "prices_include_tax": False}]}, "fixture"))
+    base = f"/admin/sites/{site.id}/build"
+    result = client.post(base + "/message", data=message_form(site, page, token))
+    assert result.status_code == 200
+    assert "California sales tax" in result.text and "7.25%" in result.text

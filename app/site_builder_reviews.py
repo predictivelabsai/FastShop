@@ -13,6 +13,7 @@ from app.models import (
     ProductType,
     ProductVariant,
     SiteBuilderTurn,
+    TaxRate,
     VariantChannelListing,
 )
 from app.services import CommerceError
@@ -30,8 +31,12 @@ def review_context(db, site):
         .order_by(ProductVariant.id).limit(100)):
         catalog.append({"variant_id": variant.id, "product_id": product.id, "product": product.name,
             "variant": variant.name, "price_minor": listing.price_minor if listing else None})
+    tax_rates = [{"id": rate.id, "country": rate.country, "region": rate.region, "name": rate.name,
+        "rate_bps": rate.rate_bps, "prices_include_tax": rate.prices_include_tax}
+        for rate in db.scalars(select(TaxRate).where(TaxRate.tenant_id == site.tenant_id,
+            TaxRate.site_id == site.id).order_by(TaxRate.country, TaxRate.region, TaxRate.id))]
     return {"merchant": merchant, "commerce_version": config.version if config else None,
-            "commerce_mode": config.mode if config else "disabled", "catalog": catalog}
+            "commerce_mode": config.mode if config else "disabled", "catalog": catalog, "tax_rates": tax_rates}
 
 
 def validate_proposals(proposals):
@@ -65,6 +70,17 @@ def validate_proposals(proposals):
             for variant in variants:
                 if not isinstance(variant, dict) or set(variant) != {"name", "price_minor"} or not isinstance(variant["name"], str) or not 1 <= len(variant["name"].strip()) <= 180 or type(variant["price_minor"]) is not int or not 0 <= variant["price_minor"] <= 100_000_000:
                     raise CommerceError("Each proposed variant needs a name and whole-cent price.")
+        elif kind == "tax_rate" and set(proposal) == {"kind", "country", "region", "name", "rate_bps", "prices_include_tax"}:
+            if not isinstance(proposal["country"], str) or not re.fullmatch(r"[A-Z]{2}", proposal["country"]):
+                raise CommerceError("Tax proposals need a two-letter country code.")
+            if not isinstance(proposal["region"], str) or not re.fullmatch(r"[A-Z0-9-]{0,20}", proposal["region"]):
+                raise CommerceError("Tax proposal region is invalid.")
+            if not isinstance(proposal["name"], str) or not 1 <= len(proposal["name"].strip()) <= 100:
+                raise CommerceError("Tax proposal name is invalid.")
+            if type(proposal["rate_bps"]) is not int or not 0 <= proposal["rate_bps"] <= 10_000:
+                raise CommerceError("Tax proposals use whole basis points from 0 to 10,000.")
+            if type(proposal["prices_include_tax"]) is not bool:
+                raise CommerceError("Tax proposal must state whether prices include tax.")
         else:
             raise CommerceError("That action cannot be approved through the site builder.")
     return proposals
@@ -146,6 +162,17 @@ def _decide(db, site_id, user_id, turn_id, *, approve):
                     listing.price_minor = proposal["price_minor"]
                 else:
                     db.add(VariantChannelListing(variant_id=variant.id, channel_id=site.channel_id, currency="USD", price_minor=proposal["price_minor"]))
+            elif proposal["kind"] == "tax_rate":
+                rate = db.scalar(select(TaxRate).where(TaxRate.tenant_id == site.tenant_id,
+                    TaxRate.site_id == site.id, TaxRate.country == proposal["country"],
+                    TaxRate.region == proposal["region"]).with_for_update())
+                values = {key: proposal[key] for key in ("name", "rate_bps", "prices_include_tax")}
+                if rate:
+                    for key, value in values.items():
+                        setattr(rate, key, value)
+                else:
+                    db.add(TaxRate(tenant_id=site.tenant_id, site_id=site.id,
+                        country=proposal["country"], region=proposal["region"], **values))
             else:
                 create_product(db, site, proposal)
                 record_usage(db, site.tenant_id, "product_created", site_id=site.id, user_id=user_id)
