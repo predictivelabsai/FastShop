@@ -57,7 +57,7 @@ muse: no
 
 - Never read or commit secrets, credentials or local environment files.
 - Keep `.env`, `creds/`, `data/`, database files, payment data, Playwright session state, caches and virtual environments out of commits. Do not expose stored provider credentials in logs or documentation.
-- Never deploy or push without explicit authorisation.
+- Push each verified milestone to its working branch after its release checks pass. Merge and deploy still require explicit authorisation.
 - Never push to `main` or `master`, and never enable Muse; retain `codex: yes` and `muse: no`.
 - Never write into FastERP tables or another application's schema. Preserve the FastShop search path and schema validation in `app/db.py` and `migrations/env.py`.
 - Do not import `app.main` or `web_app.py` merely to inspect the application: import-time bootstrap prepares and seeds the database and invokes scheduler startup. Review configuration and isolate storage before running application-dependent checks.
