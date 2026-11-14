@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import secrets
 from datetime import UTC, date, datetime, timedelta
 
@@ -239,6 +240,64 @@ def register_tools(db, site, user_id, conversation_id):
         values = tracking_ids(db, site) | submitted
         return {"fields": validate_tracking_ids(values)}, "Update tracking IDs", site.version
 
+    def validate_policies(a):
+        from app.rich_text import sanitise_rich_text
+
+        values = a.get("values")
+        labels = {
+            "privacy": "privacy policy",
+            "terms": "terms and conditions",
+            "refunds": "returns and refunds policy",
+            "shipping": "shipping policy",
+        }
+        if not isinstance(values, dict) or not values or set(values) - set(labels):
+            raise CommerceError("Choose one or more supported store policies.")
+        cleaned = {}
+        for key, raw in values.items():
+            if not isinstance(raw, str) or len(raw) > 50000:
+                raise CommerceError(f"The {labels[key]} must contain no more than 50,000 characters.")
+            result = sanitise_rich_text(raw)
+            if raw.strip() and not result.strip():
+                raise CommerceError(
+                    f"The {labels[key]} contains no supported text. Use paragraphs, headings, lists, or links."
+                )
+            cleaned[key] = result
+        summary = "Update " + ", ".join(labels[key] for key in cleaned)
+        return {"values": cleaned}, summary, site.version
+
+    def validate_tax_rate(a):
+        country = str(a.get("country", "")).upper().strip()
+        region = str(a.get("region", "")).upper().strip()
+        name = str(a.get("name", "Sales tax")).strip()
+        rate_bps = a.get("rate_bps")
+        included = a.get("prices_include_tax", False)
+        if not re.fullmatch(r"[A-Z]{2}", country) or not re.fullmatch(r"[A-Z0-9:-]{0,20}", region):
+            raise CommerceError("Choose a valid country and optional region code.")
+        if not name or len(name) > 100 or type(rate_bps) is not int or not 0 <= rate_bps <= 10000:
+            raise CommerceError("Choose a tax name and a rate between 0% and 100%.")
+        if type(included) is not bool:
+            raise CommerceError("Choose whether prices include tax.")
+        current = db.scalar(select(TaxRate).where(
+            TaxRate.tenant_id == site.tenant_id, TaxRate.site_id == site.id,
+            TaxRate.country == country, TaxRate.region == region,
+        ))
+        expected = None if current is None else {
+            "name": current.name,
+            "rate_bps": current.rate_bps,
+            "prices_include_tax": current.prices_include_tax,
+        }
+        return {
+            "country": country,
+            "region": region,
+            "name": name,
+            "rate_bps": rate_bps,
+            "prices_include_tax": included,
+            "expected_values": expected,
+            "expected_updated_at": _iso(current.updated_at) if current else None,
+        }, f"Set {name} to {rate_bps / 100:g}% for {country}{('-' + region) if region else ''}", (
+            _iso(current.updated_at) if current else None
+        )
+
     def sales_summary(a):
         from app.order_management import revenue_report
         period = str(a.get("period", "30d"))
@@ -265,6 +324,18 @@ def register_tools(db, site, user_id, conversation_id):
             field: {"type": "string", "maxLength": 120} for field in (
                 "ga4_measurement_id", "google_ads_conversion_id", "google_ads_purchase_label",
                 "meta_pixel_id", "tiktok_pixel_id")}, [], "set_tracking_ids", validate_tracking_update),
+        write("update_store_policies", "Update store policy copy", {
+            "values": {"type": "object", "additionalProperties": False,
+                       "properties": {key: {"type": "string", "maxLength": 50000}
+                                      for key in ("privacy", "terms", "refunds", "shipping")}}},
+            ["values"], "update_store_policies", validate_policies),
+        write("set_tax_rate", "Create or update a sandbox tax rate", {
+            "country": {"type": "string", "minLength": 2, "maxLength": 2},
+            "region": {"type": "string", "maxLength": 20},
+            "name": {"type": "string", "maxLength": 100},
+            "rate_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+            "prices_include_tax": {"type": "boolean"},
+        }, ["country", "rate_bps"], "set_tax_rate", validate_tax_rate),
         read("sales_summary", "Read sales summary for a bounded period", {"period": {"type": "string", "enum": ["7d", "30d", "90d"]}}, ["period"], sales_summary),
     ]
 
@@ -712,6 +783,53 @@ def confirm_action(db, site, user, action_id, *, gateway_factory=None):
             db.flush()
             builder.record_change(db, site, user_id, before, "agent", "Tracking settings")
             action.result_json = {"tracking": values, "version": site.version}
+        elif action.kind == "update_store_policies":
+            from app import site_builder_services as builder
+
+            payload = action.payload_json
+            site = builder.lock_site(db, site.id, user_id, payload["expected_version"])
+            before = builder.snapshot(db, site)
+            values = payload["values"]
+            draft = copy.deepcopy(site.settings_json or {})
+            policies = copy.deepcopy(draft.get("policies") or {})
+            policies.update(values)
+            draft["policies"] = policies
+            site.settings_json = draft
+            if site.status == "published":
+                published_settings = copy.deepcopy(site.published_settings_json or {})
+                published = copy.deepcopy(published_settings.get("policies") or {})
+                published.update(values)
+                published_settings["policies"] = published
+                site.published_settings_json = published_settings
+            site.version += 1
+            db.flush()
+            builder.record_change(db, site, user_id, before, "agent", "Store policies")
+            action.result_json = {"updated": sorted(values), "version": site.version}
+        elif action.kind == "set_tax_rate":
+            payload = action.payload_json
+            row = db.scalar(select(TaxRate).where(
+                TaxRate.tenant_id == site.tenant_id, TaxRate.site_id == site.id,
+                TaxRate.country == payload["country"], TaxRate.region == payload["region"],
+            ).with_for_update())
+            expected = payload["expected_values"]
+            if row and (expected is None or {
+                "name": row.name,
+                "rate_bps": row.rate_bps,
+                "prices_include_tax": row.prices_include_tax,
+            } != expected):
+                raise CommerceError("This tax rate changed after the action was proposed.")
+            if not row and expected is not None:
+                raise CommerceError("This tax rate was removed after the action was proposed.")
+            if not row:
+                row = TaxRate(tenant_id=site.tenant_id, site_id=site.id,
+                              country=payload["country"], region=payload["region"])
+                db.add(row)
+            row.name = payload["name"]
+            row.rate_bps = payload["rate_bps"]
+            row.prices_include_tax = payload["prices_include_tax"]
+            db.flush()
+            action.result_json = {"tax_rate_id": row.id, "country": row.country,
+                                  "region": row.region, "rate_bps": row.rate_bps}
         elif action.kind == "update_entity_seo":
             from app import catalog_admin, content
 

@@ -18,6 +18,7 @@ OUTPUT = ROOT / "output/playwright/editor-agent"
 
 def main():
     import os
+
     import uvicorn
     sys.path.insert(0, str(ROOT))
     with socket.socket() as connection:
@@ -27,11 +28,12 @@ def main():
         isolate(data_dir, port)
         os.environ["FASTSHOP_AGENT_FAKE"] = "1"
         os.environ["FASTSHOP_AGENT_FAKE_DELAY"] = "1.5"
+        from sqlalchemy import select
+
+        from app import content
         from app.db import SessionLocal, engine
         from app.main import app
-        from app import content
         from app.models import AgentMessage, ProductVariant, Site, VariantChannelListing
-        from sqlalchemy import select
         with SessionLocal() as db:
             site = db.scalar(select(Site).where(Site.slug == "h24you-liquid"))
             home = next(page for page in content.site_pages(db, site) if page.path == "/")
@@ -42,11 +44,12 @@ def main():
                     VariantChannelListing.channel_id == site.channel_id).limit(1)).first()
             assert listing_pair, "The seeded store needs a priced product variant"
             variant, listing = listing_pair
-            variant_id, product_id, initial_price = variant.id, variant.product_id, listing.price_minor
+            variant_id, initial_price = variant.id, listing.price_minor
         OUTPUT.mkdir(parents=True, exist_ok=True)
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port,
             log_level="error", access_log=False))
-        thread = threading.Thread(target=server.run, daemon=True); thread.start()
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
         try:
             deadline = time.monotonic() + 30
             while not server.started:
@@ -58,13 +61,23 @@ def main():
                     browser = pw.chromium.launch(headless=True)
                 except Error:
                     browser = pw.chromium.launch(channel="chrome", headless=True)
-                context = browser.new_context(base_url=f"http://127.0.0.1:{port}", viewport={"width":1440,"height":900}, reduced_motion="reduce")
-                page = context.new_page(); page.goto(f"http://127.0.0.1:{port}/login?next=/admin/sites")
+                context = browser.new_context(
+                    base_url=f"http://127.0.0.1:{port}", viewport={"width": 1440, "height": 900},
+                    reduced_motion="reduce",
+                )
+                page = context.new_page()
+                page.goto(f"http://127.0.0.1:{port}/login?next=/admin/sites")
                 page.get_by_label("Email address", exact=True).fill(EMAIL)
                 page.get_by_label("Password", exact=True).fill(PASSWORD)
-                page.get_by_role("button", name="Sign in", exact=True).click(); page.wait_for_url("**/admin/sites")
+                page.get_by_role("button", name="Sign in", exact=True).click()
+                page.wait_for_url("**/admin/sites")
                 page.goto(f"/admin/sites/{site_id}/editor?page={page_id}")
                 page.locator('[data-mode="assistant"]').click()
+                assistant = page.locator(".agent-panel")
+                expect(assistant.get_by_role("button", name="Create an FAQ page about hydrogen")).to_be_visible()
+                expect(assistant.get_by_role("button", name="Audit the site's SEO and improve the home page metadata")).to_be_visible()
+                expect(assistant.get_by_role("button", name="Review shipping, tax, and store policies")).to_be_visible()
+                expect(assistant.get_by_role("button", name="Which products sold best this month?")).to_be_visible()
                 page.screenshot(path=str(OUTPUT / "pinned-composer.png"), full_page=True)
                 sent = []
                 page.on("request", lambda request: sent.append(request.post_data_json)
@@ -84,7 +97,8 @@ def main():
                 page.screenshot(path=str(OUTPUT / "desktop.png"), full_page=True)
                 restore = page.locator("[data-restore-message]").last
                 expect(restore).to_be_visible()
-                restore.click(); page.get_by_role("button", name="Restore draft").click()
+                restore.click()
+                page.get_by_role("button", name="Restore draft").click()
                 page.wait_for_timeout(300)
                 page.locator("#save").click()
                 if page.locator("#conflict-dialog").is_visible():
@@ -155,7 +169,9 @@ def main():
                 assert abs(metrics["composerBottom"] - metrics["panelBottom"]) < 4, metrics
                 browser.close()
         finally:
-            server.should_exit = True; thread.join(timeout=10); engine.dispose()
+            server.should_exit = True
+            thread.join(timeout=10)
+            engine.dispose()
     print(json.dumps({"status":"passed","screenshots":str(OUTPUT)}))
 
 

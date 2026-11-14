@@ -723,7 +723,7 @@ function renderAgentPanel() {
   const messageBox = $(".agent-messages");
   renderMessages(messageBox, agentMessages, decideAgentAction);
   if (!agentMessages.length) {
-    messageBox.innerHTML = `<div class="agent-empty"><strong>What would you like to change?</strong><div class="agent-suggestions"><button>Make the hero headline bolder</button><button>Add a FAQ section</button><button>Change the accent colour</button><button>Make the page easier to scan</button></div></div>`;
+    messageBox.innerHTML = `<div class="agent-empty"><strong>What would you like to change?</strong><div class="agent-suggestions"><button>Make the hero headline bolder</button><button>Create an FAQ page about hydrogen</button><button>Audit the site's SEO and improve the home page metadata</button><button>Review shipping, tax, and store policies</button><button>Which products sold best this month?</button></div></div>`;
   }
   for (const action of agentPendingActions) renderAction(messageBox, action, decideAgentAction);
   wireRestore(messageBox, async messageId => {

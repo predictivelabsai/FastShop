@@ -17,6 +17,7 @@ from app.models import (
     Product,
     SiteCommerceSettings,
     Stock,
+    TaxRate,
     User,
     VariantChannelListing,
     Warehouse,
@@ -368,6 +369,63 @@ def test_tracking_ids_use_agent_confirm_card_and_update_published_settings():
         assert "ga4_measurement_id" not in site.published_settings_json
         confirm_action(db, site, user, action.id)
         assert site.version == action.result_json["version"]
+    engine.dispose()
+
+
+def test_policy_updates_wait_for_confirmation_and_keep_published_settings_in_sync():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        user = User(email="policy-agent@example.test", name="Merchant")
+        db.add(user)
+        db.flush()
+        site = content.create_site(db, user.id, "Policies", "policy-agent-test")
+        site.status = "published"
+        site.settings_json = {"policies": {"privacy": "<p>Old policy.</p>"}}
+        site.published_settings_json = {"policies": {"privacy": "<p>Old policy.</p>"}}
+        action = _propose_tool(db, site, user, "update_store_policies", {"values": {
+            "privacy": "<h2>Privacy</h2><p>We respect your privacy.</p>",
+            "shipping": "<p>Orders ship in two business days.</p>",
+        }})
+        assert action.status == "pending"
+        assert site.settings_json["policies"]["privacy"] == "<p>Old policy.</p>"
+        result = confirm_action(db, site, user, action.id)
+        assert result.status == "confirmed", result.result_json
+        assert site.settings_json["policies"]["privacy"] == "<h2>Privacy</h2><p>We respect your privacy.</p>"
+        assert site.published_settings_json["policies"] == site.settings_json["policies"]
+        version = site.version
+        confirm_action(db, site, user, action.id)
+        assert site.version == version
+    engine.dispose()
+
+
+def test_tax_rate_updates_wait_for_confirmation_and_refuse_stale_proposals():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        user = User(email="tax-agent@example.test", name="Merchant")
+        db.add(user)
+        db.flush()
+        site = content.create_site(db, user.id, "Tax", "tax-agent-test")
+        action = _propose_tool(db, site, user, "set_tax_rate", {
+            "country": "US", "region": "CA", "name": "California sales tax",
+            "rate_bps": 725, "prices_include_tax": False,
+        })
+        assert db.scalar(select(TaxRate.id).where(TaxRate.site_id == site.id)) is None
+        result = confirm_action(db, site, user, action.id)
+        assert result.status == "confirmed", result.result_json
+        rate = db.scalar(select(TaxRate).where(TaxRate.site_id == site.id))
+        assert (rate.country, rate.region, rate.rate_bps, rate.prices_include_tax) == (
+            "US", "CA", 725, False)
+
+        stale = _propose_tool(db, site, user, "set_tax_rate", {
+            "country": "US", "region": "CA", "name": "California sales tax",
+            "rate_bps": 800, "prices_include_tax": False,
+        })
+        rate.rate_bps = 750
+        db.flush()
+        assert confirm_action(db, site, user, stale.id).status == "failed"
+        assert rate.rate_bps == 750
     engine.dispose()
 
 
