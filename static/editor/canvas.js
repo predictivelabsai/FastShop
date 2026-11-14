@@ -70,6 +70,7 @@ import "/static/admin/rich-text.js";
     ["--liquid-footer-newsletter-input-border", "colour"],
     ["--liquid-footer-newsletter-button-background", "colour"],
     ["--liquid-footer-newsletter-button-text", "colour"],
+    ["--liquid-footer-newsletter-heading-size", "newsletter-heading-size"],
     ["--liquid-footer-bottom-background", "colour"],
     ["--liquid-footer-bottom-legal-text", "colour"],
     ["--liquid-footer-bottom-legal-link", "colour"],
@@ -140,6 +141,9 @@ import "/static/admin/rich-text.js";
     const kind = headerFooterProperties.get(property);
     if (kind === "colour") return headerFooterColour(value);
     if (kind === "toggle") return value === "0" || value === "1";
+    if (kind === "newsletter-heading-size") {
+      return value === "clamp(22px,2.2vw,32px)" || value === "clamp(28px,3vw,40px)";
+    }
     return headerFooterLength(value, kind);
   }
   function previewTheme(properties) {

@@ -56,6 +56,7 @@ DEFAULT_PROPERTIES = {
         "oklch(0.8 0.065 35) 48%, oklch(0.93 0.04 55) 70%, oklch(0.7 0.07 30))"
     ),
     "--liquid-footer-newsletter-button-text": "oklch(0.18 0.025 258)",
+    "--liquid-footer-newsletter-heading-size": "clamp(22px,2.2vw,32px)",
     "--liquid-footer-bottom-background": "transparent",
     "--liquid-footer-bottom-legal-text": "oklch(0.96 0.007 255)",
     "--liquid-footer-bottom-legal-link": "oklch(0.96 0.007 255)",
@@ -79,6 +80,7 @@ EDITED_SETTINGS = {
         "background": "#203040", "input_background": "#ffffff",
         "input_text": "#102030", "input_border": "#456789",
         "button_background": "#dbeafe", "button_text": "#102030",
+        "heading_size": "standard",
     },
     "bottom": {
         "background": "#09111a", "legal_text": "#d8e1ea", "legal_link": "#ffffff",
@@ -117,6 +119,7 @@ EDITED_PROPERTIES = {
     "--liquid-footer-newsletter-input-border": "#456789",
     "--liquid-footer-newsletter-button-background": "#dbeafe",
     "--liquid-footer-newsletter-button-text": "#102030",
+    "--liquid-footer-newsletter-heading-size": "clamp(28px,3vw,40px)",
     "--liquid-footer-bottom-background": "#09111a",
     "--liquid-footer-bottom-legal-text": "#d8e1ea",
     "--liquid-footer-bottom-legal-link": "#ffffff",
@@ -215,6 +218,8 @@ def set_setting(page, path, value):
             }""",
             value,
         )
+    elif field.evaluate("element => element.tagName") == "SELECT":
+        field.select_option(value)
     else:
         field.fill(value)
     if isinstance(value, bool):
