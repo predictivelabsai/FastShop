@@ -1,6 +1,6 @@
 # Task 04: FastShop operator port
 
-**Builder:** Codex
+builder: codex
 
 Port the reusable assistant capability coverage from H24You into the upstream
 FastShop repository at `C:\Users\Joosep\FastShop`. Keep the work on a feature

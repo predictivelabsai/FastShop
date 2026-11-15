@@ -1,6 +1,6 @@
 # Task 02: settings directory redesign
 
-**Builder:** Codex
+builder: codex
 
 Redesign the existing Settings directory as the grouped, searchable control centre in
 `docs/specs/h24you-operator-coverage-and-settings.md`.

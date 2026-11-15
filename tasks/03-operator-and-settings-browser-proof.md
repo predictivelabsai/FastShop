@@ -1,6 +1,6 @@
 # Task 03: operator and Settings browser proof
 
-**Builder:** Codex
+builder: codex
 
 Add isolated browser evidence for the capability and Settings work in
 `docs/specs/h24you-operator-coverage-and-settings.md`.

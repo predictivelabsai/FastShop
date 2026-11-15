@@ -1,6 +1,6 @@
 # Task 01: operator capability coverage
 
-**Builder:** Codex
+builder: codex
 
 Implement the capability index and bounded assistant controls described in
 `docs/specs/h24you-operator-coverage-and-settings.md`.
