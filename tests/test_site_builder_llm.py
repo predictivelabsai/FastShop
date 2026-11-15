@@ -7,6 +7,17 @@ from app.integrations import site_builder_llm as adapter
 from app.services import CommerceError
 
 
+def test_operator_capability_directory_marks_draft_review_and_protected_work():
+    capabilities = adapter.operator_capabilities()
+    by_area = {capability["area"]: capability for capability in capabilities}
+    assert by_area["Storefront design and content"]["mode"] == "draft"
+    assert {"theme", "pages", "SEO"} <= set(by_area["Storefront design and content"]["covers"])
+    assert by_area["Catalogue and store data"]["mode"] == "review"
+    assert by_area["Operational settings"]["mode"] == "guided"
+    assert by_area["Protected actions"]["mode"] == "blocked"
+    assert "credentials" in by_area["Protected actions"]["covers"]
+
+
 def test_model_receives_scoped_brief_and_returns_proposals(monkeypatch):
     monkeypatch.setattr(adapter, "settings", SimpleNamespace(xai_api_key="fixture-only", xai_base_url="https://fixture.invalid", model_name="fixture-model"))
     context = {"page_id": "owned-page", "section_id": "owned-section", "commerce": {"catalog": []},
@@ -18,6 +29,7 @@ def test_model_receives_scoped_brief_and_returns_proposals(monkeypatch):
         serialized = json.dumps(data)
         assert "private sentinel" not in serialized
         assert "owned-page" in serialized and "owned-section" in serialized and "Tea" in serialized
+        assert "capability_directory" in serialized and "Protected actions" in serialized
         assert data["max_tokens"] == 4000 and kwargs["timeout"] == 35
         return SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"choices": [{"message": {"content": json.dumps({
             "answer": "Review this", "operations": [], "proposals": [{"kind": "merchant", "values": {"shipping_minor": 1600}}]})}}]})
