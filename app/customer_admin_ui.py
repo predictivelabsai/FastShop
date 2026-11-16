@@ -39,7 +39,7 @@ def tabs(site, mail=False):
     base = f"/admin/sites/{site.id}/customers"
     return Nav(A("All customers", href=base, cls="is-active" if not mail else ""),
                A("Email queue", href=base + "/mail", cls="is-active" if mail else ""),
-               cls="a-tabs", aria_label="Customer views")
+               cls="a-tabs o-operations-tabs", aria_label="Customer views")
 
 
 def customer_index(site, rows, total, filters, page, csrf, segments):
@@ -83,7 +83,9 @@ def customer_index(site, rows, total, filters, page, csrf, segments):
         for key, value in filters.items() if value and key != "sort"], cls="u-chips")
     return Div(assets(), page_header("Customers", primary_action=A("Add customer", href=base + "/new", cls="a-button a-button-primary"),
         secondary_actions=(A("Export", href=base + "/export?" + query, cls="a-button"), A("Import", href=base + "/import", cls="a-button"))),
-        Div(tabs(site), saved, filter_form, chips, table, pagination, cls="a-card u-index"), save, cls="u-customers")
+        Div(tabs(site), saved, filter_form, chips, table, pagination,
+            cls="a-card u-index o-operations-index"), save,
+        cls="u-customers o-operations o-customers")
 
 
 def contact_form(site, customer, csrf, email_consent=False):
@@ -134,7 +136,8 @@ def customer_detail(site, customer, row, orders, addresses, events, csrf):
     metrics = Div(*[Div(str(value), Span(label)) for label, value in (
         ("Amount spent", money(row.spent, row.currency)), ("Orders", row.orders),
         ("Average order value", money(row.spent // row.orders if row.orders else 0, row.currency)),
-        ("Customer since", customer.created_at.strftime("%d %b %Y")))], cls="u-metrics")
+        ("Customer since", customer.created_at.strftime("%d %b %Y")))],
+        cls="u-metrics o-operations-metrics", aria_label="Customer overview")
     order_card = card(Div(Table(Thead(Tr(Th("Order"), Th("Date"), Th("Payment"), Th("Total"))),
         Tbody(*[Tr(Td(A(order.number, href=f"/admin/sites/{site.id}/orders/{link.id}", cls="u-record-link")),
             Td(order.created_at.strftime("%d %b %Y")), Td(badge(order.payment_status.replace("_", " ").title())),
@@ -151,12 +154,14 @@ def customer_detail(site, customer, row, orders, addresses, events, csrf):
         badges=(badge(customer.account_state.title(), "critical" if not customer.is_active else "neutral"),)),
         metrics, Small("Amount spent is net of completed refunds in " + row.currency + "."),
         two_column(Div(order_card, addresses_card, event_card, cls="u-stack"),
-            card(contact_form(site, customer, csrf, row.email_consent), title="Customer details")), cls="u-customers")
+            card(contact_form(site, customer, csrf, row.email_consent), title="Customer details")),
+        cls="u-customers o-operations o-customers o-operations-detail")
 
 
 def new_customer(site, csrf):
     return Div(assets(), page_header("Add customer", back_href=f"/admin/sites/{site.id}/customers"),
-        card(contact_form(site, None, csrf), title="Contact information"), cls="u-customers u-new")
+        card(contact_form(site, None, csrf), title="Contact information"),
+        cls="u-customers u-new o-operations o-customers o-operations-detail")
 
 
 def import_page(site, csrf, results=None, source="", applied=False):
@@ -175,7 +180,7 @@ def import_page(site, csrf, results=None, source="", applied=False):
             Form(csrf, Label(Span("Choose CSV file", cls="a-button"), Input(type="file", name="file", accept=".csv,text/csv", required=True, cls="u-file"), cls="u-dropzone"),
                 P("CSV files up to 2 MB and 5,000 customers. Email is required."),
                 Button("Preview import", cls="a-button a-button-primary"), method="post", action=base + "/import", enctype="multipart/form-data"), title="Customer CSV"),
-        preview, cls="u-customers")
+        preview, cls="u-customers o-operations o-customers")
 
 
 def mail_page(site, messages):
@@ -183,4 +188,5 @@ def mail_page(site, messages):
         Div(Table(Thead(Tr(Th("Message"), Th("Status"), Th("Attempts"), Th("Created"))),
             Tbody(*[Tr(Td(message.kind.replace("_", " ").title()), Td(badge(message.status.title())),
                 Td(str(message.attempts)), Td(message.created_at.strftime("%d %b %Y, %H:%M"))) for message in messages])), cls="a-table-wrap")
-        if messages else P("No queued messages yet. Transactional and account emails appear here.")), cls="u-customers")
+        if messages else P("No queued messages yet. Transactional and account emails appear here.")),
+        cls="u-customers o-operations o-customers")

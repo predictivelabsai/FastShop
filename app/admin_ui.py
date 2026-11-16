@@ -244,7 +244,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         Meta(name="referrer", content="no-referrer"),
         Link(rel="icon", href=static_asset("favicon.svg")),
         *[Link(rel="stylesheet", href=static_asset(asset))
-          for asset in ("fonts.css", "site-editor.css", "admin/admin.css")],
+          for asset in ("fonts.css", "site-editor.css", "admin/admin.css", "platform.css")],
         Script(src=static_asset("site-editor.js"), defer=True),
         Script(src=static_asset("admin/admin.js"), defer=True),
         Script(src=static_asset("admin/polish.js"), defer=True),

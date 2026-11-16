@@ -1164,8 +1164,8 @@ frame.addEventListener("drop", (e) => {
   }
   drop(target?.dataset.blockId || null, position, payload);
 });
-window.addEventListener("message", (e) => {
-  if (e.source !== frame.contentWindow || e.origin !== location.origin) return;
+window.addEventListener("message", async (e) => {
+  if (e.source !== frame.contentWindow) return;
   const d = e.data;
   if (
     d?.source !== "fastshop-editor" ||
@@ -1180,6 +1180,15 @@ window.addEventListener("message", (e) => {
     if (d.key === "d") action("duplicate");
   }
   if (d.type === "ready") send({ type: "context", block_id: selected });
+  if (d.type === "navigate") {
+    const target = state?.pages?.find((page) => page.id === d.target_page_id);
+    if (!target || target.id === boot.page_id) return;
+    if ((dirty || themeDirty) && !(await save())) return;
+    const url = new URL(location.href);
+    url.searchParams.set("page", target.id);
+    location.assign(url);
+    return;
+  }
   if (d.type === "select") select(d.block_id);
   if (d.type === "inline") {
     const n = locate(d.block_id),

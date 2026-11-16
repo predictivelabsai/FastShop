@@ -46,6 +46,9 @@ def test_customer_index_search_filter_pagination_and_export(customer_web):
     w = customer_web
     response = w.client.get(w.base)
     assert response.status_code == 200
+    assert 'class="u-customers o-operations o-customers"' in response.text
+    assert "o-operations-tabs" in response.text
+    assert "o-operations-index" in response.text
     assert response.text.count('name="customer_ids"') == 25
     assert 'data-select-all=""' in response.text
     assert response.text.count('data-row-select=""') == 25

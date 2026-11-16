@@ -163,7 +163,8 @@ def product_index(site, products, total, counts, filters, page, csrf, collection
                     ("low", "Low stock"),
                 ]
             ],
-            cls="c-metrics",
+            cls="c-metrics o-operations-metrics",
+            aria_label="Product overview",
         ),
         Div(
             tabs,
@@ -226,8 +227,9 @@ def product_index(site, products, total, counts, filters, page, csrf, collection
                 A("Next", href=page_link(page + 1)) if page * 25 < total else None,
                 cls="c-pagination",
             ),
-            cls="a-card c-index",
+            cls="a-card c-index o-operations-index",
         ),
+        cls="c-catalog o-operations o-products",
     )
 
 
@@ -534,7 +536,7 @@ def product_editor(
         )
         if p
         else None,
-        cls="c-catalog",
+        cls="c-catalog o-operations o-products o-operations-editor",
     )
 
 
@@ -604,6 +606,7 @@ def collection_index(site, rows, q="", kind="", sort="title"):
             "Create manual collections or let rules organise products automatically.",
             A("Create collection", href=base + "/new", cls="a-button"),
         ),
+        cls="c-catalog o-operations o-products o-operations-collections",
     )
 
 
@@ -711,6 +714,7 @@ def collection_editor(site, collection, products, selected, csrf, count=0):
             data_collection_editor="",
             data_preview_url=base + "/preview",
         ),
+        cls="c-catalog o-operations o-products o-operations-editor",
     )
 
 
@@ -795,4 +799,5 @@ def inventory_page(site, rows, warehouses, history, csrf, threshold, q="", low_s
             "No matching inventory", "Add products or change your filters to manage inventory."
         ),
         history_drawer,
+        cls="c-catalog o-operations o-products o-operations-inventory",
     )

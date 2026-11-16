@@ -233,3 +233,653 @@ body .e-top {
 .e-main th {
   background: var(--soft);
 }
+/* Merchant operations share the platform token layer without changing public
+   storefronts. The admin shell deliberately keeps dense, familiar controls. */
+.a-shell {
+  --a-frame: #10201a;
+  --a-canvas: #f5f7f6;
+  --a-surface: #ffffff;
+  --a-ink: #0d1713;
+  --a-muted: #4c5a53;
+  --a-line: #e3e8e5;
+  --a-accent: #0e7d55;
+  --a-success: #0a5f41;
+  --a-radius: 20px;
+  --a-shadow: var(--shadow-card);
+  --accent-dark: #0a5f41;
+  --danger: #b42318;
+  --radius-control: 999px;
+  --radius-field: 12px;
+  --radius-card: 20px;
+  --radius-pill: 999px;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--a-frame);
+  color: var(--a-ink);
+  font-family: var(--font-body);
+}
+
+.a-shell .a-sidebar {
+  background: var(--a-frame);
+  color: var(--night-text, #eef4f1);
+}
+
+.a-shell .a-sidebar :is(.a-store-switcher > summary, .a-user-menu > summary) {
+  border-radius: 12px;
+}
+
+.a-shell .a-sidebar :is(.a-store-switcher[open] > summary, .a-store-switcher > summary:hover,
+  .a-user-menu > summary:hover, .a-nav-link:hover) {
+  background: #1b3228;
+}
+
+.a-shell .a-store-switcher > div,
+.a-shell .a-store-switcher > nav {
+  background: #1b3228;
+  border-radius: 12px;
+}
+
+.a-shell .a-store-switcher > :is(div, nav) a:hover {
+  background: #294439;
+}
+
+.a-shell .a-avatar {
+  border-radius: 50%;
+  background: var(--green-wash);
+  color: var(--green-deep);
+}
+
+.a-shell .a-search input,
+.a-shell .a-sidebar #admin-search {
+  border-color: #385448;
+  border-radius: var(--radius-field);
+  background: #1b3228;
+  color: var(--night-text, #eef4f1);
+}
+
+.a-shell .a-search input::placeholder {
+  color: var(--night-soft, #a9bab3);
+}
+
+.a-shell .a-search-result:hover,
+.a-shell .a-search-result[aria-selected="true"] {
+  background: var(--green-wash);
+  color: var(--green-deep) !important;
+}
+
+.a-shell .a-nav-link {
+  min-height: 40px;
+  border-radius: 12px;
+}
+
+.a-shell .a-nav-link.is-active,
+.a-shell .a-nav-link[aria-current="page"] {
+  background: var(--green);
+  box-shadow: none;
+}
+
+.a-shell .a-subnav {
+  border-color: #385448;
+}
+
+.a-shell .a-canvas {
+  border-radius: 20px;
+  background: var(--a-canvas);
+}
+
+.a-shell .a-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  min-height: 64px;
+  border-bottom-color: var(--a-line);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--a-muted);
+  backdrop-filter: blur(10px);
+}
+
+.a-shell .a-content {
+  width: min(1380px, 100%);
+  padding: 32px 40px 80px;
+}
+
+.a-shell :is(button, .a-button, .p3-button) {
+  min-height: 42px;
+  border-color: #ccd5d0;
+  border-radius: var(--radius-pill);
+  background: var(--canvas);
+  color: var(--a-ink);
+  box-shadow: none;
+  font-weight: 650;
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease,
+    color 180ms ease, transform 180ms ease;
+}
+
+.a-shell :is(button, .a-button, .p3-button):hover {
+  border-color: #aebdb5;
+  background: #fafbf9;
+}
+
+.a-shell :is(.a-button-primary, .a-primary, .p3-primary) {
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--canvas);
+  box-shadow: none;
+}
+
+.a-shell :is(.a-button-primary, .a-primary, .p3-primary):hover {
+  border-color: var(--green-deep);
+  background: var(--green-deep);
+  color: var(--canvas);
+  box-shadow: 0 6px 16px rgba(14, 125, 85, 0.24);
+  transform: translateY(-1px);
+}
+
+.a-shell :is(button, .a-button, .p3-button):disabled {
+  border-color: var(--a-line);
+  background: #edf0ee;
+  color: var(--a-muted);
+}
+
+.a-shell :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.a-shell :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea) {
+  min-height: 42px;
+  border-color: #ccd5d0;
+  border-radius: var(--radius-field);
+  background: var(--canvas);
+  color: var(--a-ink);
+  caret-color: var(--green);
+  box-shadow: none;
+}
+
+.a-shell :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea):focus {
+  border-color: var(--green);
+}
+
+.a-shell input[type="checkbox"],
+.a-shell input[type="radio"] {
+  accent-color: var(--green);
+}
+
+.a-shell .a-card {
+  border-color: var(--a-line);
+  border-radius: var(--radius-card);
+  background: var(--a-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.a-shell .a-badge {
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+}
+
+.a-shell .a-badge-success {
+  background: var(--green-wash);
+  color: var(--green-deep);
+}
+
+.a-shell .a-badge-critical {
+  background: #fdece9;
+  color: #8f2a1d;
+}
+
+.a-shell .a-badge-neutral {
+  background: #edf0ee;
+  color: var(--a-muted);
+}
+
+/* Shared resource index composition. Page-specific files load after this one,
+   so selectors remain deliberately scoped to the operating-surface contract. */
+.a-shell .o-operations {
+  min-width: 0;
+  color: var(--a-ink);
+}
+
+.a-shell .o-operations :is(.a-header, .o-operations-workspace, .a-columns, .o-marketing-groups) {
+  min-width: 0;
+}
+
+.a-shell .o-operations .a-header {
+  align-items: flex-start;
+  gap: var(--space-16);
+  margin-bottom: var(--space-24);
+}
+
+.a-shell .o-operations .a-heading {
+  gap: var(--space-8);
+}
+
+.a-shell .o-operations .a-heading h1 {
+  color: var(--a-ink);
+  font-family: var(--font-display);
+  font-stretch: 100%;
+  font-size: 32px;
+  font-weight: 720;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+}
+
+.a-shell .o-operations .a-actions {
+  gap: var(--space-8);
+}
+
+.a-shell .o-operations :is(.a-tabs, .p3-tabs) {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--a-line);
+  scrollbar-color: #aebdb5 transparent;
+}
+
+.a-shell .o-operations :is(.a-tabs a, .p3-tab) {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  color: var(--a-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.a-shell .o-operations :is(.a-tabs a:hover, .p3-tab:hover, .a-tabs .is-active, .p3-tab.active) {
+  background: var(--green-wash);
+  color: var(--green-deep);
+}
+
+.a-shell .o-operations-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0 0 var(--space-24);
+  overflow: hidden;
+  border: 1px solid var(--a-line);
+  border-radius: 16px;
+  background: var(--canvas);
+  box-shadow: var(--shadow-card);
+}
+
+.a-shell .o-operations-metrics > div {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  min-width: 0;
+  padding: 18px 20px;
+  border-right: 1px solid var(--a-line);
+  color: var(--a-ink);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+}
+
+.a-shell .o-operations-metrics > div:last-child {
+  border-right: 0;
+}
+
+.a-shell .o-operations-metrics span {
+  display: block;
+  margin-top: 4px;
+  color: var(--a-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.a-shell .o-operations-index {
+  margin-bottom: var(--space-24);
+  overflow: visible;
+  border-color: var(--a-line);
+  background: var(--canvas);
+  box-shadow: var(--shadow-card);
+}
+
+.a-shell .o-operations :is(.c-filters, .p3-filter, .u-filters, form.a-filter-bar) {
+  gap: var(--space-8);
+  padding: 14px 16px;
+  border-bottom-color: var(--a-line);
+  background: var(--canvas);
+}
+
+.a-shell .o-operations :is(.c-filters, .p3-filter, .u-filters, form.a-filter-bar) label {
+  color: var(--a-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.a-shell .o-operations :is(.a-filter-popover, .a-sort-popover) > summary {
+  min-height: 42px;
+  border-color: #ccd5d0;
+  border-radius: var(--radius-pill);
+}
+
+.a-shell .o-operations .a-filter-panel {
+  gap: var(--space-12);
+  width: min(340px, calc(100vw - 40px));
+  padding: var(--space-16);
+  border-color: var(--a-line);
+  border-radius: 16px;
+  background: var(--canvas);
+  box-shadow: var(--shadow-float);
+}
+
+.a-shell .o-operations :is(.c-filter-chips, .p3-chips, .u-chips, .a-active-filters) {
+  gap: var(--space-8);
+  padding: 10px 16px;
+}
+
+.a-shell .o-operations :is(.c-chip, .p3-chip, .u-chip, .a-filter-chip) {
+  min-height: 30px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: #edf0ee;
+  color: var(--a-muted);
+  font-weight: 650;
+}
+
+.a-shell .o-operations :is(.c-bulk, .p3-bulk, .u-bulk) {
+  gap: var(--space-12);
+  padding: 12px 16px;
+  border-block-color: var(--a-line);
+  background: var(--green-wash);
+}
+
+.a-shell .o-operations :is(.c-bulk, .p3-bulk, .u-bulk) :is(label, span, strong) {
+  color: var(--green-deep);
+}
+
+.a-shell .o-operations :is(.a-table-wrap, .p3-table-wrap) {
+  max-width: 100%;
+  margin: 0;
+  overflow-x: auto;
+  border-color: var(--a-line);
+  border-radius: 0;
+  background: var(--canvas);
+  scrollbar-color: #aebdb5 transparent;
+}
+
+.a-shell .o-operations table {
+  font-variant-numeric: tabular-nums;
+}
+
+.a-shell .o-operations :is(th, td) {
+  border-bottom-color: var(--a-line);
+}
+
+.a-shell .o-operations th {
+  background: var(--wash);
+  color: var(--a-muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.a-shell .o-operations tbody tr:hover {
+  background: #fafbf9;
+}
+
+.a-shell .o-operations :is(.c-product-link, .p3-resource, .u-record-link) {
+  color: var(--a-ink);
+  font-weight: 700;
+}
+
+.a-shell .o-operations :is(.c-product-link, .p3-resource, .u-record-link):hover {
+  color: var(--green-deep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.a-shell .o-operations :is(.c-pagination, .p3-pagination, .u-pagination) {
+  gap: var(--space-12);
+  padding: 14px 16px;
+  border-top-color: var(--a-line);
+  color: var(--a-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.a-shell .o-operations .a-columns {
+  gap: var(--space-24);
+}
+
+.a-shell .o-operations .a-columns > :is(div, aside) {
+  min-width: 0;
+}
+
+.a-shell .o-operations :is(.a-card, .p3-packing) {
+  border-color: var(--a-line);
+  background: var(--canvas);
+}
+
+.a-shell .o-operations :is(.a-card h2, .p3-orders h2) {
+  color: var(--a-ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 720;
+  letter-spacing: -0.012em;
+}
+
+.a-shell .o-operations :is(.p3-line, .p3-quantity-row, .p3-return, .p3-event) {
+  border-color: var(--a-line);
+}
+
+.a-shell .o-operations .p3-event::before {
+  background: var(--green);
+}
+
+.a-shell .o-operations .p3-order-menu {
+  border-color: var(--a-line);
+  border-radius: 16px;
+  background: var(--canvas);
+  box-shadow: var(--shadow-float);
+}
+
+.a-shell .o-operations .p3-order-menu :is(button, a) {
+  border-radius: 10px;
+}
+
+.a-shell .o-operations .a-empty {
+  width: min(100% - (2 * var(--space-24)), 560px);
+  margin: var(--space-24) auto;
+  padding: var(--space-32);
+  border: 1px dashed var(--line-strong);
+  border-radius: 16px;
+  background: var(--wash);
+  box-shadow: none;
+}
+
+.a-shell .o-operations .a-empty svg {
+  color: var(--green-deep);
+}
+
+/* Marketing turns the existing eight destinations into two operating groups.
+   They are deliberate ruled lists, rather than a repeated card grid. */
+.a-shell .o-marketing {
+  max-width: 1240px;
+}
+
+.a-shell .o-operations-summary {
+  max-width: 65ch;
+  margin: -8px 0 var(--space-24);
+  color: var(--a-muted);
+  font-size: 15px;
+}
+
+.a-shell .o-marketing-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: var(--space-24);
+  align-items: start;
+}
+
+.a-shell .o-marketing-group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--a-line);
+  border-radius: var(--radius-card);
+  background: var(--canvas);
+  box-shadow: var(--shadow-card);
+}
+
+.a-shell .o-marketing-group > h2 {
+  margin: 0;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--a-line);
+  color: var(--a-ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 720;
+  letter-spacing: -0.012em;
+}
+
+.a-shell .o-marketing-list {
+  display: grid;
+}
+
+.a-shell .o-marketing-item {
+  display: grid;
+  gap: var(--space-8);
+  min-width: 0;
+  padding: 20px 22px 22px;
+}
+
+.a-shell .o-marketing-item + .o-marketing-item {
+  border-top: 1px solid var(--a-line);
+}
+
+.a-shell .o-marketing-item h3 {
+  margin: 0;
+  color: var(--a-ink);
+  font-size: 14px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+}
+
+.a-shell .o-marketing-item-content {
+  display: grid;
+  align-items: start;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.a-shell .o-marketing-item-content p {
+  margin: 0;
+  color: var(--a-muted);
+  overflow-wrap: anywhere;
+}
+
+.a-shell .o-marketing-item-content strong {
+  color: var(--a-ink);
+}
+
+.a-shell .o-marketing-item-content .a-button {
+  justify-self: start;
+  margin-top: var(--space-4);
+}
+
+.a-shell .o-marketing-health {
+  max-width: 960px;
+}
+
+@media (max-width: 1000px) {
+  .a-shell .a-content {
+    padding-inline: 24px;
+  }
+
+  .a-shell .o-marketing-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .a-shell .o-operations .a-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 800px) {
+  .a-shell .a-content {
+    padding: 24px 16px 64px;
+  }
+
+  .a-shell .o-operations .a-header {
+    margin-bottom: var(--space-16);
+  }
+
+  .a-shell .o-operations .a-heading h1 {
+    font-size: 28px;
+  }
+
+  .a-shell .o-operations-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .a-shell .o-operations-metrics > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .a-shell .o-operations-metrics > div:nth-child(n + 3) {
+    border-top: 1px solid var(--a-line);
+  }
+
+  .a-shell .o-operations :is(.c-bulk, .p3-bulk, .u-bulk) {
+    align-items: stretch;
+  }
+
+  .a-shell .o-operations :is(.c-bulk, .p3-bulk, .u-bulk) > :is(label, select, input, button, details) {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .a-shell .a-canvas {
+    border-radius: 0;
+  }
+
+  .a-shell .o-operations .a-header {
+    align-items: stretch;
+  }
+
+  .a-shell .o-operations .a-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .a-shell .o-operations .a-actions > :is(a, button, details) {
+    flex: 1 1 auto;
+  }
+
+  .a-shell .o-operations :is(.a-tabs, .p3-tabs) {
+    padding-inline: 12px;
+  }
+
+  .a-shell .o-operations-index {
+    border-radius: 16px;
+  }
+
+  .a-shell .o-operations .a-filter-panel {
+    position: fixed;
+    inset: auto 16px 16px;
+    width: auto;
+    max-width: none;
+    max-height: min(70dvh, 560px);
+  }
+
+  .a-shell .o-marketing-group > h2,
+  .a-shell .o-marketing-item {
+    padding-inline: 16px;
+  }
+
+  .a-shell .o-marketing-item-content .a-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .a-shell :is(button, .a-button, .p3-button) {
+    transition: none;
+  }
+}

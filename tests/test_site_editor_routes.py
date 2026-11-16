@@ -101,6 +101,24 @@ def test_unsaved_render_does_not_write_and_rejects_foreign_media(workspace):
     assert "belonging" in result.text
 
 
+def test_canvas_navigation_config_contains_only_current_site_pages(workspace):
+    w = workspace
+    with w.sessions() as db:
+        site = db.get(type(w.site), w.site.id)
+        target = content.create_page(db, site, "Destination", "/pages/destination",
+                                     document={"version": 1, "title": "Destination", "blocks": []})
+        db.commit()
+    result = w.client.post(w.base + "/render", json={"document": load(w)["document"]}, headers=w.headers)
+    assert result.status_code == 200, result.text
+    marker = '<script id="editor-canvas-config" type="application/json">'
+    config = json.loads(result.json()["html"].split(marker, 1)[1].split("</script>", 1)[0])
+    assert config["siteRoot"] == f"/sites/{w.site.slug}"
+    page_ids = {page["id"] for page in config["pages"]}
+    assert {w.page.id, target.id} <= page_ids
+    assert w.other_page.id not in page_ids
+    assert all(page["path"].startswith("/") for page in config["pages"])
+
+
 def test_csrf_draft_conflict_revisions_and_restore(workspace):
     w = workspace
     loaded = load(w)

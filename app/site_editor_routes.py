@@ -137,9 +137,14 @@ def render_document(db, site, page, document, token, block_id=""):
                               f"/sites/{site.slug}{page.path}", preview=True, editor=True)
     html = _html(nodes)
     # Only application-owned script is introduced, never merchant code.
-    config = json.dumps({"siteId": site.id, "pageId": page.id}).replace("<", "\\u003c")
+    config = json.dumps({
+        "siteId": site.id,
+        "pageId": page.id,
+        "siteRoot": f"/sites/{site.slug}",
+        "pages": [{"id": item.id, "path": item.path} for item in content.site_pages(db, site)],
+    }).replace("<", "\\u003c")
     bridge = (f'<script id="editor-canvas-config" type="application/json">{config}</script>'
-              f'<script src="/static/editor/canvas.js" defer data-site-id="{escape(site.id)}" '
+              f'<script src="/static/editor/canvas.js" type="module" data-site-id="{escape(site.id)}" '
               f'data-page-id="{escape(page.id)}"></script>')
     html = html.replace('src="/static/site-preview.js', 'data-disabled-src="/static/site-preview.js')
     return html + bridge

@@ -256,7 +256,8 @@
 }
 @media (prefers-reduced-motion: reduce) { .a-shell *, .a-shell *::before, .a-shell *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
 
-.a-toast { display: flex; align-items: center; gap: 16px; }
+.a-toast { display: flex; align-items: center; gap: 16px; pointer-events: none; }
+.a-toast button { pointer-events: auto; }
 .a-shell .a-toast button { min-width: 28px; min-height: 28px; padding: 2px 6px; border: 0; background: transparent; color: inherit; box-shadow: none; font-size: 20px; }
 
 /* Shared control and index polish. Kept here so legacy screens use the same tokens. */
@@ -376,4 +377,24 @@
   .a-view-controls > .a-tabs { overflow-wrap: anywhere; }
   .a-view-controls .a-view-popover { position: static; }
   .a-shell .a-view-popover > .a-filter-panel { right: auto; left: 0; }
+}
+/* Keep the desktop navigation complete and still. Responsive layouts retain
+   their own scroll path once the mobile sidebar is opened. */
+@media (min-width: 801px) {
+  .a-sidebar {
+    padding: 12px;
+    overflow: hidden;
+  }
+
+  .a-sidebar .a-store-switcher { margin-bottom: 10px; }
+  .a-sidebar .a-search { margin-bottom: 12px; }
+  .a-sidebar .a-nav { gap: 2px; }
+  .a-sidebar .a-nav-link { min-height: 32px; padding-block: 6px; }
+  .a-sidebar .a-nav-group { margin-bottom: 4px; }
+  .a-sidebar .a-nav-group > summary { margin-bottom: 2px; }
+  .a-sidebar .a-sidebar-footer { margin-top: auto; }
+}
+
+@media (max-width: 800px) {
+  .a-sidebar { overflow-y: auto; scrollbar-width: thin; }
 }

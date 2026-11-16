@@ -87,16 +87,34 @@ def journey(browser, base, site_id, home_id, page_id):
     expect(hero_row.locator(".tree-title > span")).to_have_text("Hero image or video")
     expect(hero_row.locator(".tree-title small")).to_have_text("Make room for something good.")
     capture(page, "desktop-1440-storefront-home")
+    frame.locator("body").evaluate("""(body, targetId) => {
+      const config = JSON.parse(document.querySelector('#editor-canvas-config').textContent);
+      const target = config.pages.find(page => page.id === targetId);
+      const link = document.createElement('a');
+      link.href = `${config.siteRoot}${target.path}`;
+      link.textContent = 'Continue editing';
+      link.id = 'editor-navigation-link';
+      body.prepend(link);
+    }""", page_id)
+    expect(frame.get_by_role("link", name="Continue editing", exact=True)).to_be_visible()
+    frame.get_by_role("link", name="Continue editing", exact=True).click()
+    page.wait_for_url(re.compile(rf"/editor\?page={page_id}(?:&|$)"))
+    frame = page.locator("#editor-canvas").content_frame
+    expect(page.locator("#current-page")).to_have_text("Our next chapter")
+    capture(page, "desktop-canvas-link-navigation")
     page.locator(".page-switcher > summary").click()
     switcher = page.locator(".page-switcher")
     expect(switcher.get_by_text("Switch page", exact=True)).to_be_visible()
     expect(switcher.get_by_role("link", name="Manage pages", exact=True)).to_be_visible()
-    switcher.get_by_role("link", name="Our next chapter", exact=True).click()
+    switcher.locator(f'a[href*="page={home_id}"]').click()
+    page.wait_for_url(re.compile(rf"/editor\?page={home_id}(?:&|$)"))
+    capture(page, "desktop-page-switcher")
+    page.locator(".page-switcher > summary").click()
+    page.locator(".page-switcher").get_by_role("link", name="Our next chapter", exact=True).click()
     page.wait_for_url(re.compile(rf"/editor\?page={page_id}(?:&|$)"))
-    expect(page.locator("#current-page")).to_have_text("Our next chapter")
+    frame = page.locator("#editor-canvas").content_frame
     expect(page.locator("#save-status")).to_contain_text("Saved")
     expect(frame.locator(".fs-editor-hint")).to_be_attached()
-    capture(page, "desktop-page-switcher")
     page.locator("#add-section").click()
     picker = page.locator("#picker-dialog")
     expect(picker).to_have_attribute("aria-labelledby", "picker-title")

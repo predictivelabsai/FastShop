@@ -125,6 +125,18 @@
     "click",
     (e) => {
       if (e.target.closest(".fs-editor-tools,.fs-rich-tools")) return;
+      const link = e.target.closest("a[href]");
+      const target = link && new URL(link.href, location.href);
+      const targetPath = target?.pathname.replace(/\/+$/, "");
+      const targetPage = target && target.origin === editorOrigin && Array.isArray(config.pages)
+        ? config.pages.find((page) => targetPath === `${config.siteRoot}${page.path}`.replace(/\/+$/, ""))
+        : null;
+      if (targetPage && !editing) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        send({ type: "navigate", target_page_id: targetPage.id });
+        return;
+      }
       // Application-owned preview controls remain usable while links stay inert.
       if (e.target.closest("[data-widget-control]")) {
         if (e.target.closest("a")) e.preventDefault();

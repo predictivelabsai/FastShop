@@ -41,7 +41,8 @@ def test_shell_components_and_active_navigation():
     assert "Collections" in html and "Inventory" in html
     assert "/admin/sites/store-one/collections" in html
     assert "Blog posts" not in html  # Only the active section expands.
-    assert "admin/admin.css?v=" in html and "admin/admin.js?v=" in html
+    assert "admin/admin.css?v=" in html and "platform.css?v=" in html and "admin/admin.js?v=" in html
+    assert html.index("admin/admin.css?v=") < html.index("platform.css?v=")
     assert 'aria-controls="admin-search-results"' in html
     assert "Skip to content" in html
 

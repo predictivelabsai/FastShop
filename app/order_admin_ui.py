@@ -109,7 +109,7 @@ def orders_index(site, result, filters, csrf, notice=""):
                       cls="p3-tab" + (" active" if filters.get("view", "all") == value else ""))
                      for value, title in [("all", "All"), ("unfulfilled", "Unfulfilled"),
                          ("unpaid", "Unpaid"), ("open", "Open"), ("archived", "Archived")]],
-                aria_label="Order views", cls="p3-tabs"),
+                aria_label="Order views", cls="p3-tabs o-operations-tabs"),
             Form(Input(type="hidden", name="view", value=filters.get("view", "all")),
                  field("Search orders", "q", filters.get("q", ""), "search",
                        placeholder="Order, email, name or SKU"),
@@ -149,7 +149,8 @@ def orders_index(site, result, filters, csrf, notice=""):
                           f"Page {result['page']} of {max(1, result['pages'])}"),
                 page_link(result["page"] - 1, "Previous") if result["page"] > 1 else None,
                 page_link(result["page"] + 1, "Next") if result["page"] < result["pages"] else None,
-                cls="p3-pagination"), cls="a-card p3-index"), cls="p3-orders")
+                cls="p3-pagination"), cls="a-card p3-index o-operations-index"),
+        cls="p3-orders o-operations o-orders")
 
 
 def _address(address):
@@ -266,7 +267,7 @@ def order_detail(site, data, csrf_factory, notice="", operation=""):
         return Div(*assets(), page_header(title, back_href=url),
                    P(order.number, cls="p3-muted"), panel or empty_state(
                        "Nothing to " + operation, "There are no eligible items for this action."),
-                   cls="p3-orders p3-operation")
+                   cls="p3-orders p3-operation o-operations o-orders")
     returns = []
     for row in data["returns"]:
         buttons = []
@@ -353,7 +354,7 @@ def order_detail(site, data, csrf_factory, notice="", operation=""):
                     P(event.get("detail", "")), Small(event["at"].strftime("%d %b %Y, %H:%M")),
                     cls="p3-integration-event") for event in integration_events],
                     cls="p3-integration-details") if integration_events else None)),
-            Div(notes, customer_card, tags)), cls="p3-orders")
+            Div(notes, customer_card, tags)), cls="p3-orders o-operations o-orders o-operations-detail")
 
 
 def refund_review(site, data, preview, values, csrf):
@@ -379,7 +380,8 @@ def refund_review(site, data, preview, values, csrf):
                       " I confirm this exact refund"),
                 Div(A("Back to order", href=url, cls="p3-button"),
                     Button("Issue refund", type="submit", cls="p3-primary"), cls="p3-actions"),
-                action=url + "/refund-items", method="post", cls="p3-form")), cls="p3-orders")
+                action=url + "/refund-items", method="post", cls="p3-form")),
+        cls="p3-orders o-operations o-orders o-operations-detail")
 
 
 def packing_slip(site, data):
@@ -389,4 +391,5 @@ def packing_slip(site, data):
         Table(Thead(Tr(Th("Item"), Th("SKU"), Th("Quantity"))),
               Tbody(*[Tr(Td(line.product_name + " · " + line.variant_name), Td(line.sku), Td(line.quantity))
                       for line in order.lines])), cls="p3-packing"),
-        Button("Print packing slip", type="button", data_print_order="", cls="p3-no-print"), cls="p3-orders")
+        Button("Print packing slip", type="button", data_print_order="", cls="p3-no-print"),
+        cls="p3-orders o-operations o-orders")

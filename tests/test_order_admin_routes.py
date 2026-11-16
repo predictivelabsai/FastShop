@@ -46,6 +46,9 @@ def test_index_filters_pagination_export_and_scope(web):
     w = web
     page = w.client.get(w.base)
     assert page.status_code == 200 and w.order.number in page.text
+    assert 'class="p3-orders o-operations o-orders"' in page.text
+    assert "o-operations-tabs" in page.text
+    assert "o-operations-index" in page.text
     assert "Abandoned checkouts" in page.text and "Fulfilment" in page.text
     assert w.order.number not in w.client.get(w.base + "?q=missing-order").text
     assert w.order.number in w.client.get(w.base + "?q=ORDER-SKU&per_page=1&page=1").text

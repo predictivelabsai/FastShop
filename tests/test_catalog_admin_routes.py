@@ -65,6 +65,9 @@ def test_product_index_search_filters_and_pagination(catalogue):
     response = w.client.get(base + "?sort=title")
     assert response.status_code == 200
     assert response.text.count('name="product_ids"') == 25
+    assert 'class="c-catalog o-operations o-products"' in response.text
+    assert "o-operations-metrics" in response.text
+    assert "o-operations-index" in response.text
     assert "Private product" not in response.text
     assert 'Page 1 · 28 products' in response.text
     page = w.client.get(base + "?page=2&sort=title")
