@@ -265,7 +265,7 @@ def _render_message(db, row, site, customer=None, user=None):
             return None
         url = customers.customer_base(site) + f"/unsubscribe/{customer.id}#token=" + customers.unsubscribe_token(site, customer)
         return "Your first-order code — " + site.name, (
-            f"Your 10% first-order merchandise code is {offer.code}. It expires {offer.expires_at:%Y-%m-%d}. "
+            f"Your {commerce.first_order_percent(commerce.settings_for(db, site))}% first-order merchandise code is {offer.code}. It expires {offer.expires_at:%Y-%m-%d}. "
             "It is tied to this email address and can be used once. On an eligible subscription it applies after the subscription saving, to the first delivery only.\n\n"
             f"Manage preferences or unsubscribe: {url}\n\nPowered by FastShop.")
     return None

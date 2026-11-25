@@ -794,6 +794,10 @@ class SiteCommerceSettings(TimestampMixin, Base):
     allowed_states_json: Mapped[list] = mapped_column(JSON, default=list)
     product_tax_codes_json: Mapped[dict] = mapped_column(JSON, default=dict)
     subscription_product_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    # Whole percentages. Changing either reprices only new checkouts; renewals that would
+    # charge a different price wait for the customer's review.
+    subscription_discount_percent: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
+    first_order_discount_percent: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
     tax_registration_reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
     live_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     live_accepted_by: Mapped[str | None] = mapped_column(

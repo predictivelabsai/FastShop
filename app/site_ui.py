@@ -265,7 +265,7 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
         ) if section.get("url") else None
         return Section(intro, frame, cls="h-section h-container h-embed")
     if kind == "product":
-        from app.commerce import payment_mode, payments_enabled, settings_for
+        from app.commerce import payment_mode, payments_enabled, settings_for, subscription_percent
         commerce_config = settings_for(db, site)
         checkout_enabled = bool(commerce_config and payments_enabled(db, site, commerce_config) and not preview)
         provider_mode = payment_mode(db, site, commerce_config) if checkout_enabled else "sandbox"
@@ -275,6 +275,7 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
         tablets = section.get("subscription_preview", False)
         subscription_enabled = bool(checkout_enabled and product and product.id in commerce_config.subscription_product_ids_json)
         gallery = [section.get("image", ""), *section.get("gallery", [])]
+        saving = subscription_percent(commerce_config)
         return Section(Figure(Div(image(section.get("image"), "Placeholder product mock-up", eager=True), data_gallery_main=""),
             Div(*[Button(image(src, f"Placeholder gallery image {i + 1}"), type="button", data_gallery_src=src, aria_label=f"View gallery image {i + 1}") for i, src in enumerate(gallery) if src], cls="h-gallery-thumbs"),
             Figcaption("PLACEHOLDER PRODUCT IMAGES")),
@@ -285,13 +286,13 @@ def _render_section(db, site, page, config, section, base, csrf, preview=False, 
                     Label("Choose your option", Select(*[Option(v.name, value=v.id) for v in variants if v.is_active], name="variant_id", aria_label="Choose your option", required=True)),
                     Label("Quantity", Input(type="number", name="quantity", value=1, min=1, max=25, required=True)),
                     Label("Purchase option", Select(Option("One-time purchase", value="off", selected=True),
-                        Option("Subscribe and save 10% · monthly", value="on"), name="subscription")) if subscription_enabled else None,
+                        Option(f"Subscribe and save {saving}% · monthly", value="on"), name="subscription")) if subscription_enabled else None,
                     P("USD · " + ("Live checkout" if provider_mode == "live" else "Sandbox checkout") + ". Shipping and state-specific sales tax are calculated before payment."),
-                    P("Monthly delivery at 10% off merchandise.") if subscription_enabled else None,
+                    P(f"Monthly delivery at {saving}% off merchandise.") if subscription_enabled else None,
                     Button("Add to bag", cls="h-button"), method="post", action=base + "/cart/add", cls="h-contact-form") if checkout_enabled and listing else None,
                 Label("Choose your option", Select(*[Option(v.name, value=v.id) for v in variants], aria_label="Choose your option")) if len(variants) > 1 and not checkout_enabled else None,
                 Div(Label(Input(type="radio", name="purchase", checked=True), " One-time purchase"),
-                    Label(Input(type="radio", name="purchase"), " Subscribe and save 10% · monthly"), cls="h-purchase") if tablets and not checkout_enabled else None,
+                    Label(Input(type="radio", name="purchase"), f" Subscribe and save {saving}% · monthly"), cls="h-purchase") if tablets and not checkout_enabled else None,
                 Button("Add to cart — coming in Phase 2", disabled=True, cls="h-button") if not checkout_enabled else None,
                 P(("Live payments accepted." if provider_mode == "live" else "Sandbox only. No live payments.") if checkout_enabled else "Design preview. Orders and subscriptions are not open yet.", cls="h-muted"), cls="h-product-copy"), cls="h-product-detail h-container")
     return Section(intro, cta(section, base), cls="h-section h-container h-editorial")
