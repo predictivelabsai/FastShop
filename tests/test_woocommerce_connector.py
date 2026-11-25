@@ -234,8 +234,8 @@ def test_site_integration_routes_review_exact_plan_and_prg(monkeypatch):
         db.commit()
     base = f"/admin/sites/{site_id}/integrations"
     missing = client.get(base)
-    assert "Needs operator setup" in missing.text
-    assert "Ask the operator" in missing.text
+    assert "Not connected" in missing.text
+    assert "Connect your WooCommerce store" in missing.text
     assert "Run import dry run" not in missing.text
 
     monkeypatch.setenv("FASTSHOP_WOOCOMMERCE_FIXTURE_PATH", str(FIXTURE))

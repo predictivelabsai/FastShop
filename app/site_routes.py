@@ -164,6 +164,8 @@ def register_site_routes(rt):
     register_snippet_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_integration_routes import register_integration_routes
     register_integration_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.importer_credential_routes import register_importer_credential_routes
+    register_importer_credential_routes(rt, actor, csrf, check_csrf, shell)
     register_catalog_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.catalog_admin_routes import register_catalog_admin_routes
     register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error)

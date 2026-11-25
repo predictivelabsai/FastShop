@@ -165,10 +165,14 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                             href=f"/admin/sites/{site.id}/integrations/{connector.platform}/export",
                         )
                     rows.append(Div(
-                        Div(H2(connector.label), Span("Ready" if state.configured else "Needs operator setup",
+                        Div(H2(connector.label), Span("Ready" if state.configured else "Not connected",
                             cls="i-state " + ("i-state-ready" if state.configured else "i-state-missing")),
                             cls="i-heading"),
                         P(state.message, role="status"),
+                        A("Manage connection" if state.configured else "Connect " + connector.label,
+                          href=f"/admin/sites/{site.id}/settings/integrations/importers/{connector.platform}",
+                          cls="e-button" + ("" if state.configured else " primary"))
+                        if connector.platform in {"shopify", "woocommerce", "wordpress"} else None,
                         P("Import: " + ", ".join(capabilities.imports) + ". Export: " +
                           export_label + "."),
                         P("CSV uploads: 2 MB, 750 rows, 32 columns, 20,000 characters per cell."
@@ -201,7 +205,7 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                     P("Live payments: " + ("approved by operator" if live_approved else "not approved"),
                       cls="g-state g-state-live" if live_approved else "g-state"),
                     P("Migrations are sandbox-first: preview provider data before any FastShop write. "
-                      "Connection details are controlled by the operator and are never entered here.",
+                      "Connect your old store below; saved details are encrypted and never shown again.",
                       cls="i-intro"),
                     P(notice, role="status", cls="e-note") if notice else None,
                     Div(*rows, cls="i-connectors", id="integration-connections"),

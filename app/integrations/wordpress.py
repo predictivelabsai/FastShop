@@ -106,15 +106,25 @@ def _config(site, *, allow_incomplete: bool = False) -> _WordPressConfig:
     base_url = os.getenv(prefix + "REST_BASE_URL", "").rstrip("/")
     if fixture and not base_url:
         base_url = "https://fixture.wordpress.test/wp-json/wp/v2"
+    username = os.getenv(prefix + "USERNAME", "").strip()
+    application_password = os.getenv(prefix + "APPLICATION_PASSWORD", "")
+    from app.site_integrations import importer_credentials
+
+    stored = importer_credentials(site, SYSTEM)
+    if stored:  # A connection saved in the admin takes precedence over operator settings.
+        base_url = stored["base_url"].rstrip("/")
+        username = stored.get("username", "").strip()
+        application_password = stored.get("application_password", "")
     config = _WordPressConfig(
         base_url=base_url,
-        username=os.getenv(prefix + "USERNAME", "").strip(),
-        application_password=os.getenv(prefix + "APPLICATION_PASSWORD", ""),
+        username=username,
+        application_password=application_password,
         fixture=fixture,
     )
     if allow_incomplete:
         return config
-    enabled = os.getenv(prefix + "ENABLED", "").lower() == "true" or fixture is not None
+    enabled = (os.getenv(prefix + "ENABLED", "").lower() == "true" or fixture is not None
+               or stored is not None)
     if not enabled:
         raise CommerceError("WordPress integration is disabled for this site.")
     if not _valid_rest_base(config.base_url):
@@ -616,17 +626,22 @@ class WordPressConnector:
     def credential_state(self, site) -> CredentialState:
         config = _config(site, allow_incomplete=True)
         fixture_ready = config.fixture is not None and config.fixture.is_file()
-        enabled = os.getenv(_prefix(site) + "ENABLED", "").lower() == "true"
+        from app.site_integrations import importer_credentials
+
+        saved = importer_credentials(site, SYSTEM) is not None
+        enabled = saved or os.getenv(_prefix(site) + "ENABLED", "").lower() == "true"
         auth_complete = bool(config.username) == bool(config.application_password)
         configured = fixture_ready or (enabled and _valid_rest_base(config.base_url) and auth_complete)
         if fixture_ready:
             message = "Development fixture site ready."
+        elif configured and saved:
+            message = "Store connection saved."
         elif configured and config.username:
             message = "Operator REST URL and application password are configured."
         elif configured:
             message = "Operator REST URL is configured for public read-only access."
         else:
-            message = "Ask the operator to configure this site's WordPress REST connection."
+            message = "Connect your WordPress site to import pages and posts."
         return CredentialState(configured, message, "fixture" if fixture_ready else "sandbox")
 
     def fetch(self, site, *, transport=None) -> dict:

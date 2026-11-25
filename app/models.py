@@ -563,6 +563,26 @@ class Site(TimestampMixin, Base):
         return value
 
 
+class SiteIntegrationCredential(TimestampMixin, Base):
+    """Encrypted merchant-managed credentials for site-scoped providers."""
+
+    __tablename__ = "site_integration_credentials"
+    __table_args__ = (UniqueConstraint("site_id", "provider"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
+    )
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    mode: Mapped[str] = mapped_column(String(20), default="default")
+    encrypted_payload: Mapped[bytes] = mapped_column(LargeBinary)
+    masked_hints_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(30), default="connected")
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class SiteDomain(TimestampMixin, Base):
     """A merchant-connected hostname. ``Site.hostname`` stays the primary one.
 
