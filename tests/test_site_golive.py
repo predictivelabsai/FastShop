@@ -308,3 +308,26 @@ def test_host_middleware_requires_publish_and_sandbox_transitions(monkeypatch):
         db.commit()
         assert client.get("/cart").status_code == 404
         assert owner.id
+
+
+def test_host_middleware_lets_the_stores_own_provider_webhooks_through(monkeypatch):
+    with workspace() as (db, engine, _, _, site):
+        site.hostname = "hooks.example.test"
+        db.commit()
+        assert site.status != "published"
+
+        import app.site_context as context_module
+
+        monkeypatch.setattr(context_module, "SessionLocal", lambda: Session(engine))
+
+        async def endpoint(scope, receive, send):
+            await PlainTextResponse(scope["path"])(scope, receive, send)
+
+        client = TestClient(SiteHostMiddleware(endpoint), base_url="https://hooks.example.test")
+        # Unpublished, with commerce off: the webhook still reaches the API, path untouched.
+        stripe_path = f"/api/v1/commerce/{site.id}/stripe-webhook"
+        assert client.post(stripe_path).text == stripe_path
+        # Another store's webhook and other API paths stay closed on this host.
+        assert client.post("/api/v1/commerce/another-site/stripe-webhook").status_code == 404
+        assert client.get(f"/api/v1/commerce/{site.id}/orders").status_code == 404
+        assert client.get("/api/v1/products").status_code == 404

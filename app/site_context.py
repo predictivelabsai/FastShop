@@ -1,5 +1,6 @@
 """Resolve a configured hostname to a tenant-owned site before route dispatch."""
 
+import re
 from urllib.parse import urlsplit
 
 from sqlalchemy import select
@@ -9,6 +10,19 @@ from app import commerce as commerce_service
 from app.config import settings
 from app.db import SessionLocal
 from app.models import Site, SiteCommerceSettings
+
+# Provider webhooks are registered on the store's own hostname. They are signature-verified
+# API endpoints, so they must reach the mounted API whatever the store's publication or
+# checkout state: providers keep sending refunds, disputes and shipment events.
+_PROVIDER_WEBHOOK = re.compile(
+    r"^/api/v1/commerce/(?P<site_id>[^/]+)/(?:stripe-webhook|shiphero-webhook/[^/]+)/?$"
+)
+
+
+def provider_webhook_site_id(path: str) -> str | None:
+    """Return the site ID of a provider webhook path, or None for any other path."""
+    match = _PROVIDER_WEBHOOK.match(path)
+    return match["site_id"] if match else None
 
 
 class SiteHostMiddleware:
@@ -53,6 +67,9 @@ class SiteHostMiddleware:
                 query = select(Site).where(Site.hostname == host)
                 site = db.scalar(query)
                 if site:
+                    # Only this store's own webhooks pass; another site's ID stays blocked.
+                    if provider_webhook_site_id(path) == site.id:
+                        return await self.app(scope, receive, send)
                     # The slug path remains the bounded merchant preview. A bound custom
                     # hostname is public only after the reviewed publication transition.
                     if site.status != "published" and not path.startswith(("/unsubscribe/", "/account")):
