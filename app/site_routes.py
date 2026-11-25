@@ -210,6 +210,8 @@ def register_site_routes(rt):
     register_growth_reports_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.growth_settings_routes import register_growth_settings_routes
     register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_domain_routes import register_site_domain_routes
+    register_site_domain_routes(rt, actor, csrf, check_csrf, shell)
 
     @rt("/admin/sites", methods=["GET"])
     def get(session, notice: str = ""):

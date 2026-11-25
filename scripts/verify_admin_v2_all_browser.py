@@ -259,10 +259,9 @@ def settings_extra(page, prefix, device):
             expect(page.get_by_role("main")).to_contain_text("Sandbox enabled")
             capture(page, device, "settings-payment-readiness")
         elif section == "domains":
-            page.get_by_role("link", name="Manage domain and go-live checks", exact=True).click()
-            expect(page.get_by_role("main")).to_contain_text("Bind the custom domain")
-            expect(page.get_by_role("button", name="Save custom domain", exact=True)).to_be_disabled()
-            capture(page, device, "settings-domain-publication-guard")
+            expect(page.get_by_role("main")).to_contain_text("Connect a domain")
+            expect(page.get_by_role("button", name="Connect domain", exact=True)).to_be_visible()
+            capture(page, device, "settings-domains")
         elif section == "billing":
             page.get_by_role("link", name="Manage plan and billing", exact=True).click()
             expect(page.get_by_role("heading", name="Billing", exact=True)).to_be_visible()

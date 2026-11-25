@@ -382,16 +382,6 @@ def register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error):
         except CommerceError as exc:
             return error(exc)
 
-    @rt("/admin/sites/{site_id}/settings/domains", methods=["GET"])
-    def get(session, site_id: str):
-        try:
-            with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session))
-                return shell("Domains", card(P(site.hostname or "No custom domain configured"),
-                    A("Manage domain and go-live checks", href=f"/admin/sites/{site.id}/golive", cls="e-button")))
-        except CommerceError as exc:
-            return error(exc)
-
     @rt("/admin/sites/{site_id}/settings/policies", methods=["GET"])
     def get(session, site_id: str):
         try:
