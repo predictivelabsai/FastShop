@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -28,6 +29,16 @@ from app.site_block_storage import BlockDocumentJSON
 
 def new_id() -> str:
     return uuid.uuid4().hex
+
+
+_last_message_time = datetime.min.replace(tzinfo=UTC)
+
+
+def message_time() -> datetime:
+    # PostgreSQL now() is fixed per transaction, so rows from one assistant turn would tie.
+    global _last_message_time
+    _last_message_time = max(datetime.now(UTC), _last_message_time + timedelta(microseconds=1))
+    return _last_message_time
 
 
 class Base(DeclarativeBase):
@@ -701,6 +712,88 @@ class SiteBuilderTurn(TimestampMixin, Base):
     provider: Mapped[str] = mapped_column(String(24), default="guided")
     context_json: Mapped[dict] = mapped_column(JSON, default=dict)
     response_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class AgentConversation(TimestampMixin, Base):
+    __tablename__ = "agent_conversations"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(240), default="New conversation")
+
+
+class AgentMessage(TimestampMixin, Base):
+    __tablename__ = "agent_messages"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=message_time, server_default=func.now())
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("agent_conversations.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(24))
+    content: Mapped[str] = mapped_column(Text, default="")
+    tool_calls_json: Mapped[list] = mapped_column(JSON, default=list)
+    events_json: Mapped[list] = mapped_column(JSON, default=list)
+    checkpoint_revision_id: Mapped[str | None] = mapped_column(ForeignKey("site_revisions.id"), nullable=True)
+
+
+class AgentDocumentAttachment(TimestampMixin, Base):
+    """Private extracted document context for a merchant's assistant conversation."""
+
+    __tablename__ = "agent_document_attachments"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    content_type: Mapped[str] = mapped_column(String(120))
+    size: Mapped[int] = mapped_column(Integer)
+    extracted_text: Mapped[str] = mapped_column(Text)
+
+
+class AssistantTask(TimestampMixin, Base):
+    """A private, tenant-scoped work item prepared by the store assistant."""
+
+    __tablename__ = "assistant_tasks"
+    __table_args__ = (
+        CheckConstraint("priority IN ('low', 'normal', 'high')", name="ck_assistant_tasks_priority"),
+        CheckConstraint("status IN ('open', 'in_progress', 'done')", name="ck_assistant_tasks_status"),
+        Index("ix_assistant_tasks_site_status_due", "site_id", "status", "due_date"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    creator_user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    assigned_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    conversation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("agent_conversations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    priority: Mapped[str] = mapped_column(String(16), default="normal", index=True)
+    status: Mapped[str] = mapped_column(String(24), default="open", index=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+
+
+class AgentAction(TimestampMixin, Base):
+    __tablename__ = "agent_actions"
+    __table_args__ = (UniqueConstraint("idempotency_key"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("agent_conversations.id", ondelete="CASCADE"), index=True)
+    message_id: Mapped[str | None] = mapped_column(ForeignKey("agent_messages.id", ondelete="SET NULL"), nullable=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(48))
+    payload_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    summary: Mapped[str] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    result_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    idempotency_key: Mapped[str] = mapped_column(String(64))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class SiteChangeSet(TimestampMixin, Base):

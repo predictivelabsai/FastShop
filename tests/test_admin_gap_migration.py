@@ -19,12 +19,14 @@ def test_admin_gap_upgrade_downgrade_upgrade(tmp_path):
                                 env=env, capture_output=True, text=True, timeout=90)
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
-    assert migrate("heads").strip() == "20261125_0037 (head)"
+    assert migrate("heads").strip() == "20261126_0038_store_assistant (head)"
     migrate("upgrade", "head")
     engine = create_engine(url)
     tables = {"saved_admin_views", "admin_table_preferences", "admin_activities", "custom_data_definitions",
               "custom_data_values", "site_preferences", "url_redirects", "order_edits", "gift_cards",
-              "gift_card_entries", "theme_snapshots", "site_domains", "site_integration_credentials"}
+              "gift_card_entries", "theme_snapshots", "site_domains", "site_integration_credentials",
+              "agent_conversations", "agent_messages", "agent_actions", "agent_document_attachments",
+              "assistant_tasks"}
     assert tables <= set(inspect(engine).get_table_names())
     assert {"subscription_discount_percent", "first_order_discount_percent"} <= {
         c["name"] for c in inspect(engine).get_columns("site_commerce_settings")}
