@@ -30,7 +30,7 @@ from fasthtml.common import (
     Tr,
 )
 
-from app.admin_ui import badge, card, empty_state, page_header, two_column
+from app.admin_ui import badge, card, empty_state, page_header, pager, two_column, ui_icon
 from app.models import new_id
 from app.services import money
 
@@ -93,7 +93,8 @@ def orders_index(site, result, filters, csrf, notice=""):
             Td(*[badge(tag) for tag in link.tags_json or []]),
         ))
     chips = [A(f"{'Search' if key == 'q' else key.replace('_', ' ').capitalize()}: "
-               f"{str(value).replace('_', ' ') if key in {'payment', 'fulfilment'} else value} ×",
+               f"{str(value).replace('_', ' ') if key in {'payment', 'fulfilment'} else value}",
+               ui_icon("close", 14),
                href=url + "?" + urlencode({k: v for k, v in filters.items()
                                              if k != key and k != "page" and v}), cls="p3-chip")
              for key, value in filters.items()
@@ -145,11 +146,11 @@ def orders_index(site, result, filters, csrf, notice=""):
                     "Order", "Date", "Customer", "Total", "Payment", "Fulfilment", "Items", "Delivery", "Tags")])),
                 Tbody(*rows)), cls="p3-table-wrap") if rows else empty_state(
                     "No matching orders", "Confirmed orders appear here. Try changing your search or filters."),
-            Div(Small(f"{result['total']} {'order' if result['total'] == 1 else 'orders'} · "
-                          f"Page {result['page']} of {max(1, result['pages'])}"),
-                page_link(result["page"] - 1, "Previous") if result["page"] > 1 else None,
-                page_link(result["page"] + 1, "Next") if result["page"] < result["pages"] else None,
-                cls="p3-pagination"), cls="a-card p3-index o-operations-index"),
+            pager(f"{result['total']} {'order' if result['total'] == 1 else 'orders'} · "
+                  f"Page {result['page']} of {max(1, result['pages'])}",
+                  page_link(result["page"] - 1, "Previous").attrs["href"] if result["page"] > 1 else None,
+                  page_link(result["page"] + 1, "Next").attrs["href"] if result["page"] < result["pages"] else None,
+                  cls="p3-pagination") if rows else None, cls="a-card p3-index o-operations-index"),
         cls="p3-orders o-operations o-orders")
 
 

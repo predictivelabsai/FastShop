@@ -133,3 +133,19 @@ def test_shell_sign_out_is_csrf_protected():
     assert client.post("/logout", data={"csrf_token": "wrong"}).status_code == 400
     assert client.post("/logout", data={"csrf_token": token}, follow_redirects=False).status_code == 303
     assert client.get("/admin/sites", follow_redirects=False).status_code == 303
+
+
+def test_settings_pages_list_every_settings_section():
+    site = SimpleNamespace(id="store-one", name="H2 | 4 YOU")
+    prefix = "/admin/sites/store-one"
+    page = str(to_xml(admin_page("General", site=site, sites=[site], path=prefix + "/settings/general")))
+    assert 'aria-label="Settings sections"' in page
+    assert re.search(r'href="/admin/sites/store-one/settings/general"[^>]*aria-current="page"', page)
+    assert f'href="{prefix}/settings/taxes"' in page
+    payments = str(to_xml(admin_page("Payments", site=site, sites=[site], path=prefix + "/commerce/payments")))
+    assert re.search(r'href="/admin/sites/store-one/settings/payments"[^>]*aria-current="page"', payments)
+    index = str(to_xml(admin_page("Settings", site=site, sites=[site], path=prefix + "/settings")))
+    assert 'aria-label="Settings sections"' not in index
+    products = str(to_xml(admin_page("Products", site=site, sites=[site], path=prefix + "/products")))
+    assert 'aria-label="Settings sections"' not in products
+    assert ">H4<" in page  # initials skip symbols in the store name

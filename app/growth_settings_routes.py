@@ -24,7 +24,7 @@ from starlette.responses import RedirectResponse
 
 from app import commerce, content
 from app import growth_settings as service
-from app.admin_ui import badge, card, index_table
+from app.admin_ui import card, index_table
 from app.db import SessionLocal
 from app.growth_settings_models import NotificationTemplate, ShippingRate, ShippingZone, TaxRate
 from app.models import CommerceMail, Membership, SitePage, User, new_id
@@ -148,14 +148,11 @@ def register_growth_settings_routes(rt, actor, csrf, check_csrf, shell, error):
 
     @rt("/admin/sites/{site_id}/settings/payments", methods=["GET"])
     def get(session, site_id: str):
+        # The full payments set-up (Stripe test and live keys, PayPal, checkout mode) lives on one page.
         try:
             with SessionLocal() as db:
-                site = content.owned_site(db, site_id, actor(session))
-                config = commerce.settings_for(db, site)
-                mode = config.mode if config else "disabled"
-                return shell("Payments", card(P("Stripe"), badge(mode.title(), "success" if mode != "disabled" else "neutral"),
-                    P("Provider credentials are managed securely outside these forms."),
-                    A("Review provider configuration", href=f"/admin/sites/{site.id}/commerce", cls="e-button")))
+                content.owned_site(db, site_id, actor(session))
+            return RedirectResponse(f"/admin/sites/{site_id}/commerce", status_code=303)
         except CommerceError as exc:
             return error(exc)
 

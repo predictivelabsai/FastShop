@@ -140,7 +140,7 @@
       });
       form.addEventListener('change', () => setTimeout(update, 0)); update();
     });
-    const listPage = /\/(products|orders|customers|discounts|collections|inventory|drafts|subscriptions|pages|blog-posts|files|redirects|gift-cards)$/.test(location.pathname);
+    const listPage = /\/(products|orders|customers|discounts|collections|inventory|drafts|subscriptions|pages|blog-posts|files|redirects|gift-cards|menus)$/.test(location.pathname);
     if (listPage) root.querySelectorAll('form[method=get]').forEach(form => {
       if (form.closest('dialog') || !form.querySelector('[name=q]') || form.dataset.filterReady) return;
       form.dataset.filterReady = 'true'; form.classList.add('a-filter-bar');
@@ -154,7 +154,7 @@
         const control = label.querySelector('[name]');
         if (control.name === 'sort') {
           const sort = make('details', '', 'a-sort-popover');
-          const trigger = make('summary', '↕ Sort', 'a-button'); trigger.setAttribute('aria-label', 'Sort');
+          const trigger = make('summary', 'Sort', 'a-button'); trigger.setAttribute('aria-label', 'Sort');
           const options = make('div', '', 'a-filter-panel'); label.classList.add('a-sort-control');
           options.append(label); sort.append(trigger, options); form.append(sort);
         }
@@ -170,7 +170,8 @@
           const label = control.closest('label');
           const title = label?.childNodes[0]?.textContent.trim() || control.name.replaceAll('_', ' ');
           const value = control.selectedOptions ? control.selectedOptions[0]?.textContent : control.value;
-          const chip = make('button', `${title}: ${value} ×`, 'a-filter-chip'); chip.type = 'button';
+          const chip = make('button', `${title}: ${value}`, 'a-filter-chip'); chip.type = 'button';
+          chip.insertAdjacentHTML('beforeend', window.fsIcon('x', 14));
           chip.setAttribute('aria-label', `Remove ${title.toLowerCase()} filter`);
           chip.addEventListener('click', () => { if (control.type === 'checkbox') control.checked = false; else control.value = control.options ? control.options[0].value : ''; update(); }); chips.append(chip);
         });

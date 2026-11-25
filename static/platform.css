@@ -396,7 +396,7 @@ body .e-top {
   box-shadow: none;
 }
 
-.a-shell :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea):focus {
+.a-shell:not(.p-shell) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea):focus {
   border-color: var(--green);
 }
 

@@ -7,7 +7,7 @@ authorisation; shell queries independently check active users and memberships.
 from contextvars import ContextVar
 from urllib.parse import parse_qs
 
-from fastcore.xml import FT, NotStr
+from fastcore.xml import FT
 from fasthtml.common import (
     H1,
     H2,
@@ -17,9 +17,9 @@ from fasthtml.common import (
     Details,
     Dialog,
     Div,
-    Footer,
     Form,
     Header,
+    Img,
     Input,
     Label,
     Li,
@@ -72,16 +72,14 @@ def page_header(title, back_href=None, breadcrumbs=(), primary_action=None,
                            if isinstance(child, FT) and child.tag == "button"), target)
         target.attrs["class"] = target.attrs.get("class", "") + " a-button-primary"
     return Header(
-        Div(Div(A(NotStr('<svg viewBox="0 0 20 20" width="20" height="20" '
-                        'fill="none" stroke="currentColor" stroke-width="1.7" '
-                        'aria-hidden="true"><path d="m11 4-6 6 6 6M5 10h12"/></svg>'),
+        Div(Div(A(ui_icon("back", 20),
                   href=back_href, aria_label="Back", cls="a-back-button") if back_href else None,
                 H1(title), *badges, cls="a-heading")),
         Div(*secondary_actions, primary_action, cls="a-actions"), cls="a-header")
 
 
-def card(*children, title=None, **kwargs):
-    return Div(H2(title) if title else None, *children, cls="a-card", **kwargs)
+def card(*children, title=None, cls="", **kwargs):
+    return Div(H2(title) if title else None, *children, cls=("a-card " + cls).strip(), **kwargs)
 
 
 def card_section(*children):
@@ -96,6 +94,20 @@ def badge(text, tone="neutral"):
     if tone not in {"success", "info", "warning", "critical", "neutral"}:
         tone = "neutral"
     return Span(text, cls=f"a-badge a-badge-{tone}")
+
+
+def pager(summary, previous=None, next=None, cls=""):
+    """Shopify-style pagination: grouped previous/next arrows with a quiet summary underneath a list."""
+    from app.admin_icons import lucide
+
+    def arrow(href, name, label):
+        if href:
+            return A(lucide(name, 16), href=href, aria_label=label, title=label, cls="p-pager-arrow")
+        return Span(lucide(name, 16), aria_label=label + " (unavailable)", aria_disabled="true",
+                    role="link", cls="p-pager-arrow is-disabled")
+    return Nav(Div(arrow(previous, "chevron-left", "Previous page"), arrow(next, "chevron-right", "Next page"),
+                   cls="p-pager-arrows"),
+               Span(summary, cls="p-pager-summary"), aria_label="Pagination", cls=("p-pager " + cls).strip())
 
 
 def empty_state(title, description, action=None):
@@ -123,6 +135,65 @@ def index_table(columns, rows, tabs=None, search=None, filters=None, sort=None,
         pagination, cls="a-card a-index-table", data_index_table="")
 
 
+DATE_PRESETS = (("1", "Today"), ("7", "Last 7 days"), ("30", "Last 30 days"), ("90", "Last 90 days"))
+
+
+def date_range_picker(action, *, preset="30", start="", end="", name="preset", custom=True, label=None,
+                      presets=DATE_PRESETS, hidden=()):
+    """Shopify-style date picker: a calendar button that opens preset ranges and a custom range."""
+    from fasthtml.common import Details, Summary
+
+    from app.admin_icons import lucide
+    names = dict(presets)
+    text = label or names.get(preset) or (f"{start} to {end}" if start and end else "Custom range")
+    return Details(
+        Summary(lucide("calendar", 16), Span(text), cls="a-button p-datepicker-toggle",
+                aria_label=f"Date range: {text}"),
+        Form(
+            *[Input(type="hidden", name=key, value=value) for key, value in hidden],
+            Div(*[Button(title, type="submit", name=name, value=value, aria_pressed=str(value == preset).lower(),
+                         cls="p-datepicker-preset" + (" is-active" if value == preset else ""))
+                  for value, title in presets], cls="p-datepicker-presets", role="group", aria_label="Preset ranges"),
+            Div(Span("Custom range", cls="p-datepicker-heading"),
+                Div(Label("Start", Input(type="date", name="start", value=start)),
+                    Label("End", Input(type="date", name="end", value=end)), cls="p-datepicker-dates"),
+                Div(Button("Apply", type="submit", name=name, value="custom", cls="a-button a-button-primary"),
+                    cls="p-datepicker-foot"),
+                cls="p-datepicker-custom") if custom else None,
+            method="get", action=action, cls="p-datepicker-panel" + ("" if custom else " is-compact")),
+        cls="p-datepicker p-popover")
+
+
+def delta_badge(current, previous):
+    """Change against the previous period, coloured only when it means something."""
+    from app.admin_icons import lucide
+    if not previous:
+        return Span("New", cls="p-delta") if current else None
+    change = (current - previous) * 100 / previous
+    if abs(change) < 0.05:
+        return Span("0%", cls="p-delta")
+    up = change > 0
+    return Span(lucide("arrow-up" if up else "arrow-down", 12), f"{abs(change):.0f}%",
+                cls="p-delta " + ("is-up" if up else "is-down"),
+                aria_label=f"{'Up' if up else 'Down'} {abs(change):.0f}% on the previous period")
+
+
+def form_modal(title, *fields, submit, action, id, csrf=None, method="post", description=None):
+    """Polaris modal: titled header with a close button, a form body, and Cancel plus a primary action."""
+    from app.admin_icons import lucide
+    return Dialog(
+        Form(
+            Div(H2(title, id=f"{id}-title"),
+                Button(lucide("x", 18), type="button", data_modal_close="", aria_label="Close", cls="p-modal-close"),
+                cls="p-modal-head"),
+            Div(P(description, cls="p-modal-description") if description else None, csrf, *fields,
+                cls="p-modal-body"),
+            Div(Button("Cancel", type="button", data_modal_close="", cls="a-button"),
+                Button(submit, type="submit", cls="a-button a-button-primary"), cls="p-modal-foot"),
+            method=method, action=action),
+        id=id, aria_labelledby=f"{id}-title", cls="p-modal")
+
+
 def modal(title, *children, id="admin-modal"):
     return Dialog(H2(title), *children,
                   Form(Button("Close"), method="dialog"), id=id, aria_label=title, cls="a-modal")
@@ -141,24 +212,33 @@ def resource_picker(id="resource-picker", title="Choose a resource"):
     return modal(title, empty_state("Resource picker", "Resource selection is coming in this release."), id=id)
 
 
+# Navigation and interface icons come from the vendored Lucide set in static/admin/icons.
 _ICONS = {
-    "Home": '<path d="m3 10 9-7 9 7v11h-6v-7H9v7H3z"/>',
-    "Orders": '<path d="M5 7h14l2 14H3L5 7Z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>',
-    "Products": '<path d="m3 3 9 1 9 9-8 8-9-9z"/><circle cx="8" cy="8" r="1"/>',
-    "Customers": '<circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/>',
-    "Discounts": '<path d="m3 12 3-3V5h4l2-2 3 2h4v4l2 3-2 3v4h-4l-3 2-2-2H6v-4zM8 16l8-8"/><path d="M8 8h.01M16 16h.01"/>',
-    "Content": '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
-    "Analytics": '<path d="M4 3v18h17M8 17v-5M13 17V7M18 17V4"/>',
-    "Marketing/Integrations": '<path d="m3 11 17-7v16L3 13zM7 14l2 7h4l-3-6"/>',
-    "Online Store": '<path d="M3 10V4h18v6M4 10v11h16V10M9 21v-7h6v7M2 10h20"/>',
-    "Settings": '<path d="m9 3-1 3-3 1-2 4 2 2v4l4 2 3-1 3 1 4-2v-4l2-2-2-4-3-1-1-3z"/><circle cx="12" cy="12" r="3"/>',
+    "Assistant": "sparkles", "Home": "house", "Orders": "inbox", "Products": "tag", "Customers": "user",
+    "Discounts": "badge-percent", "Content": "file-text", "Analytics": "chart-column", "Marketing": "target",
+    "Online Store": "store", "Integrations": "blocks", "Settings": "settings",
+}
+
+_UI_ICONS = {
+    "menu": "menu", "chevron": "chevron-down", "chevron-left": "chevron-left", "close": "x",
+    "search": "search", "external": "external-link", "back": "arrow-left",
 }
 
 
-def icon(name):
-    return NotStr('<svg viewBox="0 0 24 24" width="18" height="18" fill="none" '
-                  'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" '
-                  'stroke-linejoin="round" aria-hidden="true">' + _ICONS[name] + '</svg>')
+def _initials(name: str) -> str:
+    """Up to two initials from the words of a name that start with a letter or digit."""
+    words = [word for word in name.split() if word[:1].isalnum()]
+    return "".join(word[0] for word in words[:2]).upper() or "?"
+
+
+def ui_icon(name, size=20):
+    from app.admin_icons import lucide
+    return lucide(_UI_ICONS.get(name, name), size)
+
+
+def icon(name, size=20):
+    from app.admin_icons import lucide
+    return lucide(_ICONS.get(name, name), size, stroke=1.75)
 
 
 def _has_page_header(child):
@@ -192,19 +272,52 @@ def nav_section(path):
     key = part[0] if part else ""
     if key == "coming-soon" and len(part) > 1:
         key = part[1]
+    if key == "settings" and len(part) > 1 and part[1] == "seo":
+        return "Online Store"
+    if key == "settings" and len(part) > 1 and part[1] == "integrations":
+        return "Integrations"
     return {
         "": "Home", "orders": "Orders", "drafts": "Orders", "abandoned-checkouts": "Orders",
         "deliveries": "Orders", "products": "Products", "collections": "Products",
-        "inventory": "Products", "gift-cards": "Products", "customers": "Customers", "discounts": "Discounts",
+        "inventory": "Products", "gift-cards": "Products", "customers": "Customers",
+        "discounts": "Discounts",
         "pages": "Content", "blog-posts": "Content", "menus": "Content", "media": "Content", "content": "Content",
-        "snippets": "Content", "redirects": "Content", "reviews": "Content", "placeholders": "Content", "inbox": "Content",
-        "revenue": "Analytics", "analytics": "Analytics", "integrations": "Marketing/Integrations", "subscriptions": "Products",
+        "snippets": "Content", "redirects": "Online Store", "reviews": "Content", "placeholders": "Content", "inbox": "Content",
+        "revenue": "Analytics", "analytics": "Analytics", "integrations": "Integrations",
+        "marketing": "Marketing", "subscriptions": "Products",
         "build": "Online Store", "samples": "Online Store", "editor": "Online Store",
         "preferences": "Online Store", "settings": "Settings", "commerce": "Settings",
         "golive": "Settings", "live-credentials": "Settings", "billing": "Settings",
         "users": "Settings", "policies": "Settings", "notifications": "Settings",
         "search": "Home", "activity": "Settings",
     }.get(key, "Online Store")
+
+
+# Settings routes that live outside /settings but belong to a directory entry.
+_SETTINGS_ALIASES = {"/commerce/payments": "/settings/payments", "/commerce": "/settings/payments",
+                     "/live-credentials": "/settings/payments", "/golive": "/settings/domains",
+                     "/billing": "/settings/billing", "/users": "/settings/users"}
+
+
+def _settings_nav(base: str, path: str):
+    """The Shopify-style list of settings shown beside a settings page."""
+    from app.admin_icons import lucide
+    from app.settings_directory import SETTINGS_GROUPS, SETTINGS_ICONS
+
+    local = path.split("?", 1)[0].removeprefix(base).rstrip("/")
+    for prefix, target in _SETTINGS_ALIASES.items():
+        if local == prefix or local.startswith(prefix + "/"):
+            local = target
+            break
+    links = []
+    for _group, _summary, entries in SETTINGS_GROUPS:
+        for label, href, *_rest in entries:
+            current = local == href or local.startswith(href + "/")
+            links.append(A(lucide(SETTINGS_ICONS.get(href, "settings"), 18, 1.75), Span(label), href=base + href,
+                           cls="p-settings-link" + (" is-active" if current else ""),
+                           aria_current="page" if current else None))
+    return Nav(A(ui_icon("chevron-left", 16), Span("All settings"), href=base + "/settings",
+                 cls="p-settings-all"), *links, aria_label="Settings sections", cls="p-settings-nav")
 
 
 def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/sites",
@@ -221,22 +334,45 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         ("Products", base + "/products", [("Collections", base + "/collections"), ("Inventory", base + "/inventory"), ("Subscriptions", base + "/subscriptions"), ("Gift cards", base + "/gift-cards")]),
         ("Customers", base + "/customers", []),
         ("Discounts", base + "/discounts", []),
-        ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files"), ("URL redirects", base + "/redirects"), ("Activity", base + "/activity")]),
+        ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files")]),
         ("Analytics", base + "/analytics", []),
-        ("Marketing/Integrations", base + "/integrations", []),
-        ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Themes", base + "/themes"), ("Preferences", base + "/preferences")]),
+        ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Themes", base + "/themes"), ("Preferences", base + "/preferences"), ("URL redirects", base + "/redirects")]),
+        ("Integrations", base + "/integrations", []),
+        ("Settings", base + "/settings", []),
     ]
-    navigation = []
+    navigation, pinned = [], []
     for label, href, subs in groups if site else []:
-        navigation.append(navlink(label, href, True, active == label))
+        target = pinned if label == "Settings" else navigation
+        target.append(navlink(label, href, True, active == label))
         if active == label and subs:
-            navigation.append(Div(*[navlink(text, url, selected=path == url)
-                                    for text, url in subs], cls="a-subnav"))
+            target.append(Div(*[navlink(text, url, selected=path == url)
+                                for text, url in subs], cls="a-subnav"))
     name = site.name if site else "FastShop"
-    initials = "".join(word[0] for word in name.split()[:2]).upper()
+    initials = _initials(name)
     has_header = any(_has_page_header(child) for child in children)
+    in_settings = bool(site) and active == "Settings"
+    settings_nav = (_settings_nav(base, path) if in_settings
+                    and path.split("?", 1)[0].rstrip("/") != base + "/settings" else None)
     legacy_back = None if has_header else _legacy_back_link(children)
-    display_title = title.replace("\u2014", "·").removesuffix(" · " + name)
+    display_title = title.replace("—", "·").removesuffix(" · " + name)
+    storefront = (f"https://{site.hostname}" if site and getattr(site, "hostname", None)
+                  else f"/sites/{site.slug}" if site and getattr(site, "slug", None) else None)
+    account = Details(
+        Summary(Span(initials, cls="a-avatar"), Span(name, cls="p-account-name"),
+                ui_icon("chevron", 16), aria_label="Store and account menu"),
+        Div(
+            Nav(Span("Stores", cls="p-menu-label"),
+                *[A(Span(_initials(s.name), cls="a-avatar"),
+                    Span(s.name), href=f"/admin/sites/{s.id}",
+                    cls="p-menu-item" + (" is-current" if site and s.id == site.id else ""),
+                    aria_current="page" if site and s.id == site.id else None) for s in sites],
+                A("All stores", href="/admin/sites", cls="p-menu-item"), aria_label="Switch store"),
+            Div(Span(user.email if user else "Account", cls="p-menu-label"),
+                Form(Input(type="hidden", name="csrf_token", value=csrf_token),
+                     Button("Sign out", type="submit", cls="p-menu-item"), action="/logout",
+                     method="post"), cls="p-menu-section"),
+            cls="p-menu"),
+        cls="a-store-switcher a-user-menu p-account")
     return (
         Title(title.replace("\u2014", "·") + " · FastShop"),
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
@@ -244,45 +380,58 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         Meta(name="referrer", content="no-referrer"),
         Link(rel="icon", href=static_asset("favicon.svg")),
         *[Link(rel="stylesheet", href=static_asset(asset))
-          for asset in ("fonts.css", "site-editor.css", "admin/admin.css", "platform.css")],
+          for asset in ("fonts.css", "site-editor.css", "admin/admin.css", "platform.css",
+                        "admin/polaris.css")],
+        Script(src=static_asset("admin/icons.js")),
         Script(src=static_asset("site-editor.js"), defer=True),
         Script(src=static_asset("admin/admin.js"), defer=True),
         Script(src=static_asset("admin/polish.js"), defer=True),
+        Script(src=static_asset("admin/polaris.js"), defer=True),
         Div(A("Skip to content", href="#admin-main", cls="a-skip-link"),
+            Header(
+                Button(ui_icon("menu"), type="button", data_sidebar_toggle="",
+                       aria_controls="admin-sidebar", aria_expanded="false",
+                       aria_label="Open navigation", cls="p-menu-button"),
+                A(Img(src=static_asset("favicon.svg"), alt="", width=24, height=24),
+                  Span("FastShop"), href="/admin/sites", cls="p-brand", aria_label="FastShop home"),
+                Form(ui_icon("search", 16),
+                     Label(Span("Search", cls="a-sr-only"), Input(
+                         id="admin-search", name="q", type="search", placeholder="Search",
+                         autocomplete="off", role="combobox", aria_expanded="false",
+                         aria_controls="admin-search-results", aria_autocomplete="list",
+                         data_search_url=base + "/search")),
+                     Span("Ctrl K", cls="p-kbd", aria_hidden="true"),
+                     Div(id="admin-search-results", role="listbox", hidden=True),
+                     action=base + "/search", method="get", cls="a-search p-search") if site else Div(),
+                Div(A(ui_icon("external", 16), Span("View store"), href=storefront,
+                      target="_blank", rel="noopener", cls="p-view-store") if storefront else None,
+                    account, cls="p-topbar-end"),
+                cls="p-topbar", aria_label="FastShop"),
             Aside(
-                Details(Summary(Span(initials, cls="a-avatar"), Span(name), Span("⌄")),
-                        Nav(A("All stores", href="/admin/sites"),
-                            *[A(s.name, href=f"/admin/sites/{s.id}") for s in sites],
-                            aria_label="Switch store"), cls="a-store-switcher"),
-                Form(Label("Search store", Input(id="admin-search", name="q", type="search",
-                    placeholder="Search  Ctrl K", autocomplete="off", role="combobox",
-                    aria_expanded="false", aria_controls="admin-search-results",
-                    aria_autocomplete="list", data_search_url=base + "/search")),
-                    Div(id="admin-search-results", role="listbox", hidden=True),
-                    action=base + "/search", method="get", cls="a-search") if site else None,
                 Nav(*navigation, aria_label="Main navigation") if site else Nav(
                     A("Stores", href="/admin/sites", cls="a-nav-link is-active", aria_current="page"),
                     aria_label="Main navigation"),
-                Footer(navlink("Settings", base + "/settings", True, active == "Settings") if site else None,
-                       Details(Summary(Span((user.email[0] if user else "U").upper(), cls="a-avatar"),
-                                       Span(user.email if user else "Account")),
-                               Form(Input(type="hidden", name="csrf_token", value=csrf_token),
-                                    Button("Sign out", type="submit"), action="/logout", method="post"),
-                               cls="a-user-menu"),
-                       cls="a-sidebar-footer"),
+                Nav(*pinned, aria_label="Settings", cls="p-nav-pinned") if pinned else None,
                 id="admin-sidebar", cls="a-sidebar", aria_label="Store administration"),
-            Main(Header(Button("☰", type="button", data_sidebar_toggle="",
-                          aria_controls="admin-sidebar", aria_expanded="false", aria_label="Open navigation"),
-                   Nav(A(name, href=base), Span("/", aria_hidden="true"),
-                       Span(display_title), aria_label="Page breadcrumb"), cls="a-topbar"),
-                 Div(None if has_header else page_header(display_title, back_href=legacy_back),
-                     Div(Span(notice[:300]), Button("×", type="button", data_toast_dismiss="",
-                         aria_label="Dismiss notification"), role="status", cls="a-toast") if notice else None,
-                     *children, cls="a-content"), id="admin-main", cls="a-canvas"),
-            Div(Span("Unsaved changes"), Button("Discard", type="button", data_discard=""),
-                Button("Save", type="button", data_save=""), id="admin-save-bar",
-                role="region", aria_label="Unsaved changes", hidden=True), cls="a-shell"),
+            Main(Div(*_with_settings_nav(
+                         settings_nav,
+                         None if has_header else page_header(display_title, back_href=legacy_back),
+                         Div(Span(notice[:300]), Button(ui_icon("close", 16), type="button",
+                             data_toast_dismiss="", aria_label="Dismiss notification"),
+                             role="status", cls="a-toast") if notice else None,
+                         *children), cls="a-content"), id="admin-main", cls="a-canvas"),
+            Div(Span("Unsaved changes"), Div(
+                Button("Discard", type="button", data_discard=""),
+                Button("Save", type="button", data_save=""), cls="p-save-actions"),
+                id="admin-save-bar", role="region", aria_label="Unsaved changes", hidden=True),
+            cls="a-shell p-shell"),
     )
+
+
+def _with_settings_nav(settings_nav, *content):
+    if settings_nav is None:
+        return content
+    return (Div(settings_nav, Div(*content, cls="p-settings-main"), cls="p-settings-layout"),)
 
 
 def contextual_page(title, *children, subnavigation=None):

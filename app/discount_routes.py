@@ -24,7 +24,7 @@ from sqlalchemy import select
 from starlette.responses import JSONResponse, RedirectResponse
 
 from app import content, discounts
-from app.admin_ui import badge, card, icon, index_table, modal, page_header, two_column
+from app.admin_ui import badge, card, empty_state, icon, index_table, modal, page_header, two_column
 from app.db import SessionLocal
 from app.models import Collection, Discount, DiscountCode, Product
 from app.services import CommerceError
@@ -219,6 +219,13 @@ def register_discount_routes(rt, actor, csrf, check_csrf, shell, error):
                          Label("Sort", Select(Option("Newest first", value="recent", selected=sort != "title"),
                              Option("Title A to Z", value="title", selected=sort == "title"), name="sort", aria_label="Sort")),
                          Button("Search", cls="e-button secondary"), method="get", cls="e-actions"),
+                    empty_state("No discounts match these filters" if (q or status.casefold() != "all")
+                                else "Create your first discount",
+                                "Clear the search or choose another status." if (q or status.casefold() != "all")
+                                else "Offer money off products or orders, buy X get Y, or free shipping.",
+                                A("Clear filters", href=prefix, cls="a-button") if (q or status.casefold() != "all")
+                                else A("Create discount", href=prefix + "/new", cls="a-button"))
+                    if not rules else
                     Form(csrf(session), index_table(["Discount", "Status", "Method", "Type", "Used", "Select"], [
                         [A(r.title, href=prefix + "/" + r.id), badge(discounts.status(r), "success" if discounts.status(r) == "Active" else "neutral"),
                          r.method.title(), discounts.TYPES[r.type], str(discounts.usage(db, r)),

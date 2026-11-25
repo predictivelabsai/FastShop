@@ -269,7 +269,7 @@ def test_csv_upload_route_uses_csrf_prg_stored_rows_apply_and_feed_download():
         site_id = site.id
         db.commit()
     base = f"/admin/sites/{site_id}/integrations"
-    page = client.get(base)
+    page = client.get(base + "/import")
     assert page.status_code == 200
     assert "CSV catalog &amp; Merchant Center" in page.text
     assert 'enctype="multipart/form-data"' in page.text

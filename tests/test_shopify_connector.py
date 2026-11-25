@@ -229,12 +229,12 @@ def test_site_integration_routes_show_shopify_and_apply_exact_plan(monkeypatch):
         site_id = site.id
         db.commit()
     base = f"/admin/sites/{site_id}/integrations"
-    missing = client.get(base)
+    missing = client.get(base + "/import")
     assert missing.status_code == 200
     assert "Shopify" in missing.text and "Not connected" in missing.text
 
     monkeypatch.setenv("FASTSHOP_SHOPIFY_FIXTURE_PATH", str(FIXTURE))
-    page = client.get(base)
+    page = client.get(base + "/import")
     assert page.status_code == 200
     assert "Shopify" in page.text and "Development fixture store ready" in page.text
     assert "shpat_fixture" not in page.text and "ADMIN_API_ACCESS_TOKEN" not in page.text

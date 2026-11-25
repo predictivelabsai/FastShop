@@ -29,7 +29,7 @@ from fasthtml.common import (
     Tr,
 )
 
-from app.admin_ui import badge, card, empty_state, page_header, two_column
+from app.admin_ui import badge, card, empty_state, page_header, pager, two_column
 from app.services import money
 
 
@@ -61,9 +61,9 @@ def index(site, rows, total, page, filters, people, totals, csrf):
                     Td(row.updated_at.strftime("%d %b %Y")), Td(people.get(row.customer_id, "No customer")),
                     Td(badge(row.status.replace("_", " ").title())), Td(money(totals[row.id], row.currency))) for row in rows])),
                 cls="a-table-wrap") if rows else empty_state("Create your first draft", "Build an order for a customer, send an invoice and record a manual payment."),
-            P(f"Page {page} · {total} drafts"),
-            A("Previous", href=base+"?"+urlencode(filters | {"page": page-1})) if page>1 else None,
-            A("Next", href=base+"?"+urlencode(filters | {"page": page+1})) if page*25<total else None),
+            pager(f"Page {page} · {total} {'draft' if total == 1 else 'drafts'}",
+                  base+"?"+urlencode(filters | {"page": page-1}) if page>1 else None,
+                  base+"?"+urlencode(filters | {"page": page+1}) if page*25<total else None) if rows else None),
         Link(rel="stylesheet", href="/static/admin/drafts.css"),
     )
 

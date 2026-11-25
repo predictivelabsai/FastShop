@@ -4,8 +4,10 @@ import secrets
 from urllib.parse import urlencode
 
 from fasthtml.common import (
+    H2,
     A,
     Button,
+    Details,
     Div,
     Form,
     Input,
@@ -13,15 +15,32 @@ from fasthtml.common import (
     Option,
     P,
     Select,
-    Small,
+    Span,
     Strong,
+    Summary,
+    Table,
+    Tbody,
+    Td,
+    Th,
+    Thead,
+    Tr,
 )
 from sqlalchemy import select
 from starlette.responses import RedirectResponse, Response
 
 from app import content, growth_reports, subscriptions
-from app.admin_routes import sales_sparkline
-from app.admin_ui import badge, card, empty_state, index_table, key_value_list
+from app.admin_charts import line_chart, short_money
+from app.admin_icons import lucide
+from app.admin_ui import (
+    badge,
+    card,
+    date_range_picker,
+    delta_badge,
+    empty_state,
+    index_table,
+    key_value_list,
+    page_header,
+)
 from app.db import SessionLocal
 from app.models import ShopCustomer, SubscriptionContract, SubscriptionCycle, SubscriptionEvent
 from app.services import CommerceError, money
@@ -60,63 +79,80 @@ def register_growth_reports_routes(rt, actor, csrf, check_csrf, shell, error):
                 prefix = f"/admin/sites/{site.id}"
                 export = prefix + "/analytics?" + urlencode({"start": start_date.isoformat(),
                     "end": end_date.isoformat(), "format": "csv"})
+                currency = current.currency
                 metrics = []
-                for label, value, old, monetary in (
-                    ("Total sales", current.gross_sales_minor, previous.gross_sales_minor, True),
-                    ("Orders", current.order_count, previous.order_count, False),
+                for label, value, old, kind in (
+                    ("Total sales", current.gross_sales_minor, previous.gross_sales_minor, "money"),
+                    ("Net revenue", current.net_revenue_minor, previous.net_revenue_minor, "money"),
+                    ("Orders", current.order_count, previous.order_count, "count"),
                     ("Average order value", current.average_order_value_minor,
-                     previous.average_order_value_minor, True),
+                     previous.average_order_value_minor, "money"),
                     ("Returning customer rate", data["returning_rate"],
-                     data["previous"]["returning_rate"], None),
+                     data["previous"]["returning_rate"], "rate"),
+                    ("Refunds", current.refunds_minor, previous.refunds_minor, "money"),
                 ):
-                    display = money(value, current.currency) if monetary else str(value)
-                    if monetary is None:
-                        display = f"{value / 100:.1f}%"
-                    metrics.append(Div(Small(label), Strong(display),
-                        Small(_comparison(value, old)), cls="admin-metric"))
+                    display = (money(value, currency) if kind == "money" else
+                               f"{value / 100:.1f}%" if kind == "rate" else f"{value:,}")
+                    metrics.append(Div(Span(label, cls="p-metric-label"),
+                                       Div(Strong(display), delta_badge(value, old), cls="p-metric-value"),
+                                       cls="p-metric"))
+                daily = data["daily"]
+                chart = line_chart([amount for _, amount in daily],
+                                   [f"{day:%-d %b}" if hasattr(day, "strftime") else str(day) for day, _ in daily],
+                                   previous=[amount for _, amount in data["previous"]["daily"]],
+                                   label="Total sales",
+                                   format_value=lambda minor: short_money(minor, currency))
+
+                def table_card(title, columns, rows, empty):
+                    return card(
+                        Div(Table(Thead(Tr(*[Th(column, scope="col") for column in columns])),
+                                  Tbody(*[Tr(*[Td(cell) for cell in row]) for row in rows]),
+                                  cls="p-report-table"), cls="a-table-wrap") if rows
+                        else P(empty, cls="p-card-empty"),
+                        title=title, cls="p-report-card")
+
                 return shell("Analytics",
-                    Div(Form(Label("Date range", Select(*[Option(label, value=value,
-                        selected=preset == value) for value, label in (
-                            ("1", "Today"), ("7", "Last 7 days"), ("30", "Last 30 days"),
-                            ("90", "Last 90 days"), ("custom", "Custom range"))], name="preset")),
-                        Label("From", Input(type="date", name="start", value=start)),
-                        Label("To", Input(type="date", name="end", value=end)),
-                        Button("Apply", cls="e-button"), method="get", cls="e-actions"),
-                        A("Export CSV", href=export, cls="e-button"), cls="e-actions"),
-                    P(f"{start_date:%d %b %Y} to {end_date:%d %b %Y} · "
-                      f"Compared with {previous.start_date:%d %b %Y} to {previous.end_date:%d %b %Y}"),
-                    Div(*metrics, cls="admin-metrics",
-                        style="grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))"),
-                    card(sales_sparkline([amount for _, amount in data["daily"]]),
-                        Small(f"{start_date:%d %b} to {end_date:%d %b} · {current.currency}"),
-                        title="Sales over time"),
-                    Div(card(index_table(["Product", "Revenue", "Units"], [
-                            [p["name"], money(p["revenue_minor"], current.currency), p["units"]]
-                            for p in data["top_products"][:20]]) if data["top_products"] else
-                            P("Product sales will appear after your first paid order."),
-                            title="Top products by revenue"),
-                        card(index_table(["Product", "Units", "Revenue"], [
-                            [p["name"], p["units"], money(p["revenue_minor"], current.currency)]
-                            for p in data["top_units"][:20]]) if data["top_units"] else
-                            P("No units sold in this period."), title="Top products by units"),
-                        cls="admin-two-column"),
-                    Div(card(index_table(["Channel", "Sales", "Orders"], [
-                            [name, money(values[0], current.currency), values[1]]
-                            for name, values in data["channels"]]), title="Sales by channel"),
-                        card(index_table(["Discount", "Sales", "Savings", "Orders"], [
-                            [name, money(values[0], current.currency),
-                             money(values[1], current.currency), values[2]]
-                            for name, values in data["discounts"]]), title="Sales by discount"),
-                        cls="admin-two-column"),
-                    card(key_value_list([
-                        ("Refunds", money(current.refunds_minor, current.currency)),
-                        ("Net revenue", money(current.net_revenue_minor, current.currency)),
-                        ("Excluded currency orders", str(current.excluded_currency_orders)),
-                        ("Excluded currency refunds", str(current.excluded_currency_refunds)),
-                    ]), P("Total sales include shipping and tax. Product revenue uses historical "
-                        "line totals. Refunds use their payment "
-                        "transaction date. Returning customers have an earlier paid order at this store. "
-                        "Dates are in UTC."), title="Report definitions"))
+                    page_header("Analytics", secondary_actions=[
+                        A(lucide("download", 16), Span("Export"), href=export, cls="a-button")]),
+                    Div(date_range_picker(prefix + "/analytics", preset=preset if not (start or end) else "custom",
+                                          start=start_date.isoformat(), end=end_date.isoformat(),
+                                          label=None if not (start or end) and preset != "custom"
+                                          else f"{start_date:%-d %b} to {end_date:%-d %b %Y}"),
+                        Span(f"Compared with {previous.start_date:%-d %b} to {previous.end_date:%-d %b %Y}",
+                             cls="p-compare"),
+                        cls="p-report-toolbar"),
+                    Div(*metrics, cls="p-metrics"),
+                    card(Div(H2("Total sales over time"),
+                             Div(Span(cls="p-legend-swatch"), Span(f"{start_date:%-d %b} to {end_date:%-d %b}"),
+                                 Span(cls="p-legend-swatch is-previous"),
+                                 Span(f"{previous.start_date:%-d %b} to {previous.end_date:%-d %b}"),
+                                 cls="p-legend"), cls="p-chart-head"),
+                         chart, cls="p-chart-card"),
+                    Div(table_card("Top products by revenue", ["Product", "Revenue", "Units"],
+                                   [[p["name"], money(p["revenue_minor"], currency), p["units"]]
+                                    for p in data["top_products"][:10]],
+                                   "Product sales will appear after your first paid order."),
+                        table_card("Top products by units sold", ["Product", "Units", "Revenue"],
+                                   [[p["name"], p["units"], money(p["revenue_minor"], currency)]
+                                    for p in data["top_units"][:10]],
+                                   "No units sold in this period."),
+                        cls="p-report-grid"),
+                    Div(table_card("Sales by channel", ["Channel", "Sales", "Orders"],
+                                   [[name, money(values[0], currency), values[1]] for name, values in data["channels"]],
+                                   "No sales in this period."),
+                        table_card("Sales by discount", ["Discount", "Sales", "Savings", "Orders"],
+                                   [[name, money(values[0], currency), money(values[1], currency), values[2]]
+                                    for name, values in data["discounts"]],
+                                   "No discounted orders in this period."),
+                        cls="p-report-grid"),
+                    Details(Summary("How these numbers are calculated"),
+                        P("Total sales include shipping and tax. Product revenue uses historical line totals. "
+                          "Refunds use their payment transaction date. Returning customers have an earlier paid "
+                          "order at this store. Dates are in UTC."),
+                        P(f"Orders in other currencies are reported separately: {current.excluded_currency_orders} "
+                          f"orders and {current.excluded_currency_refunds} refunds were left out of these totals.")
+                        if current.excluded_currency_orders or current.excluded_currency_refunds else None,
+                        cls="p-report-notes"))
         except CommerceError as exc:
             return error(exc)
 

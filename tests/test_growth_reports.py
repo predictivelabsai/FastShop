@@ -186,9 +186,9 @@ def test_analytics_http_csv_and_editor_cannot_read_reports(monkeypatch):
         path = f"/admin/sites/{w.site.id}/analytics"
         page = client.get(path)
         assert page.status_code == 200
-        assert "Sales over time" in page.text and "Top products by units" in page.text
+        assert "Total sales over time" in page.text and "Top products by units sold" in page.text
         assert "conversion" not in page.text.lower()
-        assert '<svg viewBox="0 0 600 128"' in page.text
+        assert 'class="p-chart" role="img"' in page.text
         exported = client.get(path + "?format=csv")
         assert exported.status_code == 200 and "attachment" in exported.headers["content-disposition"]
         assert "gross_sales_minor" in exported.text

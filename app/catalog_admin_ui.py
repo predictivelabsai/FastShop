@@ -6,7 +6,7 @@ from html import escape
 from fastcore.xml import NotStr, to_xml
 from fasthtml.common import A, Button, Div, Form, Input, Label, Link, Script
 
-from app.admin_ui import badge, card, empty_state, modal, page_header, two_column
+from app.admin_ui import badge, card, empty_state, modal, page_header, pager, two_column, ui_icon
 
 
 def e(value):
@@ -136,7 +136,7 @@ def product_index(site, products, total, counts, filters, page, csrf, collection
     labels = {"q": "Search", "status": "Status", "vendor": "Vendor", "product_type": "Type",
               "tag": "Tag", "collection": "Collection", "stock": "Stock"}
     collection_titles = {c.id: c.title for c in collections}
-    chips = [A(f"{label}: {collection_titles.get(filters[key], filters[key]) if key == 'collection' else filters[key]} ×",
+    chips = [A(f"{label}: {collection_titles.get(filters[key], filters[key]) if key == 'collection' else filters[key]}", ui_icon("close", 14),
                href=base + "?" + urlencode({k: v for k, v in filters.items() if k != key}),
                cls="c-chip", aria_label=f"Remove {label.lower()} filter")
              for key, label in labels.items() if filters.get(key)]
@@ -221,12 +221,12 @@ def product_index(site, products, total, counts, filters, page, csrf, collection
             )
             if not total
             else None,
-            Div(
-                A("Previous", href=page_link(page - 1)) if page > 1 else None,
+            pager(
                 f"Page {page} · {total} {'product' if total == 1 else 'products'}",
-                A("Next", href=page_link(page + 1)) if page * 25 < total else None,
+                page_link(page - 1) if page > 1 else None,
+                page_link(page + 1) if page * 25 < total else None,
                 cls="c-pagination",
-            ),
+            ) if total else None,
             cls="a-card c-index o-operations-index",
         ),
         cls="c-catalog o-operations o-products",

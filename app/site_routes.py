@@ -475,41 +475,83 @@ def register_site_routes(rt):
                         Img(src=value, alt="", cls="g-general-logo-preview", height="40") if value else None,
                         cls="g-general-image-field",
                     )
+                def field(key, label, help_text=None, **attrs):
+                    return Label(label, Input(name=key, value=config.get(key) or (site.name if key == "name" else ""),
+                                              **attrs),
+                                 Small(help_text, cls="p-help") if help_text else None)
+
+                def section(title, description, *children, open=True):
+                    # Long, rarely changed groups start folded so the page reads like Shopify's General.
+                    return Details(Summary(Span(title, cls="g-section-title"),
+                                           Span(description, cls="g-section-description")),
+                                   Div(*children, cls="g-section-body"), open=open or None,
+                                   cls="a-card g-settings-section")
+
                 return shell("General",
                     verification_banner(db, user_id, session),
-                    A("← Settings", href=f"/admin/sites/{site.id}/settings"),
-                    Div(
-                        Div(H2("Brand and shared content"), Form(csrf(session), Input(type="hidden", name="version", value=site.version),
-                            *[Label(label, Input(name=key, value=config.get(key, ""))) for key, label in [
-                                ("name", "Brand name"), ("tagline", "Tagline"), ("email", "Contact email"),
-                                ("company", "Company"), ("address", "Company address"), ("announcement", "Announcement"),
-                                ("offer", "First-order banner")]],
-                            image_field("logo", "Logo"),
-                            image_field("logo_light", "Logo for dark backgrounds"),
+                    P(notice[:500], role="status", cls="e-note") if notice else None,
+                    Form(csrf(session), Input(type="hidden", name="version", value=site.version),
+                        section("Store details", "Your brand name and how customers contact you.",
+                            Div(field("name", "Brand name", "Shown in your store, emails and the admin."),
+                                field("tagline", "Tagline"),
+                                field("email", "Contact email", "Customers reply to this address."),
+                                field("company", "Legal business name"), cls="g-field-grid"),
+                            field("address", "Business address")),
+                        section("Logo", "Used in search results, shared links and emails.",
+                            Div(image_field("logo", "Logo"), image_field("logo_light", "Logo for dark backgrounds"),
+                                cls="g-field-grid"),
                             Datalist(*[Option(value=item.public_url, label=item.title) for item in media],
                                      id="general-media-images"),
-                            P("Used in search results, shared links and emails. Upload images in ",
-                              A("Media", href=f"/admin/sites/{site.id}/media"), ".", cls="g-help"),
+                            P("Upload images in ", A("Files", href=f"/admin/sites/{site.id}/content/files"), ".",
+                              cls="p-help")),
+                        section("Banners", "Short messages shown across the top of your store.",
+                            Div(field("announcement", "Announcement"), field("offer", "First-order banner"),
+                                cls="g-field-grid")),
+                        section("Social links", "Profiles linked from your store footer.",
+                            Div(*[Label(item["label"], Input(name=f"social_url_{i}", value=item.get("url", ""),
+                                                             placeholder="https://"))
+                                  for i, item in enumerate(config.get("socials", []))], cls="g-field-grid")
+                            if config.get("socials") else P("Your theme has no social links.", cls="p-help")),
+                        section("Analytics", "Measure visits to your published store.",
+                            Label("GA4 measurement ID (optional)", Input(
+                                name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""),
+                                placeholder="G-ABC1234567", maxlength=22),
+                                Small("Disabled when empty. Published public pages load Google Analytics only after "
+                                      "analytics consent. Account and checkout pages are excluded.", cls="p-help"))),
+                        section("Checkout payment methods", "Extra ways to pay at one-time checkout.",
+                            Label(Input(type="checkbox", name="offer_paypal",
+                                        checked="paypal" in config.get("payment_methods", ["card"])),
+                                  " Offer PayPal (requires PayPal enabled on your Stripe account)", cls="g-check"),
+                            P("Card is always available. Apple Pay and Google Pay appear automatically once your "
+                              "store domain is registered with Stripe. Subscriptions stay card-only so renewals "
+                              "can charge the saved card.", cls="p-help")),
+                        section("Product claims and disclaimers", "Benefit statements, research figures and disclaimers.",
+                            Label("Footer disclaimer", Textarea(config.get("footer", ""), name="footer", rows=4)),
                             Label("Research figures checked as of",
                                   Input(name="science_date", value=config.get("science_date", ""))),
-                            Label("Footer disclaimer", Textarea(config.get("footer", ""), name="footer", rows=4)),
-                            H3("Analytics"), Label("GA4 measurement ID (optional)", Input(name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""), placeholder="G-ABC1234567", maxlength=22)),
-                            P("Disabled when empty. Published public pages load Google Analytics only after analytics consent. Account and checkout pages are excluded; no Meta pixel is installed. Publish shared settings to apply changes."),
-                            H3("Checkout payment methods"),
-                            Label(Input(type="checkbox", name="offer_paypal", checked="paypal" in config.get("payment_methods", ["card"])), " Offer PayPal at one-time checkout (requires PayPal enabled on your Stripe account)"),
-                            P("Card is always available. Apple Pay and Google Pay appear automatically once your store domain is registered with Stripe. Subscriptions stay card-only so renewals can charge the saved card.", cls="e-note"),
-                            H3("Navigation"), A("Edit menus", href=f"/admin/sites/{site.id}/menus"),
-                            H3("Research figures"), *[Div(Label("Value", Input(name=f"fact_value_{i}", value=item["value"])), Label("Label", Input(name=f"fact_label_{i}", value=item["label"]))) for i, item in enumerate(config.get("facts", []))],
-                            H3("Social links"), *[Label(item["label"], Input(name=f"social_url_{i}", value=item.get("url", ""), placeholder="https://…")) for i, item in enumerate(config.get("socials", []))],
-                            H3("Benefit statements"), P("Only approved statements appear. Unchecking one removes it everywhere after publishing settings. Clear a statement's text to delete it, or add new ones below (brief §8 reserved slots)."),
+                            H3("Research figures") if config.get("facts") else None,
+                            *[Div(Label("Value", Input(name=f"fact_value_{i}", value=item["value"])),
+                                  Label("Label", Input(name=f"fact_label_{i}", value=item["label"])),
+                                  cls="g-field-grid g-fact") for i, item in enumerate(config.get("facts", []))],
+                            H3("Benefit statements"),
+                            P("Only approved statements appear. Unchecking one removes it everywhere after "
+                              "publishing settings. Clear a statement's text to delete it.", cls="p-help"),
                             *[Div(Label("Statement", Textarea(item["text"], name=f"claim_text_{i}", rows=2)),
-                                Label(Input(type="checkbox", name=f"claim_approved_{i}", checked=item.get("approved", False)), " Approved for publication")) for i, item in enumerate(config.get("claims", []))],
-                            Div(Label("Add a benefit statement", Textarea("", name="new_claim_text", rows=2, placeholder="Supports … .*")),
-                                Label(Input(type="checkbox", name="new_claim_approved"), " Approve now"), cls="e-pair"),
-                            P("An approved statement must include an asterisk (*) and compliant wording; it renders beside the FDA footer disclaimer.", cls="e-note"),
-                            Button("Save draft settings", name="action", value="draft", cls="e-button"),
-                            Button("Publish shared settings", name="action", value="publish", cls="e-button"),
-                            method="post", action=f"/admin/sites/{site.id}/settings", cls="e-form", data_dirty_guard=""), cls="e-card"), cls="a-general-settings"),
+                                  Label(Input(type="checkbox", name=f"claim_approved_{i}",
+                                              checked=item.get("approved", False)), " Approved for publication",
+                                        cls="g-check"), cls="g-claim")
+                              for i, item in enumerate(config.get("claims", []))],
+                            Div(Label("Add a benefit statement", Textarea("", name="new_claim_text", rows=2)),
+                                Label(Input(type="checkbox", name="new_claim_approved"), " Approve now", cls="g-check"),
+                                cls="g-claim"),
+                            P("An approved statement must include an asterisk (*) and compliant wording; it renders "
+                              "beside the footer disclaimer.", cls="p-help"),
+                            open=False),
+                        Div(Button("Save draft settings", name="action", value="draft", cls="a-button"),
+                            Button("Publish shared settings", name="action", value="publish",
+                                   cls="a-button a-button-primary"), cls="g-settings-actions"),
+                        method="post", action=f"/admin/sites/{site.id}/settings", cls="g-general-form",
+                        data_dirty_guard=""),
                     )
         except CommerceError as exc:
             return error(exc)
