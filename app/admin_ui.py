@@ -289,7 +289,7 @@ def nav_section(path):
         "preferences": "Online Store", "settings": "Settings", "commerce": "Settings",
         "golive": "Settings", "live-credentials": "Settings", "billing": "Settings",
         "users": "Settings", "policies": "Settings", "notifications": "Settings",
-        "search": "Home", "activity": "Settings",
+        "search": "Home", "activity": "Settings", "assistant": "Assistant",
     }.get(key, "Online Store")
 
 
@@ -336,6 +336,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         ("Discounts", base + "/discounts", []),
         ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files")]),
         ("Analytics", base + "/analytics", []),
+        ("Assistant", base + "/assistant", []),
         ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Themes", base + "/themes"), ("Preferences", base + "/preferences"), ("URL redirects", base + "/redirects")]),
         ("Integrations", base + "/integrations", []),
         ("Settings", base + "/settings", []),
@@ -424,8 +425,25 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
                 Button("Discard", type="button", data_discard=""),
                 Button("Save", type="button", data_save=""), cls="p-save-actions"),
                 id="admin-save-bar", role="region", aria_label="Unsaved changes", hidden=True),
-            cls="a-shell p-shell"),
+            _assistant_drawer(site, path, csrf_token), cls="a-shell p-shell"),
     )
+
+
+def _assistant_drawer(site, path, csrf_token):
+    """The slide-out assistant on every store admin page, except the editor and the studio."""
+    if not site or "/editor" in path:
+        return None
+    from app import assistant_provider, store_agent_admin
+
+    # The full assistant page already renders the chat; a second copy duplicates its ids.
+    on_assistant_page = path.split("?", 1)[0].rstrip("/").endswith("/assistant")
+    drawer = None if on_assistant_page else store_agent_admin.drawer(
+        site.id, csrf_token, configured=assistant_provider.is_configured(site))
+    return (drawer,
+            Link(rel="stylesheet", href=static_asset("admin/agent.css")),
+            Link(rel="stylesheet", href=static_asset("agent-chat.css")),
+            Link(rel="stylesheet", href=static_asset("admin/agent-responsive.css")),
+            Script(src=static_asset("admin/agent.js"), type="module"))
 
 
 def _with_settings_nav(settings_nav, *content):

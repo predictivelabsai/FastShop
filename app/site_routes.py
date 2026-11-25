@@ -156,6 +156,10 @@ def register_site_routes(rt):
     register_media_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_editor_routes import register_site_editor_routes
     register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.assistant_routes import register_assistant_routes
+    register_assistant_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.store_agent_ops import register_routes as register_store_agent_ops_routes
+    register_store_agent_ops_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_widget_routes import register_site_widget_routes
     register_site_widget_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_menu_routes import register_menu_routes

@@ -1,0 +1,46 @@
+/* Keep mobile assistant controls in the navigation, not over the working page. */
+@media (max-width: 640px) {
+  .agent-main,
+  .agent-chat,
+  .agent-messages,
+  .agent-chat-shared,
+  .agent-chat-shared .agent-message {
+    min-width: 0;
+  }
+
+  .agent-chat-shared .agent-message.user {
+    width: auto;
+  }
+
+  .agent-launcher {
+    display: none;
+  }
+
+  .agent-history #agent-conversations {
+    display: grid;
+    gap: 0.3rem;
+    max-height: 200px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .agent-history .agent-conversation {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .agent-draft-preview-frame {
+    min-height:420px;
+  }
+
+  .agent-draft-preview-frame iframe {
+    height:480px;
+  }
+}
+
+/* Leave room under the last row of every admin page so the floating
+   "Ask assistant" button never covers buttons or table rows. */
+body:has(.agent-launcher) .a-content {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}

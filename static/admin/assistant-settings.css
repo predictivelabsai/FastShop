@@ -1,0 +1,18 @@
+/* Settings, AI assistant: the store's own model connection. */
+.assistant-settings { display: grid; gap: 16px; max-width: 760px; }
+.assistant-settings .a-card h2 { margin: 0; font-size: 14px; }
+.assistant-settings .a-card > p { margin: 8px 0 0; color: var(--p-text-secondary, #616161); font-size: 13px; line-height: 1.5; }
+.assistant-settings-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.assistant-settings-facts { display: grid; grid-template-columns: minmax(96px, max-content) 1fr; gap: 6px 16px; margin: 14px 0 0; font-size: 13px; }
+.assistant-settings-facts dt { color: var(--p-text-secondary, #616161); }
+.assistant-settings-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.assistant-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.assistant-settings-actions form { margin: 0; }
+.assistant-settings .e-form { margin-top: 14px; }
+.assistant-settings .e-form label > .g-help { display: block; margin-top: 4px; font-weight: 400; }
+.assistant-settings .e-form [hidden] { display: none; }
+@media (max-width: 640px) {
+  .assistant-settings-facts { grid-template-columns: 1fr; gap: 2px; }
+  .assistant-settings-facts dd { margin-bottom: 8px; }
+  .assistant-settings-actions .e-button { width: 100%; }
+}
