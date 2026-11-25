@@ -205,3 +205,30 @@ def test_media_routes_upload_edit_csrf_and_ownership():
         assert owned_media(db, site, row_id).localized_alt == {"en": "New description", "et": "Sinine"}
     assert "Media updated" in client.post(target, data={"csrf_token": token, "action": "delete"}).text
     assert client.get(url).status_code == 404
+
+
+def test_prepare_svg_icon_removes_active_and_external_content():
+    from app.site_media import prepare_svg_icon
+
+    unsafe = b'''<svg viewBox="0 0 24 24" onload="alert(1)">
+      <script>alert(1)</script>
+      <foreignObject><iframe src="https://bad.example"></iframe></foreignObject>
+      <path d="M1 1h2" onclick="alert(1)" style="fill:url(https://bad.example)"
+            fill="url(https://bad.example/icon)" stroke="#123"/>
+      <use href="https://bad.example/icon.svg#path"/>
+      <image href="https://bad.example/icon.png"/>
+    </svg>'''
+
+    safe = prepare_svg_icon(unsafe).decode("utf-8")
+
+    assert "<path" in safe and "currentColor" in safe
+    for unsafe_part in (
+        "script", "onload", "onclick", "foreignobject", "iframe", "<use", "<image",
+        "https://bad.example", "url(", "style=",
+    ):
+        assert unsafe_part not in safe.lower()
+    with pytest.raises(CommerceError, match="declarations or entities"):
+        prepare_svg_icon(b'<!DOCTYPE svg [<!ENTITY xxe "unsafe">]><svg><path d="M1 1"/></svg>')
+    deeply_nested = b"<svg>" + b"<g>" * 33 + b'<path d="M1 1"/>' + b"</g>" * 33 + b"</svg>"
+    with pytest.raises(CommerceError, match="deeply nested"):
+        prepare_svg_icon(deeply_nested)

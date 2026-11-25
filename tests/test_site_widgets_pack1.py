@@ -100,6 +100,30 @@ def test_repeater_bounds_item_allowlists_and_coordinate_validation():
         validate_block(icon | {"items": [icon["items"][0] | {"icon": "<svg>"}]})
 
 
+def test_icon_box_accepts_library_icons_and_keeps_original_drawings(context):
+    from app.site_widgets_pack1 import ICON_PATHS
+
+    db, site, page = context
+    block = default_block("icon_box")
+    entry = block["items"][0]
+    for value in ("", "truck", "lucide:truck", f"/site-media/{site.id}/media-id"):
+        validate_block(block | {"items": [entry | {"icon": value}]})
+    for value in ("lucide:not-a-real-icon", "javascript:alert(1)", "https://bad.example/icon.svg", 7):
+        with pytest.raises(CommerceError):
+            validate_block(block | {"items": [entry | {"icon": value}]})
+    # A stored key renders its original drawing, so existing pages do not change.
+    original = to_xml(render_section(db, site, page, {}, block | {"items": [entry | {"icon": "truck"}]},
+                                     "", "csrf", False))
+    assert ICON_PATHS["truck"] in original
+    library = to_xml(render_section(db, site, page, {}, block | {"items": [entry | {"icon": "lucide:truck"}]},
+                                    "", "csrf", False))
+    assert ICON_PATHS["truck"] not in library and 'class="fs-pack-icon"' in library
+    # Missing site media falls back to the default drawing instead of failing the page.
+    missing = to_xml(render_section(db, site, page, {}, block | {"items": [
+        entry | {"icon": f"/site-media/{site.id}/missing"}]}, "", "csrf", False))
+    assert ICON_PATHS["box"] in missing
+
+
 def test_image_link_safety_and_dynamic_sources():
     for kind in PACK:
         block = default_block(kind)
