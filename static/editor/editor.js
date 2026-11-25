@@ -278,6 +278,7 @@ function select(id) {
   $("#editor").classList.toggle("has-selection", Boolean(id));
   renderTree();
   renderSettings();
+  if (mode === "assistant") assistantPanel?.render();
   send({ type: "select", block_id: id });
 }
 async function preview(blockId = null) {
@@ -639,12 +640,14 @@ function renderLeft() {
     widgets: "Widgets",
     theme: "Theme settings",
     history: "History",
+    assistant: "Assistant",
   };
   const notes = {
     sections: state?.site?.name || "",
     widgets: "Click to add, or drag onto the page",
     theme: "Shared across your storefront",
     history: "Changes made in this session",
+    assistant: "Changes stay in your draft",
   };
   $("#left-title").textContent = names[mode];
   $("#theme-name").textContent = notes[mode];
@@ -666,6 +669,10 @@ function renderLeft() {
     wireWidgets();
   }
   if (mode === "theme") renderTheme();
+  if (mode === "assistant") {
+    if (assistantPanel) assistantPanel.render();
+    else $("#left-content").innerHTML = '<p class="panel-note">Loading the assistant…</p>';
+  }
   if (mode === "history") {
     $("#left-content").innerHTML =
       `<p class="panel-note">Saved revisions from earlier sessions are under Revisions in the top bar.</p><ol class="history-list" reversed>${history
@@ -1605,7 +1612,10 @@ $$("[data-mode]").forEach(
       );
       if (window.matchMedia("(max-width: 760px)").matches) select(null);
       mode = b.dataset.mode;
-      if (state) renderLeft();
+      if (state) {
+        renderLeft();
+        if (mode === "assistant") assistantPanel?.loadHistory();
+      }
     }),
 );
 $("#mobile-preview").onclick = () => {
@@ -1691,7 +1701,9 @@ uploadZone.addEventListener("drop", (e) => {
 const PANEL_LIMITS = { left: [220, 560], right: [260, 560] },
   STAGE_MIN = 360,
   panelStack = window.matchMedia("(max-width: 760px)");
-const panelKey = (side) => `fs-editor-width-${side}`;
+// The assistant keeps its own left width because a conversation wants more room.
+const panelKey = (side) =>
+  side === "left" && mode === "assistant" ? "fs-editor-width-assistant" : `fs-editor-width-${side}`;
 function storedWidth(side) {
   try {
     const value = Number(localStorage.getItem(panelKey(side)));
@@ -1997,4 +2009,15 @@ setInterval(() => {
   if ((dirty || themeDirty) && !saving) save();
 }, 30000);
 load();
-
+// Assistant mode lives in its own module, loaded only when this installation provides it.
+let assistantPanel = null;
+if (boot.features?.assistant)
+  import("./editor-assistant.js").then(({ createAssistantPanel }) => {
+    assistantPanel = createAssistantPanel({
+      boot, $, $$, esc, icon, blockIcon, label, locate, toast, load, renderLeft, select,
+      mode: () => mode,
+      setMode: (value) => { mode = value; },
+      selected: () => selected,
+    });
+    if (state && mode === "assistant") assistantPanel.loadHistory();
+  });

@@ -405,16 +405,25 @@ def test_editor_json_endpoints_reject_non_objects(workspace, body, path, method)
     assert result.json()["error"] == "Send a JSON object."
 
 
-def test_editor_chrome_hides_controls_without_a_backend(workspace):
+def test_editor_chrome_hides_controls_without_a_backend(workspace, monkeypatch):
+    from app import assistant_provider, db
+
     w = workspace
+    monkeypatch.setattr(db, "SessionLocal", w.sessions)
+    monkeypatch.setattr(assistant_provider, "platform_config", lambda: None)
     result = w.client.get(f"/admin/sites/{w.site.id}/editor", params={"page": w.page.id})
     assert result.status_code == 200
     html = result.text
-    # No assistant or SEO page in this installation, so neither control renders.
-    assert 'data-mode="assistant"' not in html and "Ctrl+I" not in html
+    # No SEO page in this installation, so its control does not render.
     assert 'id="seo-link"' not in html
+    # Assistant mode is installed; this store has no model key yet, so the panel explains how
+    # to connect one instead of offering a chat.
+    assert 'data-mode="assistant"' in html and "Ctrl+I" in html
+    assert "editor/editor-assistant.css" in html
     config = json.loads(html.split("window.FASTSHOP_EDITOR=", 1)[1].split(";</script>", 1)[0])
-    assert config["features"] == {"assistant": False, "seo_href": ""}
+    assert config["features"] == {
+        "assistant": True, "seo_href": "", "assistant_configured": False,
+        "assistant_settings_href": f"/admin/sites/{w.site.id}/settings/assistant"}
     # Resizable panels, the icon picker and the rich text template are present.
     for target in ("resize-left", "resize-right", "editor-left", "editor-right", "icon-dialog",
                    "rich-text-template-holder"):
