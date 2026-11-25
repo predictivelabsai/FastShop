@@ -95,6 +95,12 @@ def _config(site, *, allow_incomplete: bool = False) -> _WooConfig:
     origin = os.getenv(prefix + "URL", "").rstrip("/") or ("https://fixture.woocommerce.test" if fixture else "")
     key = os.getenv(prefix + "CONSUMER_KEY", "") or ("ck_fixture" if fixture else "")
     secret = os.getenv(prefix + "CONSUMER_SECRET", "") or ("cs_fixture" if fixture else "")
+    from app.site_integrations import importer_credentials
+
+    stored = importer_credentials(site, SYSTEM)
+    if stored:  # A connection saved in the admin takes precedence over operator settings.
+        enabled, origin = True, stored["url"].rstrip("/")
+        key, secret = stored["consumer_key"], stored["consumer_secret"]
     channel_currency = str(getattr(site, "channel_currency", "") or "USD").upper()
     currency = os.getenv(prefix + "CURRENCY", channel_currency).strip().upper()
     default_scale = _CURRENCY_SCALES.get(currency, 2)
@@ -426,13 +432,16 @@ class WooCommerceConnector:
         config = _config(site, allow_incomplete=True)
         prefix = _prefix(site)
         fixture_ready = config.fixture is not None and config.fixture.is_file()
-        enabled = os.getenv(prefix + "ENABLED", "").lower() == "true"
+        from app.site_integrations import importer_credentials
+
+        saved = importer_credentials(site, SYSTEM) is not None
+        enabled = saved or os.getenv(prefix + "ENABLED", "").lower() == "true"
         configured = fixture_ready or (enabled and _valid_origin(config.origin)
             and config.key.startswith("ck_") and config.secret.startswith("cs_")
             and bool(re.fullmatch(r"[A-Z]{3}", config.currency)) and 0 <= config.scale <= 4)
         message = ("Development fixture store ready." if fixture_ready else
-                   "Operator credentials are configured." if configured else
-                   "Ask the operator to configure this site's WooCommerce connection.")
+                   ("Store connection saved." if saved else "Operator credentials are configured.")
+                   if configured else "Connect your WooCommerce store to import products.")
         return CredentialState(configured, message, "fixture" if fixture_ready else "sandbox")
 
     def fetch(self, site, *, transport=None) -> dict:

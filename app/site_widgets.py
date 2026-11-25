@@ -70,7 +70,8 @@ def legacy_items(editor_fields, *, themes=()):
               for key in ("heading", "body", "url", "theme", "image", "alt", "label", "value")}
     if themes:
         fields["theme"] = choice(*themes)
-    defaults = {key: "Your content" if key not in {"url", "image"} else "/" if key == "url" else "" for key in editor_fields}
+    # Links start empty: an unset entry must not publish a link to the home page.
+    defaults = {key: "" if key in {"url", "image", "label"} else "Your content" for key in editor_fields}
     if themes:
         defaults["theme"] = sorted(themes)[0]
     return {"fields": fields, "editor_fields": editor_fields, "defaults": defaults,

@@ -32,6 +32,26 @@ from app.models import Product, ProductVariant, SiteCommerceSettings
 from app.services import CommerceError, money
 
 
+def savings_policy(config) -> str:
+    sub, first = commerce.subscription_percent(config), commerce.first_order_percent(config)
+    combined = 100 - (100 - sub) * (100 - first) / 100
+    combined_text = f"{combined:g}%"
+    return (f"Monthly subscriptions save {sub}%. A verified first-order offer takes {first}% off the "
+            f"merchandise subtotal after that saving, once only: {combined_text} combined before cent "
+            "rounding. Renewals receive only the subscription saving. Shipping and tax are excluded "
+            "from promotional discounts. Changing the subscription saving pauses renewals of existing "
+            "subscriptions until each customer reviews the new price.")
+
+
+def percent_field(form, name, current):
+    raw = str(form.get(name, "")).strip()
+    if raw == "":
+        return current
+    if not raw.isdigit() or not 0 <= int(raw) <= commerce.MAX_DISCOUNT_PERCENT:
+        raise CommerceError(f"Savings must be a whole number from 0 to {commerce.MAX_DISCOUNT_PERCENT}%.")
+    return int(raw)
+
+
 def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
     def amount(value, *, optional=False):
         if optional and not str(value).strip():
@@ -85,7 +105,11 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                         *[Div(H3(product.name), Label("Stripe product tax code", Input(name="tax_" + product.id, value=config.product_tax_codes_json.get(product.id, ""), placeholder="txcd_…")),
                             Label(Input(type="checkbox", name="subscriptions", value=product.id, checked=product.id in config.subscription_product_ids_json), " Eligible for monthly subscriptions")) for product in products],
                         Label(Input(type="checkbox", name="tax_reviewed", checked=config.tax_registration_reviewed), " I have reviewed this merchant's registrations and product categories in Stripe Tax."),
-                        Div(H3("Discount policy"), P("Monthly subscriptions save 10%. A verified first-order offer takes another 10% off the reduced merchandise subtotal, once only: 19% combined before cent rounding. Renewals receive only the subscription saving. Shipping and tax are excluded from promotional discounts."), cls="e-note"),
+                        H2("Savings"),
+                        Label("Monthly subscription saving (%)", Input(name="subscription_discount_percent", type="number", min="0", max=str(commerce.MAX_DISCOUNT_PERCENT), step="1", required=True, value=commerce.subscription_percent(config))),
+                        Label("First-order offer (%)", Input(name="first_order_discount_percent", type="number", min="0", max=str(commerce.MAX_DISCOUNT_PERCENT), step="1", required=True, value=commerce.first_order_percent(config))),
+                        P("Storefront text can say {subscription_saving} or {first_order_saving} instead of a number. Pages then always show the percentages saved here.", cls="g-help"),
+                        Div(H3("How savings combine"), P(savings_policy(config)), cls="e-note"),
                         Button("Save commerce settings", cls="e-button"), method="post", cls="e-form"), cls="e-card"),
                         Div(H2("Preview a US tax quote"), P("Sandbox only. No order is placed and no payment is taken. Configure and save the settings first."),
                             Form(csrf(session), Label("Product option", Select(*[Option(v.sku + " · " + v.name, value=v.id) for v in variants], name="variant_id")),
@@ -135,6 +159,10 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                 config.free_shipping_threshold_minor = amount(form.get("free_shipping_threshold_minor", "7500"))
                 config.product_tax_codes_json, config.subscription_product_ids_json = codes, eligible
                 config.tax_registration_reviewed = form.get("tax_reviewed") == "on"
+                config.subscription_discount_percent = percent_field(
+                    form, "subscription_discount_percent", commerce.subscription_percent(config))
+                config.first_order_discount_percent = percent_field(
+                    form, "first_order_discount_percent", commerce.first_order_percent(config))
                 # Track edits to fields already participating in sample review.
                 if site.settings_json.get("sample_fields"):
                     site.settings_json = invalidate_reviews(site.settings_json, previous_values, values_for(site, config))

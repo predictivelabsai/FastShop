@@ -183,6 +183,11 @@ def _config(site, *, allow_incomplete: bool = False) -> _ShopifyConfig:
     enabled = os.getenv(prefix + "ENABLED", "").lower() == "true" or fixture is not None
     shop = os.getenv(prefix + "SHOP", "").strip().lower()
     token = os.getenv(prefix + "ADMIN_API_ACCESS_TOKEN", "")
+    from app.site_integrations import importer_credentials
+
+    stored = importer_credentials(site, SYSTEM)
+    if stored:  # A connection saved in the admin takes precedence over operator settings.
+        enabled, shop, token = True, stored["shop"].strip().lower(), stored["token"]
     if fixture:
         shop = shop or "fixture.myshopify.com"
         token = token or "shpat_fixture"
@@ -586,14 +591,17 @@ class ShopifyConnector:
         config = _config(site, allow_incomplete=True)
         prefix = _prefix(site)
         fixture_ready = config.fixture is not None and config.fixture.is_file()
-        enabled = os.getenv(prefix + "ENABLED", "").lower() == "true"
+        from app.site_integrations import importer_credentials
+
+        saved = importer_credentials(site, SYSTEM) is not None
+        enabled = saved or os.getenv(prefix + "ENABLED", "").lower() == "true"
         configured = fixture_ready or (
             enabled and _valid_shop(config.shop) and _valid_token(config.token)
         )
         message = (
             "Development fixture store ready." if fixture_ready else
-            "Operator Admin API credentials are configured." if configured else
-            "Ask the operator to configure this site's Shopify connection."
+            ("Store connection saved." if saved else "Operator Admin API credentials are configured.")
+            if configured else "Connect your Shopify store to import products and pages."
         )
         return CredentialState(configured, message, "fixture" if fixture_ready else "sandbox")
 

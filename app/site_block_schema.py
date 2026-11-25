@@ -12,6 +12,54 @@ from app.site_blocks import (
 )
 from app.site_widgets import WIDGETS
 
+PLACEHOLDER_TEXT = "Your content"
+
+
+def item_placeholder(key, required=()):
+    """Starter value for a new block entry field.
+
+    Text a merchant reads in the preview gets a visible cue. An optional link stays empty,
+    so a forgotten field never publishes a "Your content" link to the home page.
+    """
+    if key in {"image", "icon"}:
+        return ""
+    if key == "url":
+        return "/" if key in required else ""
+    if key == "label" and key not in required:
+        return ""
+    return PLACEHOLDER_TEXT
+
+
+# Editor fields follow the order a visitor reads a section, then images, then the rest.
+FIELD_ORDER = ("eyebrow", "heading", "body", "button", "link", "url", "image", "alt", "video",
+               "mobile_video", "poster", "category", "disclaimer", "layout")
+TAIL_FIELDS = ("items", "hidden", "subscription_preview")
+# Plain labels for generic field ids; specific labels set elsewhere are kept.
+FIELD_LABELS = {
+    "eyebrow": "Small heading above", "body": "Text", "button": "Button text",
+    "link": "Button link", "url": "Link", "alt": "Image description (for screen readers)",
+    "video": "Background video", "mobile_video": "Background video on phones",
+    "poster": "Video still image", "items": "Items", "hidden": "Hide this section",
+    "subscription_preview": "Show subscription options", "disclaimer": "Small print",
+}
+
+
+def _arrange(fields):
+    """Order fields as the section reads and give generic ids merchant-friendly labels."""
+    for field in fields:
+        if field["id"] in FIELD_LABELS and field.get("label") == _label(field["id"]):
+            field["label"] = FIELD_LABELS[field["id"]]
+
+    def rank(indexed):
+        index, field = indexed
+        key = field["id"]
+        if key in TAIL_FIELDS:
+            return (2, TAIL_FIELDS.index(key), index)
+        if key in FIELD_ORDER:
+            return (0, FIELD_ORDER.index(key), index)
+        return (1, 0, index)
+    return [field for _, field in sorted(enumerate(fields), key=rank)]
+
 
 def _label(value):
     return (value.replace("_", " ").replace("-", " ").replace(".", " / ")
@@ -168,7 +216,8 @@ def _registry():
                 alt="",
                 items=[],
             )
-            keys = sorted(TEXT_FIELDS) + ["items", "hidden", "subscription_preview"]
+            keys = sorted(TEXT_FIELDS) + ["items", "hidden"] + (
+                ["subscription_preview"] if kind == "product" else [])
         fields = []
         for key in keys:
             if key == "children":
@@ -197,10 +246,7 @@ def _registry():
                 if themes:
                     item_keys = ["theme"] + item_keys
                 required = spec.required_item_fields
-                item_default = {
-                    k: "Your content" if k not in {"url", "image"} else ("/" if k == "url" else "")
-                    for k in item_keys
-                }
+                item_default = {k: item_placeholder(k, required) for k in item_keys}
                 if themes:
                     item_default["theme"] = sorted(themes)[0]
                 theme_defaults = {}
@@ -242,6 +288,7 @@ def _registry():
                 field["label"] = "Collection"
                 field["help"] = "Choose a published catalogue collection."
             fields.append(field)
+        fields = _arrange(fields)
         fields += copy.deepcopy(STYLE_SCHEMA)
         schemas[kind] = {
             "label": label,

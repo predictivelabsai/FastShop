@@ -563,6 +563,50 @@ class Site(TimestampMixin, Base):
         return value
 
 
+class SiteIntegrationCredential(TimestampMixin, Base):
+    """Encrypted merchant-managed credentials for site-scoped providers."""
+
+    __tablename__ = "site_integration_credentials"
+    __table_args__ = (UniqueConstraint("site_id", "provider"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
+    )
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    mode: Mapped[str] = mapped_column(String(20), default="default")
+    encrypted_payload: Mapped[bytes] = mapped_column(LargeBinary)
+    masked_hints_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(30), default="connected")
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SiteDomain(TimestampMixin, Base):
+    """A merchant-connected hostname. ``Site.hostname`` stays the primary one.
+
+    Status moves pending -> connected once DNS proves ownership and points at the
+    platform. Connected non-primary domains redirect to the primary domain.
+    """
+
+    __tablename__ = "site_domains"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'connected')", name="ck_site_domains_status"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    hostname: Mapped[str] = mapped_column(String(253), unique=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    verification_token: Mapped[str] = mapped_column(String(64))
+    ownership_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    points_here: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str] = mapped_column(String(300), default="", server_default="")
+
+
 class SiteMenu(TimestampMixin, Base):
     __tablename__ = "site_menus"
     __table_args__ = (UniqueConstraint("site_id", "name"),)
@@ -750,6 +794,10 @@ class SiteCommerceSettings(TimestampMixin, Base):
     allowed_states_json: Mapped[list] = mapped_column(JSON, default=list)
     product_tax_codes_json: Mapped[dict] = mapped_column(JSON, default=dict)
     subscription_product_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    # Whole percentages. Changing either reprices only new checkouts; renewals that would
+    # charge a different price wait for the customer's review.
+    subscription_discount_percent: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
+    first_order_discount_percent: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
     tax_registration_reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
     live_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     live_accepted_by: Mapped[str | None] = mapped_column(

@@ -1,14 +1,29 @@
 """Resolve a configured hostname to a tenant-owned site before route dispatch."""
 
+import re
 from urllib.parse import urlsplit
 
 from sqlalchemy import select
-from starlette.responses import Response
+from starlette.responses import RedirectResponse, Response
 
 from app import commerce as commerce_service
 from app.config import settings
 from app.db import SessionLocal
 from app.models import Site, SiteCommerceSettings
+from app.site_domains import redirect_target
+
+# Provider webhooks are registered on the store's own hostname. They are signature-verified
+# API endpoints, so they must reach the mounted API whatever the store's publication or
+# checkout state: providers keep sending refunds, disputes and shipment events.
+_PROVIDER_WEBHOOK = re.compile(
+    r"^/api/v1/commerce/(?P<site_id>[^/]+)/(?:stripe-webhook|shiphero-webhook/[^/]+)/?$"
+)
+
+
+def provider_webhook_site_id(path: str) -> str | None:
+    """Return the site ID of a provider webhook path, or None for any other path."""
+    match = _PROVIDER_WEBHOOK.match(path)
+    return match["site_id"] if match else None
 
 
 class SiteHostMiddleware:
@@ -46,13 +61,25 @@ class SiteHostMiddleware:
             return await self.app(scope, receive, send)
         shared = (
             "/static/", "/site-media/", "/admin", "/login", "/logout", "/auth/",
-            "/healthz", "/readyz", "/marketing/", "/signup",
+            "/healthz", "/readyz", "/marketing/", "/signup", "/_domains/",
         )
         if not path.startswith(shared):
             with SessionLocal() as db:
                 query = select(Site).where(Site.hostname == host)
                 site = db.scalar(query)
+                secondary = None if site or host == platform_host else redirect_target(db, host)
+                if secondary:
+                    site_id, primary = secondary
+                    # Webhooks still registered on an older domain must arrive, not redirect.
+                    if provider_webhook_site_id(path) == site_id:
+                        return await self.app(scope, receive, send)
+                    query_string = scope.get("query_string", b"").decode("latin-1")
+                    location = f"https://{primary}{path}" + (f"?{query_string}" if query_string else "")
+                    return await RedirectResponse(location, status_code=301)(scope, receive, send)
                 if site:
+                    # Only this store's own webhooks pass; another site's ID stays blocked.
+                    if provider_webhook_site_id(path) == site.id:
+                        return await self.app(scope, receive, send)
                     # The slug path remains the bounded merchant preview. A bound custom
                     # hostname is public only after the reviewed publication transition.
                     if site.status != "published" and not path.startswith(("/unsubscribe/", "/account")):

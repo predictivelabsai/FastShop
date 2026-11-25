@@ -83,7 +83,7 @@ def register_store_checkout_routes(rt, csrf, check_csrf, error):
                         code=cart.discount_code if rule else "", email=customer.email if customer else "", preview=True)
                 db.commit()
                 return screen(site, request, "Your bag", csrf(session), *[Div(H2(line.name), P(money(line.amount_minor, "USD")),
-                    P("Monthly subscription · 10% merchandise saving" if line.subscription else "One-time purchase"),
+                    P(f"Monthly subscription · {commerce.site_subscription_percent(db, site)}% merchandise saving" if line.subscription else "One-time purchase"),
                     Form(csrf(session), Input(type="hidden", name="version", value=cart.version),
                         Input(type="hidden", name="variant_id", value=line.variant_id),
                         Input(type="hidden", name="subscription", value="on" if line.subscription else "off"),

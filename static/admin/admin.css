@@ -398,3 +398,6 @@
 @media (max-width: 800px) {
   .a-sidebar { overflow-y: auto; scrollbar-width: thin; }
 }
+/* Settings -> General: logo fields show the current image. */
+.a-shell .g-general-image-field { display:grid; gap:6px; }
+.a-shell .g-general-logo-preview { height:40px; width:auto; max-width:200px; object-fit:contain; background:#f3f4f3; border-radius:6px; padding:4px; }

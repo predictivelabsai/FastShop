@@ -219,3 +219,33 @@ def test_cart_purchase_merges_and_rejects_over_cap_without_mutating():
     assert selections[1]["quantity"] == 22
     with pytest.raises(CommerceError, match="bag changed"):
         commerce.convert_cart_purchase(selections, "foreign", False, True)
+
+
+def test_merchant_set_savings_reprice_new_checkouts(shop):
+    db, site, config, variant = shop
+    selection = [{"variant_id": variant.id, "quantity": 1, "subscription": True}]
+    config.subscription_discount_percent, config.first_order_discount_percent = 20, 0
+    first = commerce.price_lines(db, site, config, selection, first_order_discount=True)[0]
+    assert (first.unit_minor, first.amount_minor) == (2396, 2396)
+    config.subscription_discount_percent = 10
+    assert commerce.price_lines(db, site, config, selection)[0].unit_minor == 2696
+    from types import SimpleNamespace
+
+    for unset in (None, 500, "15"):  # unset or invalid values keep the 10% default
+        assert commerce.subscription_percent(SimpleNamespace(subscription_discount_percent=unset)) == 10
+    assert commerce.first_order_percent(None) == 10
+
+
+def test_savings_settings_validate_and_explain_how_they_combine():
+    from types import SimpleNamespace
+
+    from app.commerce_routes import percent_field, savings_policy
+
+    policy = savings_policy(SimpleNamespace(subscription_discount_percent=15, first_order_discount_percent=10))
+    assert "save 15%" in policy and "takes 10%" in policy and "23.5% combined" in policy
+    assert "19% combined" in savings_policy(SimpleNamespace())
+    assert percent_field({"x": "25"}, "x", 10) == 25
+    assert percent_field({}, "x", 12) == 12
+    for bad in ("-1", "91", "7.5", "ten"):
+        with pytest.raises(CommerceError, match="whole number"):
+            percent_field({"x": bad}, "x", 10)

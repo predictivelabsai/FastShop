@@ -107,22 +107,11 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     if site.status != "published" else
                     P("This site is published. Draft editing remains available without changing the public snapshots.", cls="g-state g-state-live")
                 )
-                domain_disabled = site.status != "published"
-                domain_form = Form(
-                    csrf(session),
-                    Input(type="hidden", name="version", value=site.version),
-                    Label("Custom hostname", Input(
-                        name="hostname",
-                        value=site.hostname or "",
-                        placeholder="shop.example.com",
-                        maxlength=253,
-                        disabled=domain_disabled,
-                    )),
-                    P("Enter a hostname only. DNS and TLS are provisioned at the platform; this form never calls a DNS provider. Clear the field to unbind."),
-                    Button("Save custom domain", cls="e-button", disabled=domain_disabled),
-                    method="post",
-                    action=f"/admin/sites/{site.id}/golive/domain",
-                    cls="e-form",
+                domain_form = Div(
+                    P(f"Primary domain: {site.hostname}." if site.hostname else
+                      "No domain is connected yet."),
+                    A("Manage domains", href=f"/admin/sites/{site.id}/settings/domains",
+                      cls="e-button"),
                 )
                 commerce_mode = config.mode if config else "disabled"
                 commerce_form = (Form(
@@ -166,14 +155,15 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     P(notice, role="status", cls="e-note") if notice else None,
                     Div(
                         H2("Publish the reviewed site", id="publish"),
-                        P("Publication uses only stored site state. Merchants cannot bypass failed hard checks."),
+                        P("Publishing uses what you have saved. Fix any failed checks before you publish."),
                         checklist(publish_report, scope="publish"),
                         publish_controls,
                         cls="e-card g-stage",
                     ),
                     Div(
                         H2("Bind the custom domain", id="domain"),
-                        P(f"The bounded preview stays at /sites/{site.slug}/. Custom-host traffic opens only after publication."),
+                        P("Connect your own domain, copy its records and check them in Settings → Domains. "
+                          "Your store opens on the primary domain once it is published."),
                         domain_form,
                         cls="e-card g-stage",
                     ),

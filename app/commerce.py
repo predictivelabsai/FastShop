@@ -77,6 +77,29 @@ def payments_enabled(db, site, config=None) -> bool:
         return False
 
 
+DEFAULT_DISCOUNT_PERCENT = 10
+MAX_DISCOUNT_PERCENT = 90
+
+
+def _percent(config, field: str) -> int:
+    value = getattr(config, field, None) if config is not None else None
+    return value if type(value) is int and 0 <= value <= MAX_DISCOUNT_PERCENT else DEFAULT_DISCOUNT_PERCENT
+
+
+def subscription_percent(config) -> int:
+    """The site's subscription saving in whole percent (10 until the merchant changes it)."""
+    return _percent(config, "subscription_discount_percent")
+
+
+def first_order_percent(config) -> int:
+    """The site's verified first-order saving in whole percent."""
+    return _percent(config, "first_order_discount_percent")
+
+
+def site_subscription_percent(db, site) -> int:
+    return subscription_percent(settings_for(db, site))
+
+
 def discounted(amount: int, percent: int) -> int:
     """Round the resulting price half-up to cents; no binary floating point."""
     if type(amount) is not int or amount < 0 or type(percent) is not int or not 0 <= percent <= 100:
@@ -171,7 +194,7 @@ def price_lines(db, site, config, selections, *, first_order_discount=False):
         tax_code = config.product_tax_codes_json.get(product.id, "")
         if not re.fullmatch(r"txcd_\d+", tax_code):
             raise CommerceError(f"A reviewed Stripe tax category is required for {product.name}.")
-        unit = discounted(listing.price_minor, 10) if subscription else listing.price_minor
+        unit = discounted(listing.price_minor, subscription_percent(config)) if subscription else listing.price_minor
         lines.append(PricedLine(reference, product.id, variant.id, f"{product.name} · {variant.name}",
             quantity, unit, listing.price_minor * quantity, unit * quantity, tax_code, subscription, variant.sku, variant.name,
             product.id in config.subscription_product_ids_json,
@@ -181,7 +204,7 @@ def price_lines(db, site, config, selections, *, first_order_discount=False):
     if first_order_discount:
         from dataclasses import replace
         subtotal = sum(line.amount_minor for line in lines)
-        saving = subtotal - discounted(subtotal, 10)
+        saving = subtotal - discounted(subtotal, first_order_percent(config))
         allocations = [saving * line.amount_minor // subtotal if subtotal else 0 for line in lines]
         remaining = saving - sum(allocations)
         ordered = sorted(range(len(lines)), key=lambda i: (-(saving * lines[i].amount_minor % (subtotal or 1)), lines[i].reference))

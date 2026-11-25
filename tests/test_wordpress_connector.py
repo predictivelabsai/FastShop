@@ -385,7 +385,7 @@ def test_integration_routes_show_wordpress_apply_and_download_wxr(monkeypatch):
     base = f"/admin/sites/{site_id}/integrations"
     missing = client.get(base)
     assert missing.status_code == 200
-    assert "WordPress" in missing.text and "Needs operator setup" in missing.text
+    assert "WordPress" in missing.text and "Not connected" in missing.text
 
     monkeypatch.setenv("FASTSHOP_WORDPRESS_FIXTURE_PATH", str(FIXTURE))
     page = client.get(base)

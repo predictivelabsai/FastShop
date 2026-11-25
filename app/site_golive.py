@@ -121,7 +121,7 @@ def normalize_hostname(value: str) -> str:
 
 def _hostname_available(db, site: Site) -> tuple[bool, str]:
     if not site.hostname:
-        return True, f"No custom domain is bound; preview remains at /sites/{site.slug}/."
+        return True, f"Your store uses its preview address, /sites/{site.slug}/, until you connect a domain."
     try:
         hostname = normalize_hostname(site.hostname)
     except CommerceError as exc:
@@ -130,8 +130,8 @@ def _hostname_available(db, site: Site) -> tuple[bool, str]:
         select(Site.id).where(func.lower(Site.hostname) == hostname, Site.id != site.id)
     )
     if conflict:
-        return False, "This hostname is already bound to another site."
-    return True, f"{hostname} is normalized and unique."
+        return False, "This domain is already connected to another store."
+    return True, f"{hostname} is connected to this store."
 
 
 def _published_pages(db, site: Site) -> dict[str, SitePage]:
@@ -217,7 +217,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
     checks = [
         ReadinessCheck(
             "required_pages",
-            "Published home page",
+            "Home page is published",
             not missing_publication,
             "The home page has a published snapshot." if not missing_publication else
             "Publish the home page; a draft-only home cannot open the site.",
@@ -225,21 +225,21 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
         ),
         ReadinessCheck(
             "hostname_unique",
-            "Hostname is valid and unique",
+            "Store address is ready",
             host_ok,
             host_explanation,
             f"/admin/sites/{site.id}/golive#domain",
         ),
         ReadinessCheck(
             "compliance",
-            "Draft content passes compliance review",
+            "Wording check",
             compliance_ok,
             compliance_explanation,
             f"/admin/sites/{site.id}/pages",
         ),
         ReadinessCheck(
             "merchant_review",
-            "Merchant details are reviewed",
+            "Store details are filled in",
             not reviews,
             "No sample merchant values remain pending review." if not reviews else
             "Review or replace these sample values: " + ", ".join(reviews) + ".",
@@ -247,7 +247,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
         ),
         ReadinessCheck(
             "menus",
-            "Published menus have valid targets",
+            "Menu links work",
             menu_ok,
             menu_explanation,
             f"/admin/sites/{site.id}/menus",
@@ -256,7 +256,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
     snippet_ok, snippet_explanation = _snippet_check(db, site, published_pages)
     checks.append(ReadinessCheck(
         "snippet_consent",
-        "Snippet consent policy is ready",
+        "Tracking code waits for cookie consent",
         snippet_ok,
         snippet_explanation,
         f"/admin/sites/{site.id}/snippets",
@@ -310,7 +310,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
         checks.extend([
             ReadinessCheck(
                 "site_published",
-                "Site is published",
+                "Store is published",
                 site.status == "published",
                 "The reviewed site is public." if site.status == "published" else
                 "Publish the reviewed site before enabling checkout.",
@@ -319,7 +319,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
             ),
             ReadinessCheck(
                 "custom_domain",
-                "Custom domain is bound",
+                "Your own domain is connected",
                 bool(site.hostname) and host_ok,
                 f"Checkout will use https://{site.hostname}." if site.hostname and host_ok else
                 "Bind a unique custom domain before enabling checkout.",
@@ -328,7 +328,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
             ),
             ReadinessCheck(
                 "commerce_policies",
-                "Commerce policies are published",
+                "Store policies are published",
                 not policy_missing,
                 "Privacy, terms and returns policies are reviewed and published." if not policy_missing else
                 "Replace placeholder copy and publish: " + ", ".join(policy_missing) + ".",
@@ -337,7 +337,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
             ),
             ReadinessCheck(
                 "catalog",
-                "Published storefront products exist",
+                "At least one product is published",
                 bool(product_rows),
                 f"{len(product_rows)} published product{'s' if len(product_rows) != 1 else ''} have published site pages." if product_rows else
                 "Publish at least one product and its site product page.",
@@ -346,7 +346,7 @@ def assess(db, site: Site, *, commerce_requested: bool = False) -> ReadinessRepo
             ),
             ReadinessCheck(
                 "channel_prices",
-                "Active product options have channel prices",
+                "Every product option has a price",
                 bool(active_variants) and not unpriced,
                 f"{len(active_variants)} active product option{'s' if len(active_variants) != 1 else ''} have site-channel prices." if active_variants and not unpriced else
                 ("Add a price for: " + ", ".join(unpriced) + "." if unpriced else "Add an active product option with a channel price."),
