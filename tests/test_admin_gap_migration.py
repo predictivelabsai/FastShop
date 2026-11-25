@@ -19,7 +19,7 @@ def test_admin_gap_upgrade_downgrade_upgrade(tmp_path):
                                 env=env, capture_output=True, text=True, timeout=90)
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
-    assert migrate("heads").strip() == "20261125_0037_commerce_discount_percents (head)"
+    assert migrate("heads").strip() == "20261125_0037 (head)"
     migrate("upgrade", "head")
     engine = create_engine(url)
     tables = {"saved_admin_views", "admin_table_preferences", "admin_activities", "custom_data_definitions",

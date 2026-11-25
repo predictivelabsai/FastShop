@@ -4,7 +4,7 @@ from alembic import op
 
 from app.models import SiteIntegrationCredential
 
-revision = "20261125_0036_site_integration_credentials"
+revision = "20261125_0036"
 down_revision = "20261125_0035_site_domains"
 branch_labels = None
 depends_on = None

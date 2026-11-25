@@ -4,8 +4,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import inspect
 
-revision = "20261125_0037_commerce_discount_percents"
-down_revision = "20261125_0036_site_integration_credentials"
+revision = "20261125_0037"
+down_revision = "20261125_0036"
 branch_labels = None
 depends_on = None
 
