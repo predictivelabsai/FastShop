@@ -186,7 +186,7 @@ def register_builder_routes(rt, actor, csrf, check_csrf, shell, error):
                         cls="b-turn b-turn-" + turn.status) for turn in reversed(turns)]
                 chat = Div(
                     Div(H2("Build together"),
-                        P("AI assistant" if settings.xai_api_key else "Guided presets · AI provider not configured", cls="b-mode"),
+                        P("AI assistant" if settings.xai_api_key else "Guided presets · no AI model connected", cls="b-mode"),
                         P(next_question(site.settings_json), cls="b-next-question"),
                         Small("Try design, pages, SEO, navigation, shipping or tax. Settings proposals always need your approval.", cls="b-guidance"),
                         cls="b-assistant-header"),

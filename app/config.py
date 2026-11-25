@@ -57,8 +57,12 @@ class Settings:
     model_provider: str = os.getenv("MODEL_PROVIDER", "xai")
     model_name: str = os.getenv("MODEL_NAME", "grok-4-1-fast-reasoning")
     image_provider: str = os.getenv("FASTSHOP_IMAGE_PROVIDER", "placeholders").strip().lower()
-    xai_api_key: str = os.getenv("XAI_API_KEY", "")
-    xai_base_url: str = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1").rstrip("/")
+    # The assistant and builder call any OpenAI-compatible chat completions endpoint.
+    # MODEL_* takes precedence; the XAI_* names remain for existing deployments.
+    xai_api_key: str = os.getenv("MODEL_API_KEY") or os.getenv("XAI_API_KEY", "")
+    xai_base_url: str = (
+        os.getenv("MODEL_BASE_URL") or os.getenv("XAI_BASE_URL", "https://api.x.ai/v1")
+    ).rstrip("/")
     api_token: str = os.getenv("FASTSME_API_TOKEN", "")
     fasterp_base_url: str = os.getenv("FASTERP_BASE_URL", "https://erp.fastsme.com").rstrip("/")
     fasterp_api_token: str = os.getenv("FASTERP_API_TOKEN") or os.getenv(
