@@ -403,3 +403,170 @@ def test_editor_json_endpoints_reject_non_objects(workspace, body, path, method)
         headers=w.headers | {"Content-Type": "application/json"})
     assert result.status_code == 422
     assert result.json()["error"] == "Send a JSON object."
+
+
+def test_editor_chrome_hides_controls_without_a_backend(workspace):
+    w = workspace
+    result = w.client.get(f"/admin/sites/{w.site.id}/editor", params={"page": w.page.id})
+    assert result.status_code == 200
+    html = result.text
+    # No assistant or SEO page in this installation, so neither control renders.
+    assert 'data-mode="assistant"' not in html and "Ctrl+I" not in html
+    assert 'id="seo-link"' not in html
+    config = json.loads(html.split("window.FASTSHOP_EDITOR=", 1)[1].split(";</script>", 1)[0])
+    assert config["features"] == {"assistant": False, "seo_href": ""}
+    # Resizable panels, the icon picker and the rich text template are present.
+    for target in ("resize-left", "resize-right", "editor-left", "editor-right", "icon-dialog",
+                   "rich-text-template-holder"):
+        assert f'id="{target}"' in html
+    assert 'role="separator"' in html and 'aria-orientation="vertical"' in html
+    # Lucide icons replace hand-drawn glyphs in the chrome.
+    assert 'class="fs-icon"' in html and 'stroke-width="1.75"' in html
+    for glyph in ("☷", "⊞", "◐", "↶", "↷", "⌘"):
+        assert glyph not in html
+    # The rich text toolbar offers only formatting the storefront keeps.
+    assert "insertHorizontalRule" not in html and "data-rich-target" not in html
+
+
+def test_canvas_bridge_loads_the_rich_text_editor_as_a_module(workspace):
+    w = workspace
+    document = load(w)["document"]
+    rendered = w.client.post(w.base + "/render", json={"document": document}, headers=w.headers)
+    assert rendered.status_code == 200, rendered.text
+    html = rendered.json()["html"]
+    assert 'id="rich-text-template-holder"' in html
+    assert '<script type="module" src="/static/editor/canvas.js"></script>' in html
+
+
+def test_icon_picker_upload_is_sanitised_and_scoped_to_the_site(workspace):
+    from app.models import SiteMedia
+
+    w = workspace
+    library = w.client.get(w.base + "/icons")
+    assert library.status_code == 200, library.text
+    icons = library.json()["icons"]
+    assert len(icons) >= 300
+    truck = next(icon for icon in icons if icon["id"] == "lucide:truck")
+    assert "<svg" in truck["svg"] and "currentColor" in truck["svg"]
+
+    unsafe = b'''<svg viewBox="0 0 24 24" onload="alert(1)">
+      <script>alert(1)</script><foreignObject><p>unsafe</p></foreignObject>
+      <path d="M1 1h2" onclick="alert(1)" stroke="url(https://bad.example/icon)"/>
+      <image href="https://bad.example/icon.png"/>
+    </svg>'''
+    assert w.client.post(w.base + "/icons", files={"file": ("unsafe.svg", unsafe, "image/svg+xml")}).status_code == 403
+    uploaded = w.client.post(
+        w.base + "/icons", files={"file": ("unsafe.svg", unsafe, "image/svg+xml")},
+        data={"title": "Safe mark", "alt": "Safe custom icon"}, headers=w.headers,
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    own_icon = uploaded.json()["media"]
+    assert own_icon["content_type"] == "image/svg+xml"
+    assert own_icon["url"].startswith(f"/site-media/{w.site.id}/")
+    assert "<path" in own_icon["svg"] and "currentColor" in own_icon["svg"]
+    rejected = w.client.post(w.base + "/icons", files={"file": ("icon.gif", b"GIF89a", "image/gif")},
+                             headers=w.headers)
+    assert rejected.status_code == 422
+
+    with w.sessions() as db:
+        stored = db.get(SiteMedia, own_icon["id"])
+        assert stored.tenant_id == w.site.tenant_id and stored.site_id == w.site.id
+        safe = stored.data.decode("utf-8")
+        foreign = SiteMedia(
+            tenant_id=w.other.tenant_id, site_id=w.other.id, title="Other icon", alt="Other icon",
+            storage_key="other-icon.svg", content_type="image/svg+xml", size=6, data=b"<svg/>",
+        )
+        db.add(foreign)
+        db.commit()
+        foreign_id = foreign.id
+    for unsafe_part in ("script", "foreignobject", "onload", "https://bad.example"):
+        assert unsafe_part not in safe.lower()
+
+    custom = w.client.get(w.base + "/icons").json()["custom"]
+    assert own_icon["id"] in {media["id"] for media in custom}
+    assert foreign_id not in {media["id"] for media in custom}
+    assert w.client.get(f"/admin/sites/{w.other.id}/editor/api/icons").status_code == 403
+
+    loaded = load(w)
+    document = loaded["document"]
+    document["blocks"] = [{"id": "why", "type": "icon_box", "items": [
+        {"icon": f"/site-media/{w.other.id}/{foreign_id}", "heading": "Theirs", "body": "", "link": ""},
+    ]}]
+    rejected = w.client.put(w.base + "/draft", json={"document": document,
+                            "version": loaded["version"]}, headers=w.headers)
+    assert rejected.status_code == 422
+    assert "belonging to this site" in rejected.json()["error"]
+    document["blocks"][0]["items"] = [
+        {"icon": own_icon["url"], "heading": "Ours", "body": "", "link": ""},
+        {"icon": "lucide:truck", "heading": "Library", "body": "", "link": ""},
+        {"icon": "truck", "heading": "Original", "body": "", "link": ""},
+    ]
+    saved = w.client.put(w.base + "/draft", json={"document": document,
+                         "version": loaded["version"]}, headers=w.headers)
+    assert saved.status_code == 200, saved.text
+    rendered = w.client.post(w.base + "/render", json={"document": document}, headers=w.headers)
+    assert rendered.status_code == 200, rendered.text
+    assert rendered.json()["html"].count('class="fs-pack-icon"') == 3
+
+
+def test_header_and_footer_settings_save_as_draft_and_publish_on_their_own(workspace):
+    from app.models import Membership, Site
+
+    w = workspace
+    loaded = load(w)
+    fields = {field["id"]: field for field in loaded["shell_schema"]["fields"]}
+    assert {"announcement", "logo", "tagline", "company", "address", "email", "offer",
+            "footer"} <= set(fields)
+    assert {field["group"] for field in fields.values()} == {"header", "footer"}
+    assert loaded["shell_settings"]["offer"] == "Stay curious."
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        published_before = dict(site.published_settings_json)
+        company_absent = "company" not in site.settings_json
+    body = {"shell_settings": loaded["shell_settings"] | {"announcement": "Free delivery today"},
+            "version": loaded["site_version"]}
+    assert w.client.put(w.base + "/shell-settings", json=body).status_code == 403
+    saved = w.client.put(w.base + "/shell-settings", json=body, headers=w.headers)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["shell_settings"]["announcement"] == "Free delivery today"
+    assert saved.json()["published"] is False
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        assert site.settings_json["announcement"] == "Free delivery today"
+        assert site.published_settings_json == published_before
+        # Unchanged defaults are never pinned, so the storefront fallback still applies.
+        assert ("company" not in site.settings_json) == company_absent
+    stale = w.client.put(w.base + "/shell-settings", json=body, headers=w.headers)
+    assert stale.status_code == 409 and stale.json()["conflict"] is True
+    for unsupported in ({"operational_draft": "x"}, {"announcement": 7}, {"logo": "javascript:alert(1)"}):
+        rejected = w.client.put(w.base + "/shell-settings", json={
+            "shell_settings": unsupported, "version": saved.json()["version"]}, headers=w.headers)
+        assert rejected.status_code == 422, unsupported
+    # A page publish leaves draft header and footer settings unpublished.
+    published = w.client.post(w.base + "/publish", json={"version": loaded["version"],
+        "site_version": saved.json()["version"]}, headers=w.headers)
+    assert published.status_code == 200, published.text
+    with w.sessions() as db:
+        assert db.get(Site, w.site.id).published_settings_json.get("announcement") == \
+            published_before.get("announcement")
+        site = db.get(Site, w.site.id)
+        site.settings_json = site.settings_json | {"operational_draft": "Keep private"}
+        version = site.version
+        db.commit()
+    live = w.client.put(w.base + "/shell-settings", json={
+        "shell_settings": {"announcement": "Now live"}, "version": version, "publish": True},
+        headers=w.headers)
+    assert live.status_code == 200, live.text
+    with w.sessions() as db:
+        site = db.get(Site, w.site.id)
+        assert site.published_settings_json["announcement"] == "Now live"
+        assert "operational_draft" not in site.published_settings_json
+        membership = db.scalar(select(Membership).where(Membership.user_id == w.owner.id,
+            Membership.tenant_id == site.tenant_id))
+        membership.role = "editor"
+        version = site.version
+        db.commit()
+    denied = w.client.put(w.base + "/shell-settings", json={
+        "shell_settings": {"announcement": "Editor"}, "version": version, "publish": True},
+        headers=w.headers)
+    assert denied.status_code == 403

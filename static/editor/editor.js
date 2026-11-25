@@ -19,9 +19,11 @@ let previewBlock = null,
 let state,
   selected = null,
   mode = "sections",
-  tab = "Content",
   dirty = false,
   themeDirty = false,
+  designDirty = false,
+  shellDirty = false,
+  shellGroup = null,
   saving = false,
   history = [],
   cursor = -1,
@@ -31,8 +33,12 @@ let state,
   dragPayload,
   mediaCallback,
   linkCallback,
+  iconCallback,
+  iconLibrary,
   conflictVersion;
 const collapsed = new Set();
+// Open repeater entries stay open when the panel redraws, for example after choosing media.
+const openItems = new Set();
 let toastTimer;
 function openDialog(selector) {
   const dialog = $(selector);
@@ -84,7 +90,7 @@ function showError(e) {
   if (e.site_version !== undefined) state.site_version = e.site_version;
   $("#editor-error").hidden = false;
   $("#editor-error").innerHTML =
-    `<button aria-label="Dismiss error">×</button><strong>${esc(e.message || e)}</strong>${e.errors?.length ? `<ul>${e.errors.map((x) => `<li>${esc(x.path)}: ${esc(x.message)}</li>`).join("")}</ul>` : ""}`;
+    `<button type="button" class="icon-button" aria-label="Dismiss error">${icon("x", 15)}</button><strong>${esc(e.message || e)}</strong>${e.errors?.length ? `<ul>${e.errors.map((x) => `<li>${esc(x.path)}: ${esc(x.message)}</li>`).join("")}</ul>` : ""}`;
   $("#editor-error button").onclick = () => ($("#editor-error").hidden = true);
   if (e.conflict) {
     conflictVersion = e.version;
@@ -103,81 +109,39 @@ function walk(blocks = state.document.blocks, parent = null, result = []) {
 }
 const locate = (id) => walk().find((n) => n.block.id === id),
   siblings = (n) => (n.parent ? n.parent.children : state.document.blocks);
-const spec = (t) => state.schema[t] || {},
+const spec = (t) => (t === "__shell" ? state.shell_schema : state.schema[t]) || {},
   schemaLabel = (type) => (spec(type).label || type.replaceAll("_", " ")).replace(/^./, (c) => c.toUpperCase()),
   label = (b) => schemaLabel(b.type);
-const widgetIcons = {
-  "marquee": '<path d="M2 7h20M2 17h20M5 12h9m-3-3 3 3-3 3M19 10v4"/>',
-  "collage": '<path d="M2 3h12v18H2ZM17 3h5v8h-5ZM17 14h5v7h-5Z"/>',
-  "flip-card": '<path d="M7 3h14v18H7ZM3 7v10m-2-7 2-3 2 3m-2 4 2 3 2-3M11 8h6M11 12h6"/>',
-  "cta-box": '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M5 9h7M5 13h5m6-3 3 2-3 2"/>',
-  "video-lightbox": '<rect x="2" y="3" width="20" height="18" rx="2"/><path d="m9 8 7 4-7 4ZM18 6h1"/>',
-  "team-members": '<circle cx="8" cy="7" r="3"/><circle cx="18" cy="9" r="2"/><path d="M2 21v-3a6 6 0 0 1 12 0v3m2-6a4 4 0 0 1 6 3v3"/>',
-  "pull-quote": '<path d="M3 5h18M3 19h18M5 10h4v5H4v-4l2-3m9 2h4v5h-5v-4l2-3"/>',
-  "button-group": '<rect x="1" y="8" width="10" height="8" rx="2"/><rect x="13" y="8" width="10" height="8" rx="2"/><path d="M4 12h4M16 12h4"/>',
-  "shop-the-look": '<path d="M2 3h20v18H2ZM2 18l6-6 4 4 4-3 6 5"/><circle cx="16" cy="8" r="3"/><path d="M16 6v4m-2-2h4"/>',
-  "recently-viewed": '<path d="M3 10a9 9 0 1 1 1 8M3 4v6h6M12 6v6l4 2"/>',
-  "tabs": '<path d="M3 8V4h6v4 M10 8V4h5v4 M16 8V4h5v4 M3 8h18v12H3Z M7 12h10 M7 16h7"/>',
-  "countdown": '<circle cx="12" cy="13" r="8"/><path d="M9 2h6 M12 5V2 M12 8v5l3 2 M18 6l2-2"/>',
-  "stats": '<path d="M3 20h18 M5 16V9h3v7 M11 16V4h3v12 M17 16v-5h3v5"/>',
-  "progress-bars": '<path d="M3 5h18v4H3Z M3 15h18v4H3Z M7 5v4 M15 15v4"/>',
-  "alert": '<path d="m12 3 10 18H2Z M12 9v5 M12 17h.01"/>',
-  "table": '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18 M3 14h18 M9 4v16 M15 4v16"/>',
-  "map": '<path d="m2 6 6-3 8 3 6-3v15l-6 3-8-3-6 3Z M8 3v15 M16 6v15"/>',
-  "social-links": '<circle cx="5" cy="12" r="3"/><circle cx="18" cy="5" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8 11 7-5 M8 13l7 5"/>',
-  "columns": "<rect x=\"3\" y=\"4\" width=\"7\" height=\"16\" rx=\"1\"/><rect x=\"14\" y=\"4\" width=\"7\" height=\"16\" rx=\"1\"/>",
-  "heading": "<path d=\"M5 4v16 M19 4v16 M5 12h14\"/>",
-  "paragraph": "<path d=\"M4 5h16 M4 10h16 M4 15h16 M4 20h10\"/>",
-  "image": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"8\" cy=\"8\" r=\"2\"/><path d=\"m3 18 6-6 4 4 3-3 5 5\"/>",
-  "button": "<rect x=\"2\" y=\"6\" width=\"20\" height=\"12\" rx=\"4\"/><path d=\"M7 12h10 m-3-3 3 3-3 3\"/>",
-  "spacer": "<path d=\"M3 3h18 M3 21h18 M12 6v12 m-3-9 3-3 3 3 m-6 6 3 3 3-3\"/>",
-  "divider": "<path d=\"M3 12h18 M6 4v2 M12 4v2 M18 4v2 M6 18v2 M12 18v2 M18 18v2\"/>",
-  "video": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"m10 8 6 4-6 4Z\"/>",
-  "checklist": "<path d=\"m3 6 2 2 3-4 M11 6h10 m-18 8 2 2 3-4 M11 14h10 M11 20h10\"/>",
-  "gallery": "<rect x=\"7\" y=\"3\" width=\"14\" height=\"14\" rx=\"2\"/><path d=\"m7 14 5-5 3 3 2-2 4 4 M3 7v14h14\"/>",
-  "quote": "<path d=\"M4 6h6v7H6c0 3 1 4 3 5 M14 6h6v7h-4c0 3 1 4 3 5\"/>",
-  "tag": "<path d=\"M3 3h9l9 9-9 9-9-9Z\"/><circle cx=\"8\" cy=\"8\" r=\"1.5\"/>",
-  "products": "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/>",
-  "collections": "<path d=\"M3 7h7l2 2h9v11H3Z M3 7V4h7l2 2h9v3 M7 13h10 M7 16h6\"/>",
-  "mail": "<rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"m3 6 9 7 9-7\"/>",
-  "accordion": "<path d=\"M3 4h18v6H3Z M3 14h18v6H3Z m12-7 2 2 2-2 m-4 10 2 2 2-2\"/>",
-  "code": "<path d=\"m7 6-5 6 5 6 m10-12 5 6-5 6 M14 3l-4 18\"/>",
-  "slideshow": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"14\" rx=\"2\"/><path d=\"M2 7v8 M22 7v8 m-12-8 5 4-5 4\"/><circle cx=\"9\" cy=\"21\" r=\".5\"/><circle cx=\"15\" cy=\"21\" r=\".5\"/>",
-  "banner": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"1\"/><path d=\"M7 9h10 M9 12h6 M10 16h4\"/>",
-  "compare": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M12 2v20 m-5-13-3 3 3 3 m10-6 3 3-3 3\"/>",
-  "logos": "<circle cx=\"6\" cy=\"6\" r=\"3\"/><path d=\"m17 3 4 6h-8Z\"/><rect x=\"3\" y=\"14\" width=\"6\" height=\"6\"/><path d=\"m17 13 4 4-4 4-4-4Z\"/>",
-  "features": "<path d=\"m6 3 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z M13 5h8 M13 9h5 M3 15h7 M3 19h7 M14 14h7v7h-7Z\"/>",
-  "hotspots": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"9\" cy=\"9\" r=\"3\"/><path d=\"M9 7v4 M7 9h4\"/><circle cx=\"17\" cy=\"16\" r=\"2\"/>",
-  "section-title": "<path d=\"M8 3h8 M4 7h16 M12 7v8 M8 15h8 M5 20h14\"/>",
-  "embed-video": "<path d=\"m3 7-2 5 2 5 m18-10 2 5-2 5\"/><rect x=\"6\" y=\"5\" width=\"12\" height=\"14\" rx=\"2\"/><path d=\"m10 9 5 3-5 3Z\"/>",
-  "hero": "<rect x=\"2\" y=\"3\" width=\"20\" height=\"18\" rx=\"1\"/><path d=\"m2 16 5-5 5 5 4-4 6 6 M6 7h12 M8 9h8\"/>",
-  "text": "<path d=\"M3 4h11 M3 8h11 M3 12h18 M3 16h18 M3 20h14 M18 4h3v4h-3Z\"/>",
-  "split": "<rect x=\"2\" y=\"4\" width=\"9\" height=\"16\" rx=\"1\"/><path d=\"m2 17 4-5 5 6 M15 6h7 M15 11h7 M15 16h5\"/>",
-  "catalogue": "<path d=\"M4 3h16v18H4Z M7 7h4v4H7Z M14 7h3 M14 10h3 M7 15h10 M7 18h7\"/>",
-  "chart": "<path d=\"M3 3v18h18 M7 17v-5h3v5 M13 17V8h3v9 M19 17V4h3v13\"/>",
-  "shield": "<path d=\"m12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6Z m-5 10 3 3 7-7\"/>",
-  "reviews": "<path d=\"M3 3h18v13H9l-6 5Z m9-10 1-3 1 3h3l-2 2 1 3-3-2-3 2 1-3-2-2Z\"/>",
-  "articles": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"1\"/><path d=\"M6 6h5v5H6Z M14 6h4 M14 10h4 M6 15h12 M6 18h12\"/>",
-  "library": "<path d=\"M3 4h4v17H3Z M10 4h4v17h-4Z m6 1 4-1 3 16-4 1Z\"/>",
-  "question": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M9 8a3 3 0 0 1 6 0c0 3-3 2-3 5 M12 17h.01\"/>",
-  "people": "<circle cx=\"9\" cy=\"7\" r=\"3\"/><path d=\"M3 21v-3a6 6 0 0 1 12 0v3 M17 4a3 3 0 0 1 0 6 M18 14a5 5 0 0 1 3 5v2\"/>",
-  "contact": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M7 7h10 M7 11h10 M7 15h5 m3 2 2 2 3-4\"/>",
-  "product-detail": "<path d=\"m3 7 5-3 5 3v6l-5 3-5-3Z M3 7l5 3 5-3 M8 10v6 M17 5h4 M17 9h4 M17 13h4 M3 20h18\"/>",
-  "references": "<path d=\"M5 2h10l4 4v16H5Z M15 2v5h4 M8 11h8 M8 15h8 M8 19h5\"/>",
-  "featured-collection": "<path d=\"M3 7h18v14H3Z M3 7V3h7l2 4 M7 12h10 M7 16h6\"/>",
-  "pricing-table": "<rect x=\"2\" y=\"6\" width=\"6\" height=\"15\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"19\"/><rect x=\"16\" y=\"6\" width=\"6\" height=\"15\"/><path d=\"M11 6h2 M4 10h2 M18 10h2\"/>",
-  "comparison-table": "<path d=\"M3 3h18v18H3Z M3 8h18 M9 3v18 m3-9 2 2 3-3 m-5 7 4-4 m-4 0 4 4\"/>",
-  "trust-badges": "<path d=\"m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6Z m-4 10 3 3 5-6\"/><path d=\"M2 6v9 M22 6v9\"/>",
-  "announcement-bar": "<path d=\"m3 10 13-6v16L3 14Z M3 10v4 M7 16v5h4l-1-4 M19 8l3-2 M19 12h3 M19 16l3 2\"/>",
-  "promo-banner": "<path d=\"M3 4h18v16H3Z M3 9h18 M8 4v16 m4-3 5-5 M12 12h.01 M17 17h.01\"/>",
-  "steps": "<circle cx=\"4\" cy=\"6\" r=\"2\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><circle cx=\"20\" cy=\"18\" r=\"2\"/><path d=\"M6 6h6v4 M14 12h6v4\"/>",
-  "star-rating": "<path d=\"m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z M12 7v10\"/>",
-  "contact-card": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><circle cx=\"8\" cy=\"10\" r=\"2\"/><path d=\"M4 17c0-5 8-5 8 0 M15 9h4 M15 13h4 M15 17h3\"/>",
-  "embed": "<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"M2 8h20 m-13 3-3 3 3 3 m6-6 3 3-3 3\"/>"
+// Lucide icons from /static/admin/icons.js, so the editor matches the merchant admin.
+const icon = (name, size = 16) =>
+  (window.fsIcon?.(name, size) || "").replace('stroke-width="2"', 'stroke-width="1.75"');
+// Each schema icon key maps to the closest Lucide glyph.
+const blockIconNames = {
+  "marquee": "scroll-text", "collage": "layout-dashboard", "flip-card": "flip-horizontal-2",
+  "cta-box": "mouse-pointer-click", "video-lightbox": "circle-play", "team-members": "users",
+  "pull-quote": "quote", "button-group": "rectangle-ellipsis", "shop-the-look": "shopping-bag",
+  "recently-viewed": "history", "tabs": "panels-top-left", "countdown": "timer", "stats": "chart-column",
+  "progress-bars": "chart-bar", "alert": "triangle-alert", "table": "table", "map": "map",
+  "social-links": "share-2", "columns": "columns-3", "heading": "heading", "paragraph": "pilcrow",
+  "image": "image", "button": "square-mouse-pointer", "spacer": "unfold-vertical",
+  "divider": "separator-horizontal", "video": "video", "checklist": "list-checks", "gallery": "images",
+  "quote": "quote", "tag": "tag", "products": "layout-grid", "collections": "folder-open", "mail": "mail",
+  "accordion": "list-collapse", "code": "code", "slideshow": "gallery-horizontal",
+  "banner": "rectangle-horizontal", "compare": "square-split-horizontal", "logos": "shapes",
+  "features": "sparkles", "hotspots": "crosshair", "section-title": "heading-1",
+  "embed-video": "monitor-play", "hero": "app-window", "text": "text", "split": "layout-panel-left",
+  "catalogue": "book-open", "chart": "chart-column", "shield": "shield-check",
+  "reviews": "message-square-quote", "articles": "newspaper", "library": "library",
+  "question": "circle-help", "people": "users", "contact": "contact", "product-detail": "package",
+  "references": "file-text", "featured-collection": "star", "pricing-table": "tags",
+  "comparison-table": "table-2", "trust-badges": "badge-check", "announcement-bar": "megaphone",
+  "promo-banner": "badge-percent", "steps": "list-ordered", "star-rating": "star",
+  "contact-card": "contact-round", "embed": "code-xml",
 };
-function blockIcon(type) {
-  const path = widgetIcons[spec(type).icon] || widgetIcons.columns;
-  return `<svg class="block-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+function blockIcon(type, size = 16) {
+  const key = spec(type).icon;
+  const name = blockIconNames[key] || "layout-template";
+  return icon(name, size).replace('class="fs-icon"', 'class="fs-icon block-icon"');
 }
 const get = (o, p) => p.split(".").reduce((v, k) => v?.[k], o);
 function set(o, p, v) {
@@ -189,6 +153,17 @@ function set(o, p, v) {
   }
   o[last] = v;
 }
+const isLocalizedText = (value) =>
+  value &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  Object.keys(value).length > 0 &&
+  Object.prototype.hasOwnProperty.call(value, state?.default_locale || "en") &&
+  Object.entries(value).every(
+    ([locale, text]) =>
+      /^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/.test(locale) &&
+      typeof text === "string",
+  );
 function text(v) {
   return v && typeof v === "object" && !Array.isArray(v)
     ? (v[state?.default_locale || "en"] ?? "")
@@ -196,19 +171,72 @@ function text(v) {
 }
 function setField(o, p, v) {
   const old = get(o, p);
-  if (old && typeof old === "object" && !Array.isArray(old)) {
+  if (isLocalizedText(old)) {
     const locale = state.default_locale || "en";
     v = { ...old, [locale]: v };
   }
   set(o, p, v);
+}
+function sanitizeBadItemLocaleKeys(document, schema) {
+  const localeKey = /^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/;
+  let removed = 0;
+  const visit = (blocks = []) => {
+    for (const block of blocks) {
+      const itemsField = (schema[block.type]?.fields || []).find(
+        (field) => field.id === "items" && field.type === "repeater",
+      );
+      const allowed = new Set(
+        (itemsField?.item_fields || itemsField?.fields || []).map(
+          (field) => field.id,
+        ),
+      );
+      if (Array.isArray(block.items) && allowed.size) {
+        for (const item of block.items) {
+          if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+          for (const [key, value] of Object.entries(item)) {
+            if (
+              !allowed.has(key) &&
+              localeKey.test(key) &&
+              value &&
+              typeof value === "object" &&
+              !Array.isArray(value)
+            ) {
+              const copiedFields = Object.keys(value);
+              if (
+                copiedFields.length > 1 &&
+                copiedFields.every((field) => allowed.has(field)) &&
+                copiedFields.some((field) =>
+                  Object.prototype.hasOwnProperty.call(item, field),
+                )
+              ) {
+                delete item[key];
+                removed += 1;
+              }
+            }
+          }
+        }
+      }
+      visit(block.children || []);
+    }
+  };
+  visit(document.blocks || []);
+  return removed;
 }
 function historyButtons() {
   $("#undo").disabled = cursor <= 0;
   $("#redo").disabled = cursor >= history.length - 1;
 }
 function snapshot(name) {
+  // Typing into one field makes one history step, not one per keystroke.
+  const last = history[cursor], now = Date.now();
+  if (last && cursor === history.length - 1 && last.name === name && name.startsWith("Edit ") && now - last.at < 1500) {
+    last.document = copy(state.document);
+    last.at = now;
+    historyButtons();
+    return;
+  }
   history = history.slice(0, cursor + 1);
-  history.push({ name, document: copy(state.document) });
+  history.push({ name, document: copy(state.document), at: now });
   if (history.length > 100) history.shift();
   cursor = history.length - 1;
   historyButtons();
@@ -244,6 +272,7 @@ function send(payload) {
 }
 function select(id) {
   selected = id;
+  if (id) shellGroup = null;
   if (id && window.matchMedia("(max-width: 760px)").matches)
     $("#editor").classList.remove("is-panel-open");
   $("#editor").classList.toggle("has-selection", Boolean(id));
@@ -280,13 +309,16 @@ async function preview(blockId = null) {
     const y = frame.contentWindow?.scrollY || 0;
     frame.onload = () => {
       if (request === serial) needsFullPreview = false;
-      send({ type: "context", block_id: selected, scroll_y: y });
+      send({ type: "context", block_id: selected, scroll_y: y, labels: canvasLabels() });
     };
     frame.srcdoc = result.html;
     $("#node-count").textContent = `${walk().length} blocks`;
   } catch (e) {
     if (request === serial) showError(e);
   }
+}
+function canvasLabels() {
+  return Object.fromEntries(Object.keys(state?.schema || {}).map((type) => [type, schemaLabel(type)]));
 }
 function restoreHistory() {
   needsFullPreview = true;
@@ -470,14 +502,28 @@ function drop(id, position, payload) {
   dragPayload = null;
 }
 function row(b, depth = 0) {
-  const children = b.children || [];
+  const children = b.children || [], open = !collapsed.has(b.id), name = label(b);
   const subtitle = String(text(b.heading || b.title) || "").replace(/<[^>]*>/g, "").trim();
-  return `<div class="tree-node"><div class="tree-row ${selected === b.id ? "selected" : ""} ${b.hidden ? "is-hidden" : ""}" data-block-id="${esc(b.id)}" draggable="true" tabindex="0" role="treeitem" aria-selected="${selected === b.id}" ${children.length ? `aria-expanded="${!collapsed.has(b.id)}"` : ""} aria-label="${esc(label(b))}${subtitle ? `: ${esc(subtitle)}` : ""}" style="--depth:${depth}"><span class="drag-handle" aria-hidden="true">⠿</span><button class="tree-toggle" ${children.length ? "" : "disabled tabindex=\"-1\""} data-collapse="${esc(b.id)}" aria-label="Expand or collapse ${esc(label(b))}">${children.length ? (collapsed.has(b.id) ? "▸" : "▾") : "·"}</button>${blockIcon(b.type)}<span class="tree-title"><span>${esc(label(b))}</span>${subtitle ? `<small>${esc(subtitle)}</small>` : ""}</span><div class="tree-actions"><button data-action="hide" aria-label="${b.hidden ? "Show" : "Hide"} ${esc(label(b))}" aria-pressed="${Boolean(b.hidden)}" title="${b.hidden ? "Show" : "Hide"} block">◉</button><button data-action="duplicate" aria-label="Duplicate block" title="Duplicate block">⧉</button><button data-action="delete" aria-label="Delete block" title="Delete block">×</button></div></div>${collapsed.has(b.id) ? "" : children.map((c) => row(c, depth + 1)).join("")}${spec(b.type).accepts_children && !collapsed.has(b.id) ? `<button class="add-section" data-add-child="${esc(b.id)}">+ Add block</button>` : ""}</div>`;
+  const toggle = children.length
+    ? `<button type="button" class="tree-toggle" data-collapse="${esc(b.id)}" tabindex="-1" aria-label="${open ? "Collapse" : "Expand"} ${esc(name)}">${icon("chevron-right", 14)}</button>`
+    : `<span class="tree-toggle" aria-hidden="true"></span>`;
+  const actions = `<div class="tree-actions"><button type="button" data-action="hide" class="${b.hidden ? "is-on" : ""}" aria-label="${b.hidden ? "Show" : "Hide"} ${esc(name)}" aria-pressed="${Boolean(b.hidden)}" title="${b.hidden ? "Show" : "Hide"} block">${icon(b.hidden ? "eye-off" : "eye", 15)}</button><button type="button" data-action="duplicate" aria-label="Duplicate block" title="Duplicate block">${icon("copy", 15)}</button><button type="button" data-action="delete" aria-label="Delete block" title="Delete block">${icon("trash-2", 15)}</button></div>`;
+  const add = spec(b.type).accepts_children && open
+    ? `<button type="button" class="tree-add tree-add-child" data-add-child="${esc(b.id)}" style="--depth:${depth + 1}">${icon("circle-plus", 15)}<span>Add block</span></button>`
+    : "";
+  return `<div class="tree-node" role="none"><div class="tree-row ${selected === b.id ? "selected" : ""} ${b.hidden ? "is-hidden" : ""}" data-block-id="${esc(b.id)}" draggable="true" tabindex="0" role="treeitem" aria-level="${depth + 1}" aria-selected="${selected === b.id}" ${children.length ? `aria-expanded="${open}"` : ""} aria-label="${esc(name)}${subtitle ? `: ${esc(subtitle)}` : ""}${b.hidden ? " (hidden)" : ""}" style="--depth:${depth}"><span class="drag-handle" aria-hidden="true" title="Drag to reorder">${icon("grip-vertical", 14)}</span>${toggle}${blockIcon(b.type)}<span class="tree-title"><span>${esc(name)}</span>${subtitle ? `<small>${esc(subtitle)}</small>` : ""}</span>${actions}</div>${open && children.length ? `<div role="group">${children.map((c) => row(c, depth + 1)).join("")}</div>` : ""}${add}</div>`;
 }
 function renderTree() {
   if (mode !== "sections") return;
+  const blocks = state.document.blocks;
   $("#left-content").innerHTML =
-    `<div class="tree-group-label">Header</div><div class="tree-static">▤ &nbsp; Store header <span class="subtle">· Theme</span></div><div class="tree-group-label">Template</div><div role="tree" aria-label="Page sections">${state.document.blocks.map((b) => row(b)).join("")}</div><button class="add-section" id="add-section">+ Add section</button><div class="tree-group-label">Footer</div><div class="tree-static">▤ &nbsp; Store footer <span class="subtle">· Theme</span></div>`;
+    `<div class="tree-group"><div class="tree-group-label">Header</div>${shellRow("header", "Store header")}</div><div class="tree-group"><div class="tree-group-label" id="template-label">Template</div><div role="tree" aria-labelledby="template-label" class="tree">${blocks.map((b) => row(b)).join("")}</div>${blocks.length ? "" : '<p class="tree-empty">This page has no sections yet.</p>'}<button type="button" class="tree-add" id="add-section">${icon("circle-plus", 15)}<span>Add section</span></button></div><div class="tree-group"><div class="tree-group-label">Store pages</div>${shellRow("pages", "Store pages")}</div><div class="tree-group"><div class="tree-group-label">Footer</div>${shellRow("footer", "Store footer")}${shellRow("consent", "Cookie banner")}</div>`;
+  $$("[data-shell]").forEach((b) => (b.onclick = () => openShell(b.dataset.shell)));
+  $("[data-open-pages]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    pageSwitcher.open = true;
+    $("#page-search").focus();
+  });
   $("#add-section").onclick = () => openPicker();
   $$("[data-add-child]").forEach(
     (b) => (b.onclick = () => openPicker(b.dataset.addChild)),
@@ -489,7 +535,7 @@ function renderTree() {
         const id = b.dataset.collapse;
         collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id);
         renderTree();
-        $$("[data-collapse]").find((node) => node.dataset.collapse === id)?.focus();
+        $$(".tree-row").find((node) => node.dataset.blockId === id)?.focus();
       }),
   );
   $$(".tree-row").forEach((r) => {
@@ -504,6 +550,15 @@ function renderTree() {
         e.preventDefault();
         select(r.dataset.blockId);
         $$(".tree-row").find((node) => node.dataset.blockId === r.dataset.blockId)?.focus();
+      }
+      if (!e.altKey && ["ArrowLeft", "ArrowRight"].includes(e.key) && r.hasAttribute("aria-expanded")) {
+        e.preventDefault();
+        const id = r.dataset.blockId, expanded = !collapsed.has(id);
+        if (expanded === (e.key === "ArrowRight")) return;
+        expanded ? collapsed.add(id) : collapsed.delete(id);
+        renderTree();
+        $$(".tree-row").find((node) => node.dataset.blockId === id)?.focus();
+        return;
       }
       if (!e.altKey && ["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
         e.preventDefault();
@@ -557,10 +612,11 @@ function widgetHTML(query = "") {
       continue;
     groups.set(s.category, [...(groups.get(s.category) || []), [type, s]]);
   }
+  if (!groups.size) return '<p class="panel-empty">No widgets match that search.</p>';
   return [...groups]
     .map(
       ([category, items]) =>
-        `<div class="widget-category">${esc(category)}</div><div class="widget-grid">${items.map(([type, s]) => `<button class="widget-tile" draggable="true" data-widget-type="${esc(type)}" title="${esc(s.description)}"><span class="tile-preview" aria-hidden="true">${blockIcon(type)}</span><span>${esc(schemaLabel(type))}<small>${esc(s.description || "")}</small></span></button>`).join("")}</div>`,
+        `<div class="widget-category">${esc(category)}</div><div class="widget-grid">${items.map(([type, s]) => `<button type="button" class="widget-tile" draggable="true" data-widget-type="${esc(type)}" title="${esc(s.description)}"><span class="tile-preview" aria-hidden="true">${blockIcon(type, 18)}</span><span class="tile-text"><span>${esc(schemaLabel(type))}</span><small>${esc(s.description || "")}</small></span></button>`).join("")}</div>`,
     )
     .join("");
 }
@@ -584,14 +640,25 @@ function renderLeft() {
     theme: "Theme settings",
     history: "History",
   };
+  const notes = {
+    sections: state?.site?.name || "",
+    widgets: "Click to add, or drag onto the page",
+    theme: "Shared across your storefront",
+    history: "Changes made in this session",
+  };
   $("#left-title").textContent = names[mode];
-  $$("[data-mode]").forEach((b) =>
-    b.classList.toggle("active", b.dataset.mode === mode),
-  );
+  $("#theme-name").textContent = notes[mode];
+  $("#left-actions").innerHTML = "";
+  $("#editor").dataset.editorMode = mode;
+  $$("[data-mode]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.mode === mode);
+    b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+  });
+  applyPanelWidths();
   if (mode === "sections") renderTree();
   if (mode === "widgets") {
     $("#left-content").innerHTML =
-      `<div class="widget-search"><input id="widget-search" type="search" placeholder="Search widgets" aria-label="Search widgets"></div><div id="widget-results">${widgetHTML()}</div>`;
+      `<div class="widget-search">${icon("search", 15)}<input id="widget-search" type="search" placeholder="Search widgets" aria-label="Search widgets"></div><div id="widget-results">${widgetHTML()}</div>`;
     $("#widget-search").oninput = (e) => {
       $("#widget-results").innerHTML = widgetHTML(e.target.value);
       wireWidgets();
@@ -601,13 +668,13 @@ function renderLeft() {
   if (mode === "theme") renderTheme();
   if (mode === "history") {
     $("#left-content").innerHTML =
-      `<p class="field-help" style="padding:12px 16px">Changes in this session. Saved revisions include earlier drafts.</p>${history
+      `<p class="panel-note">Saved revisions from earlier sessions are under Revisions in the top bar.</p><ol class="history-list" reversed>${history
         .map(
           (h, i) =>
-            `<div class="history-item ${i === cursor ? "current" : ""}"><span>${esc(h.name)}</span><button data-history="${i}" ${i === cursor ? "disabled" : ""}>Restore</button></div>`,
+            `<li class="history-item ${i === cursor ? "current" : ""}"><span class="history-dot" aria-hidden="true"></span><span class="history-name">${esc(h.name)}${i === cursor ? '<small>Current state</small>' : i > cursor ? '<small>Undone</small>' : ""}</span>${i === cursor ? "" : `<button type="button" data-history="${i}" aria-label="Restore: ${esc(h.name)}">${icon("rotate-ccw", 14)}<span>Restore</span></button>`}</li>`,
         )
         .reverse()
-        .join("")}`;
+        .join("")}</ol>`;
     $$("[data-history]").forEach(
       (b) =>
         (b.onclick = () => {
@@ -637,7 +704,7 @@ function openPicker(parent = null) {
             ? `<div class="picker-category">${esc(s.category)}</div>`
             : "";
         category = s.category;
-        return `${header}<button class="picker-item" data-insert="${esc(type)}"><span class="picker-thumbnail" aria-hidden="true">${blockIcon(type)}</span><span>${esc(schemaLabel(type))}<small>${esc(s.description)}</small></span></button>`;
+        return `${header}<button type="button" class="picker-item" data-insert="${esc(type)}"><span class="picker-thumbnail" aria-hidden="true">${blockIcon(type, 20)}</span><span>${esc(schemaLabel(type))}<small>${esc(s.description)}</small></span></button>`;
       })
       .join("");
     $$("[data-insert]").forEach(
@@ -678,7 +745,9 @@ function fieldHTML(f, obj, prefix = "") {
           `<option value="${esc(o.value)}" ${String(v) === String(o.value) ? "selected" : ""}>${esc(o.label)}</option>`,
       )
       .join("")}</select>`;
-  else if (["textarea", "richtext"].includes(f.type))
+  else if (f.type === "richtext")
+    html = `<div data-rich-inspector data-rich-setting="${esc(path)}" data-rich-value="${esc(v)}" data-rich-label="${esc(f.label || f.id)}"></div>`;
+  else if (f.type === "textarea")
     html = `<textarea ${attrs} rows="4">${esc(v)}</textarea>`;
   else if (f.type === "range")
     html = `<div class="field-inline"><input ${attrs} type="range" min="${f.min ?? 0}" max="${f.max ?? 100}" step="${f.step ?? 1}" value="${esc(v)}"><input type="number" data-companion="${esc(path)}" aria-label="${esc(f.label)} value" value="${esc(v)}" min="${f.min ?? 0}" max="${f.max ?? 100}" step="${f.step ?? 1}"><span class="subtle">${esc(f.unit || "")}</span></div>`;
@@ -689,79 +758,210 @@ function fieldHTML(f, obj, prefix = "") {
     html =
       rows
         .map(
-          (item, i) =>
-            `<details class="repeater-item" draggable="true" data-repeater="${esc(path)}" data-index="${i}"><summary>${esc(text(item.heading || item.label) || `Item ${i + 1}`)}</summary>${f.value_list ? `<div class="field-inline"><input data-setting="${esc(path)}.${i}" data-type="${esc(f.fields[0].type)}" value="${esc(item)}" aria-label="${esc(f.fields[0].label)} ID"><button data-link="${esc(path)}.${i}" data-resource-type="${esc(f.fields[0].type)}" aria-label="Choose ${esc(f.fields[0].label)}">↗</button></div>` : (f.fields || f.item_fields || []).map((sub) => fieldHTML(sub, item, `${path}.${i}.`)).join("")}<div class="repeater-actions"><button data-repeat-action="up" data-path="${esc(path)}" data-index="${i}" aria-label="Move item up" ${i === 0 ? "disabled" : ""}>↑</button><button data-repeat-action="down" data-path="${esc(path)}" data-index="${i}" aria-label="Move item down" ${i === rows.length - 1 ? "disabled" : ""}>↓</button>${f.fixed ? "" : `<button data-repeat-action="remove" data-path="${esc(path)}" data-index="${i}" ${rows.length <= (f.min ?? 0) ? "disabled" : ""}>Remove</button>`}</div></details>`,
+          (item, i) => {
+            const editorFields = f.fields || f.item_fields || [];
+            return `<details class="repeater-item" draggable="true" data-repeater="${esc(path)}" data-index="${i}" ${openItems.has(`${selected}|${path}.${i}`) ? "open" : ""}><summary><span class="repeater-grip" aria-hidden="true" title="Drag to reorder">${icon("grip-vertical", 14)}</span><span class="repeater-title">${esc(text(item.heading || item.label) || `Item ${i + 1}`)}</span></summary>${f.value_list ? `<div class="field-inline"><input data-setting="${esc(path)}.${i}" data-type="${esc(f.fields[0].type)}" value="${esc(item)}" aria-label="${esc(f.fields[0].label)} ID"><button data-link="${esc(path)}.${i}" data-resource-type="${esc(f.fields[0].type)}" aria-label="Choose ${esc(f.fields[0].label)}" title="Choose ${esc(f.fields[0].label)}" class="icon-button">${icon("link", 15)}</button></div>` : editorFields.map((sub) => fieldHTML(sub, item, `${path}.${i}.`)).join("")}<div class="repeater-actions"><button type="button" class="icon-button" data-repeat-action="up" data-path="${esc(path)}" data-index="${i}" aria-label="Move item up" title="Move item up" ${i === 0 ? "disabled" : ""}>${icon("arrow-up", 15)}</button><button type="button" class="icon-button" data-repeat-action="down" data-path="${esc(path)}" data-index="${i}" aria-label="Move item down" title="Move item down" ${i === rows.length - 1 ? "disabled" : ""}>${icon("arrow-down", 15)}</button>${f.fixed ? "" : `<button type="button" class="repeater-remove" data-repeat-action="remove" data-path="${esc(path)}" data-index="${i}" ${rows.length <= (f.min ?? 0) ? "disabled" : ""}>${icon("trash-2", 14)}<span>Remove</span></button>`}</div></details>`;
+          },
         )
         .join("") +
       (f.fixed
         ? ""
-        : `<button data-repeat-add="${esc(path)}" ${rows.length >= (f.max ?? 50) ? "disabled" : ""}>+ Add item</button>`);
+        : `<button type="button" class="add-item" data-repeat-add="${esc(path)}" ${rows.length >= (f.max ?? 50) ? "disabled" : ""}>${icon("circle-plus", 15)}<span>Add item</span></button>`);
+  } else if (f.type === "icon") {
+    const selected = String(v || ""),
+      label = selected.startsWith("lucide:")
+        ? selected.slice("lucide:".length).replaceAll("-", " ")
+        : selected.startsWith("/site-media/")
+          ? "Custom icon"
+          : selected
+            ? `${selected.replaceAll("_", " ")} (original icon)`
+            : "No icon selected";
+    html = `<div class="icon-field-actions"><button id="${esc(id)}" type="button" class="icon-field-trigger" data-icon="${esc(path)}" aria-haspopup="dialog"><span>${selected ? "Change icon" : "Choose icon"}</span><small>${esc(label)}</small></button>${selected ? `<button type="button" data-icon-clear="${esc(path)}" aria-label="Clear ${esc(f.label || f.id)}">Clear</button>` : ""}</div>`;
   } else if (["image", "video"].includes(f.type))
-    html = `${f.type === "image" && obj.type !== "image_hotspots" && v && !v.startsWith("metafield:") ? `<img class="field-media-preview" src="${esc(v)}" alt="Selected image">` : ""}<input ${attrs} value="${esc(v)}" placeholder="Media URL"><button data-media="${esc(path)}">Choose media</button>`;
+    html = `${f.type === "image" && obj.type !== "image_hotspots" && v && !v.startsWith("metafield:") ? `<img class="field-media-preview" src="${esc(v)}" alt="Selected image">` : ""}<input ${attrs} value="${esc(v)}" placeholder="Media URL"><button type="button" class="media-button" data-media="${esc(path)}">${icon("image", 15)}<span>Choose media</span></button>`;
   else
-    html = `<div class="field-inline"><input ${attrs} type="${f.type === "number" ? "number" : f.type === "datetime" ? "datetime-local" : "text"}" value="${esc(Array.isArray(v) ? v.join(", ") : v)}" ${f.min !== undefined ? `min="${f.min}"` : ""} ${f.max !== undefined ? `max="${f.max}"` : ""}>${["url", "link", "product", "collection"].includes(f.type) ? `<button data-link="${esc(path)}" aria-label="Choose ${esc(f.label)}">↗</button>` : ""}</div>`;
+    html = `<div class="field-inline"><input ${attrs} type="${f.type === "number" ? "number" : f.type === "datetime" ? "datetime-local" : "text"}" value="${esc(Array.isArray(v) ? v.join(", ") : v)}" ${f.min !== undefined ? `min="${f.min}"` : ""} ${f.max !== undefined ? `max="${f.max}"` : ""}>${["url", "link", "product", "collection"].includes(f.type) ? `<button type="button" class="icon-button" data-link="${esc(path)}" aria-label="Choose ${esc(f.label)}" title="Choose ${esc(f.label)}">${icon("link", 15)}</button>` : ""}</div>`;
   const dynamicKind = f.dynamic_source || (!f.id.startsWith("style.") && ["text", "textarea", "richtext"].includes(f.type) ? "text" : f.type === "image" ? "image" : "");
   const sources = (state?.page?.kind === "product" || state?.page?.product_id) && dynamicKind ? (state.dynamic_sources?.[dynamicKind] || []) : [];
   if (sources.length) html += `<label class="field-help">Connect dynamic source<select data-dynamic-for="${esc(id)}"><option value="">Choose a custom data definition</option>${sources.map(source => `<option value="${esc(source.source)}" ${v === source.source ? "selected" : ""}>${esc(source.name)}</option>`).join("")}</select></label>`;
-  return `<div class="field"><label for="${esc(id)}">${esc(f.label || f.id)}</label>${html}${f.help ? `<span class="field-help">${esc(f.help)}</span>` : ""}</div>`;
+  return `<div class="field field-${esc(f.type)}"><label for="${esc(id)}">${esc(f.label || f.id)}</label>${html}${f.help ? `<span class="field-help">${esc(f.help)}</span>` : ""}</div>`;
 }
-function selectedFields() {
+function selectedFields(group) {
   const n = locate(selected);
   if (!n) return [];
   const s = spec(n.block.type),
-    ids = s.groups?.[tab] || s.groups?.[tab.toLowerCase()];
+    ids = s.groups?.[group] || s.groups?.[group.toLowerCase()];
   return (s.fields || []).filter((f) =>
-    ids
+    // Some labels only apply to particular layouts, such as a bottle or a tablet purchase box.
+    (!f.layouts || f.layouts.includes(n.block.layout)) &&
+    (ids
       ? ids.includes(f.id)
-      : tab === "Content"
+      : group === "Content"
         ? !f.id.startsWith("style.")
-        : tab === "Advanced"
+        : group === "Advanced"
           ? ["style.anchor_id", "style.css_class"].includes(f.id)
-          : f.id.startsWith("style."),
+          : f.id.startsWith("style.")),
   );
+}
+// Settings groups replace the old Content, Style and Advanced tabs. Every field still renders
+// exactly once; the open or closed state of each group is remembered between selections.
+let openGroups;
+try {
+  openGroups = new Set(JSON.parse(localStorage.getItem("fs-editor-open-groups") || "null") || ["Content", "theme:Colours"]);
+} catch {
+  openGroups = new Set(["Content", "theme:Colours"]);
+}
+function wireGroups(root) {
+  root.querySelectorAll("details[data-group]").forEach((details) => {
+    details.ontoggle = () => {
+      details.open ? openGroups.add(details.dataset.group) : openGroups.delete(details.dataset.group);
+      try { localStorage.setItem("fs-editor-open-groups", JSON.stringify([...openGroups])); } catch { /* Private mode. */ }
+    };
+  });
+}
+function groupHTML(name, hint, body, key = name) {
+  hint = hint.toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  return `<details class="settings-group" data-group="${esc(key)}" ${openGroups.has(key) ? "open" : ""}><summary><span class="settings-group-title">${esc(name)}</span>${hint ? `<small>${esc(hint)}</small>` : ""}</summary><div class="settings-group-body">${body}</div></details>`;
+}
+function fieldSection(f) {
+  if (!f.id.startsWith("style.")) return "";
+  const id = f.id.slice(6);
+  if (/^(padding|margin)_/.test(id)) return "Spacing";
+  if (/colou?r|background/.test(id)) return "Colours and background";
+  if (id.startsWith("hide_")) return "Visibility";
+  if (["anchor_id", "css_class"].includes(id)) return "Developer";
+  return "Layout";
+}
+const isInterfaceLabel = (f) => f.type === "text" && /_label$/.test(f.id);
+function groupFieldsHTML(block, fields) {
+  const render = (f) => (f.id === "items" ? hotspotPreview(block) : "") + fieldHTML(f, block);
+  const labels = fields.filter(isInterfaceLabel),
+    tuck = labels.length >= 2,
+    main = tuck ? fields.filter((f) => !isInterfaceLabel(f)) : fields,
+    sections = new Map();
+  for (const f of main) sections.set(fieldSection(f), [...(sections.get(fieldSection(f)) || []), f]);
+  let html = [...sections]
+    .map(([section, list]) =>
+      (sections.size > 1 && section ? `<h3 class="settings-subheading">${esc(section)}</h3>` : "") + list.map(render).join(""))
+    .join("");
+  if (tuck)
+    html += `<details class="settings-subgroup" data-group="Interface labels" ${openGroups.has("Interface labels") ? "open" : ""}><summary>Interface labels<small>${labels.length}</small></summary><p class="field-help">Button text and screen reader labels used inside this section.</p>${labels.map(render).join("")}</details>`;
+  return { html, hint: [...sections.keys()].filter(Boolean).join(", ") };
+}
+const shellIcons = { header: "panel-top", footer: "panel-bottom", pages: "files", consent: "cookie" };
+function shellRow(group, name) {
+  const editable = (state.shell_schema?.fields || []).some((f) => f.group === group);
+  // Store pages opens the page switcher, so every page is one click away.
+  if (group === "pages")
+    return `<button type="button" class="tree-shell" data-open-pages aria-haspopup="true">${icon(shellIcons[group])}<span class="tree-title"><span>${esc(name)}</span><small>${state.pages?.length || 0} page${state.pages?.length === 1 ? "" : "s"}</small></span><span class="tree-shell-go" aria-hidden="true">${icon("chevron-right", 14)}</span></button>`;
+  if (!editable)
+    return group === "consent" ? "" : `<div class="tree-static">${icon(shellIcons[group])}<span class="tree-title"><span>${esc(name)}</span><small>${boot.theme_id ? "Edit on the live theme" : "Set by the theme"}</small></span></div>`;
+  return `<button type="button" class="tree-shell ${shellGroup === group ? "selected" : ""}" data-shell="${group}" aria-pressed="${shellGroup === group}">${icon(shellIcons[group])}<span class="tree-title"><span>${esc(name)}</span></span><span class="tree-shell-go" aria-hidden="true">${icon("chevron-right", 14)}</span></button>`;
+}
+function openShell(group) {
+  selected = null;
+  shellGroup = group;
+  renderTree();
+  renderSettings();
+  send({ type: "select", block_id: null });
+}
+function renderShell() {
+  const names = { header: "Store header", footer: "Store footer", consent: "Cookie banner", pages: "Store pages" };
+  const obj = state.shell_settings;
+  // Lets the shared field wiring find the shell schema; never serialised.
+  Object.defineProperty(obj, "type", { value: "__shell", enumerable: false, configurable: true });
+  $("#editor").classList.add("has-selection");
+  $("#selection-header").innerHTML =
+    `<div class="selection-title"><span class="selection-icon" aria-hidden="true">${icon(shellIcons[shellGroup], 18)}</span><div class="selection-name"><h2>${esc(names[shellGroup])}</h2><span class="subtle">Shared by every page</span></div></div>`;
+  // Shared settings go live on their own, never as a side effect of publishing a page.
+  $("#settings-content").innerHTML =
+    `<div class="settings-fields">${state.shell_schema.fields
+      .filter((f) => f.group === shellGroup)
+      .map((f) => fieldHTML(f, obj))
+      .join("")}<p class="field-help">Save keeps these changes in your draft. Publish makes the header and footer live on every page.</p></div><div class="settings-footer is-sticky settings-footer-split"><button type="button" id="save-shell">Save</button><button type="button" id="publish-shell" class="primary-button" ${state.can_publish ? "" : "disabled"}>Publish header and footer</button></div>`;
+  window.FastShopRichText?.mountAll($("#settings-content"));
+  wireFields(obj, (path, v) => {
+    set(state.shell_settings, path, v); // The saved copy may have replaced obj.
+    shellDirty = themeDirty = true;
+    status("Unsaved changes");
+  });
+  const saveShellNow = async (publish) => {
+    const buttons = [$("#save-shell"), $("#publish-shell")];
+    buttons.forEach((b) => b && (b.disabled = true));
+    try {
+      if (publish) await saveShell(true);
+      else await saveTheme();
+      status(dirty || themeDirty ? "Unsaved changes" : "Saved");
+      toast(publish ? "Header and footer published" : "Header and footer saved");
+      needsFullPreview = true;
+      preview();
+    } catch (e) {
+      showError(e);
+    } finally {
+      if ($("#save-shell")) $("#save-shell").disabled = false;
+      if ($("#publish-shell")) $("#publish-shell").disabled = !state.can_publish;
+    }
+  };
+  $("#save-shell").onclick = () => saveShellNow(false);
+  $("#publish-shell").onclick = () => saveShellNow(true);
 }
 function renderSettings() {
   const n = locate(selected);
+  if (!n && shellGroup && state.shell_schema) return renderShell();
   $("#editor").classList.toggle("has-selection", Boolean(n));
   if (!n) {
     $("#selection-header").innerHTML =
-      '<h2>Page settings</h2><span class="subtle">Build your storefront</span>';
+      `<div class="selection-title"><span class="selection-icon" aria-hidden="true">${icon("file-text", 18)}</span><div class="selection-name"><h2>Page settings</h2><span class="subtle">Build your storefront</span></div></div>`;
     $("#settings-content").innerHTML =
-      `<div class="settings-empty"><div class="empty-icon">${blockIcon("container")}</div><strong>Make this page your own</strong><p>Select a section in the preview or drag a widget onto the page.</p><button id="empty-add">Add section</button></div>`;
+      `<div class="settings-empty"><div class="empty-icon" aria-hidden="true">${icon("mouse-pointer-click", 28)}</div><strong>Make this page your own</strong><p>Select a section in the preview or in the list on the left to change its settings, or drag a widget onto the page.</p><button type="button" id="empty-add" class="primary-button">${icon("plus", 15)}<span>Add section</span></button></div>`;
     $("#empty-add").onclick = () => openPicker();
     return;
   }
+  const block = n.block,
+    list = siblings(n),
+    index = list.indexOf(block),
+    kind = n.parent ? "block" : "section",
+    parentName = n.parent ? label(n.parent) : "";
   $("#selection-header").innerHTML =
-    `<h2>${esc(label(n.block))}</h2><span class="subtle">${esc(spec(n.block.type).category)}</span><div class="selection-actions">${[
-      ["up", "↑"],
-      ["down", "↓"],
-      ["duplicate", "Duplicate"],
-      ["hide", n.block.hidden ? "Show" : "Hide"],
-      ["delete", "Delete"],
-      ["parent", "Parent"],
+    `<button type="button" class="selection-back" data-selected-action="parent" title="Select parent" aria-label="${n.parent ? `Back to ${esc(parentName)}` : "Back to page settings"}">${icon("arrow-left", 15)}<span>${n.parent ? esc(parentName) : "Page"}</span></button><div class="selection-title"><span class="selection-icon" aria-hidden="true">${blockIcon(block.type, 18)}</span><div class="selection-name"><h2>${esc(label(block))}</h2><span class="subtle">${esc(spec(block.type).category || "")}${block.hidden ? " · Hidden" : ""}</span></div></div><div class="selection-actions" role="toolbar" aria-label="${kind === "block" ? "Block" : "Section"} actions">${[
+      ["up", "arrow-up", "Move block up", index === 0],
+      ["down", "arrow-down", "Move block down", index === list.length - 1],
+      ["hide", block.hidden ? "eye-off" : "eye", block.hidden ? "Show" : "Hide", false],
+      ["duplicate", "copy", "Duplicate", false],
+      ["delete", "trash-2", "Delete", false],
     ]
       .map(
-        ([a, l]) =>
-          `<button data-selected-action="${a}" aria-label="${a === "up" ? "Move block up" : a === "down" ? "Move block down" : l}">${l}</button>`,
+        ([a, glyph, l, disabled]) =>
+          `<button type="button" class="icon-button ${a === "hide" && block.hidden ? "is-on" : ""} ${a === "delete" ? "is-danger" : ""}" data-selected-action="${a}" aria-label="${l}" title="${l}" ${disabled ? "disabled" : ""}>${icon(glyph, 16)}</button>`,
       )
       .join("")}</div>`;
-  $$("[data-selected-action]").forEach(
-    (b) => (b.onclick = () => action(b.dataset.selectedAction)),
-  );
   const containers = walk().filter(
     (x) =>
       spec(x.block.type).accepts_children &&
       !walk([n.block]).some((c) => c.block.id === x.block.id),
   );
+  const advanced = selectedFields("Advanced"),
+    taken = new Set(advanced.map((f) => f.id)),
+    content = selectedFields("Content").filter((f) => !taken.has(f.id));
+  content.forEach((f) => taken.add(f.id));
+  const style = selectedFields("Style").filter((f) => !taken.has(f.id));
+  const contentPart = groupFieldsHTML(block, content),
+    stylePart = groupFieldsHTML(block, style),
+    advancedPart = groupFieldsHTML(block, advanced);
+  const moveInto = `<h3 class="settings-subheading">Placement</h3><div class="field"><label for="move-into">Move into container</label><select id="move-into"><option value="">Choose container</option><option value="root">Page (top level)</option>${containers.map((x) => `<option value="${esc(x.block.id)}">${esc(label(x.block))} · ${esc(x.block.id.slice(-6))}</option>`).join("")}</select></div>`;
   $("#settings-content").innerHTML =
-    `<div class="settings-fields">${selectedFields()
-      .map((f) => (f.id === "items" ? hotspotPreview(n.block) : "") + fieldHTML(f, n.block))
-      .join(
-        "",
-      )}${tab === "Advanced" ? `<div class="field"><label for="move-into">Move into container</label><select id="move-into"><option value="">Choose container</option><option value="root">Page (top level)</option>${containers.map((x) => `<option value="${esc(x.block.id)}">${esc(label(x.block))} · ${esc(x.block.id.slice(-6))}</option>`).join("")}</select></div>` : ""}</div>`;
+    (content.length ? groupHTML("Content", "", contentPart.html) : "") +
+    (style.length ? groupHTML("Style", stylePart.hint, stylePart.html) : "") +
+    groupHTML("Advanced", [advancedPart.hint, "placement"].filter(Boolean).join(", "), advancedPart.html + moveInto) +
+    `<div class="settings-footer"><button type="button" class="settings-remove" data-selected-action="delete">${icon("trash-2", 15)}<span>Remove ${kind}</span></button></div>`;
+  $$("[data-selected-action]").forEach(
+    (b) => (b.onclick = () => action(b.dataset.selectedAction)),
+  );
+  wireGroups($("#settings-content"));
+  window.FastShopRichText?.mountAll($("#settings-content"));
   wireFields(n.block, (path, v) => {
     setField(n.block, path, v);
-    changed(`Change ${path}`);
+    changed(`Edit ${fieldName(n.block, path)}`);
   });
   // Replacing the panel also replaces its delegated preview input handler.
   $("#settings-content").oninput = null;
@@ -775,6 +975,12 @@ function renderSettings() {
         });
       else if (e.target.value) move(selected, e.target.value, "inside");
     };
+}
+// "items.0.heading" reads "Heading (item 1)" in the history list.
+function fieldName(block, path) {
+  const f = findField(path, spec(block.type).fields || []),
+    item = path.match(/\.(\d+)\./);
+  return `${f.label || path.replaceAll("_", " ")}${item ? ` (item ${Number(item[1]) + 1})` : ""}`;
 }
 function findField(path, fields) {
   for (const f of fields) {
@@ -814,12 +1020,14 @@ function wireFields(obj, update, root = "#settings-content") {
             field = findField(repeaterPath, spec(obj.type).fields || []),
             defaults = field.theme_defaults?.[v];
           if (defaults) {
-            const item = { ...get(obj, itemPath), ...copy(defaults), theme: v };
-            update(itemPath, item);
+            update(itemPath, { ...get(obj, itemPath), ...copy(defaults), theme: v });
             renderSettings();
             return;
           }
         }
+        // Rich text keeps only the formatting the storefront allow-list renders.
+        if (el.dataset.type === "richtext" && window.FastShopRichText)
+          v = window.FastShopRichText.sanitize(v);
         update(el.dataset.setting, v);
         const companion = host.querySelector(
           `[data-companion="${CSS.escape(el.dataset.setting)}"]`,
@@ -833,6 +1041,10 @@ function wireFields(obj, update, root = "#settings-content") {
         const input = host.querySelector(
           `[data-setting="${CSS.escape(el.dataset.companion)}"]`,
         );
+        if (["colour", "color"].includes(input?.dataset.type)) {
+          update(el.dataset.companion, el.value);
+          return;
+        }
         input.value = el.value;
         input.dispatchEvent(new Event("input", { bubbles: true }));
       }),
@@ -854,6 +1066,24 @@ function wireFields(obj, update, root = "#settings-content") {
           update(b.dataset.media, url);
           renderSettings();
         })),
+  );
+  host.querySelectorAll("[data-icon]").forEach(
+    (b) =>
+      (b.onclick = () =>
+        openIcon(
+          (value) => {
+            update(b.dataset.icon, value);
+            renderSettings();
+          },
+          text(get(obj, b.dataset.icon)),
+        )),
+  );
+  host.querySelectorAll("[data-icon-clear]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        update(b.dataset.iconClear, "");
+        renderSettings();
+      }),
   );
   host.querySelectorAll("[data-link]").forEach(
     (b) =>
@@ -879,6 +1109,7 @@ function wireFields(obj, update, root = "#settings-content") {
           if (item[field.id] === undefined)
             item[field.id] = copy(field.default ?? "");
         rows.push(f.value_list ? "" : item);
+        openItems.add(`${selected}|${path}.${rows.length - 1}`);
         update(path, rows);
         renderSettings();
       }),
@@ -899,11 +1130,21 @@ function wireFields(obj, update, root = "#settings-content") {
           if (j < 0 || j >= rows.length) return;
           if (path === "items") hotspotRowsChanged(obj, i, j);
           [rows[i], rows[j]] = [rows[j], rows[i]];
+          const from = `${selected}|${path}.${i}`, to = `${selected}|${path}.${j}`,
+            fromOpen = openItems.has(from), toOpen = openItems.has(to);
+          fromOpen ? openItems.add(to) : openItems.delete(to);
+          toOpen ? openItems.add(from) : openItems.delete(from);
         }
         update(path, rows);
         renderSettings();
       }),
   );
+  host.querySelectorAll("details[data-repeater]").forEach((el) => {
+    el.addEventListener("toggle", () => {
+      const key = `${selected}|${el.dataset.repeater}.${el.dataset.index}`;
+      el.open ? openItems.add(key) : openItems.delete(key);
+    });
+  });
   host.querySelectorAll("[data-repeater]").forEach((el) => {
     el.ondragstart = (e) => {
       e.stopPropagation();
@@ -936,10 +1177,22 @@ function wireFields(obj, update, root = "#settings-content") {
     };
   });
 }
-function renderTheme() {
-  const fields = Object.entries(state.theme_settings).map(([id, v]) => ({
+// Theme settings are grouped like the block settings panel; each group remembers whether it
+// was open. Any token the server adds later lands in "More settings", so nothing is hidden.
+const themeGroups = [
+  ["Colours", ["accent", "background", "surface", "text"]],
+  ["Typography", ["font", "headings"]],
+  ["Layout", ["width", "spacing", "radius", "hero"]],
+];
+const themeLabels = {
+  accent: "Accent colour", background: "Page background", surface: "Surface colour",
+  text: "Text colour", font: "Body font", headings: "Heading font", width: "Page width",
+  spacing: "Section spacing", radius: "Corner radius", hero: "Hero alignment",
+};
+function themeField(id, v) {
+  return {
     id,
-    label: id.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase()),
+    label: themeLabels[id] || id.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase()),
     type: state.theme_choices?.[id]
       ? "select"
       : typeof v === "number"
@@ -947,16 +1200,33 @@ function renderTheme() {
         : typeof v === "string" && v.startsWith("#")
           ? "colour"
           : "text",
-    options: state.theme_choices?.[id],
+    // "modern" with "Arial, sans-serif" reads "Modern (Arial)"; "compact" reads "Compact (55px)".
+    options: options(state.theme_choices?.[id]).map((o) => {
+      const name = String(o.value).replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase()),
+        detail = String(o.label).split(",")[0].trim();
+      return { ...o, label: detail && detail.toLowerCase() !== String(o.value).toLowerCase() ? `${name} (${detail})` : name };
+    }),
     default: v,
-  }));
+  };
+}
+function renderTheme() {
+  const ids = Object.keys(state.theme_settings),
+    grouped = new Set(themeGroups.flatMap(([, list]) => list)),
+    groups = [...themeGroups, ["More settings", ids.filter((id) => !grouped.has(id))]]
+      .map(([name, list]) => [name, list.filter((id) => ids.includes(id))])
+      .filter(([, list]) => list.length);
   $("#left-content").innerHTML =
-    `<div class="theme-fields"><p class="field-help">Shared across your storefront.</p>${fields.map((f) => fieldHTML(f, state.theme_settings)).join("")}<button id="save-theme">Save theme settings</button></div>`;
+    `<div class="theme-fields">${groups
+      .map(([name, list]) =>
+        groupHTML(name, "", list.map((id) => fieldHTML(themeField(id, state.theme_settings[id]), state.theme_settings)).join(""), `theme:${name}`),
+      )
+      .join("")}</div><div class="settings-footer is-sticky"><button type="button" id="save-theme" class="primary-button">Save theme settings</button></div>`;
+  wireGroups($("#left-content"));
   wireFields(
     state.theme_settings,
     (p, v) => {
       set(state.theme_settings, p, v);
-      themeDirty = true;
+      themeDirty = designDirty = true;
       status("Unsaved changes");
     },
     "#left-content",
@@ -965,14 +1235,42 @@ function renderTheme() {
     try {
       await saveTheme();
       status(dirty || themeDirty ? "Unsaved changes" : "Saved");
+      toast("Theme settings saved");
       preview();
     } catch (e) {
       showError(e);
     }
   };
 }
+async function saveShell(publish = false) {
+  const submitted = JSON.stringify(state.shell_settings);
+  try {
+    const r = await api("/shell-settings", "PUT", {
+      shell_settings: state.shell_settings,
+      version: state.site_version,
+      ...(publish ? { publish: true } : {}),
+    });
+    state.site_version = r.version;
+    if (JSON.stringify(state.shell_settings) === submitted) {
+      state.shell_settings = r.shell_settings;
+      shellDirty = false;
+      themeDirty = designDirty;
+    }
+  } catch (e) {
+    if (e.conflict) {
+      e.conflict = false;
+      e.message = "Store settings changed. Reload the editor before saving the header and footer.";
+    }
+    throw e;
+  }
+}
 async function saveTheme() {
   if (!themeDirty) return;
+  if (shellDirty) await saveShell();
+  if (!designDirty) {
+    themeDirty = shellDirty;
+    return;
+  }
   const submitted = JSON.stringify(state.theme_settings);
   try {
     const r = await api("/theme-settings", "PUT", {
@@ -981,7 +1279,11 @@ async function saveTheme() {
     });
     state.site_version = r.version;
     if (boot.theme_id) state.version = r.version;
-    themeDirty = JSON.stringify(state.theme_settings) !== submitted;
+    if (JSON.stringify(state.theme_settings) === submitted) {
+      state.theme_settings = r.theme_settings;
+      designDirty = false;
+    } else designDirty = JSON.stringify(state.theme_settings) !== JSON.stringify(r.theme_settings);
+    themeDirty = designDirty || shellDirty;
   } catch (e) {
     // Theme and page versions are distinct. Reload before retrying a theme conflict.
     if (e.conflict) {
@@ -1015,6 +1317,73 @@ async function openMedia(callback) {
     );
   } catch (e) {
     showError(e);
+  }
+}
+function iconChoiceHTML(icon, current) {
+  return `<button type="button" class="icon-choice" data-icon-value="${esc(icon.id)}" aria-pressed="${String(icon.id === current)}" title="${esc(icon.label)}"><span class="icon-choice-glyph" aria-hidden="true">${icon.svg}</span><span>${esc(icon.label)}</span></button>`;
+}
+function customIconChoiceHTML(media, current) {
+  const label = media.title || media.alt || "Custom icon";
+  const glyph = media.svg || `<img src="${esc(media.url)}" alt="">`;
+  return `<button type="button" class="icon-choice" data-icon-value="${esc(media.url)}" aria-pressed="${String(media.url === current)}" title="${esc(label)}"><span class="icon-choice-glyph" aria-hidden="true">${glyph}</span><span>${esc(label)}</span></button>`;
+}
+function wireIconChoices(callback) {
+  const choices = $$("#icon-dialog [data-icon-value]");
+  choices.forEach((button) => {
+    button.onclick = () => {
+      callback(button.dataset.iconValue);
+      $("#icon-dialog").close();
+    };
+    button.onkeydown = (event) => {
+      const keys = ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"];
+      if (!keys.includes(event.key)) return;
+      const grid = button.closest(".icon-grid");
+      const gridChoices = [...grid.querySelectorAll("[data-icon-value]")];
+      const position = gridChoices.indexOf(button);
+      const columns = Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(" ").length);
+      let next = position;
+      if (event.key === "ArrowRight") next += 1;
+      if (event.key === "ArrowLeft") next -= 1;
+      if (event.key === "ArrowDown") next += columns;
+      if (event.key === "ArrowUp") next -= columns;
+      if (event.key === "Home") next = 0;
+      if (event.key === "End") next = gridChoices.length - 1;
+      next = Math.min(gridChoices.length - 1, Math.max(0, next));
+      event.preventDefault();
+      gridChoices[next]?.focus();
+    };
+  });
+}
+async function openIcon(callback, current = "") {
+  iconCallback = callback;
+  $("#icon-search").value = "";
+  $("#icon-grid").innerHTML =
+    `<div class="editor-skeleton" role="status" aria-label="Loading icons"></div>`.repeat(8);
+  $("#custom-icon-grid").innerHTML = "";
+  openDialog("#icon-dialog");
+  try {
+    if (!iconLibrary) iconLibrary = await api("/icons");
+    const draw = () => {
+      const query = $("#icon-search").value.trim().toLowerCase();
+      const matches = (entry) => `${entry.label} ${entry.id}`.toLowerCase().includes(query);
+      const builtins = (iconLibrary.icons || []).filter(matches);
+      const custom = (iconLibrary.custom || []).filter((entry) =>
+        `${entry.title || ""} ${entry.alt || ""}`.toLowerCase().includes(query),
+      );
+      $("#icon-grid").innerHTML = builtins.map((icon) => iconChoiceHTML(icon, current)).join("")
+        || '<p class="subtle">No built-in icons match that search.</p>';
+      $("#custom-icon-grid").innerHTML = custom.map((media) => customIconChoiceHTML(media, current)).join("")
+        || '<p class="subtle">No matching icons in this site’s media library.</p>';
+      $("#custom-icon-section").hidden = !custom.length && Boolean(query);
+      $("#icon-results-summary").textContent = `${builtins.length} built-in icon${builtins.length === 1 ? "" : "s"}${custom.length ? ` and ${custom.length} site media item${custom.length === 1 ? "" : "s"}` : ""}`;
+      wireIconChoices(callback);
+    };
+    $("#icon-search").oninput = draw;
+    draw();
+    $("#icon-search").focus();
+  } catch (e) {
+    showError(e);
+    $("#icon-dialog").close();
   }
 }
 async function openLink(callback, type = "url") {
@@ -1068,6 +1437,7 @@ async function openLink(callback, type = "url") {
 }
 async function save() {
   if (saving || !state) return false;
+  sanitizeBadItemLocaleKeys(state.document, state.schema);
   saving = true;
   status("Saving…");
   $("#save").disabled = true;
@@ -1116,10 +1486,13 @@ async function load() {
     if (state.schema.blocks) state.schema = state.schema.blocks;
     if (Array.isArray(state.schema))
       state.schema = Object.fromEntries(state.schema.map((s) => [s.type, s]));
+    const loadedDocument = copy(state.document);
+    state.document = copy(state.document);
+    dirty = sanitizeBadItemLocaleKeys(state.document, state.schema) > 0;
     selected = null;
-    dirty = false;
-    themeDirty = false;
-    lastSaved = JSON.stringify(state.document);
+    shellGroup = null;
+    themeDirty = designDirty = shellDirty = false;
+    lastSaved = JSON.stringify(loadedDocument);
     history = [];
     snapshot("Opened page");
     $("#current-page").textContent = state.page.title;
@@ -1133,7 +1506,7 @@ async function load() {
     renderLeft();
     renderSettings();
     await preview();
-    status("Saved");
+    status(dirty ? "Unsaved changes" : "Saved");
   } catch (e) {
     showError(e);
     status("Error");
@@ -1179,7 +1552,7 @@ window.addEventListener("message", async (e) => {
     if (d.key === "y") redo();
     if (d.key === "d") action("duplicate");
   }
-  if (d.type === "ready") send({ type: "context", block_id: selected });
+  if (d.type === "ready") send({ type: "context", block_id: selected, labels: canvasLabels() });
   if (d.type === "navigate") {
     const target = state?.pages?.find((page) => page.id === d.target_page_id);
     if (!target || target.id === boot.page_id) return;
@@ -1190,7 +1563,17 @@ window.addEventListener("message", async (e) => {
     return;
   }
   if (d.type === "select") select(d.block_id);
+  if (d.type === "shell") openShell(d.group);
   if (d.type === "inline") {
+    if (d.shell) {
+      const field = (state.shell_schema?.fields || []).find((item) => item.id === d.field);
+      if (!field || !["text", "textarea"].includes(field.type)) return;
+      setField(state.shell_settings, d.field, d.value);
+      shellDirty = themeDirty = true;
+      status("Unsaved changes");
+      renderShell();
+      return;
+    }
     const n = locate(d.block_id),
       f = n && findField(d.field, spec(n.block.type).fields || []);
     if (!f || !["text", "textarea", "richtext"].includes(f.type)) return;
@@ -1229,16 +1612,6 @@ $("#mobile-preview").onclick = () => {
   $("#editor").classList.remove("is-panel-open");
   select(null);
 };
-$$("[data-tab]").forEach(
-  (b) =>
-    (b.onclick = () => {
-      tab = b.dataset.tab;
-      $$("[data-tab]").forEach((t) =>
-        t.setAttribute("aria-selected", String(t === b)),
-      );
-      if (state) renderSettings();
-    }),
-);
 $$("[data-device]").forEach(
   (b) =>
     (b.onclick = () => {
@@ -1313,6 +1686,120 @@ uploadZone.addEventListener("drop", (e) => {
   $("#media-upload").files = files;
   $("#media-upload").dispatchEvent(new Event("change", { bubbles: true }));
 });
+// Resizable side panels. Widths are stored per browser. The preview never drops below
+// STAGE_MIN, and narrow layouts (overlay panels) ignore stored widths entirely.
+const PANEL_LIMITS = { left: [220, 560], right: [260, 560] },
+  STAGE_MIN = 360,
+  panelStack = window.matchMedia("(max-width: 760px)");
+const panelKey = (side) => `fs-editor-width-${side}`;
+function storedWidth(side) {
+  try {
+    const value = Number(localStorage.getItem(panelKey(side)));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+function panelElement(side) {
+  return $(side === "left" ? "#editor-left" : "#editor-right");
+}
+function panelBounds(side) {
+  const [min, max] = PANEL_LIMITS[side],
+    other = panelElement(side === "left" ? "right" : "left").getBoundingClientRect().width,
+    rail = $(".editor-rail").getBoundingClientRect().width,
+    room = window.innerWidth - rail - other - STAGE_MIN;
+  return [min, Math.max(min, Math.min(max, Math.floor(room)))];
+}
+function setPanelWidth(side, width, persist = false) {
+  const [min, max] = panelBounds(side),
+    value = Math.round(Math.min(max, Math.max(min, width)));
+  $("#editor").style.setProperty(`--editor-${side}-w`, `${value}px`);
+  if (persist)
+    try { localStorage.setItem(panelKey(side), String(value)); } catch { /* Private mode. */ }
+  updateResizer(side);
+  return value;
+}
+function updateResizer(side) {
+  const handle = $(`#resize-${side}`);
+  if (!handle) return;
+  const [min, max] = panelBounds(side);
+  handle.setAttribute("aria-valuemin", String(min));
+  handle.setAttribute("aria-valuemax", String(max));
+  handle.setAttribute("aria-valuenow", String(Math.round(panelElement(side).getBoundingClientRect().width)));
+  handle.setAttribute("aria-valuetext", `${Math.round(panelElement(side).getBoundingClientRect().width)} pixels wide`);
+}
+function applyPanelWidths() {
+  const shell = $("#editor");
+  for (const side of ["left", "right"]) {
+    shell.style.removeProperty(`--editor-${side}-w`);
+    if (panelStack.matches) continue;
+    const stored = storedWidth(side);
+    if (stored) setPanelWidth(side, stored);
+  }
+  // A window too narrow for the defaults gives the room back to the preview.
+  for (const side of ["right", "left"]) {
+    if (panelStack.matches) break;
+    const [, max] = panelBounds(side);
+    if (panelElement(side).getBoundingClientRect().width > max) setPanelWidth(side, max);
+    updateResizer(side);
+  }
+}
+function resetPanelWidth(side) {
+  try { localStorage.removeItem(panelKey(side)); } catch { /* Private mode. */ }
+  applyPanelWidths();
+}
+$$("[data-resize]").forEach((handle) => {
+  const side = handle.dataset.resize;
+  handle.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || panelStack.matches) return;
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    const startX = e.clientX,
+      startWidth = panelElement(side).getBoundingClientRect().width,
+      shell = $("#editor");
+    shell.classList.add("is-resizing");
+    handle.classList.add("is-active");
+    const moveHandler = (event) =>
+      setPanelWidth(side, startWidth + (side === "left" ? event.clientX - startX : startX - event.clientX));
+    const stop = () => {
+      handle.removeEventListener("pointermove", moveHandler);
+      handle.removeEventListener("pointerup", stop);
+      handle.removeEventListener("pointercancel", stop);
+      shell.classList.remove("is-resizing");
+      handle.classList.remove("is-active");
+      setPanelWidth(side, panelElement(side).getBoundingClientRect().width, true);
+    };
+    handle.addEventListener("pointermove", moveHandler);
+    handle.addEventListener("pointerup", stop);
+    handle.addEventListener("pointercancel", stop);
+  });
+  handle.addEventListener("dblclick", () => resetPanelWidth(side));
+  handle.addEventListener("keydown", (e) => {
+    const width = panelElement(side).getBoundingClientRect().width,
+      step = e.shiftKey ? 64 : 16,
+      grow = side === "left" ? 1 : -1,
+      [min, max] = panelBounds(side);
+    let next = null;
+    if (e.key === "ArrowRight") next = width + step * grow;
+    if (e.key === "ArrowLeft") next = width - step * grow;
+    if (e.key === "Home") next = min;
+    if (e.key === "End") next = max;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      resetPanelWidth(side);
+      return;
+    }
+    if (next === null) return;
+    e.preventDefault();
+    setPanelWidth(side, next, true);
+  });
+});
+let resizeFrame;
+window.addEventListener("resize", () => {
+  cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(applyPanelWidths);
+});
+applyPanelWidths();
 $("#undo").onclick = undo;
 $("#redo").onclick = redo;
 $("#save").onclick = save;
@@ -1415,6 +1902,44 @@ $("#media-upload").onchange = async (e) => {
   dropzone.removeAttribute("aria-busy");
   dropzone.querySelector("strong").textContent = "Add image";
 };
+const iconUpload = $("#icon-upload"), iconUploadZone = $("#icon-upload-label");
+iconUploadZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  iconUploadZone.classList.add("drag-over");
+});
+iconUploadZone.addEventListener("dragleave", () => iconUploadZone.classList.remove("drag-over"));
+iconUploadZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  iconUploadZone.classList.remove("drag-over");
+  if (!e.dataTransfer.files.length || iconUpload.disabled) return;
+  iconUpload.files = e.dataTransfer.files;
+  iconUpload.dispatchEvent(new Event("change", { bubbles: true }));
+});
+iconUpload.onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const data = new FormData();
+  data.append("file", file);
+  data.append("title", file.name.replace(/\.[^.]+$/, ""));
+  e.target.disabled = true;
+  iconUploadZone.setAttribute("aria-busy", "true");
+  iconUploadZone.querySelector("strong").textContent = "Uploading icon…";
+  try {
+    const result = await api("/icons", "POST", data);
+    iconLibrary ??= { icons: [], custom: [] };
+    iconLibrary.custom = [result.media, ...(iconLibrary.custom || [])];
+    iconCallback?.(result.media.url);
+    toast("Custom icon uploaded");
+    $("#icon-dialog").close();
+  } catch (error) {
+    showError(error);
+  } finally {
+    e.target.value = "";
+    e.target.disabled = false;
+    iconUploadZone.removeAttribute("aria-busy");
+    iconUploadZone.querySelector("strong").textContent = "Upload custom icon";
+  }
+};
 $("#link-apply").onclick = () => {
   linkCallback($("#link-search").value);
   $("#link-dialog").close();
@@ -1436,6 +1961,12 @@ window.addEventListener("keydown", (e) => {
   if (mod && e.key.toLowerCase() === "s") {
     e.preventDefault();
     save();
+    return;
+  }
+  // Ctrl+I opens the assistant only when this installation provides one.
+  if (mod && e.key.toLowerCase() === "i" && boot.features?.assistant && $("[data-mode=assistant]")) {
+    e.preventDefault();
+    $("[data-mode=assistant]").click();
     return;
   }
   if (editing || $("dialog[open]")) return;
@@ -1466,3 +1997,4 @@ setInterval(() => {
   if ((dirty || themeDirty) && !saving) save();
 }, 30000);
 load();
+
