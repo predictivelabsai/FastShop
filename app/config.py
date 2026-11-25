@@ -78,6 +78,14 @@ class Settings:
     billing_price_basic: str = os.getenv("FASTSHOP_BILLING_PRICE_BASIC", "")
     billing_price_pro: str = os.getenv("FASTSHOP_BILLING_PRICE_PRO", "")
     billing_live_accepted: bool = _bool("FASTSHOP_BILLING_LIVE_ACCEPTED", False)
+    # Custom domains: where merchants point DNS, and how the app checks it.
+    ingress_ipv4: str = os.getenv("FASTSHOP_INGRESS_IPV4", "").strip()
+    domain_cname_target: str = os.getenv("FASTSHOP_DOMAIN_CNAME_TARGET", "").strip().lower().rstrip(".")
+    dns_over_https_url: str = os.getenv(
+        "FASTSHOP_DNS_OVER_HTTPS_URL", "https://cloudflare-dns.com/dns-query"
+    ).strip()
+    # True once the edge proxy issues certificates on demand (see docs/CUSTOM_DOMAINS.md).
+    automatic_tls: bool = _bool("FASTSHOP_AUTOMATIC_TLS", False)
 
     @property
     def is_production(self) -> bool:

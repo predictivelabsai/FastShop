@@ -563,6 +563,30 @@ class Site(TimestampMixin, Base):
         return value
 
 
+class SiteDomain(TimestampMixin, Base):
+    """A merchant-connected hostname. ``Site.hostname`` stays the primary one.
+
+    Status moves pending -> connected once DNS proves ownership and points at the
+    platform. Connected non-primary domains redirect to the primary domain.
+    """
+
+    __tablename__ = "site_domains"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'connected')", name="ck_site_domains_status"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    hostname: Mapped[str] = mapped_column(String(253), unique=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    verification_token: Mapped[str] = mapped_column(String(64))
+    ownership_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    points_here: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str] = mapped_column(String(300), default="", server_default="")
+
+
 class SiteMenu(TimestampMixin, Base):
     __tablename__ = "site_menus"
     __table_args__ = (UniqueConstraint("site_id", "name"),)
