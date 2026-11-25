@@ -76,10 +76,11 @@ from app.admin_ui import AdminContextMiddleware  # noqa: E402
 
 app.add_middleware(AdminContextMiddleware)
 
-from app.scheduler import start_scheduler  # noqa: E402
+from app.scheduler import start_domain_worker, start_scheduler  # noqa: E402
 
 # Off unless FASTSHOP_ENABLE_SCHEDULER is set; a no-op otherwise.
 start_scheduler()
+start_domain_worker()
 
 
 def csrf_token(session: dict) -> str:
