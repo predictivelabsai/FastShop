@@ -224,6 +224,54 @@ def apply_operations(db, site_id, user_id, expected, operations, source="chat"):
     return record_change(db, site, user_id, before, source, "; ".join(dict.fromkeys(summaries)))
 
 
+def save_shell_settings(db, site_id, user_id, expected, submitted, source="visual-editor"):
+    """Save declared header and footer fields through the shared versioned, reversible path."""
+    from app.site_editable_settings import apply_shell, shell_fields
+
+    if not isinstance(expected, dict) or "version" not in expected:
+        raise CommerceError("Reload the draft and try again.")
+    site = lock_site(db, site_id, user_id, expected["version"])
+    if not snapshot_matches(snapshot(db, site), expected):
+        raise CommerceError("Draft changed while the builder was working. Send your request again.")
+    fields = shell_fields(site.settings_json)
+    field_ids = {field["id"] for field in fields}
+    if not isinstance(submitted, dict):
+        raise CommerceError("Choose supported header and footer fields.")
+    flat = {}
+
+    def collect(value, prefix=""):
+        for key, item in value.items():
+            path = f"{prefix}.{key}" if prefix else key
+            if path in field_ids:
+                flat[path] = item
+            elif isinstance(item, dict):
+                if not any(field_id.startswith(path + ".") for field_id in field_ids):
+                    raise CommerceError("Choose supported header and footer fields.")
+                collect(item, path)
+            else:
+                raise CommerceError("Choose supported header and footer fields.")
+
+    collect(submitted)
+    nested = {}
+    for path, value in flat.items():
+        node = nested
+        parts = path.split(".")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = value
+    before = snapshot(db, site)
+    config = apply_shell(site.settings_json, nested, fields)
+    content.validate_media_ownership(db, site, {key: config.get(key) for key in field_ids
+                                                if "." not in key})
+    if "footer" in flat and not str(config.get("footer", "")).strip() and any(
+            claim.get("approved") for claim in config.get("claims", []) if isinstance(claim, dict)):
+        raise CommerceError("Add the FDA disclaimer to the footer before approving a benefit statement.")
+    site.settings_json = config
+    site.version += 1
+    db.flush()
+    return record_change(db, site, user_id, before, source, "Header and footer")
+
+
 def undo_change(db, site_id, user_id, change_id, version):
     site = lock_site(db, site_id, user_id, version)
     change = db.scalar(select(SiteChangeSet).where(SiteChangeSet.id == change_id,

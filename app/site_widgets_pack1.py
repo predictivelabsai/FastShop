@@ -246,7 +246,7 @@ def pack_definitions(definition):
             items(
                 icon,
                 {
-                    "icon": choice(*ICON_PATHS),
+                    "icon": {"kind": "icon"},
                     "heading": text(),
                     "body": text("textarea"),
                     "link": text("url"),
@@ -312,7 +312,7 @@ def pack_definitions(definition):
     }
 
 
-def render_pack_widget(block, base="", preview=False):
+def render_pack_widget(block, base="", preview=False, *, db=None, site=None):
     """Return a new pack section; the registry applies shared styling and hooks."""
     kind = block["type"]
     uid = "fs-pack-" + re.sub(r"[^a-zA-Z0-9_-]", "", str(block.get("id", "widget")))
@@ -527,15 +527,28 @@ def render_pack_widget(block, base="", preview=False):
         ]
     elif kind == "icon_box":
         entries = []
+        from app.site_icons import render_icon
+
         for i, item in enumerate(block.get("items", [])):
-            svg = (
-                '<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-                + ICON_PATHS.get(item.get("icon", "box"), ICON_PATHS["box"])
-                + "</svg>"
-            )
+            def legacy(item=item):
+                # Stored keys keep the original drawing, so existing pages render unchanged.
+                return NotStr(
+                    '<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+                    + ICON_PATHS.get(item.get("icon", "box"), ICON_PATHS["box"])
+                    + "</svg>"
+                )
+
+            value = item.get("icon", "")
+            if db is None or site is None:
+                from app.site_icons import builtin_icon_markup
+
+                markup = builtin_icon_markup(value, size=32, stroke_width="1.6")
+                glyph = NotStr(markup) if markup else legacy()
+            else:
+                glyph = render_icon(db, site, value, legacy, size=32, stroke_width="1.6")
             entries.append(
                 Div(
-                    Span(NotStr(svg), cls="fs-pack-icon"),
+                    Span(glyph, cls="fs-pack-icon"),
                     Div(
                         heading(item.get("heading", ""), f"items.{i}.heading", "h3"),
                         P(item.get("body", ""), **field(f"items.{i}.body")),

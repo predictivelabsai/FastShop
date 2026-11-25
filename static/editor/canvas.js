@@ -1,3 +1,5 @@
+import "/static/admin/rich-text.js";
+
 /* Same-origin editor bridge. Storefront links and purchasing are disabled here. */
 (() => {
   "use strict";
@@ -24,8 +26,9 @@
     dropTarget = null;
   const style = document.createElement("style");
   style.textContent = `
- .fs-editor-tools[hidden],.fs-rich-tools[hidden]{display:none!important}[data-block-id]{position:relative;min-height:24px;cursor:pointer}[data-block-id]:hover{outline:1px solid #78a9f8;outline-offset:-1px}[data-block-id].fs-selected{outline:2px solid #005bd3!important;outline-offset:-2px}.fs-editor-tools{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:3px;background:#005bd3;color:white;border-radius:5px;padding:4px;box-shadow:0 2px 8px #0003;font:11px/1.4 system-ui,sans-serif}.fs-editor-tools button{font:12px/1.4 system-ui,sans-serif;padding:4px 6px;background:none;color:white;border:0;border-radius:3px;cursor:pointer}.fs-editor-tools button:hover{background:#ffffff35}.fs-editor-tools span{padding:0 5px}.fs-drop-before{box-shadow:inset 0 4px #005bd3!important}.fs-drop-after{box-shadow:inset 0 -4px #005bd3!important}.fs-drop-inside{outline:3px dashed #005bd3!important;outline-offset:-5px;background-color:#e8f1ff88!important}[contenteditable=true]{outline:2px solid #005bd3!important;outline-offset:3px;cursor:text!important;min-width:10px}.fs-editor-hint{padding:60px 24px;border:2px dashed #b7c9e4;margin:24px;text-align:center;color:#617085;font:14px/1.6 system-ui,sans-serif}.fs-rich-tools{position:fixed;z-index:2147483647;background:#242426;border-radius:5px;padding:4px;display:flex;gap:3px}.fs-rich-tools button{border:0;border-radius:3px;color:white;background:transparent;padding:5px 8px;font:13px system-ui,sans-serif}.fs-rich-tools button:hover{background:#4b4b50}`;
+ .fs-editor-tools[hidden],.fs-rich-tools[hidden]{display:none!important}[data-block-id]{position:relative;min-height:24px;cursor:pointer}[data-block-id]:hover{outline:1px solid #78a9f8;outline-offset:-1px}[data-block-id].fs-selected{outline:2px solid #005bd3!important;outline-offset:-2px}.fs-editor-tools{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:2px;max-width:calc(100vw - 8px);box-sizing:border-box;background:#005bd3;color:white;border-radius:6px;padding:3px;box-shadow:0 2px 8px #0003;font:12px/1.4 system-ui,sans-serif}.fs-editor-tools button{flex:0 0 auto;display:grid;place-items:center;width:26px;height:26px;padding:0;background:none;color:white;border:0;border-radius:4px;cursor:pointer}.fs-editor-tools button svg{width:15px;height:15px}.fs-editor-tools button:hover{background:#ffffff35}.fs-editor-tools button:focus-visible{outline:2px solid #fff;outline-offset:-2px}.fs-editor-tools span{min-width:0;padding:0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.fs-drop-before{box-shadow:inset 0 4px #005bd3!important}.fs-drop-after{box-shadow:inset 0 -4px #005bd3!important}.fs-drop-inside{outline:3px dashed #005bd3!important;outline-offset:-5px;background-color:#e8f1ff88!important}[contenteditable=true]{outline:2px solid #005bd3!important;outline-offset:3px;cursor:text!important;min-width:10px}.fs-editor-hint{padding:60px 24px;border:2px dashed #b7c9e4;margin:24px;text-align:center;color:#617085;font:14px/1.6 system-ui,sans-serif}.fs-rich-tools{position:fixed;z-index:2147483647;background:#242426;border-radius:5px;padding:4px;display:flex;gap:3px}.fs-rich-tools button{border:0;border-radius:3px;color:white;background:transparent;padding:5px 8px;font:13px system-ui,sans-serif}.fs-rich-tools button:hover{background:#4b4b50}`;
   document.head.append(style);
+  style.textContent += `.fs-rich-tools{position:fixed;z-index:2147483647;left:4px;right:4px;max-width:calc(100vw - 8px);max-height:48vh;overflow:auto;background:#f8fafb;border:1px solid #cfd6dc;border-radius:8px;padding:5px;box-shadow:0 8px 24px #0003;color:#222;font:13px system-ui,sans-serif}.fs-rich-tools .rt-toolbar{display:flex;flex-wrap:wrap;gap:4px}.fs-rich-tools .rt-tool-group{display:flex;flex-wrap:wrap;gap:3px;border-right:1px solid #dce1e6;padding:0 4px}.fs-rich-tools button,.fs-rich-tools select{min-width:42px;min-height:42px;border:1px solid #cfd6dc;border-radius:5px;background:#fff;color:#222;padding:6px}.fs-rich-tools button[aria-pressed=true]{background:#e6f3ed;border-color:#2c7a54;color:#1a553a}.fs-rich-tools [data-rich-link-popover]{position:fixed;right:8px;top:58px;left:8px;max-width:420px;background:white;padding:12px;border:1px solid #cfd6dc;border-radius:6px;box-shadow:0 4px 16px #0003}.fs-rich-tools .rt-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}`;
   const tools = document.createElement("div");
   tools.className = "fs-editor-tools";
   tools.hidden = true;
@@ -37,7 +40,7 @@
   const hoverLabel = document.createElement("span");
   hoverLabel.hidden = true;
   hoverLabel.style.cssText =
-    "position:fixed;z-index:2147483646;pointer-events:none;background:#005bd3;color:white;padding:3px 7px;border-radius:3px;font:11px system-ui,sans-serif";
+    "position:fixed;z-index:2147483646;pointer-events:none;background:#005bd3;color:white;padding:3px 7px;border-radius:4px;font:600 11px/1.4 system-ui,sans-serif;max-width:calc(100vw - 8px);box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
   document.body.append(hoverLabel);
   document.addEventListener("mousemove", (e) => {
     const node = e.target.closest("[data-block-id]");
@@ -45,12 +48,23 @@
       !node || Boolean(editing) || node?.dataset.blockId === selected;
     if (!hoverLabel.hidden) {
       const r = node.getBoundingClientRect();
-      hoverLabel.textContent =
-        node.dataset.blockType?.replaceAll("_", " ") || "Section";
-      hoverLabel.style.left = `${Math.max(2, r.left)}px`;
+      hoverLabel.textContent = blockName(node);
+      hoverLabel.style.left = `${Math.max(4, Math.min(r.left, innerWidth - hoverLabel.offsetWidth - 4))}px`;
       hoverLabel.style.top = `${Math.max(2, r.top)}px`;
     }
   });
+  // Friendly section names come from the editor; the raw type is only a fallback.
+  let labels = {};
+  const blockName = (node) =>
+    labels[node.dataset.blockType] || node.dataset.blockType?.replaceAll("_", " ") || "Section";
+  // Lucide icons are shared with the same-origin editor page when it has loaded them.
+  const toolIcon = (name) => {
+    try {
+      return parent.fsIcon?.(name, 15) || "";
+    } catch {
+      return "";
+    }
+  };
   const blocks = () => [...document.querySelectorAll("[data-block-id]")];
   const find = (id) => blocks().find((n) => n.dataset.blockId === id);
   function positionTools() {
@@ -73,20 +87,22 @@
     if (!node) return;
     tools.replaceChildren();
     const name = document.createElement("span");
-    name.textContent =
-      node.dataset.blockType?.replaceAll("_", " ") || "Section";
+    name.textContent = blockName(node);
+    name.title = name.textContent;
     tools.append(name);
-    for (const [action, label] of [
-      ["up", "↑"],
-      ["down", "↓"],
-      ["duplicate", "⧉"],
-      ["hide", "◉"],
-      ["delete", "×"],
-      ["parent", "↰"],
+    for (const [action, label, glyph] of [
+      ["up", "↑", "arrow-up"],
+      ["down", "↓", "arrow-down"],
+      ["duplicate", "⧉", "copy"],
+      ["hide", "◉", "eye-off"],
+      ["delete", "×", "trash-2"],
+      ["parent", "↰", "corner-left-up"],
     ]) {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = label;
+      const svg = toolIcon(glyph);
+      if (svg) button.innerHTML = svg;
+      else button.textContent = label;
       button.title = {
         up: "Move up",
         down: "Move down",
@@ -109,15 +125,19 @@
     const field = editing,
       node = field.closest("[data-block-id]");
     field.contentEditable = "false";
+    const value = field.dataset.fieldType === "richtext"
+      ? (window.FastShopRichText?.sanitize(field.innerHTML) || field.innerHTML)
+      : field.textContent;
+    if (field.dataset.fieldType === "richtext") field.innerHTML = value;
     send({
       type: "inline",
-      block_id: node.dataset.blockId,
+      block_id: node?.dataset.blockId || null,
+      shell: !node,
       field: field.dataset.field,
-      value:
-        field.dataset.fieldType === "richtext"
-          ? field.innerHTML
-          : field.textContent,
+      value,
     });
+    if (field.dataset.inlineOverlay === "true") field.remove();
+    window.FastShopRichText?.unmountInline(field);
     editing = null;
     richTools.hidden = true;
   }
@@ -147,6 +167,15 @@
       }
       if (editing && editing.contains(e.target)) return;
       finishEdit();
+      // Theme header, footer and cookie banner open their settings panel in the editor.
+      const shell = e.target.closest("[data-builder-shell]");
+      if (shell && !e.target.closest("[data-block-id]")) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        select(null);
+        send({ type: "shell", group: shell.dataset.builderShell });
+        return;
+      }
       const node = e.target.closest("[data-block-id]");
       if (node) {
         e.preventDefault();
@@ -194,6 +223,27 @@
         return;
       e.preventDefault();
       finishEdit();
+      if (field.tagName === "INPUT") {
+        const rect = field.getBoundingClientRect(),
+          overlay = document.createElement("span");
+        overlay.dataset.field = field.dataset.field;
+        overlay.dataset.fieldType = field.dataset.fieldType || "text";
+        overlay.dataset.inlineOverlay = "true";
+        overlay.textContent = field.placeholder;
+        overlay.contentEditable = "true";
+        overlay.setAttribute("role", "textbox");
+        overlay.setAttribute("aria-label", `Edit ${field.dataset.field}`);
+        overlay.style.cssText = `position:fixed;z-index:2147483647;top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;min-height:${rect.height}px;background:white;color:#222;padding:8px;box-sizing:border-box;overflow:auto`;
+        document.body.append(overlay);
+        editing = overlay;
+        overlay.focus();
+        const range = document.createRange();
+        range.selectNodeContents(overlay);
+        const selection = getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return;
+      }
       editing = field;
       field.contentEditable = "true";
       field.setAttribute("role", "textbox");
@@ -211,23 +261,7 @@
           field.querySelector("p,strong,em,ul,ol"))
       ) {
         field.dataset.fieldType = "richtext";
-        richTools.replaceChildren();
-        for (const [command, label] of [
-          ["bold", "B"],
-          ["italic", "I"],
-          ["insertUnorderedList", "• List"],
-          ["removeFormat", "Clear"],
-        ]) {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.textContent = label;
-          button.setAttribute("aria-label", command);
-          button.onmousedown = (ev) => {
-            ev.preventDefault();
-            document.execCommand(command, false);
-          };
-          richTools.append(button);
-        }
+        window.FastShopRichText?.mountInline(field, richTools);
         const r = field.getBoundingClientRect();
         richTools.style.top = `${Math.max(4, r.top - 35)}px`;
         richTools.style.left = `${Math.max(4, r.left)}px`;
@@ -237,13 +271,9 @@
     true,
   );
   document.addEventListener("paste", (e) => {
-    if (!editing) return;
+    if (!editing || editing.dataset.fieldType === "richtext") return;
     e.preventDefault();
-    document.execCommand(
-      "insertText",
-      false,
-      e.clipboardData.getData("text/plain"),
-    );
+    document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
   });
   document.addEventListener("focusout", (e) => {
     if (
@@ -374,6 +404,7 @@
       }
     }
     if (d.type === "context") {
+      if (d.labels && typeof d.labels === "object") labels = d.labels;
       select(d.block_id);
       if (Number.isFinite(d.scroll_y)) scrollTo(0, d.scroll_y);
     }

@@ -280,6 +280,10 @@ def validate_widget_field(value, key, spec):
     from app.site_blocks import _text
 
     kind = spec.get("kind", "text")
+    if kind == "icon":
+        from app.site_icons import validate_icon_reference
+
+        return validate_icon_reference(value)
     if kind in {"range", "number", "int"}:
         if type(value) is not int or not spec["min"] <= value <= spec["max"]:
             raise CommerceError(f"{key} must be between {spec['min']} and {spec['max']}.")
@@ -488,7 +492,7 @@ def render_widget(db, site, page, config, block, base, csrf, preview, render_chi
     if kind in PACK1_WIDGETS:
         from app.site_widgets_pack1 import render_pack_widget
 
-        return decorate_block(render_pack_widget(block, base, preview), block, preview)
+        return decorate_block(render_pack_widget(block, base, preview, db=db, site=site), block, preview)
     if kind in PACK2_WIDGETS:
         from app.site_widgets_pack2 import render_pack_widget
 
