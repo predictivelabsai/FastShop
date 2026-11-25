@@ -30,6 +30,37 @@ def item_placeholder(key, required=()):
     return PLACEHOLDER_TEXT
 
 
+# Editor fields follow the order a visitor reads a section, then images, then the rest.
+FIELD_ORDER = ("eyebrow", "heading", "body", "button", "link", "url", "image", "alt", "video",
+               "mobile_video", "poster", "category", "disclaimer", "layout")
+TAIL_FIELDS = ("items", "hidden", "subscription_preview")
+# Plain labels for generic field ids; specific labels set elsewhere are kept.
+FIELD_LABELS = {
+    "eyebrow": "Small heading above", "body": "Text", "button": "Button text",
+    "link": "Button link", "url": "Link", "alt": "Image description (for screen readers)",
+    "video": "Background video", "mobile_video": "Background video on phones",
+    "poster": "Video still image", "items": "Items", "hidden": "Hide this section",
+    "subscription_preview": "Show subscription options", "disclaimer": "Small print",
+}
+
+
+def _arrange(fields):
+    """Order fields as the section reads and give generic ids merchant-friendly labels."""
+    for field in fields:
+        if field["id"] in FIELD_LABELS and field.get("label") == _label(field["id"]):
+            field["label"] = FIELD_LABELS[field["id"]]
+
+    def rank(indexed):
+        index, field = indexed
+        key = field["id"]
+        if key in TAIL_FIELDS:
+            return (2, TAIL_FIELDS.index(key), index)
+        if key in FIELD_ORDER:
+            return (0, FIELD_ORDER.index(key), index)
+        return (1, 0, index)
+    return [field for _, field in sorted(enumerate(fields), key=rank)]
+
+
 def _label(value):
     return (value.replace("_", " ").replace("-", " ").replace(".", " / ")
             .replace("flavor", "flavour").replace("color", "colour")
@@ -185,7 +216,8 @@ def _registry():
                 alt="",
                 items=[],
             )
-            keys = sorted(TEXT_FIELDS) + ["items", "hidden", "subscription_preview"]
+            keys = sorted(TEXT_FIELDS) + ["items", "hidden"] + (
+                ["subscription_preview"] if kind == "product" else [])
         fields = []
         for key in keys:
             if key == "children":
@@ -256,6 +288,7 @@ def _registry():
                 field["label"] = "Collection"
                 field["help"] = "Choose a published catalogue collection."
             fields.append(field)
+        fields = _arrange(fields)
         fields += copy.deepcopy(STYLE_SCHEMA)
         schemas[kind] = {
             "label": label,

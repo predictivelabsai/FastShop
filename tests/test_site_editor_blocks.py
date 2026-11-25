@@ -358,3 +358,16 @@ def test_new_block_entries_never_default_to_a_placeholder_link():
                 if entry.get("label") == placeholder and "label" not in required:
                     offenders.append((kind, entry.get("theme"), "label"))
     assert offenders == []
+
+
+def test_editor_fields_read_in_page_order_with_plain_labels():
+    from app.site_block_schema import block_schema_registry
+
+    registry = block_schema_registry()
+    hero = [f for f in registry["hero"]["fields"] if not f["id"].startswith("style.")]
+    ids = [f["id"] for f in hero]
+    assert ids.index("heading") < ids.index("body") < ids.index("button") < ids.index("image")
+    labels = {f["id"]: f["label"] for f in hero}
+    assert labels["body"] == "Text" and labels["alt"].startswith("Image description")
+    assert "subscription_preview" not in ids
+    assert "subscription_preview" in {f["id"] for f in registry["product"]["fields"]}
