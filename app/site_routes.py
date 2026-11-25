@@ -457,6 +457,22 @@ def register_site_routes(rt):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, user_id)
                 config = site.settings_json
+                from fasthtml.common import Datalist, Img, Option
+
+                from app.models import SiteMedia
+                media = list(db.scalars(select(SiteMedia).where(
+                    SiteMedia.site_id == site.id, SiteMedia.tenant_id == site.tenant_id,
+                    SiteMedia.content_type.like("image/%"), SiteMedia.public_url.is_not(None),
+                ).order_by(SiteMedia.created_at.desc()).limit(200)))
+
+                def image_field(key, label):
+                    value = config.get(key) or ""
+                    return Div(
+                        Label(label, Input(name=key, value=value, list="general-media-images",
+                                           placeholder="Choose from your media or paste an image address")),
+                        Img(src=value, alt="", cls="g-general-logo-preview", height="40") if value else None,
+                        cls="g-general-image-field",
+                    )
                 return shell("General",
                     verification_banner(db, user_id, session),
                     A("← Settings", href=f"/admin/sites/{site.id}/settings"),
@@ -465,8 +481,15 @@ def register_site_routes(rt):
                             *[Label(label, Input(name=key, value=config.get(key, ""))) for key, label in [
                                 ("name", "Brand name"), ("tagline", "Tagline"), ("email", "Contact email"),
                                 ("company", "Company"), ("address", "Company address"), ("announcement", "Announcement"),
-                                ("offer", "First-order banner"), ("logo", "Logo URL"), ("logo_light", "Light logo URL"),
-                                ("science_date", "Research figures checked as of")]],
+                                ("offer", "First-order banner")]],
+                            image_field("logo", "Logo"),
+                            image_field("logo_light", "Logo for dark backgrounds"),
+                            Datalist(*[Option(value=item.public_url, label=item.title) for item in media],
+                                     id="general-media-images"),
+                            P("Used in search results, shared links and emails. Upload images in ",
+                              A("Media", href=f"/admin/sites/{site.id}/media"), ".", cls="g-help"),
+                            Label("Research figures checked as of",
+                                  Input(name="science_date", value=config.get("science_date", ""))),
                             Label("Footer disclaimer", Textarea(config.get("footer", ""), name="footer", rows=4)),
                             H3("Analytics"), Label("GA4 measurement ID (optional)", Input(name="ga4_measurement_id", value=config.get("ga4_measurement_id", ""), placeholder="G-ABC1234567", maxlength=22)),
                             P("Disabled when empty. Published public pages load Google Analytics only after analytics consent. Account and checkout pages are excluded; no Meta pixel is installed. Publish shared settings to apply changes."),

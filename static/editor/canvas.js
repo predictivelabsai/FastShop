@@ -360,7 +360,19 @@
       blocks().forEach((n) => (n.draggable = true));
       select(d.block_id);
     }
-    if (d.type === "select") select(d.block_id);
+    if (d.type === "select") {
+      select(d.block_id);
+      // A section picked in the sidebar comes into view if it is off-screen.
+      const node = d.block_id && find(d.block_id);
+      if (node) {
+        const box = node.getBoundingClientRect();
+        if (box.top < 0 || box.top > innerHeight * 0.6)
+          node.scrollIntoView({
+            block: "start",
+            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          });
+      }
+    }
     if (d.type === "context") {
       select(d.block_id);
       if (Number.isFinite(d.scroll_y)) scrollTo(0, d.scroll_y);
