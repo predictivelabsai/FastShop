@@ -22,13 +22,36 @@ URLs work as before. Rows live in `site_domains` (migration `20261125_0035_site_
 | `FASTSHOP_INGRESS_IPV4` | The public IPv4 address merchants point apex domains at (A record). Without it or a CNAME target, the page says support connects domains. |
 | `FASTSHOP_DOMAIN_CNAME_TARGET` | Hostname that subdomains such as `www` CNAME to, for example `stores.fastsme.com`. It must resolve to the ingress address. Without it, subdomains also get an A record. |
 | `FASTSHOP_DNS_OVER_HTTPS_URL` | JSON DNS-over-HTTPS resolver. Default `https://cloudflare-dns.com/dns-query`. |
-| `FASTSHOP_AUTOMATIC_TLS` | Set to `1` only once the edge proxy issues certificates on demand (below). It changes what the page promises about HTTPS. |
+| `FASTSHOP_AUTOMATIC_TLS` | Set to `1` only once an edge proxy issues certificates on demand (Caddy, below). Not needed with the Coolify sync. |
+| `FASTSHOP_COOLIFY_URL`, `FASTSHOP_COOLIFY_TOKEN`, `FASTSHOP_COOLIFY_APP_UUID` | Turn on automatic HTTPS on Coolify (below). The token needs write and deploy abilities. |
+| `FASTSHOP_COOLIFY_KEEP_DOMAINS` | Platform hostnames that always stay on the app, comma separated, e.g. `https://shop.fastsme.com`. |
 
-## Automatic HTTPS
+## Automatic HTTPS on Coolify (used in production)
 
-Traefik, Coolify's default proxy, cannot issue certificates for hostnames it was not told
-about in advance. Use Caddy's on-demand TLS in front of the app, and let it ask FastShop
-before each certificate:
+Traefik, Coolify's default proxy, issues a Let's Encrypt certificate for every domain in an
+application's domain list. With the three `FASTSHOP_COOLIFY_*` settings, FastShop keeps that
+list in step with its stores: when a domain connects (its DNS points here) or is removed,
+FastShop updates the application's domains through the Coolify API and queues a redeploy.
+Traefik then requests the certificate on the first visit. The redeploy swaps containers once
+the new one is healthy, so the store stays up.
+
+Use a Coolify token from a team that holds only FastShop applications where possible: a
+token can manage every resource of its team. `FASTSHOP_COOLIFY_KEEP_DOMAINS` must list the
+platform hostname(s), so they are never dropped.
+
+## Zone.ee: one-step DNS
+
+When a domain's nameservers are Zone's, Settings -> Domains offers "Connect automatically
+with Zone". The merchant saves their ZoneID username and an API key (My Zone -> account
+settings -> Security -> API keys); FastShop shows the exact record changes, applies them on
+confirmation and keeps an undo. Only the A, AAAA and CNAME records of the hostnames being
+connected change, plus FastShop's own `_fastshop` TXT proof records; MX, SPF and every other
+record are untouched. Code: `app/integrations/zone_dns.py`.
+
+## Alternative: Caddy on-demand TLS
+
+On a server where the proxy can be switched, Caddy's on-demand TLS issues certificates without
+redeploys. Let it ask FastShop before each certificate:
 
 ```caddyfile
 {

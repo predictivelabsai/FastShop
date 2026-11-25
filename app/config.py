@@ -90,6 +90,20 @@ class Settings:
     ).strip()
     # True once the edge proxy issues certificates on demand (see docs/CUSTOM_DOMAINS.md).
     automatic_tls: bool = _bool("FASTSHOP_AUTOMATIC_TLS", False)
+    # Coolify: add connected store domains to this app so Traefik issues their certificates.
+    coolify_url: str = os.getenv("FASTSHOP_COOLIFY_URL", "").strip().rstrip("/")
+    coolify_token: str = os.getenv("FASTSHOP_COOLIFY_TOKEN", "").strip()
+    coolify_app_uuid: str = os.getenv("FASTSHOP_COOLIFY_APP_UUID", "").strip()
+    coolify_keep_domains: tuple[str, ...] = tuple(
+        value.strip() for value in os.getenv("FASTSHOP_COOLIFY_KEEP_DOMAINS", "").split(",")
+        if value.strip()
+    )
+
+    @property
+    def https_automatic(self) -> bool:
+        """Certificates for connected domains are issued without an operator step."""
+        return self.automatic_tls or bool(
+            self.coolify_url and self.coolify_token and self.coolify_app_uuid)
 
     @property
     def is_production(self) -> bool:
