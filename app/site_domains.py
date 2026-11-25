@@ -302,3 +302,34 @@ def tls_allowed(db, host: str) -> bool:
     if db.scalar(select(Site.id).where(func.lower(Site.hostname) == host)):
         return True
     return bool(db.scalar(select(SiteDomain.id).where(func.lower(SiteDomain.hostname) == host)))
+
+
+def check_pending(db, *, limit: int = 50, transport=None) -> list[SiteDomain]:
+    """Re-check domains still waiting for DNS; return the ones that just connected."""
+    newly = []
+    for domain in db.scalars(select(SiteDomain).where(SiteDomain.status == "pending")
+                             .order_by(SiteDomain.last_checked_at.is_not(None),
+                                       SiteDomain.last_checked_at).limit(limit)):
+        refresh(db, domain, transport=transport)
+        if domain.status == "connected":
+            newly.append(domain)
+    return newly
+
+
+def connected_notice(db, domain: SiteDomain) -> tuple[list[str], str, str]:
+    """(admin emails, subject, body) telling a store's admins a domain now works."""
+    from app.models import Membership, User
+
+    site = db.get(Site, domain.site_id)
+    emails = sorted({email for (email,) in db.execute(
+        select(User.email).join(Membership, Membership.user_id == User.id).where(
+            Membership.tenant_id == domain.tenant_id, Membership.role.in_(("admin", "merchant"))))})
+    primary = site and site.hostname == domain.hostname
+    https = ("HTTPS is set up automatically within a few minutes."
+             if settings.https_automatic else "FastShop support will finish its HTTPS certificate.")
+    next_step = ("" if primary else
+                 "\n\nTo make it your store's main address, open Settings → Domains and press "
+                 "Make primary. Your other addresses then redirect to it.")
+    body = (f"Good news: {domain.hostname} now points to your store{' ' + site.name if site else ''}.\n\n"
+            f"{https}{next_step}\n\nFastShop")
+    return emails, f"{domain.hostname} is connected", body
