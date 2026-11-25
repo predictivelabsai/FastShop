@@ -338,3 +338,23 @@ def test_optional_pack_registration_and_validation(context, monkeypatch):
     assert "Pack fragment" in render_document(db, site, page, document(block), "", block["id"])
     from app.storefront_ui import commerce_page
     assert commerce_page(site, None, "Account") == "Pack commerce"
+
+
+def test_new_block_entries_never_default_to_a_placeholder_link():
+    """A new entry must not publish a "Your content" link to the home page if left unset."""
+    from app.site_block_schema import block_schema_registry
+
+    placeholder = "Your content"
+    offenders = []
+    for kind, schema in block_schema_registry().items():
+        for field in schema.get("fields", []):
+            if field.get("type") != "repeater":
+                continue
+            required = set(field.get("required", ()))
+            defaults = [field.get("item_default", {}), *field.get("theme_defaults", {}).values()]
+            for entry in defaults:
+                if entry.get("url") == "/" and "url" not in required:
+                    offenders.append((kind, entry.get("theme"), "url"))
+                if entry.get("label") == placeholder and "label" not in required:
+                    offenders.append((kind, entry.get("theme"), "label"))
+    assert offenders == []

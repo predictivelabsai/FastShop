@@ -12,6 +12,23 @@ from app.site_blocks import (
 )
 from app.site_widgets import WIDGETS
 
+PLACEHOLDER_TEXT = "Your content"
+
+
+def item_placeholder(key, required=()):
+    """Starter value for a new block entry field.
+
+    Text a merchant reads in the preview gets a visible cue. An optional link stays empty,
+    so a forgotten field never publishes a "Your content" link to the home page.
+    """
+    if key in {"image", "icon"}:
+        return ""
+    if key == "url":
+        return "/" if key in required else ""
+    if key == "label" and key not in required:
+        return ""
+    return PLACEHOLDER_TEXT
+
 
 def _label(value):
     return (value.replace("_", " ").replace("-", " ").replace(".", " / ")
@@ -197,10 +214,7 @@ def _registry():
                 if themes:
                     item_keys = ["theme"] + item_keys
                 required = spec.required_item_fields
-                item_default = {
-                    k: "Your content" if k not in {"url", "image"} else ("/" if k == "url" else "")
-                    for k in item_keys
-                }
+                item_default = {k: item_placeholder(k, required) for k in item_keys}
                 if themes:
                     item_default["theme"] = sorted(themes)[0]
                 theme_defaults = {}
