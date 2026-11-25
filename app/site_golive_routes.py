@@ -155,7 +155,7 @@ def register_golive_routes(rt, actor, csrf, check_csrf, shell, error):
                     P(notice, role="status", cls="e-note") if notice else None,
                     Div(
                         H2("Publish the reviewed site", id="publish"),
-                        P("Publication uses only stored site state. Merchants cannot bypass failed hard checks."),
+                        P("Publishing uses what you have saved. Fix any failed checks before you publish."),
                         checklist(publish_report, scope="publish"),
                         publish_controls,
                         cls="e-card g-stage",
