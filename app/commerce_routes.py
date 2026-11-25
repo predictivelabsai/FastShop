@@ -108,6 +108,7 @@ def register_commerce_routes(rt, actor, csrf, check_csrf, shell, error):
                         H2("Savings"),
                         Label("Monthly subscription saving (%)", Input(name="subscription_discount_percent", type="number", min="0", max=str(commerce.MAX_DISCOUNT_PERCENT), step="1", required=True, value=commerce.subscription_percent(config))),
                         Label("First-order offer (%)", Input(name="first_order_discount_percent", type="number", min="0", max=str(commerce.MAX_DISCOUNT_PERCENT), step="1", required=True, value=commerce.first_order_percent(config))),
+                        P("Storefront text can say {subscription_saving} or {first_order_saving} instead of a number. Pages then always show the percentages saved here.", cls="g-help"),
                         Div(H3("How savings combine"), P(savings_policy(config)), cls="e-note"),
                         Button("Save commerce settings", cls="e-button"), method="post", cls="e-form"), cls="e-card"),
                         Div(H2("Preview a US tax quote"), P("Sandbox only. No order is placed and no payment is taken. Configure and save the settings first."),

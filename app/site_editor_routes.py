@@ -120,6 +120,9 @@ def render_document(db, site, page, document, token, block_id=""):
             return None
         resolved = resolve_document(document, default_locale(site))
         block = find(resolved["blocks"])
+        if block is not None:
+            from app.site_savings_text import fill_for
+            block = fill_for(db, site, block)
         if block is None:
             raise EditorError("Block not found.", 404)
         from app.site_theme import pack_renderer

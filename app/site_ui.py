@@ -340,6 +340,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     from app.store_preferences import head_nodes
     from app.store_preferences import metadata as preference_metadata
     document = resolve_dynamic_document(db, site, page, document)
+    from app.site_savings_text import fill_for
+
+    document = fill_for(db, site, document)
     preferences = preference_metadata(db, site, page, document)
     from app.site_blog import articles_for, categories_for, category_slug, metadata
     blog = metadata(document)
