@@ -5,6 +5,7 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
+from sqlalchemy.orm import defer
 
 from app import content
 from app.models import Product, ProductImage, SiteChangeSet, SiteMedia, SiteMenu, SiteRevision
@@ -40,9 +41,27 @@ def media_url(media):
 
 
 def media_for(db, site):
-    return list(db.scalars(select(SiteMedia).where(
+    # The image bytes load only when a caller reads them, so listing a large library stays fast.
+    return list(db.scalars(select(SiteMedia).options(defer(SiteMedia.data)).where(
         SiteMedia.tenant_id == site.tenant_id, SiteMedia.site_id == site.id,
     ).order_by(SiteMedia.created_at.desc(), SiteMedia.id)))
+
+
+_THUMBNAILS: dict = {}
+
+
+def thumbnail_bytes(media, width: int) -> bytes:
+    """A small WebP preview of stored image bytes, cached in memory by media id and width."""
+    key = (media.id, media.size, width)
+    if key not in _THUMBNAILS:
+        with Image.open(io.BytesIO(media.data)) as original:
+            original.thumbnail((width, width))
+            output = io.BytesIO()
+            original.convert("RGB").save(output, format="WEBP", quality=80)
+        if len(_THUMBNAILS) > 512:
+            _THUMBNAILS.clear()
+        _THUMBNAILS[key] = output.getvalue()
+    return _THUMBNAILS[key]
 
 
 def generated_direction(site, url: str) -> str:
@@ -98,6 +117,40 @@ def strings(value):
 def references(db, site, media):
     targets = {media_url(media), f"/site-media/{site.id}/{media.id}"}
     return sorted({label for label, doc in documents(db, site) if targets.intersection(strings(doc))})
+
+
+def reference_map(db, site, library):
+    """references() for many files in one pass over the site's documents."""
+    owners = {}
+    for media in library:
+        for target in (media_url(media), f"/site-media/{site.id}/{media.id}"):
+            owners.setdefault(target, set()).add(media.id)
+    found = {media.id: set() for media in library}
+    for label, doc in documents(db, site):
+        for value in set(strings(doc)):
+            for media_id in owners.get(value, ()):
+                found[media_id].add(label)
+    return {media_id: sorted(labels) for media_id, labels in found.items()}
+
+
+def usage_summary(labels):
+    """Plain-language usage for the files list: live content first, editor history last."""
+    pages = sorted({label.split(": ", 1)[1] for label in labels if label.startswith(("Draft: ", "Published: "))})
+    products = {label.split(": ", 1)[1] for label in labels if label.startswith(("Product: ", "Product gallery: "))}
+    parts = []
+    if pages:
+        parts.append(f"{len(pages)} page" + ("" if len(pages) == 1 else "s"))
+    if products:
+        parts.append(f"{len(products)} product" + ("" if len(products) == 1 else "s"))
+    if any(label.startswith("Menu: ") for label in labels):
+        parts.append("menus")
+    if any(label in {"Site settings", "Published settings"} for label in labels):
+        parts.append("store design")
+    if parts:
+        return "Used in " + ", ".join(parts), pages
+    if labels:
+        return "Only in editor history", pages
+    return "Not used", pages
 
 
 def delete_media(db, site, media_id):

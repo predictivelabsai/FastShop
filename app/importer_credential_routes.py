@@ -149,7 +149,7 @@ def register_importer_credential_routes(rt, actor, csrf, check_csrf, shell):
             except CommerceError as exc:
                 db.rollback()
                 return RedirectResponse(page_url(site_id, platform, str(exc)), status_code=303)
-        return RedirectResponse(f"/admin/sites/{site_id}/integrations?" + urlencode(
+        return RedirectResponse(f"/admin/sites/{site_id}/integrations/import?" + urlencode(
             {"notice": f"{spec['label']} connected. Run a preview import to check it."}), status_code=303)
 
     @rt("/admin/sites/{site_id}/settings/integrations/importers/{platform}/disconnect", methods=["POST"])

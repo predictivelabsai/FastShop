@@ -233,13 +233,13 @@ def test_site_integration_routes_review_exact_plan_and_prg(monkeypatch):
         site_id = site.id
         db.commit()
     base = f"/admin/sites/{site_id}/integrations"
-    missing = client.get(base)
+    missing = client.get(base + "/import")
     assert "Not connected" in missing.text
     assert "Connect your WooCommerce store" in missing.text
     assert "Run import dry run" not in missing.text
 
     monkeypatch.setenv("FASTSHOP_WOOCOMMERCE_FIXTURE_PATH", str(FIXTURE))
-    page = client.get(base)
+    page = client.get(base + "/import")
     assert page.status_code == 200
     assert "WooCommerce" in page.text and "Development fixture store ready" in page.text
     assert "CONSUMER_SECRET" not in page.text and "ck_fixture" not in page.text

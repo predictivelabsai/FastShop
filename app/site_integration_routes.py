@@ -27,15 +27,13 @@ from fasthtml.common import (
     Tr,
     Ul,
 )
-from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from app import connectors, content
-from app.admin_ui import empty_state
+from app.admin_ui import empty_state, page_header
 from app.db import SessionLocal
-from app.models import SiteCommerceSettings
 from app.services import CommerceError
 
 
@@ -44,7 +42,7 @@ def _redirect(site_id, notice, *, plan_id=""):
     if plan_id:
         query["plan"] = plan_id
     return RedirectResponse(
-        f"/admin/sites/{site_id}/integrations?" + urlencode(query), status_code=303
+        f"/admin/sites/{site_id}/integrations/import?" + urlencode(query), status_code=303
     )
 
 
@@ -121,19 +119,24 @@ def _plan_view(plan, csrf):
 def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
     @rt("/admin/sites/{site_id}/integrations", methods=["GET"])
     def get(session, site_id: str, notice: str = "", plan: str = ""):
+        if notice or plan:
+            # Older links to import results now open the import page.
+            return RedirectResponse(f"/admin/sites/{site_id}/integrations/import?"
+                                    + urlencode({k: v for k, v in {"notice": notice, "plan": plan}.items() if v}), 303)
+        try:
+            with SessionLocal() as db:
+                site = content.owned_site(db, site_id, actor(session), publish=True)
+                from app import integrations_hub
+                return shell("Integrations", *integrations_hub.page(db, site))
+        except CommerceError as exc:
+            return error(exc)
+
+    @rt("/admin/sites/{site_id}/integrations/import", methods=["GET"])
+    def get(session, site_id: str, notice: str = "", plan: str = ""):
         try:
             user_id = actor(session)
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, user_id, publish=True)
-                commerce_config = db.scalar(select(SiteCommerceSettings).where(
-                    SiteCommerceSettings.site_id == site.id,
-                    SiteCommerceSettings.tenant_id == site.tenant_id,
-                ))
-                live_approved = bool(
-                    commerce_config and commerce_config.mode == "live"
-                    and commerce_config.live_accepted_at and commerce_config.live_accepted_by
-                    and commerce_config.live_credential_id
-                )
                 rows = []
                 for connector in connectors.listed_connectors():
                     state = connector.credential_state(site)
@@ -200,10 +203,8 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                 elif (plans := connectors.recent_plans(db, site, limit=1)):
                     selected = plans[0]
                 history = connectors.recent_plans(db, site)
-                return shell("Integrations",
-                    Div(A("← Back to site", href=f"/admin/sites/{site.id}"), cls="e-actions"),
-                    P("Live payments: " + ("approved by operator" if live_approved else "not approved"),
-                      cls="g-state g-state-live" if live_approved else "g-state"),
+                return shell("Import and migrate",
+                    page_header("Import and migrate", back_href=f"/admin/sites/{site.id}/integrations"),
                     P("Migrations are sandbox-first: preview provider data before any FastShop write. "
                       "Connect your old store below; saved details are encrypted and never shown again.",
                       cls="i-intro"),
@@ -212,7 +213,7 @@ def register_integration_routes(rt, actor, csrf, check_csrf, shell, error):
                     _plan_view(selected, csrf(session)) if selected else None,
                     Details(Summary("Recent import plans"),
                         Ul(*[Li(A(f"{row.platform.title()} · {row.status} · plan {row.id[:8]}",
-                            href=f"/admin/sites/{site.id}/integrations?plan={row.id}")) for row in history],
+                            href=f"/admin/sites/{site.id}/integrations/import?plan={row.id}")) for row in history],
                            cls="i-list")) if history else empty_state("No import plans yet",
                         "Preview an import from one of your connections to review changes before applying them.",
                         A("Review connections", href="#integration-connections", cls="e-button")))

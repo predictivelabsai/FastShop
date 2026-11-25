@@ -25,7 +25,7 @@ from fasthtml.common import (
     Tr,
 )
 
-from app.admin_ui import badge, card, empty_state, page_header, timeline, two_column
+from app.admin_ui import badge, card, empty_state, page_header, pager, timeline, two_column
 from app.catalog_admin_ui import area, check, choice, field
 from app.customer_admin import ADDRESS_LIMITS
 from app.services import money
@@ -67,9 +67,9 @@ def customer_index(site, rows, total, filters, page, csrf, segments):
             *[Th(name, scope="col") for name in ("Customer name", "Email", "Email consent", "Location", "Orders", "Amount spent")])), Tbody(*body)), cls="a-table-wrap"),
         method="post", action=base + "/bulk", data_index_table="") if rows else empty_state("No customers found", "Create a customer or adjust your filters to find an existing record.", A("Add customer", href=base + "/new", cls="a-button"))
     pages = max(1, (total + 24) // 25)
-    pagination = Div(A("Previous", href=base + "?" + urlencode({**filters, "page": page - 1})) if page > 1 else Span("Previous"),
-        Span(f"Page {page} · {total} customer" + ("" if total == 1 else "s")),
-        A("Next", href=base + "?" + urlencode({**filters, "page": page + 1})) if page < pages else Span("Next"), cls="u-pagination")
+    pagination = pager(f"Page {page} · {total} customer" + ("" if total == 1 else "s"),
+        base + "?" + urlencode({**filters, "page": page - 1}) if page > 1 else None,
+        base + "?" + urlencode({**filters, "page": page + 1}) if page < pages else None, cls="u-pagination") if rows else None
     saved = Div(*[A(segment.name, href=base + "?segment=" + segment.id, cls="u-chip") for segment in segments], cls="u-chips") if segments else None
     save = Details(Summary("Save current filters as a segment"), Form(csrf,
         field("Segment name", "name", required="required", maxlength="100"),

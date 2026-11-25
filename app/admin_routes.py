@@ -18,6 +18,7 @@ from fasthtml.common import (
     P,
     Select,
     Small,
+    Span,
     Strong,
     Ul,
 )
@@ -25,7 +26,9 @@ from sqlalchemy import func, or_, select
 from starlette.responses import JSONResponse
 
 from app import content, order_management, site_golive
-from app.admin_ui import badge, card, empty_state, index_table
+from app.admin_charts import line_chart, short_money
+from app.admin_icons import lucide
+from app.admin_ui import badge, card, date_range_picker, empty_state, index_table
 from app.db import SessionLocal
 from app.models import (
     CatalogueSettings,
@@ -43,6 +46,7 @@ from app.models import (
     User,
 )
 from app.services import CommerceError, money
+from app.settings_directory import SETTINGS_GROUPS, SETTINGS_ICONS
 
 FEATURES = {
     "drafts": "Draft orders", "abandoned-checkouts": "Abandoned checkouts",
@@ -50,6 +54,9 @@ FEATURES = {
     "blog": "Blog posts", "blog-posts": "Blog posts", "users": "Users and permissions",
     "policies": "Policies", "notifications": "Notifications", "markets": "Markets",
 }
+
+
+# The settings directory lives in app.settings_directory so the shell can share it.
 
 
 def search_results(db, site, user_id: str, query: str) -> list[dict]:
@@ -148,7 +155,7 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                 manager = role in {"admin", "merchant"}
                 user = db.get(User, user_id)
                 prefix = f"/admin/sites/{site.id}"
-                count_days = int(days) if days in {"1", "7", "30"} else 7
+                count_days = int(days) if days in {"1", "7", "30", "90"} else 7
                 end = datetime.now(UTC).date()
                 start = end - timedelta(days=count_days - 1)
                 pages = content.site_pages(db, site)
@@ -216,20 +223,21 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                 tasks.extend((check.label, prefix + "/pages" if check.action_url == prefix else check.action_url)
                              for check in report.failures)
                 completed = sum(check.passed for check in report.checks)
-                date_control = Form(Label("Date range", Select(
-                    *[Option(label, value=value, selected=count_days == int(value))
-                      for value, label in (("1", "Today"), ("7", "Last 7 days"), ("30", "Last 30 days"))],
-                    name="days")), Button("Apply", cls="e-button"), method="get", cls="e-actions")
-                metrics = Div(*[Div(Small(label), Strong(value), cls="admin-metric") for label, value in (
+                date_control = date_range_picker(prefix, preset=str(count_days), name="days", custom=False)
+                metrics = Div(*[Div(Span(label, cls="p-metric-label"), Div(Strong(value), cls="p-metric-value"),
+                                    cls="p-metric") for label, value in (
                     ("Total sales", money(revenue.gross_sales_minor, revenue.currency)),
-                    ("Orders", str(revenue.order_count)),
+                    ("Orders", f"{revenue.order_count:,}"),
                     ("Average order value", money(revenue.average_order_value_minor, revenue.currency)),
-                )], cls="admin-metrics") if revenue else None
-                return shell("Home", P(f"Hello, {(user.name or 'there').split()[0]}"),
-                    Div(date_control, cls="admin-dashboard-controls"), metrics,
-                    Div(card(sales_sparkline(daily),
-                             Small(f"{start:%d %b} to {end:%d %b} · {revenue.currency}"),
-                             title="Sales over time") if revenue else None,
+                )], cls="p-metrics p-metrics-3") if revenue else None
+                return shell("Home",
+                    Div(date_control, P(f"Hello, {(user.name or 'there').split()[0]}",
+                                        cls="admin-greeting"), cls="admin-dashboard-controls"),
+                    metrics,
+                    Div(card(line_chart(daily, [f"{start + timedelta(days=i):%-d %b}" for i in range(count_days)],
+                                        label="Total sales",
+                                        format_value=lambda minor: short_money(minor, revenue.currency)),
+                             title="Total sales over time", cls="p-chart-card") if revenue else None,
                         card(P(f"{completed} of {len(report.checks)} steps complete"),
                              Ul(*[Li(A(check.label, href=prefix + "/pages" if check.action_url == prefix else check.action_url), " ",
                                      badge("Done", "success") if check.passed else badge("To do"))
@@ -259,31 +267,50 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session))
                 prefix = f"/admin/sites/{site.id}"
-                entries = [
-                    ("General", "/settings/general", "Store details and preferences"),
-                    ("Custom data", "/settings/custom-data", "Metafield definitions and validation"),
-                    ("Locations", "/settings/locations", "Inventory and fulfilment locations"),
-                    ("Activity", "/activity", "Changes made by your team"),
-                    ("Plan and billing", "/settings/billing", "Your plan, usage and billing"),
-                    ("Users and permissions", "/settings/users", "Staff access and roles"),
-                    ("Payments", "/settings/payments", "Payment providers and commerce mode"),
-                    ("Checkout", "/settings/checkout", "Checkout and customer accounts"),
-                    ("Shipping and delivery", "/settings/shipping", "Destinations and delivery settings"),
-                    ("Taxes and duties", "/settings/taxes", "Tax configuration and previews"),
-                    ("Notifications", "/settings/notifications", "Customer email and delivery status"),
-                    ("Domains", "/settings/domains", "Domain and go-live checks"),
-                    ("Integrations", "/integrations", "Connect services to your store"),
-                    ("Policies", "/settings/policies", "Store and customer policies"),
-                ]
+                groups = []
+                for index, (name, summary, entries) in enumerate(SETTINGS_GROUPS, start=1):
+                    heading_id = f"settings-group-{index}"
+                    groups.append(Div(
+                        Div(H2(name, id=heading_id), P(summary),
+                            cls="settings-directory-group-heading"),
+                        Div(*[
+                            A(
+                                Span(lucide(SETTINGS_ICONS.get(href, "settings"), 18, 1.75), cls="p-row-icon"),
+                                Div(Strong(label), P(description), cls="settings-directory-item-title"),
+                                Span(lucide("chevron-right", 16), cls="p-row-chevron"),
+                                Small(f"{name} {summary} {status} {keywords}",
+                                      cls="settings-directory-keywords", aria_hidden="true"),
+                                href=prefix + href,
+                                cls="settings-directory-item",
+                                data_settings_item=True,
+                                data_settings_key=label.casefold().replace(" ", "-"),
+                            )
+                            for label, href, description, status, keywords in entries
+                        ], cls="settings-directory-items"),
+                        cls="settings-directory-group",
+                        data_settings_item=True,
+                        role="region",
+                        aria_labelledby=heading_id,
+                    ))
                 return shell("Settings", Div(
-                    Div(Label("Find a setting", Input(type="search", placeholder="Search settings",
-                        data_settings_search=True)),
-                        Div(*[A(label, href=prefix + href, data_settings_item=label.lower())
-                              for label, href, _ in entries], cls="admin-settings-nav")),
-                    card(*[Div(A(label, href=prefix + href), P(description),
-                               cls="e-page-row", data_settings_item=label.lower())
-                           for label, href, description in entries], title=site.name),
-                    cls="admin-settings-layout"))
+                    Div(
+                        Label("Search settings", Input(
+                            type="search",
+                            placeholder="Search by task or setting",
+                            autocomplete="off",
+                            aria_describedby="settings-search-help",
+                            data_settings_search=True,
+                        )),
+                        P("Search by task, such as taxes, domains or customer emails.",
+                          id="settings-search-help"),
+                        cls="settings-directory-search",
+                        role="search",
+                    ),
+                    Div(
+                        Div(*groups, cls="settings-directory-groups"),
+                        cls="settings-directory-content",
+                    ),
+                    cls="admin-settings-layout settings-directory"))
         except CommerceError as exc:
             return error(exc)
 

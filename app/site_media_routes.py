@@ -71,7 +71,7 @@ def register_media_routes(rt, actor, csrf, check_csrf, shell, error):
             return redirect(site_id, message)
 
     @rt("/site-media/{site_id}/{media_id}", methods=["GET"])
-    def get(session, site_id: str, media_id: str):
+    def get(session, site_id: str, media_id: str, w: int = 0):
         with SessionLocal() as db:
             site = db.get(Site, site_id)
             if not site:
@@ -84,6 +84,13 @@ def register_media_routes(rt, actor, csrf, check_csrf, shell, error):
             media = db.scalar(select(SiteMedia).where(SiteMedia.id == media_id, SiteMedia.site_id == site.id, SiteMedia.tenant_id == site.tenant_id))
             if not media or not media.data:
                 return Response("Not found", status_code=404)
+            if w in {160, 320, 640} and media.content_type.startswith("image/") and media.content_type != "image/svg+xml":
+                from app.site_media import thumbnail_bytes
+                try:
+                    return Response(thumbnail_bytes(media, w), media_type="image/webp",
+                                    headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
+                except (OSError, ValueError):
+                    pass
             return Response(media.data, media_type=media.content_type,
                             headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 

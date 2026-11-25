@@ -1,5 +1,6 @@
 """Publication, schedule and tree validation regressions for growth content."""
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -7,7 +8,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app import content, growth_content, site_menus
-from app.models import Base, Membership, SitePage, User
+from app.models import Base, Membership, Site, SiteMedia, SitePage, User
 from app.services import CommerceError
 from app.site_blog import is_listed
 
@@ -36,7 +37,8 @@ def test_article_sanitises_and_preserves_visual_content(workspace):
         page,
         {
             "title": "New post",
-            "body": "<p>Hello <strong>reader</strong></p><script>bad()</script>",
+            "body": "<h2>From the journal</h2><p>Hello <strong>reader</strong></p>"
+                    "<ul><li>First detail</li></ul><script>bad()</script>",
             "author": "Editor",
             "category": "News",
             "tags": "news, guides",
@@ -46,6 +48,8 @@ def test_article_sanitises_and_preserves_visual_content(workspace):
     )
     assert "<strong>reader</strong>" in doc["blocks"][0]["body"]
     assert "script" not in doc["blocks"][0]["body"]
+    assert "<h2>From the journal</h2>" in doc["blocks"][0]["body"]
+    assert "<ul><li>First detail</li></ul>" in doc["blocks"][0]["body"]
     assert doc["blog"]["excerpt"] == "An excerpt"
     content.save_page(db, site, page.id, owner.id, doc, page.version, "publish")
     assert is_listed(page)
@@ -213,6 +217,71 @@ def test_content_routes_render_and_protect_mutations(content_client):
             select(SitePage).where(SitePage.site_id == site_id, SitePage.path == "/blog/news")
         )
         assert page and is_listed(page)
+
+
+def test_file_routes_default_to_grid_with_disclosed_metadata_and_downloads(content_client):
+    client, site_id, engine = content_client
+    asset_url = "/static/h24you/liquid/metal-water-hero.jpg"
+    with Session(engine) as db:
+        site = db.get(Site, site_id)
+        media = SiteMedia(
+            tenant_id=site.tenant_id,
+            site_id=site.id,
+            title="Homepage hero / 2026",
+            alt="A glass of fizzing hydrogen water",
+            public_url=asset_url,
+            content_type="image/jpeg",
+            storage_key=asset_url,
+            size=1,
+        )
+        db.add(media)
+        db.commit()
+        media_id = media.id
+
+    filename = f"homepage-hero-2026-{media_id}.jpg"
+    label = f"Download Homepage hero / 2026 as {filename}"
+    default_response = client.get(f"/admin/sites/{site_id}/content/files")
+    list_response = client.get(
+        f"/admin/sites/{site_id}/content/files", params={"view": "list"}
+    )
+    assert default_response.status_code == 200, default_response.text
+    assert list_response.status_code == 200, list_response.text
+    assert 'class="gc-files"' in default_response.text
+    assert 'aria-label="Grid view" aria-current="true"' in default_response.text
+    assert 'gc-file-table' not in default_response.text
+    assert 'gc-file-table' in list_response.text
+    assert 'aria-label="List view" aria-current="true"' in list_response.text
+
+    for response in (default_response, list_response):
+        assert response.status_code == 200, response.text
+        assert f'<img src="{asset_url}"' in response.text
+        assert f'href="{asset_url}"' in response.text
+        assert f'download="{filename}"' in response.text
+        assert f'aria-label="{label}"' in response.text
+        # Details open in one dialog filled from the selected file, not an inline form per file.
+        assert response.text.count('id="file-details"') == 1
+        assert 'data-file=' in response.text and media_id in response.text
+        assert response.text.count('name="title"') == 2
+        assert response.text.count('name="alt"') == 2
+
+    response = client.post(
+        f"/admin/sites/{site_id}/content/files/{media_id}",
+        data={
+            "csrf_token": "test-token",
+            "title": "Updated homepage hero",
+            "alt": "Updated hydrogen water glass",
+            "action": "save",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303, response.text
+
+    with Session(engine) as db:
+        saved = db.get(SiteMedia, media_id)
+        assert saved.public_url == asset_url
+        assert saved.title == "Updated homepage hero"
+        assert saved.alt == "Updated hydrogen water glass"
+        assert saved.data is None
 
 
 @pytest.mark.parametrize(
