@@ -26,7 +26,6 @@ from fasthtml.common import (
     Label,
     Link,
     Main,
-    Meta,
     Nav,
     NotStr,
     Option,
@@ -41,7 +40,6 @@ from fasthtml.common import (
     Style,
     Summary,
     Textarea,
-    Title,
     Video,
 )
 from sqlalchemy import String, cast, select
@@ -365,6 +363,9 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             cls="h-container h-blog-tools")
         if active:
             document["title"] += " — " + active
+    from app import site_seo
+    document = site_seo.seo_document(db, site, page, document)
+    seo = site_seo.metadata(site, page, document, canonical, preview=preview)
     from app.site_menus import rendered_navigation
     header_navigation = rendered_navigation(db, site, "header", preview=preview)
     footer_navigation = rendered_navigation(db, site, "footer", preview=preview)
@@ -392,12 +393,11 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
     def brand(light=False):
         return image(config.get("logo_light" if light else "logo"), config.get("name", site.name), eager=True) or Span(config.get("name", site.name))
     return (
-        Title(f"{document['title']} — {site.name}"), Meta(name="viewport", content="width=device-width, initial-scale=1"),
-        Meta(name="description", content=document.get("description", "")), Meta(name="robots", content="noindex,nofollow" if site.status != "published" or preview else "noindex,follow" if blog_listing and (blog_tag or not listing_articles) else "index,follow"),
-        Meta(property="og:title", content=document["title"]), Meta(property="og:description", content=document.get("description", "")),
-        Meta(property="og:url", content=canonical), Link(rel="canonical", href=canonical),
+        *site_seo.head_nodes(seo, robots=site_seo.robots_value(
+            site, seo, preview=preview, blog_noindex=blog_listing and bool(blog_tag or not listing_articles))),
+        *site_seo.structured_data(db, site, page, document, seo, preview=preview),
         *head_snippets,
-        *head_nodes(db, site, preferences, preview=preview),
+        *head_nodes(db, site, preferences, preview=preview, social_image=not seo["image"]),
         Link(rel="icon", href=static_asset("favicon.svg"), type="image/svg+xml") if not preferences or not preferences.favicon_id else None, Link(rel="stylesheet", href=static_asset("site-builder.css")), Script(src=static_asset("site-builder.js"), defer=True),
         Script(src=static_asset("site-analytics.js"), defer=True) if analytics_id else None,
         Script(src=static_asset("site-snippets.js"), defer=True) if has_gated_snippets else None,

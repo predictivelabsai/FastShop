@@ -410,11 +410,13 @@ def test_editor_chrome_hides_controls_without_a_backend(workspace):
     result = w.client.get(f"/admin/sites/{w.site.id}/editor", params={"page": w.page.id})
     assert result.status_code == 200
     html = result.text
-    # No assistant or SEO page in this installation, so neither control renders.
+    # No assistant in this installation, so its control does not render. The SEO link opens
+    # this page's own search listing.
     assert 'data-mode="assistant"' not in html and "Ctrl+I" not in html
-    assert 'id="seo-link"' not in html
+    seo_href = f"/admin/sites/{w.site.id}/content/pages/{w.page.id}/seo"
+    assert f'id="seo-link" class="icon-link" href="{seo_href}"' in html
     config = json.loads(html.split("window.FASTSHOP_EDITOR=", 1)[1].split(";</script>", 1)[0])
-    assert config["features"] == {"assistant": False, "seo_href": ""}
+    assert config["features"] == {"assistant": False, "seo_href": seo_href}
     # Resizable panels, the icon picker and the rich text template are present.
     for target in ("resize-left", "resize-right", "editor-left", "editor-right", "icon-dialog",
                    "rich-text-template-holder"):

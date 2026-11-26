@@ -23,9 +23,11 @@ SETTINGS_GROUPS = (
         ),
     ),
     (
-        "Data and compliance",
-        "Structured product data and the policies customers read.",
+        "Storefront, data and compliance",
+        "Control how customers find, understand and experience your store.",
         (
+            ("SEO", "/settings/seo", "Search engine and social sharing settings",
+             "Customer-facing", "search engine optimisation social sharing sitemap robots discoverability"),
             ("Custom data", "/settings/custom-data", "Metafield definitions and validation",
              "Structured content", "metafields catalogue product fields validation"),
             ("Policies", "/settings/policies", "Store and customer policies", "Customer-facing",

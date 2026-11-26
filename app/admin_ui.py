@@ -336,7 +336,7 @@ def admin_page(title, *children, site=None, sites=(), user=None, path="/admin/si
         ("Discounts", base + "/discounts", []),
         ("Content", base + "/content/pages", [("Pages", base + "/content/pages"), ("Blog posts", base + "/content/blog-posts"), ("Menus", base + "/content/menus"), ("Files", base + "/content/files")]),
         ("Analytics", base + "/analytics", []),
-        ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Themes", base + "/themes"), ("Preferences", base + "/preferences"), ("URL redirects", base + "/redirects")]),
+        ("Online Store", base + "/editor", [("Editor", base + "/editor"), ("Guided builder", base + "/build"), ("Design", base + "/build?view=design"), ("Themes", base + "/themes"), ("Preferences", base + "/preferences"), ("Search engine optimisation", base + "/settings/seo"), ("URL redirects", base + "/redirects")]),
         ("Integrations", base + "/integrations", []),
         ("Settings", base + "/settings", []),
     ]

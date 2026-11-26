@@ -15,9 +15,13 @@ def editor_features(site, page):
     """Optional editor surfaces this installation supports.
 
     The front end hides any control whose backend is absent, so a store without an
-    assistant or a dedicated SEO page never sees a control that errors.
+    assistant or a dedicated SEO page never sees a control that errors. A saved theme's
+    pages are snapshots, so their search listing is edited on the live store instead.
     """
-    return {"assistant": False, "seo_href": ""}
+    if getattr(site, "theme_context_id", ""):
+        return {"assistant": False, "seo_href": ""}
+    from app.site_seo import edit_href
+    return {"assistant": False, "seo_href": edit_href(site, page)}
 
 
 def editor_page(site, page, csrf_token):
