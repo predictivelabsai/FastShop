@@ -4,8 +4,8 @@ Each store brings its own OpenAI-compatible API key. It is stored encrypted per 
 ``site_integrations``. Resolution order:
 
 1. the store's own connection, saved under Settings, AI assistant;
-2. the platform key from the server environment (``MODEL_API_KEY``/``XAI_API_KEY``), kept only
-   as an operator fallback;
+2. the platform key from the server environment (``MODEL_API_KEY``/``XAI_API_KEY``), only when
+   the operator sets ``FASTSHOP_ASSISTANT_PLATFORM_FALLBACK=1``;
 3. otherwise the assistant is not configured for the store.
 
 Keys never leave this module except as a request header to the chosen provider.
@@ -155,7 +155,7 @@ def stored(db, site) -> dict | None:
 
 def platform_config() -> ModelConfig | None:
     settings = config.settings
-    if not settings.xai_api_key:
+    if not settings.xai_api_key or not settings.assistant_platform_fallback:
         return None
     return ModelConfig("platform", settings.xai_base_url.rstrip("/"), settings.xai_api_key,
                        settings.model_name, "platform")

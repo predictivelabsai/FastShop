@@ -122,7 +122,11 @@ def test_resolver_prefers_the_store_key_then_the_platform_key_then_nothing(works
     with w.sessions() as db:
         assert assistant_provider.resolve(db, w.site) is None
         assert assistant_provider.status(db, w.site)["state"] == "none"
+        # A platform key alone never powers a store's assistant: the operator must opt in.
+        monkeypatch.setattr(config, "settings", replace(config.settings, xai_api_key="platform-key"))
+        assert assistant_provider.resolve(db, w.site) is None
         monkeypatch.setattr(config, "settings", replace(config.settings, xai_api_key="platform-key",
+                                                        assistant_platform_fallback=True,
                                                         xai_base_url="https://api.x.ai/v1",
                                                         model_name="grok-4-1-fast-reasoning"))
         platform = assistant_provider.resolve(db, w.site)
@@ -308,7 +312,8 @@ def test_settings_test_connection_uses_only_the_saved_store_key(workspace, monke
 
 def test_settings_page_explains_the_platform_fallback(workspace, monkeypatch):
     w = workspace
-    monkeypatch.setattr(config, "settings", replace(config.settings, xai_api_key="platform-key"))
+    monkeypatch.setattr(config, "settings", replace(config.settings, xai_api_key="platform-key",
+                                                    assistant_platform_fallback=True))
     page = w.client.get(w.settings)
     assert "Platform key" in page.text and "platform-key" not in page.text
 
