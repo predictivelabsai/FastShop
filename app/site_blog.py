@@ -66,6 +66,31 @@ def categories_for(db, site):
     ).order_by(BlogCategory.name, BlogCategory.slug)))
 
 
+def category_snapshot(db, site):
+    """Return the site taxonomy needed to undo an assistant-created draft category."""
+    return {
+        category.id: {"slug": category.slug, "name": category.name}
+        for category in categories_for(db, site)
+    }
+
+
+def restore_categories(db, site, snapshot):
+    """Remove new, unused categories after a draft checkpoint restore."""
+    if not isinstance(snapshot, dict):
+        return
+    pages = db.scalars(select(SitePage).where(
+        SitePage.tenant_id == site.tenant_id, SitePage.site_id == site.id, SitePage.kind == "article",
+    ))
+    used_slugs = set()
+    for page in pages:
+        for document in (page.draft_json, page.published_json):
+            if document and (slug := metadata(document)["category_slug"]):
+                used_slugs.add(slug)
+    for category in categories_for(db, site):
+        if category.id not in snapshot and category.slug not in used_slugs:
+            db.delete(category)
+
+
 def ensure_category(db, site, name):
     name = name.strip() or "LEARN"
     if len(name) > 100:

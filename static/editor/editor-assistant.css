@@ -1,0 +1,480 @@
+/* Theme editor Assistant mode. Loaded only when the store assistant is installed. */
+.a-shell.editor-shell[data-editor-mode="assistant"] {
+  --left-default: 380px;
+}
+/* Assistant */
+.editor-left:has(.agent-panel) {
+  overflow: hidden;
+}
+.editor-left:has(.agent-panel) #left-content {
+  display: flex;
+  min-height: 0;
+}
+.agent-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #fff;
+}
+.editor-shell .agent-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 16px 20px;
+}
+.editor-shell .agent-chat-shared .agent-message {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--e-ink);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.editor-shell .agent-chat-shared .agent-message.user {
+  align-self: flex-end;
+  width: auto;
+  max-width: 85%;
+  margin: 0 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--e-canvas);
+}
+.editor-shell .agent-chat-shared .agent-message.assistant {
+  align-self: stretch;
+}
+.editor-shell .agent-chat-shared .agent-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin-top: -1px;
+  border-radius: 50%;
+  background: var(--e-canvas);
+  color: var(--e-ink);
+}
+.editor-shell .agent-chat-shared .agent-avatar svg {
+  width: 14px;
+  height: 14px;
+}
+.editor-shell .agent-chat-shared .agent-avatar svg.fs-icon {
+  fill: none;
+}
+.editor-shell .agent-chat-shared .agent-working {
+  color: var(--e-muted);
+  font-size: 12px;
+}
+.editor-shell .agent-chat-shared .agent-working strong {
+  font-weight: 500;
+}
+.editor-shell .agent-chat-shared .agent-changes {
+  width: auto;
+  max-width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--e-line);
+  border-radius: 10px;
+  background: #fff;
+}
+.editor-shell .agent-chat-shared .agent-changes > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  color: var(--e-ink);
+  font-size: 12px;
+  font-weight: 550;
+  list-style: none;
+  cursor: pointer;
+}
+.editor-shell .agent-chat-shared .agent-changes > summary::-webkit-details-marker {
+  display: none;
+}
+.editor-shell .agent-chat-shared .agent-changes > summary::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background: var(--e-muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center / 14px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center / 14px no-repeat;
+  transition: transform 0.15s ease;
+}
+.editor-shell .agent-chat-shared .agent-changes[open] > summary::before {
+  transform: rotate(90deg);
+}
+.editor-shell .agent-chat-shared .agent-changes > summary:hover {
+  background: #fafafa;
+}
+.editor-shell .agent-chat-shared .agent-changes > div {
+  margin: 0;
+  padding: 2px 10px 8px 30px;
+}
+.editor-shell .agent-chat-shared .agent-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 0;
+  color: var(--e-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.editor-shell .agent-chat-shared .agent-step > span {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  border: 1px solid var(--e-line-strong);
+  border-radius: 50%;
+}
+.editor-shell .agent-chat-shared .agent-step.is-done > span {
+  border-color: transparent;
+  color: var(--e-success);
+}
+.editor-shell .agent-chat-shared .agent-step.is-error,
+.editor-shell .agent-chat-shared .agent-step.is-error > span {
+  border-color: transparent;
+  color: var(--e-danger);
+}
+.editor-shell .agent-chat-shared .agent-step.is-running > span {
+  border-color: var(--e-muted);
+  border-right-color: transparent;
+}
+.editor-shell .agent-chat-shared .agent-restore {
+  min-height: 0;
+  box-shadow: none;
+  margin-top: 6px;
+  color: var(--e-muted);
+  font-size: 12px;
+}
+.editor-shell .agent-chat-shared .agent-restore:hover {
+  color: var(--e-ink);
+}
+.editor-shell .agent-chat-shared .agent-restore-confirm {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--e-line);
+  border-radius: 10px;
+  background: #fafafa;
+  font-size: 12px;
+}
+.editor-shell .agent-chat-shared .agent-restore-confirm button {
+  min-height: 28px;
+  margin: 8px 6px 0 0;
+  padding: 0 10px;
+  border-color: var(--e-line-strong);
+  box-shadow: none;
+  font-size: 12px;
+}
+.editor-shell .agent-chat-shared .agent-restore-confirm button:first-of-type {
+  border-color: var(--e-primary);
+  background: var(--e-primary);
+  color: #fff;
+}
+.editor-shell .agent-chat-shared .agent-error {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #f2c1bd;
+  border-radius: 10px;
+  background: #fff4f4;
+  color: #8e1f1f;
+  font-size: 12px;
+}
+.editor-shell .agent-chat-shared .agent-error button {
+  min-height: 0;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.editor-shell .agent-action-card {
+  margin: 10px 0 2px;
+  padding: 12px;
+  border: 1px solid var(--e-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px #0000000d;
+}
+.editor-shell .agent-action-card > strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+.editor-shell .agent-action-card > p {
+  margin: 4px 0 10px;
+  color: var(--e-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+}
+.editor-shell .agent-action-card > button {
+  min-height: 30px;
+  margin: 0 6px 0 0;
+  padding: 0 12px;
+  border-color: var(--e-line-strong);
+  box-shadow: none;
+  font-size: 12px;
+}
+.editor-shell .agent-action-card > button[data-decision="confirm"] {
+  border-color: var(--e-primary);
+  background: var(--e-primary);
+  color: #fff;
+}
+.editor-shell .agent-action-card > button[data-decision="confirm"]:hover:not(:disabled) {
+  background: var(--e-primary-hover);
+}
+.editor-shell .agent-action-card[data-state="confirmed"] > strong {
+  color: var(--e-success);
+}
+.agent-empty {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  margin-block: auto;
+  padding: 8px 0 4px;
+  color: var(--e-ink);
+  white-space: normal;
+}
+.agent-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  background: var(--e-canvas);
+}
+.agent-empty strong {
+  font-size: 15px;
+  font-weight: 650;
+}
+.agent-empty p {
+  margin: 0;
+  color: var(--e-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.editor-shell .agent-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.editor-shell .agent-suggestions button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--e-line-strong);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: none;
+  color: var(--e-ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+}
+.editor-shell .agent-suggestions button:hover {
+  background: var(--e-hover);
+  border-color: #b5b5b5;
+}
+#agent-form {
+  flex: 0 0 auto;
+  padding: 0 12px 10px;
+  background: #fff;
+}
+.agent-composer {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--e-line-strong);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px #0000000d;
+}
+.agent-composer:focus-within {
+  border-color: #8a8a8a;
+  box-shadow: 0 0 0 3px #0000000f;
+}
+.agent-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 0 2px 0 8px;
+  border-radius: 8px;
+  background: var(--e-canvas);
+  color: var(--e-muted);
+  font-size: 12px;
+}
+.agent-context > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-context strong {
+  color: var(--e-ink);
+  font-weight: 600;
+}
+.agent-context .block-icon {
+  width: 14px;
+  height: 14px;
+}
+.editor-shell .agent-context button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--e-muted);
+}
+.editor-shell .agent-context button:hover {
+  background: #dcdcdc;
+  color: var(--e-ink);
+}
+.agent-composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.editor-shell .agent-composer textarea {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  max-height: 192px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--e-ink);
+  font-size: 13px;
+  line-height: 20px;
+  resize: none;
+  overflow-y: auto;
+}
+.editor-shell .agent-composer textarea:focus-visible {
+  outline: 0;
+}
+.editor-shell #agent-send {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--e-primary);
+  box-shadow: none;
+  color: #fff;
+}
+.editor-shell #agent-send:hover {
+  background: var(--e-primary-hover);
+}
+.editor-shell #agent-send.is-stop .fs-icon {
+  fill: currentColor;
+}
+.editor-shell #agent-send:focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: 2px;
+}
+.agent-compose-hint {
+  padding: 6px 4px 0;
+  color: var(--e-muted);
+  font-size: 11px;
+}
+
+.agent-unconfigured-panel {
+  display: grid;
+  gap: 10px;
+  margin: 18px 14px;
+  padding: 16px;
+  border: 1px solid var(--e-line);
+  border-radius: 12px;
+  background: var(--e-canvas);
+  color: var(--e-ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.agent-unconfigured-panel strong {
+  font-size: 14px;
+}
+.agent-unconfigured-panel p {
+  margin: 0;
+  color: var(--e-muted);
+}
+.agent-unconfigured-panel a {
+  justify-self: start;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--e-primary);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.agent-unconfigured-panel a:hover {
+  background: var(--e-primary-hover);
+}
+.agent-unconfigured-panel a:focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 1300px) {
+  .a-shell.editor-shell[data-editor-mode="assistant"] {
+    --left-default: 340px;
+  }
+}
+@media (max-width: 1000px) {
+  .a-shell.editor-shell[data-editor-mode="assistant"] {
+    --left-default: 300px;
+  }
+  .editor-shell .agent-chat-shared .agent-message.user {
+    max-width: 90%;
+  }
+  #agent-form {
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  .editor-shell .agent-suggestions button {
+    min-height: 36px;
+  }
+}
+@media (max-width: 360px) {
+  .agent-compose-hint {
+    display: none;
+  }
+}
+@media (hover: none) {
+  .editor-shell .agent-chat-shared .agent-restore {
+    opacity: 1;
+  }
+}

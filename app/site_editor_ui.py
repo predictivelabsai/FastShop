@@ -27,6 +27,8 @@ def editor_features(site, page):
 def editor_page(site, page, csrf_token):
     """Render the editor chrome; all owned data is loaded through its scoped API."""
     features = editor_features(site, page)
+    from app.store_agent_admin import editor_features as assistant_features
+    features = features | assistant_features(site)
     config = json.dumps({"site_id": str(site.id), "page_id": str(page.id),
                          "theme_id": getattr(site, "theme_context_id", ""),
                          "csrf_token": csrf_token, "features": features},
@@ -72,7 +74,10 @@ def editor_page(site, page, csrf_token):
             Meta(name="viewport", content="width=device-width, initial-scale=1"),
             Link(rel="stylesheet", href=static_asset("admin/admin.css")),
             Link(rel="stylesheet", href=static_asset("editor/editor.css")),
-            Link(rel="stylesheet", href=static_asset("editor/dynamic-sources.css")), NotStr(markup),
+            Link(rel="stylesheet", href=static_asset("editor/dynamic-sources.css")),
+            *((Link(rel="stylesheet", href=static_asset("agent-chat.css")),
+               Link(rel="stylesheet", href=static_asset("editor/editor-assistant.css")))
+              if features["assistant"] else ()), NotStr(markup),
             rich_text_template(),
             Script(NotStr(f"window.FASTSHOP_EDITOR={config};")),
             Script(src=static_asset("admin/icons.js")),
