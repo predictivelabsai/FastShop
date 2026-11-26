@@ -306,6 +306,9 @@ def has_published_recently_viewed(db, site):
                              {"recently_viewed"}) for doc in documents)
 
 
+SHELL_LABELS = {"header": "Store header", "footer": "Store footer"}
+
+
 def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=False, message="", blog_listing=False, blog_category="", blog_tag=""):
     from app.site_theme import pack_renderer
     config = site.settings_json if preview else site.published_settings_json
@@ -390,6 +393,12 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
             rendered.attrs["data-builder-section"] = section["id"]
             rendered.attrs["data-builder-label"] = (section.get("heading") or section["type"])[:100]
         return Div(blog_filters, rendered) if blog_listing and section["type"] == "articles" else rendered
+    def shell_marker(group):
+        # Editor canvas only: lets the merchant click the header or footer to open its
+        # settings. The public storefront and ordinary previews never carry these hooks.
+        if not editor:
+            return {}
+        return {"data-builder-shell": group, "data-builder-label": SHELL_LABELS[group], "tabindex": "0"}
     def brand(light=False):
         return image(config.get("logo_light" if light else "logo"), config.get("name", site.name), eager=True) or Span(config.get("name", site.name))
     return (
@@ -421,11 +430,11 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
         Div(
             A("Skip to content", href="#content", cls="h-skip"),
             Div("SANDBOX · Test purchases only" if customer_services_enabled and not preview else "PHASE 1 PREVIEW · Design & content · Purchasing opens after review", cls="h-preview-note") if site.status != "published" or preview or customer_services_enabled else None,
-            Div(config.get("announcement", ""), cls="h-announcement"),
+            Div(config.get("announcement", ""), cls="h-announcement", **shell_marker("header")),
             Header(A(brand(), href=base + "/", cls="h-brand h-brand-dark"), A(brand(True), href=base + "/", cls="h-brand h-brand-light"),
                 Button("Menu", type="button", data_menu_toggle="", aria_expanded="false", aria_controls="site-navigation", cls="h-menu-toggle"),
                 Nav(*[Details(Summary("Shop"), Div(A("All products", href=url(base, "/shop")), *[A(category["label"], href=url(base, category["path"])) for category in config.get("collections", [])], cls="h-dropdown"), cls="h-shop-menu") if item["label"] == "Shop" and item["path"] == "/shop" and config.get("collections") else A(item["label"], href=url(base, item["path"])) for item in header_navigation], id="site-navigation", cls="h-nav"),
-                Div(A("Account", href=base + "/account", aria_label="My account") if commerce_config and commerce_config.customer_accounts_enabled else None, A("Bag", href=base + "/cart", data_cart_open="") if customer_services_enabled else Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items · Phase 2"), cls="h-header-actions"), cls="h-header"),
+                Div(A("Account", href=base + "/account", aria_label="My account") if commerce_config and commerce_config.customer_accounts_enabled else None, A("Bag", href=base + "/cart", data_cart_open="") if customer_services_enabled else Button("Bag (0)", type="button", data_commerce_notice="", aria_label="Cart, zero items · Phase 2"), cls="h-header-actions"), cls="h-header", **shell_marker("header")),
             Div(message, role="status", cls="h-message") if message else None,
             Main(Div(Small(document.get("category", "LEARN"), cls="h-eyebrow"), H1(document["title"]),
                 P("By " + blog["author_name"] if blog["author_name"] else f"By {site.name} team · Draft for editorial review"),
@@ -433,14 +442,14 @@ def storefront(db, site, page, base, csrf, canonical, *, preview=False, editor=F
                 image(document.get("image")), cls="h-article-heading h-container") if page.kind == "article" else None,
                 *[section_view(s, i) for i, s in enumerate(document.get("blocks", [])) if not s.get("hidden")], id="content"),
             Section(Div(Small("A LITTLE SOMETHING TO LOOK FORWARD TO", cls="h-eyebrow"), H2(config.get("offer", "Stay curious.")), P("Our first-order offer is coming when the shop opens.")),
-                    Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer"),
+                    Button("Preview the offer", type="button", data_offer_open="", cls="h-button"), cls="h-offer", **shell_marker("footer")),
             *pre_footer_snippets,
             Footer(Div(Div(A(brand(), href=base + "/", cls="h-brand"), P(config.get("tagline", ""))),
                 Div(H3("Explore"), *[A(item["label"], href=url(base, item["path"])) for item in footer_navigation]),
                 Div(H3("Here to help"), *[A(label, href=url(base, "/pages/" + slug)) for slug, label in [("terms-and-conditions", "Terms and Conditions"), ("privacy-policy", "Privacy Policy"), ("faq", "FAQ"), ("returns-and-refunds", "Returns and Refunds")]]),
                 Div(H3(config.get("company", site.name)), P(config.get("address", "")), A(config.get("email", ""), href="mailto:" + config.get("email", "")),
                     Div(*[social_link(s) for s in config.get("socials", [])], cls="h-socials")), cls="h-footer-grid"),
-                P(config.get("footer", ""), cls="h-disclaimer"), Div(Span("© 2026 " + config.get("company", site.name)), payment_methods(), Button("Cookie preferences", type="button", data_cookie_open=""), cls="h-footer-bottom"), cls="h-footer"),
+                P(config.get("footer", ""), cls="h-disclaimer"), Div(Span("© 2026 " + config.get("company", site.name)), payment_methods(), Button("Cookie preferences", type="button", data_cookie_open=""), cls="h-footer-bottom"), cls="h-footer", **shell_marker("footer")),
             *foot_snippets,
             Div(H2("Your privacy, your choice."), P("Essential storage keeps this site working. Preferences, analytics and marketing are off unless you choose them."),
                 Details(Summary("Preferences"), Label(Input(type="checkbox", checked=True, disabled=True), " Essential (always on)"), Label(Input(type="checkbox", id="consent-preferences"), " Preferences: remembers things like products you viewed on this device"), Label(Input(type="checkbox", id="consent-analytics"), " Analytics"), Label(Input(type="checkbox", id="consent-marketing"), " Marketing")),
