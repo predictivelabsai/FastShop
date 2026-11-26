@@ -307,6 +307,19 @@ def register_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                         role="search",
                     ),
                     Div(
+                        Div(
+                            Div(
+                                H2("Need help finding a setting?",
+                                   id="settings-assistant-heading"),
+                                P("Describe what you want to change and use the assistant to find a "
+                                  "useful starting point."),
+                            ),
+                            A("Ask the assistant", href=prefix + "/assistant",
+                              cls="e-button settings-directory-assistant-action"),
+                            cls="settings-directory-assistant",
+                            role="region",
+                            aria_labelledby="settings-assistant-heading",
+                        ),
                         Div(*groups, cls="settings-directory-groups"),
                         cls="settings-directory-content",
                     ),

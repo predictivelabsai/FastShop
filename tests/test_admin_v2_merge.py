@@ -21,7 +21,7 @@ def test_admin_merge_single_head_and_round_trip(tmp_path):
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
 
-    head = "20261125_0037"
+    head = "20261126_0038_store_assistant"
     assert migrate("heads").strip() == head + " (head)"
     migrate("upgrade", "20261011_0029")
     migrate("upgrade", "head")

@@ -62,6 +62,7 @@ from app.site_blocks import (
     resolve_text,
 )
 from app.site_catalog import register_catalog_routes
+from app.site_seo import edit_href as edit_seo_href
 from app.storefront_ui import public_message
 
 
@@ -156,6 +157,12 @@ def register_site_routes(rt):
     register_media_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_editor_routes import register_site_editor_routes
     register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.site_seo_routes import register_site_seo_routes
+    register_site_seo_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.assistant_routes import register_assistant_routes
+    register_assistant_routes(rt, actor, csrf, check_csrf, shell, error)
+    from app.store_agent_ops import register_routes as register_store_agent_ops_routes
+    register_store_agent_ops_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_widget_routes import register_site_widget_routes
     register_site_widget_routes(rt, actor, csrf, check_csrf, shell, error)
     from app.site_menu_routes import register_menu_routes
@@ -754,6 +761,7 @@ def register_site_routes(rt):
                     SiteRevision.site_id == site.id, SiteRevision.tenant_id == site.tenant_id).order_by(SiteRevision.created_at.desc()).limit(20)))
                 return shell(document["title"], Div(A("← Pages", href=f"/admin/sites/{site.id}/pages"),
                     A("Open visual editor", href=f"/admin/sites/{site.id}/editor?page={page.id}"),
+                    A("Edit SEO", href=edit_seo_href(site, page)),
                     A("Browse media library", href=f"/admin/sites/{site.id}/media", target="_blank"), cls="e-actions"),
                     Div(Form(csrf(session), Input(type="hidden", name="version", value=page.version),
                         Label("URL path", Input(name="path", value=page.path, required=True)),

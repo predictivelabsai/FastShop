@@ -60,6 +60,10 @@ class Settings:
     # The assistant and builder call any OpenAI-compatible chat completions endpoint.
     # MODEL_* takes precedence; the XAI_* names remain for existing deployments.
     xai_api_key: str = os.getenv("MODEL_API_KEY") or os.getenv("XAI_API_KEY", "")
+    # Stores bring their own assistant key. The platform key above powers the assistant for a
+    # store without one only when the operator turns this on, so it never runs up the platform bill.
+    assistant_platform_fallback: bool = os.getenv("FASTSHOP_ASSISTANT_PLATFORM_FALLBACK", "").lower() in {
+        "1", "true", "yes"}
     xai_base_url: str = (
         os.getenv("MODEL_BASE_URL") or os.getenv("XAI_BASE_URL", "https://api.x.ai/v1")
     ).rstrip("/")

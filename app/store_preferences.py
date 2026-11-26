@@ -91,11 +91,11 @@ def metadata(db, site, page, document):
     return row
 
 
-def head_nodes(db, site, preferences, *, preview=False):
+def head_nodes(db, site, preferences, *, preview=False, social_image=True):
     if not preferences:
         return []
     nodes = []
-    if preferences.social_image_id:
+    if preferences.social_image_id and social_image:
         origin = "https://" + site.hostname if site.hostname else settings.public_url
         nodes.append(Meta(property="og:image", content=origin.rstrip("/") + media_url(
             owned_media(db, site, preferences.social_image_id))))

@@ -24,6 +24,9 @@ let state,
   designDirty = false,
   shellDirty = false,
   shellGroup = null,
+  lastSavedShell = "{}",
+  shellTimer,
+  docPreviewPending = false,
   saving = false,
   history = [],
   cursor = -1,
@@ -231,12 +234,13 @@ function snapshot(name) {
   const last = history[cursor], now = Date.now();
   if (last && cursor === history.length - 1 && last.name === name && name.startsWith("Edit ") && now - last.at < 1500) {
     last.document = copy(state.document);
+    last.shell = copy(state.shell_settings || {});
     last.at = now;
     historyButtons();
     return;
   }
   history = history.slice(0, cursor + 1);
-  history.push({ name, document: copy(state.document), at: now });
+  history.push({ name, document: copy(state.document), shell: copy(state.shell_settings || {}), at: now });
   if (history.length > 100) history.shift();
   cursor = history.length - 1;
   historyButtons();
@@ -278,17 +282,22 @@ function select(id) {
   $("#editor").classList.toggle("has-selection", Boolean(id));
   renderTree();
   renderSettings();
+  if (mode === "assistant") assistantPanel?.render();
   send({ type: "select", block_id: id });
 }
-async function preview(blockId = null) {
+async function preview(blockId = null, shellOnly = false) {
   if (needsFullPreview) blockId = null;
+  if (!shellOnly) docPreviewPending = true;
   const request = ++serial;
   try {
     const result = await api("/render", "POST", {
       document: state.document,
       ...(blockId ? { block_id: blockId } : {}),
+      // Unsaved header and footer values show in the canvas before they are saved.
+      ...(shellDirty && !boot.theme_id ? { shell_settings: state.shell_settings } : {}),
     });
     if (request !== serial) return;
+    if (shellOnly && !docPreviewPending && !needsFullPreview && patchShell(result.html)) return;
     if (blockId) {
       const parsed = new DOMParser().parseFromString(result.html, "text/html");
       const replacement = [...parsed.querySelectorAll("[data-block-id]")].find(
@@ -301,6 +310,7 @@ async function preview(blockId = null) {
         original.replaceWith(
           frame.contentDocument.importNode(replacement, true),
         );
+        docPreviewPending = false;
         send({ type: "refresh", block_id: selected });
         return;
       }
@@ -308,8 +318,8 @@ async function preview(blockId = null) {
     }
     const y = frame.contentWindow?.scrollY || 0;
     frame.onload = () => {
-      if (request === serial) needsFullPreview = false;
-      send({ type: "context", block_id: selected, scroll_y: y, labels: canvasLabels() });
+      if (request === serial) needsFullPreview = docPreviewPending = false;
+      send({ type: "context", block_id: selected, shell: shellGroup, scroll_y: y, labels: canvasLabels() });
     };
     frame.srcdoc = result.html;
     $("#node-count").textContent = `${walk().length} blocks`;
@@ -317,12 +327,41 @@ async function preview(blockId = null) {
     if (request === serial) showError(e);
   }
 }
+// Swap only the store header and footer, so typing never reloads the page or moves it.
+function patchShell(html) {
+  const doc = frame.contentDocument;
+  if (!doc) return false;
+  const fresh = [...new DOMParser().parseFromString(html, "text/html").querySelectorAll("[data-builder-shell]")];
+  const current = [...doc.querySelectorAll("[data-builder-shell]")];
+  if (!fresh.length || fresh.length !== current.length ||
+      fresh.some((node, i) => node.dataset.builderShell !== current[i].dataset.builderShell))
+    return false;
+  current.forEach((node, i) => node.replaceWith(doc.importNode(fresh[i], true)));
+  send({ type: "shell", group: shellGroup });
+  return true;
+}
+function previewShell() {
+  clearTimeout(shellTimer);
+  shellTimer = setTimeout(() => preview(null, true), 250);
+}
+function shellChanged(name) {
+  shellDirty = JSON.stringify(state.shell_settings) !== lastSavedShell;
+  themeDirty = designDirty || shellDirty;
+  status(dirty || themeDirty ? "Unsaved changes" : "Saved");
+  snapshot(name);
+  previewShell();
+}
 function canvasLabels() {
   return Object.fromEntries(Object.keys(state?.schema || {}).map((type) => [type, schemaLabel(type)]));
 }
 function restoreHistory() {
   needsFullPreview = true;
   state.document = copy(history[cursor].document);
+  if (history[cursor].shell && state.shell_settings) {
+    state.shell_settings = copy(history[cursor].shell);
+    shellDirty = JSON.stringify(state.shell_settings) !== lastSavedShell;
+    themeDirty = designDirty || shellDirty;
+  }
   dirty = JSON.stringify(state.document) !== lastSaved;
   status(dirty || themeDirty ? "Unsaved changes" : "Saved");
   if (selected && !locate(selected)) selected = null;
@@ -639,12 +678,14 @@ function renderLeft() {
     widgets: "Widgets",
     theme: "Theme settings",
     history: "History",
+    assistant: "Assistant",
   };
   const notes = {
     sections: state?.site?.name || "",
     widgets: "Click to add, or drag onto the page",
     theme: "Shared across your storefront",
     history: "Changes made in this session",
+    assistant: "Changes stay in your draft",
   };
   $("#left-title").textContent = names[mode];
   $("#theme-name").textContent = notes[mode];
@@ -666,6 +707,10 @@ function renderLeft() {
     wireWidgets();
   }
   if (mode === "theme") renderTheme();
+  if (mode === "assistant") {
+    if (assistantPanel) assistantPanel.render();
+    else $("#left-content").innerHTML = '<p class="panel-note">Loading the assistant…</p>';
+  }
   if (mode === "history") {
     $("#left-content").innerHTML =
       `<p class="panel-note">Saved revisions from earlier sessions are under Revisions in the top bar.</p><ol class="history-list" reversed>${history
@@ -864,6 +909,7 @@ function openShell(group) {
   renderTree();
   renderSettings();
   send({ type: "select", block_id: null });
+  send({ type: "shell", group });
 }
 function renderShell() {
   const names = { header: "Store header", footer: "Store footer", consent: "Cookie banner", pages: "Store pages" };
@@ -882,8 +928,8 @@ function renderShell() {
   window.FastShopRichText?.mountAll($("#settings-content"));
   wireFields(obj, (path, v) => {
     set(state.shell_settings, path, v); // The saved copy may have replaced obj.
-    shellDirty = themeDirty = true;
-    status("Unsaved changes");
+    const field = state.shell_schema.fields.find((f) => f.id === path);
+    shellChanged(`Edit ${field?.label || "header and footer"}`);
   });
   const saveShellNow = async (publish) => {
     const buttons = [$("#save-shell"), $("#publish-shell")];
@@ -1251,6 +1297,7 @@ async function saveShell(publish = false) {
       ...(publish ? { publish: true } : {}),
     });
     state.site_version = r.version;
+    lastSavedShell = JSON.stringify(r.shell_settings);
     if (JSON.stringify(state.shell_settings) === submitted) {
       state.shell_settings = r.shell_settings;
       shellDirty = false;
@@ -1493,6 +1540,7 @@ async function load() {
     shellGroup = null;
     themeDirty = designDirty = shellDirty = false;
     lastSaved = JSON.stringify(loadedDocument);
+    lastSavedShell = JSON.stringify(state.shell_settings || {});
     history = [];
     snapshot("Opened page");
     $("#current-page").textContent = state.page.title;
@@ -1562,15 +1610,17 @@ window.addEventListener("message", async (e) => {
     location.assign(url);
     return;
   }
-  if (d.type === "select") select(d.block_id);
+  if (d.type === "select") {
+    if (!d.block_id) shellGroup = null;
+    select(d.block_id);
+  }
   if (d.type === "shell") openShell(d.group);
   if (d.type === "inline") {
     if (d.shell) {
       const field = (state.shell_schema?.fields || []).find((item) => item.id === d.field);
       if (!field || !["text", "textarea"].includes(field.type)) return;
       setField(state.shell_settings, d.field, d.value);
-      shellDirty = themeDirty = true;
-      status("Unsaved changes");
+      shellChanged(`Edit ${field.label}`);
       renderShell();
       return;
     }
@@ -1605,11 +1655,15 @@ $$("[data-mode]").forEach(
       );
       if (window.matchMedia("(max-width: 760px)").matches) select(null);
       mode = b.dataset.mode;
-      if (state) renderLeft();
+      if (state) {
+        renderLeft();
+        if (mode === "assistant") assistantPanel?.loadHistory();
+      }
     }),
 );
 $("#mobile-preview").onclick = () => {
   $("#editor").classList.remove("is-panel-open");
+  shellGroup = null; // The header and footer panel closes too, so the canvas shows.
   select(null);
 };
 $$("[data-device]").forEach(
@@ -1691,7 +1745,9 @@ uploadZone.addEventListener("drop", (e) => {
 const PANEL_LIMITS = { left: [220, 560], right: [260, 560] },
   STAGE_MIN = 360,
   panelStack = window.matchMedia("(max-width: 760px)");
-const panelKey = (side) => `fs-editor-width-${side}`;
+// The assistant keeps its own left width because a conversation wants more room.
+const panelKey = (side) =>
+  side === "left" && mode === "assistant" ? "fs-editor-width-assistant" : `fs-editor-width-${side}`;
 function storedWidth(side) {
   try {
     const value = Number(localStorage.getItem(panelKey(side)));
@@ -1997,4 +2053,15 @@ setInterval(() => {
   if ((dirty || themeDirty) && !saving) save();
 }, 30000);
 load();
-
+// Assistant mode lives in its own module, loaded only when this installation provides it.
+let assistantPanel = null;
+if (boot.features?.assistant)
+  import("./editor-assistant.js").then(({ createAssistantPanel }) => {
+    assistantPanel = createAssistantPanel({
+      boot, $, $$, esc, icon, blockIcon, label, locate, toast, load, renderLeft, select,
+      mode: () => mode,
+      setMode: (value) => { mode = value; },
+      selected: () => selected,
+    });
+    if (state && mode === "assistant") assistantPanel.loadHistory();
+  });

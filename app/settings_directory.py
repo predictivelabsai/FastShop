@@ -23,9 +23,11 @@ SETTINGS_GROUPS = (
         ),
     ),
     (
-        "Data and compliance",
-        "Structured product data and the policies customers read.",
+        "Storefront, data and compliance",
+        "Control how customers find, understand and experience your store.",
         (
+            ("SEO", "/settings/seo", "Search engine and social sharing settings",
+             "Customer-facing", "search engine optimisation social sharing sitemap robots discoverability"),
             ("Custom data", "/settings/custom-data", "Metafield definitions and validation",
              "Structured content", "metafields catalogue product fields validation"),
             ("Policies", "/settings/policies", "Store and customer policies", "Customer-facing",
@@ -56,10 +58,12 @@ SETTINGS_GROUPS = (
     ),
     (
         "Connections",
-        "Connect payment, email, shipping and other services.",
+        "Connect payment, email, shipping, AI and other services.",
         (
             ("Integrations", "/integrations", "Connect services to your store",
              "Admins only", "apps connectors services providers"),
+            ("AI assistant", "/settings/assistant", "Connect your own AI model and API key",
+             "Store managers", "assistant ai model api key openai xai openrouter llm"),
         ),
     ),
 )
@@ -70,5 +74,5 @@ SETTINGS_ICONS = {
     "/settings/seo": "search", "/settings/custom-data": "layers", "/settings/policies": "scroll-text",
     "/settings/payments": "credit-card", "/settings/checkout": "shopping-cart", "/settings/shipping": "truck",
     "/settings/taxes": "landmark", "/settings/notifications": "bell", "/integrations": "blocks",
-    "/settings/channels": "share-2", "/settings/developers": "code",
+    "/settings/channels": "share-2", "/settings/developers": "code", "/settings/assistant": "sparkles",
 }

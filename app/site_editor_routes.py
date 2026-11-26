@@ -128,10 +128,29 @@ def _html(node):
     return str(node) if isinstance(node, NotStr) else str(to_xml(node))
 
 
-def render_document(db, site, page, document, token, block_id=""):
+def draft_shell_site(db, site, submitted):
+    """A detached copy of the store with unsaved header and footer values applied.
+
+    The editor sends these while the merchant types, so the canvas shows them before Save.
+    The copy is never attached to the session, so rendering it cannot persist anything.
+    """
+    from app.models import Site
+    from app.site_editable_settings import apply_shell, shell_fields, shell_values
+
+    fields = shell_fields(site.settings_json)
+    settings = apply_shell(site.settings_json or {}, submitted, fields)
+    content.validate_media_ownership(db, site, shell_values(settings, fields))
+    detached = SimpleNamespace(**{column.key: getattr(site, column.key) for column in Site.__table__.columns})
+    detached.settings_json = settings
+    return detached
+
+
+def render_document(db, site, page, document, token, block_id="", shell_settings=None):
     """Render unsaved content on a detached copy so preview cannot persist changes."""
     document = validate_editor_document(document)
     content.validate_media_ownership(db, site, document)
+    if shell_settings is not None:
+        site = draft_shell_site(db, site, shell_settings)
     from app import custom_data
     document = custom_data.resolve_dynamic_document(db, site, page, document)
     preview = SimpleNamespace(**{column.key: getattr(page, column.key)
@@ -324,9 +343,11 @@ def register_site_editor_routes(rt, actor, csrf, check_csrf, shell, error):
             with SessionLocal() as db:
                 site, _ = access(db, session, site_id)
                 site, selected = editor_context(db, site, page, theme)
+                # Unsaved header and footer values preview on the live theme only.
+                shell_settings = None if theme else values.get("shell_settings")
                 return response({"html": render_document(db, site, selected,
                     values.get("document"), session.get("csrf_token", ""),
-                    values.get("block_id", ""))})
+                    values.get("block_id", ""), shell_settings)})
         except (CommerceError, ValueError, TypeError) as exc:
             return failure(exc)
 

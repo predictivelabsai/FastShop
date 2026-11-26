@@ -1,4 +1,5 @@
 """Authorised catalogue routes within the merchant admin shell."""
+import copy
 import json
 from decimal import Decimal, InvalidOperation
 from types import SimpleNamespace
@@ -53,6 +54,17 @@ def json_field(form, name, default):
     if not isinstance(value, type(default)):
         raise CommerceError("Invalid catalogue form data.")
     return value
+
+
+def _save_page_seo_fields(page, values, published):
+    fields = ("seo_social_title", "seo_social_image", "seo_noindex")
+    draft = copy.deepcopy(page.draft_json or {})
+    draft.update({key: values[key] for key in fields})
+    page.draft_json = draft
+    if published and page.published_json is not None:
+        live = copy.deepcopy(page.published_json)
+        live.update({key: values[key] for key in fields})
+        page.published_json = live
 
 
 def products_for(db, site, filters):
@@ -130,8 +142,16 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
 
     def render_editor(db, session, site, product):
         variants, options, images, selected = [], [], [], []
+        page_seo = {}
         previous = following = None
         if product:
+            from app.models import SitePage
+
+            product_page = db.scalar(select(SitePage).where(
+                SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+                SitePage.product_id == product.id,
+            ))
+            page_seo = (product_page.draft_json or {}) if product_page else {}
             variants = variants_for(db, site, product)
             for option in db.scalars(select(ProductOption).where(
                     ProductOption.tenant_id == site.tenant_id,
@@ -160,7 +180,7 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
         return shell("Edit product" if product else "Add product", ui.product_editor(
             site, product, variants, options, images, media_for(db, site),
             collections_for(db, site), selected, warehouses, csrf(session), previous, following,
-            currency=db.get(Channel, site.channel_id).currency),
+            currency=db.get(Channel, site.channel_id).currency, seo_fields=page_seo),
             custom_data_card(db, site, "product", product.id, csrf(session)) if product else None,
             *([custom_data_card(db, site, "variant", variant["id"], csrf(session))
                for variant in variants if variant.get("id")] if product else []))
@@ -206,6 +226,16 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                         "seo_description", "vendor", "product_type", "template", "country_of_origin",
                         "hs_code", "tax_code", "status")
                 data = {k: str(form.get(k, "")) for k in keys}
+                from app.site_seo import validate_entity_fields
+
+                seo_values = validate_entity_fields(db, site, {
+                    "seo_title": data["seo_title"],
+                    "seo_description": data["seo_description"],
+                    "seo_social_title": str(form.get("seo_social_title", "")),
+                    "seo_social_image": str(form.get("seo_social_image", "")),
+                    "seo_noindex": form.get("seo_noindex") == "on",
+                })
+                data.update({key: seo_values[key] for key in ("seo_title", "seo_description")})
                 data.update(create_redirect=form.get("create_redirect", "on") == "on", tags_json=[t.strip() for t in str(form.get("tags", "")).split(",") if t.strip()],
                     is_published=form.get("published") == "on", charge_tax=form.get("charge_tax") == "on", requires_shipping=form.get("requires_shipping") == "on",
                     weight_grams=int(form.get("weight_grams") or 0),
@@ -258,6 +288,14 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                         expected_version=int(form.get("version", 0)), user_id=user_id)
                 else:
                     product = catalog.create_product(db, site, data, user_id=user_id)
+                from app.models import SitePage
+
+                product_page = db.scalar(select(SitePage).where(
+                    SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+                    SitePage.product_id == product.id,
+                ))
+                if product_page:
+                    _save_page_seo_fields(product_page, seo_values, product.is_published)
                 db.commit()
                 return redirect(site_id, f"products/{product.id}", "Product saved")
         except (CommerceError, ValueError) as exc:
@@ -396,10 +434,17 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
             return error(exc)
 
     def render_collection(db, session, site, collection):
+        from app.models import SitePage
+
         products = list(db.scalars(select(Product).where(Product.tenant_id == site.tenant_id).order_by(Product.name)))
         selected = [p.id for p in catalog.collection_products(db, site, collection)] if collection else []
+        collection_page = db.scalar(select(SitePage).where(
+            SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+            SitePage.collection_id == collection.id,
+        )) if collection else None
         return shell("Edit collection" if collection else "Create collection", ui.collection_editor(
-            site, collection, products, selected, csrf(session), len(selected)),
+            site, collection, products, selected, csrf(session), len(selected),
+            library=media_for(db, site), seo_fields=(collection_page.draft_json or {}) if collection_page else {}),
             custom_data_card(db, site, "collection", collection.id, csrf(session)) if collection else None)
 
     @rt("/admin/sites/{site_id}/collections/new", methods=["GET"])
@@ -433,7 +478,17 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
             check_csrf(session, form)
             with SessionLocal() as db:
                 site = content.owned_site(db, site_id, actor(session), publish=True)
+                from app.site_seo import validate_entity_fields
+
+                seo_values = validate_entity_fields(db, site, {
+                    "seo_title": str(form.get("seo_title", "")),
+                    "seo_description": str(form.get("seo_description", "")),
+                    "seo_social_title": str(form.get("seo_social_title", "")),
+                    "seo_social_image": str(form.get("seo_social_image", "")),
+                    "seo_noindex": form.get("seo_noindex") == "on",
+                })
                 data = {k: str(form.get(k, "")) for k in ("title", "handle", "description", "image_url", "seo_title", "seo_description", "kind", "sort_order")}
+                data.update({key: seo_values[key] for key in ("seo_title", "seo_description")})
                 data.update(create_redirect=form.get("create_redirect", "on") == "on", is_published=form.get("is_published") == "on",
                     product_ids=json_field(form, "product_ids_json", []), rules_json=json_field(form, "rules_json", {}))
                 if not data["handle"]:
@@ -441,6 +496,14 @@ def register_catalog_admin_routes(rt, actor, csrf, check_csrf, shell, error):
                     data["handle"] = re.sub(r"[^a-z0-9]+", "-", data["title"].lower()).strip("-")
                 collection = catalog.save_collection(db, site, data, collection_id=collection_id,
                     expected_version=int(form.get("version", 0)) if collection_id else None)
+                from app.models import SitePage
+
+                collection_page = db.scalar(select(SitePage).where(
+                    SitePage.site_id == site.id, SitePage.tenant_id == site.tenant_id,
+                    SitePage.collection_id == collection.id,
+                ))
+                if collection_page:
+                    _save_page_seo_fields(collection_page, seo_values, collection.is_published)
                 db.commit()
                 return redirect(site_id, f"collections/{collection.id}", "Collection saved")
         except (CommerceError, ValueError) as exc:

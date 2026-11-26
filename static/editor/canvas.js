@@ -26,7 +26,7 @@ import "/static/admin/rich-text.js";
     dropTarget = null;
   const style = document.createElement("style");
   style.textContent = `
- .fs-editor-tools[hidden],.fs-rich-tools[hidden]{display:none!important}[data-block-id]{position:relative;min-height:24px;cursor:pointer}[data-block-id]:hover{outline:1px solid #78a9f8;outline-offset:-1px}[data-block-id].fs-selected{outline:2px solid #005bd3!important;outline-offset:-2px}.fs-editor-tools{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:2px;max-width:calc(100vw - 8px);box-sizing:border-box;background:#005bd3;color:white;border-radius:6px;padding:3px;box-shadow:0 2px 8px #0003;font:12px/1.4 system-ui,sans-serif}.fs-editor-tools button{flex:0 0 auto;display:grid;place-items:center;width:26px;height:26px;padding:0;background:none;color:white;border:0;border-radius:4px;cursor:pointer}.fs-editor-tools button svg{width:15px;height:15px}.fs-editor-tools button:hover{background:#ffffff35}.fs-editor-tools button:focus-visible{outline:2px solid #fff;outline-offset:-2px}.fs-editor-tools span{min-width:0;padding:0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.fs-drop-before{box-shadow:inset 0 4px #005bd3!important}.fs-drop-after{box-shadow:inset 0 -4px #005bd3!important}.fs-drop-inside{outline:3px dashed #005bd3!important;outline-offset:-5px;background-color:#e8f1ff88!important}[contenteditable=true]{outline:2px solid #005bd3!important;outline-offset:3px;cursor:text!important;min-width:10px}.fs-editor-hint{padding:60px 24px;border:2px dashed #b7c9e4;margin:24px;text-align:center;color:#617085;font:14px/1.6 system-ui,sans-serif}.fs-rich-tools{position:fixed;z-index:2147483647;background:#242426;border-radius:5px;padding:4px;display:flex;gap:3px}.fs-rich-tools button{border:0;border-radius:3px;color:white;background:transparent;padding:5px 8px;font:13px system-ui,sans-serif}.fs-rich-tools button:hover{background:#4b4b50}`;
+ .fs-editor-tools[hidden],.fs-rich-tools[hidden]{display:none!important}[data-block-id]{position:relative;min-height:24px;cursor:pointer}[data-block-id]:hover{outline:1px solid #78a9f8;outline-offset:-1px}[data-block-id].fs-selected{outline:2px solid #005bd3!important;outline-offset:-2px}[data-builder-shell]{cursor:pointer}[data-builder-shell]:hover{outline:1px solid #78a9f8;outline-offset:-1px}[data-builder-shell]:focus-visible{outline:2px solid #005bd3;outline-offset:-2px}[data-builder-shell].fs-selected{outline:2px solid #005bd3!important;outline-offset:-2px}.fs-editor-tools{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:2px;max-width:calc(100vw - 8px);box-sizing:border-box;background:#005bd3;color:white;border-radius:6px;padding:3px;box-shadow:0 2px 8px #0003;font:12px/1.4 system-ui,sans-serif}.fs-editor-tools button{flex:0 0 auto;display:grid;place-items:center;width:26px;height:26px;padding:0;background:none;color:white;border:0;border-radius:4px;cursor:pointer}.fs-editor-tools button svg{width:15px;height:15px}.fs-editor-tools button:hover{background:#ffffff35}.fs-editor-tools button:focus-visible{outline:2px solid #fff;outline-offset:-2px}.fs-editor-tools span{min-width:0;padding:0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.fs-drop-before{box-shadow:inset 0 4px #005bd3!important}.fs-drop-after{box-shadow:inset 0 -4px #005bd3!important}.fs-drop-inside{outline:3px dashed #005bd3!important;outline-offset:-5px;background-color:#e8f1ff88!important}[contenteditable=true]{outline:2px solid #005bd3!important;outline-offset:3px;cursor:text!important;min-width:10px}.fs-editor-hint{padding:60px 24px;border:2px dashed #b7c9e4;margin:24px;text-align:center;color:#617085;font:14px/1.6 system-ui,sans-serif}.fs-rich-tools{position:fixed;z-index:2147483647;background:#242426;border-radius:5px;padding:4px;display:flex;gap:3px}.fs-rich-tools button{border:0;border-radius:3px;color:white;background:transparent;padding:5px 8px;font:13px system-ui,sans-serif}.fs-rich-tools button:hover{background:#4b4b50}`;
   document.head.append(style);
   style.textContent += `.fs-rich-tools{position:fixed;z-index:2147483647;left:4px;right:4px;max-width:calc(100vw - 8px);max-height:48vh;overflow:auto;background:#f8fafb;border:1px solid #cfd6dc;border-radius:8px;padding:5px;box-shadow:0 8px 24px #0003;color:#222;font:13px system-ui,sans-serif}.fs-rich-tools .rt-toolbar{display:flex;flex-wrap:wrap;gap:4px}.fs-rich-tools .rt-tool-group{display:flex;flex-wrap:wrap;gap:3px;border-right:1px solid #dce1e6;padding:0 4px}.fs-rich-tools button,.fs-rich-tools select{min-width:42px;min-height:42px;border:1px solid #cfd6dc;border-radius:5px;background:#fff;color:#222;padding:6px}.fs-rich-tools button[aria-pressed=true]{background:#e6f3ed;border-color:#2c7a54;color:#1a553a}.fs-rich-tools [data-rich-link-popover]{position:fixed;right:8px;top:58px;left:8px;max-width:420px;background:white;padding:12px;border:1px solid #cfd6dc;border-radius:6px;box-shadow:0 4px 16px #0003}.fs-rich-tools .rt-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}`;
   const tools = document.createElement("div");
@@ -42,17 +42,37 @@ import "/static/admin/rich-text.js";
   hoverLabel.style.cssText =
     "position:fixed;z-index:2147483646;pointer-events:none;background:#005bd3;color:white;padding:3px 7px;border-radius:4px;font:600 11px/1.4 system-ui,sans-serif;max-width:calc(100vw - 8px);box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
   document.body.append(hoverLabel);
-  document.addEventListener("mousemove", (e) => {
-    const node = e.target.closest("[data-block-id]");
+  // Sections, and the store header and footer, show their name on hover or focus.
+  function showLabel(target) {
+    const node = target?.closest?.("[data-block-id],[data-builder-shell]");
+    const isShell = Boolean(node && !node.dataset.blockId);
     hoverLabel.hidden =
-      !node || Boolean(editing) || node?.dataset.blockId === selected;
+      !node ||
+      Boolean(editing) ||
+      (isShell ? node.classList.contains("fs-selected") : node.dataset.blockId === selected);
     if (!hoverLabel.hidden) {
       const r = node.getBoundingClientRect();
-      hoverLabel.textContent = blockName(node);
+      hoverLabel.textContent = isShell ? node.dataset.builderLabel || "Store header" : blockName(node);
       hoverLabel.style.left = `${Math.max(4, Math.min(r.left, innerWidth - hoverLabel.offsetWidth - 4))}px`;
       hoverLabel.style.top = `${Math.max(2, r.top)}px`;
     }
+  }
+  document.addEventListener("mousemove", (e) => showLabel(e.target));
+  document.addEventListener("focusin", (e) => {
+    if (e.target.matches?.("[data-builder-shell]")) showLabel(e.target);
   });
+  const shells = () => [...document.querySelectorAll("[data-builder-shell]")];
+  let selectedShell = null;
+  function selectShell(group) {
+    selectedShell = group || null;
+    shells().forEach((n) => n.classList.toggle("fs-selected", n.dataset.builderShell === selectedShell));
+    if (selectedShell) hoverLabel.hidden = true;
+  }
+  function openShell(node) {
+    select(null);
+    selectShell(node.dataset.builderShell);
+    send({ type: "shell", group: node.dataset.builderShell });
+  }
   // Friendly section names come from the editor; the raw type is only a fallback.
   let labels = {};
   const blockName = (node) =>
@@ -78,6 +98,7 @@ import "/static/admin/rich-text.js";
     tools.style.left = `${Math.max(4, Math.min(r.left, innerWidth - tools.offsetWidth - 6))}px`;
   }
   function select(id) {
+    if (id) selectShell(null);
     blocks().forEach((n) =>
       n.classList.toggle("fs-selected", n.dataset.blockId === id),
     );
@@ -172,8 +193,7 @@ import "/static/admin/rich-text.js";
       if (shell && !e.target.closest("[data-block-id]")) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        select(null);
-        send({ type: "shell", group: shell.dataset.builderShell });
+        openShell(shell);
         return;
       }
       const node = e.target.closest("[data-block-id]");
@@ -186,6 +206,7 @@ import "/static/admin/rich-text.js";
         if (e.target.closest("a,button,input,select,textarea,form"))
           e.stopImmediatePropagation();
         select(null);
+        selectShell(null);
         send({ type: "select", block_id: null });
       }
     },
@@ -283,6 +304,17 @@ import "/static/admin/rich-text.js";
     )
       finishEdit();
   });
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if ((e.key === "Enter" || e.key === " ") && !editing && e.target.matches?.("[data-builder-shell]")) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        openShell(e.target);
+      }
+    },
+    true,
+  );
   document.addEventListener("keydown", (e) => {
     const mod = e.ctrlKey || e.metaKey;
     if (!mod && e.target.closest("[data-widget-control]")) return;
@@ -392,6 +424,7 @@ import "/static/admin/rich-text.js";
     }
     if (d.type === "select") {
       select(d.block_id);
+      if (!d.block_id) selectShell(null);
       // A section picked in the sidebar comes into view if it is off-screen.
       const node = d.block_id && find(d.block_id);
       if (node) {
@@ -403,9 +436,11 @@ import "/static/admin/rich-text.js";
           });
       }
     }
+    if (d.type === "shell") selectShell(typeof d.group === "string" ? d.group : null);
     if (d.type === "context") {
       if (d.labels && typeof d.labels === "object") labels = d.labels;
       select(d.block_id);
+      selectShell(typeof d.shell === "string" ? d.shell : null);
       if (Number.isFinite(d.scroll_y)) scrollTo(0, d.scroll_y);
     }
     if (d.type === "drag") dragPayload = d.payload;

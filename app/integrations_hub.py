@@ -8,6 +8,7 @@ from app.admin_ui import badge, page_header
 from app.models import Site
 
 _TONES = {"Connected": "success", "Live": "success", "Test mode": "info", "Sandbox": "info",
+          "Platform key": "info", "Needs attention": "warning",
           "Set": "success", "Ready": "success", "Available": "success"}
 
 
@@ -50,6 +51,13 @@ def page(db, site: Site):
     def manage(status):
         return "Manage" if status not in {"Not connected", "Not set"} else "Set up"
 
+    from app import assistant_provider
+
+    model = assistant_provider.status(db, site)
+    model_hints = model["hints"]
+    model_description = (f"{model_hints.get('provider', '')} · {model_hints.get('model', '')}"
+                         if model["state"] == "store" else
+                         "Bring your own xAI, OpenAI, OpenRouter or OpenAI-compatible API key.")
     sections = [
         _section("Payments", "Take card and wallet payments at checkout.",
                  _row("credit-card", "Stripe", "Cards, Apple Pay, Google Pay and PayPal through Stripe.", stripe,
@@ -62,6 +70,10 @@ def page(db, site: Site):
                  _row("rss", "Google Merchant Center", "A product feed of your published catalogue.",
                       "Available", base + "/integrations/import#integration-connections", "Open"))
         if "csv" in importers else None,
+        _section("AI assistant", "The model behind the store assistant in the admin and the theme editor.",
+                 _row("sparkles", "AI model", model_description, model["label"],
+                      base + "/settings/assistant",
+                      "Manage" if model["state"] in {"store", "unreadable"} else "Set up")),
         _section("Import and migration", "Bring products, customers, orders and content across. "
                                          "Every import is previewed before anything is written.",
                  *[_row(icon, name, description, importer(platform), base + "/integrations/import", "Open")
